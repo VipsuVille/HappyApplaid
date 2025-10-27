@@ -1,69 +1,55 @@
-import React from 'react';
-import { useAuth } from '@clerk/nextjs';
-import { UserFormData, AIData } from '@/types';
-import { saveCV } from '@/utils/supabaseUtils';
-import html2pdf from 'html2pdf.js';
+// components/cv/DownloadButton.tsx
+'use client';
+import { PDFDocument, rgb } from 'pdf-lib';
 
 type DownloadButtonProps = {
-  userId: string;
-  aiData: AIData;
-  userData: UserFormData;
+  cvElementRef: React.RefObject<HTMLElement>;
 };
 
-const DownloadButton: React.FC<DownloadButtonProps> = ({ userId, aiData, userData }) => {
-  const { getToken } = useAuth();
-
-  const handleDownloadPDF = async () => {
+const DownloadButton = ({ cvElementRef }: DownloadButtonProps) => {
+  const handleDownload = async () => {
     try {
-      const cvElement = document.getElementById('cv-preview');
+      // Luo uusi PDF-dokumentti
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage([595, 842]); // A4-koko (leveys x korkeus)
+
+      // Hae CV-elementin sisältö
+      const cvElement = cvElementRef.current;
       if (!cvElement) {
-        throw new Error('CV preview element not found');
+        throw new Error('CV-elementtiä ei löytynyt.');
       }
 
-      // Lisää kaikki data renderöintiin
-      if (aiData.background) {
-        cvElement.style.backgroundImage = `url(${aiData.background})`;
-        cvElement.style.backgroundSize = 'cover';
-        cvElement.style.backgroundRepeat = 'no-repeat';
-      }
-
-      const supabaseToken = await getToken({ template: 'supabase-custom' });
-      if (!supabaseToken) {
-        throw new Error('Authentication token not available');
-      }
-
-      // Tallenna CV ja varmista, että kaikki data on mukana
-      await saveCV({
-        userId,
-        cvData: userData,
-        aiData,
-        authToken: supabaseToken,
-        cvElement,
+      // Lisää tekstiä PDF-tiedostoon (esimerkki)
+      const text = cvElement.innerText || 'CV-sisältö';
+      page.drawText(text, {
+        x: 50,
+        y: 800, // Aloita ylhäältä
+        size: 12,
+        color: rgb(0, 0, 0), // Musta teksti
       });
 
-      // PDF-asetukset
-      const options = {
-        margin: 1,
-        filename: `CV_${userData.name || 'Anonymous'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      };
+      // Tallenna PDF-tiedosto
+      const pdfBytes = await pdfDoc.save();
 
-      // Luo ja lataa PDF
-      await html2pdf().set(options).from(cvElement).save();
+      // Luo Blob ja lataa tiedosto
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
 
-      alert('CV tallennettu onnistuneesti PDF-muodossa!');
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'cv.pdf';
+      link.click();
+      URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Error handling PDF:', error);
-      alert(error instanceof Error ? error.message : 'CV:n tallentaminen epäonnistui');
+      console.error('PDF-generointivirhe:', error);
+      alert('PDF:n lataaminen epäonnistui. Yritä uudelleen.');
     }
   };
 
   return (
     <button
-      onClick={handleDownloadPDF}
-      className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+      onClick={handleDownload}
+      className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
     >
       Lataa CV (PDF)
     </button>

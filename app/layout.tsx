@@ -1,7 +1,11 @@
+//app/layout.tsx
+
 import { ClerkProvider } from "@clerk/nextjs";
 import type { Appearance } from "@clerk/types";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "sonner";
+import { LanguageProvider } from "@/context/LanguageContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,6 +34,7 @@ const clerkAppearance: Appearance = {
     dividerText: 
       "text-gray-500",
   },
+  
   layout: {
     socialButtonsPlacement: "bottom",
     logoPlacement: "inside",
@@ -47,7 +52,10 @@ export default function RootLayout({
       appearance={clerkAppearance}
     >
       <html lang="fi">
-        <body className={inter.className}>{children}</body>
+      <LanguageProvider>
+      
+      <body className={`${inter.className} bg-slate-200`}>{children}<Toaster position="top-center" /></body>
+      </LanguageProvider>
       </html>
     </ClerkProvider>
   );

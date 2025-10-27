@@ -14,7 +14,6 @@ export const createPreviewData = (data: BaseCV): PreviewData => {
 
 export const initialFormData: UserFormData = {
   name: '',
-  age: '',
   email: '',
   phone: '',
   location: '',
@@ -23,6 +22,11 @@ export const initialFormData: UserFormData = {
   skills: '',
   hobbies: '',
   languages: '',
+  personalityTraits: '',
+  age: '',
   linkedIn: '',
-  language: "Suomi", // Add this line
+  language: 'Suomi',
+  userId: '',
+  cvId: '',
+  cvType: 'simple'
 };
