@@ -5,13 +5,12 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTokens } from '@/hooks/useTokens';
-import { useSubscription } from '@/hooks/useSubscription';
 import { PRICING } from '@/lib/pricing';
 
 export default function AccountPage() {
   const { user } = useUser();
   const { tokens, isActive, plan, isLoading: tokensLoading } = useTokens();
-  const { status, isLoading: subscriptionLoading } = useSubscription();
+//  const { status, isLoading: subscriptionLoading } = useSubscription();
   const [cancelLoading, setCancelLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -100,7 +99,7 @@ export default function AccountPage() {
             <CardDescription>Aktiivisen tilauksesi tiedot</CardDescription>
           </CardHeader>
           <CardContent>
-            {subscriptionLoading || tokensLoading ? (
+           {  tokensLoading ? (
               <p>Ladataan tilaustietoja...</p>
             ) : status === 'active' ? (
               <div className="space-y-4">

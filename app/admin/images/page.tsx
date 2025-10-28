@@ -1,7 +1,6 @@
 // app/admin/images/page.tsx
 'use client';
 import { useState } from 'react';
-import { uploadDefaultImages } from '@/utils/imageUtils';
 import { supabase } from '@/lib/supabase';
 
 // Määritellään UploadResult-tyyppi vastaamaan imageUtils.ts tiedoston palautusarvoa
@@ -20,7 +19,7 @@ export default function UploadImagesPage() {
   const [results, setResults] = useState<UploadResult[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
-  const handleUpload = async () => {
+ /* const handleUpload = async () => {
     if (!files || files.length === 0) return;
    
     setIsUploading(true);
@@ -45,7 +44,7 @@ export default function UploadImagesPage() {
       setIsUploading(false);
     }
   };
-  
+  */
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Lataa default-kuvia</h1>
@@ -71,7 +70,7 @@ export default function UploadImagesPage() {
       />
      
       <button
-        onClick={handleUpload}
+   //     onClick={handleUpload}
         disabled={isUploading}
         className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
       >
