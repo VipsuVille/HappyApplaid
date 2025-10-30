@@ -31,7 +31,6 @@ import {
   Crown,
   Lock,
 } from "lucide-react";
-import { useSubscription } from "@/components/SubscriptionStatus";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
 import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
