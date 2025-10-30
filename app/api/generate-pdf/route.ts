@@ -1,6 +1,6 @@
-// app/api/generate-pdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 
 export const maxDuration = 300;
 
@@ -14,27 +14,20 @@ export async function POST(req: NextRequest) {
 
     const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}`;
 
+    // Vercel-yhteensopiva Puppeteer setup
     const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
       headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-web-security", // Sallii CORS kuvien lataus
-        "--disable-features=VizDisplayCompositor",
-        "--disable-background-timer-throttling",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-renderer-backgrounding",
-      ],
     });
 
     const page = await browser.newPage();
 
     // A4-koko optimoitu PDF:lle
     await page.setViewport({
-      width: 794, // A4 leveys pisteinä
-      height: 1123, // A4 korkeus pisteinä
-      deviceScaleFactor: 1, // Vähennä jos liian iso
+      width: 794,
+      height: 1123,
+      deviceScaleFactor: 1,
     });
 
     // Aseta auth token jos saatavilla
@@ -44,20 +37,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Lisää User-Agent että näyttää oikealta selaimelta
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
 
     console.log(`Navigating to: ${cvUrl}`);
 
-    // Mene CV preview sivulle
     await page.goto(cvUrl, {
       waitUntil: "networkidle0",
       timeout: 30000,
     });
 
-    // Odota että kaikki kuvat latautuvat (erityisesti taustakuvat)
+    // Odota että kaikki kuvat latautuvat
     await page.evaluate(() => {
       return Promise.all(
         Array.from(document.images)
@@ -71,7 +62,6 @@ export async function POST(req: NextRequest) {
       );
     });
 
-    // Odota vielä hetki varmuuden vuoksi
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // Varmista että background-image CSS propertyt latautuvat
@@ -106,10 +96,9 @@ export async function POST(req: NextRequest) {
 
     console.log("Generating PDF...");
 
-    // *** TÄRKEÄ: Käytä page.pdf() eikä screenshot() ***
     const pdfBuffer = await page.pdf({
       format: "A4",
-      printBackground: true, // TÄRKEÄ: näyttää taustakuvat
+      printBackground: true,
       margin: {
         top: "0",
         right: "0",
@@ -123,10 +112,9 @@ export async function POST(req: NextRequest) {
 
     console.log("PDF generated successfully");
 
-    // Palauta oikea PDF tiedosto
     return new NextResponse(pdfBuffer, {
       headers: {
-        "Content-Type": "application/pdf", // KORJAUS: oli image/png
+        "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="cv-${cvId}.pdf"`,
         "Cache-Control": "no-cache",
       },
