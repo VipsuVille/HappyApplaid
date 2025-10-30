@@ -29,7 +29,7 @@ export default async function PricingPage() {
               ))}
             </ul>
            
-            <form action={async (formData: FormData) => {
+            <form action={async () => {
               'use server';
               if (!user?.id) return;
               const session = await createCheckoutSession(user.id, tier as Tier);

@@ -4,8 +4,9 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { cvId: string } }
+  context: { params: Promise<{ cvId: string }> } // ← Promise!
 ) {
+  const params = await context.params; // ← Await tässä!
   const cvId = params.cvId;
 
   if (!cvId) {
@@ -18,7 +19,6 @@ export async function GET(
   try {
     console.log("🔍 API: Fetching CV:", cvId);
 
-    // ✅ Käytä supabaseAdmin palvelimella (turvallista)
     const { data, error } = await supabaseAdmin
       .from("cvs")
       .select("*")
@@ -42,7 +42,6 @@ export async function GET(
 
     console.log("✅ CV fetched successfully");
 
-    // Palauta CV data
     return NextResponse.json({ cv: data }, { status: 200 });
 
   } catch (error) {

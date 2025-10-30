@@ -1,3 +1,19 @@
+import { NextResponse } from 'next/server';
+export const mockCVData = {}
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}
+
+export async function PATCH() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}
+/*
 //lib/langchain/mockCVData.ts
 
 import { AIData, UserFormData } from '@/types';
@@ -178,3 +194,4 @@ export const mockCVData = {
       },
     },
   } as Record<'technical' | 'simple' | 'creative', { cv_data: UserFormData; ai_data: AIData }>;
+   */

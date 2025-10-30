@@ -89,7 +89,7 @@ export const prepareImageForPDF = async (
       // Jos ei toimi, muunna base64:ksi
       return await getImageAsBase64(imageUrl);
     }
-  } catch (error) {
+  } catch  {
     console.warn(
       `Image not accessible directly, converting to base64: ${imageUrl}`
     );

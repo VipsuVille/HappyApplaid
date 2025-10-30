@@ -1,10 +1,10 @@
-import { RocketIcon, CheckCircleIcon, SaveIcon, HammerIcon } from 'lucide-react';
+import { RocketIcon, CheckCircleIcon, SaveIcon, HammerIcon, FileTextIcon, MailIcon } from 'lucide-react';
 import { LoadingStatesProps, StatusText } from '@/types';
 import { Progress } from '@/components/ui/progress';
 import { ReactElement } from 'react';
 
 const LoadingStates = ({ progress, stage }: LoadingStatesProps) => {
-  // Define the status icons with proper typing
+  // ✅ Lisää kaikki StatusText enum-arvot
   const statusIcon: Record<StatusText, ReactElement> = {
     [StatusText.UPLOADING]: (
       <RocketIcon className="h-20 w-20 text-indigo-600" />
@@ -13,12 +13,20 @@ const LoadingStates = ({ progress, stage }: LoadingStatesProps) => {
       <CheckCircleIcon className="h-20 w-20 text-indigo-600" />
     ),
     [StatusText.SAVING]: (
-        <>      <HammerIcon className="h-20 w-20 text-indigo-600 animate-bounce" />
-              <SaveIcon className="h-20 w-20 text-indigo-600" />
-        </>      
+      <>
+        <HammerIcon className="h-20 w-20 text-indigo-600 animate-bounce" />
+        <SaveIcon className="h-20 w-20 text-indigo-600" />
+      </>
     ),
     [StatusText.GENERATING]: (
       <HammerIcon className="h-20 w-20 text-indigo-600 animate-bounce" />
+    ),
+    // ✅ LISÄÄ NÄMÄ PUUTTUVAT:
+    [StatusText.GENERATING_LETTER]: (
+      <MailIcon className="h-20 w-20 text-indigo-600 animate-bounce" />
+    ),
+    [StatusText.SAVING_LETTER]: (
+      <FileTextIcon className="h-20 w-20 text-indigo-600 animate-pulse" />
     ),
   };
 

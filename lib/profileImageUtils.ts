@@ -2,6 +2,8 @@
 /**
  * Client-safe profile image utilities
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export function getProfileImageUrl(filePath: string | null): string | null {
   if (!filePath) return null;
   if (filePath.startsWith("http")) return filePath;
@@ -39,7 +41,7 @@ export function validateImageFile(file: File): {
 }
 
 // lib/profileImageUtils.ts (SERVER-SIDE ONLY)
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { v4 as uuidv4 } from "uuid";
 
 // Validoi tiedostokoko (max 5MB)
@@ -121,7 +123,7 @@ export async function uploadProfileImage(
  * Poista vanhat profiilikuvat käyttäjältä
  * PRIVATE helper function
  */
-async function cleanupOldProfileImages(userId: string, supabaseClient: any) {
+async function cleanupOldProfileImages(userId: string, supabaseClient: SupabaseClient) {
   try {
     const { data: files, error } = await supabaseClient.storage
       .from("cv_files")

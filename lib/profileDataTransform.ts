@@ -1,4 +1,6 @@
 // lib/profileDataTransform.ts - KORJATTU VERSIO
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import type { ProfileData, UserFormData } from "@/types";
 
 export interface DBProfileData {

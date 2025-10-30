@@ -1,4 +1,6 @@
 // app/profile/page.tsx - TÄYDELLINEN VERSIO
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -20,7 +22,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { ProfileData, EducationItem, WorkExperienceItem, LanguageItem } from "@/types";
+import type { ProfileData} from "@/types";
 
 type ArrayFieldName = "education" | "workExperience" | "languages";
 type ProfileFieldName = keyof ProfileData;

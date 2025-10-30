@@ -1,8 +1,25 @@
-// app/api/admin/images/upload/route.ts
+
+// app/admin/images/[id]/route.ts
+import { NextResponse } from 'next/server';
+
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}
+
+export async function PATCH() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}
+/*// app/api/admin/images/upload/route.ts
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import supabaseAdmin from '@/lib/supabase-admin';
+// import supabaseAdmin from '@/lib/supabase-admin';
 
 
 interface ClerkPublicMetadata {
@@ -46,14 +63,14 @@ export async function POST(req: Request) {
     }
    
     // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
-      .from('cv_files')
-      .getPublicUrl(uploadData.path);
+  //  const { data: urlData } = supabaseAdmin.storage
+ //     .from('cv_files')
+  //    .getPublicUrl(uploadData.path);
    
     // Tallenna tietokantaan
-    const { data, error: dbError } = await supabaseAdmin
-      .from('default_images')
-      .insert({
+  //  const { data, error: dbError } = await supabaseAdmin
+//.from('default_images')
+   /*   .insert({
         image_type: category,
         file_path: filePath,
         is_active: true,
@@ -89,4 +106,4 @@ export const config = {
   api: {
     bodyParser: false, // Tarvitaan FormDataa varten
   },
-};
+};*/

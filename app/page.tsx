@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+
 "use client";
 
 import { useLanguage } from "@/context/LanguageContext";
@@ -28,7 +31,6 @@ import {
   Crown,
   Lock,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { useSubscription } from "@/components/SubscriptionStatus";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -61,16 +63,7 @@ export default function Home() {
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const {
-    subscription,
-    isLoading: subscriptionLoading,
-    isActive,
-  } = useSubscription();
-  const {
     tokens,
-    isLoading: tokensLoading,
-    plan,
-    tokenCost,
-    fetchTokens,
   } = useTokens();
 
   // ✅ LISÄTTY: isDevelopmentMode määritelmä

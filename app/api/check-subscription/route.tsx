@@ -27,14 +27,14 @@ export async function GET() {
 
   try {
     // 1. HAE KÄYTTÄJÄN SUBSCRIPTION
-    const { data: subscription, error: subError } = await supabaseAdmin
+    const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
       .select("plan_type, tokens, status, current_period_end")
       .eq("user_id", currentUserId)
       .single();
 
     // 2. HAE KÄYTTÄJÄN PROFIILI (has_used_free_cv)
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile } = await supabaseAdmin
       .from("user_profiles")
       .select("has_used_free_cv")
       .eq("user_id", currentUserId)

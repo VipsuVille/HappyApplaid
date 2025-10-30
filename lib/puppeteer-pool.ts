@@ -8,7 +8,8 @@ let chromium: any;
 const isProduction = process.env.NODE_ENV === "production";
 
 if (isProduction) {
-  chromium = require("@sparticuz/chromium");
+  // Dynaaminen import
+  chromium = await import("@sparticuz/chromium").then(mod => mod.default);
 }
 
 let browser: Browser | null = null;

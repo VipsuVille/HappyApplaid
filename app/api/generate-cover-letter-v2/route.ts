@@ -8,8 +8,6 @@ import {
   generateATSReport,
 } from "@/lib/langchain/coverLetterGeneratorV2";
 
-import { validateCoverLetterData } from "@/lib/langchain/honestCoverLetterValidator";
-
 export async function POST(req: Request) {
   const { userId } = await auth();
 

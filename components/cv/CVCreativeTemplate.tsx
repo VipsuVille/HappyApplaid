@@ -1,4 +1,15 @@
-import React, { useEffect, useState, useRef } from 'react';
+
+'use client';
+export default function AccountPage() {
+  return (
+    <div className="container mx-auto py-12">
+      <h1 className="text-3xl font-bold mb-8">Oma tili</h1>
+      <p>Tulossa pian...</p>
+    </div>
+  );
+}/*
+
+/*import React, { useEffect, useState, useRef } from 'react';
 import { CVTemplateProps } from '@/types';
 import CVContainer from './CVContainer';
 import Section from './Section';
@@ -131,9 +142,9 @@ const generatePDF = async (): Promise<Blob> => {
         backgroundColor: 'white'
       }}>
         <div className="flex flex-row h-[297mm] w-[210mm] box-border">
-          {/* Vasen sivupalkki */}
+          {/* Vasen sivupalkki }
           <div className="w-[70mm] flex flex-col h-[297mm]">
-            {/* Profiilikuva */}
+            {/* Profiilikuva }
             <div className="h-[99mm] w-[70mm] box-border">
               {(images.profile || aiData?.profileInitials) && (
                 <div className="w-[70mm] h-[99mm] overflow-hidden">
@@ -180,7 +191,7 @@ const generatePDF = async (): Promise<Blob> => {
               )}
             </div>
 
-            {/* Taidot-osio */}
+            {/* Taidot-osio }
             <div
               className="h-[198mm] w-[70mm] relative left-0"
               style={{
@@ -234,9 +245,9 @@ const generatePDF = async (): Promise<Blob> => {
             </div>
           </div>
 
-          {/* Oikea sisältöalue */}
+          {/* Oikea sisältöalue
           <div className="w-[140mm] flex flex-col h-[297mm] bg-white min-w-0">
-            {/* Header-alue */}
+            {/* Header-alue }
             <div
               className="h-[99mm] w-[140mm] relative"
               style={{
@@ -288,7 +299,7 @@ const generatePDF = async (): Promise<Blob> => {
                 </div>
               )}
 
-              {/* Nimi */}
+              {/* Nimi }
               <div className="relative z-10 p-4 md:pb-0">
                 <Section
                   title=""
@@ -299,9 +310,9 @@ const generatePDF = async (): Promise<Blob> => {
               </div>
             </div>
 
-            {/* Muut tiedot */}
+            {/* Muut tiedot 
             <div className="h-[198mm] p-4 md:pb-0 max-h-[198mm] grid grid-cols-2 gap-4 overflow-y-auto">
-              {/* Yhteystiedot */}
+              {/* Yhteystiedot 
               <Section
                 title="Yhteystiedot"
                 content={`
@@ -325,7 +336,7 @@ const generatePDF = async (): Promise<Blob> => {
                 }}
               />
 
-              {/* Harrastukset */}
+              {/* Harrastukset 
               <Section
                 title="Harrastukset"
                 content={data.hobbies}
@@ -333,7 +344,7 @@ const generatePDF = async (): Promise<Blob> => {
                 onChange={(newContent) => onContentChange?.('hobbies', newContent)}
               />
 
-              {/* Koulutus */}
+              {/* Koulutus
               <Section
                 title="Koulutus"
                 content={data.education}
@@ -341,7 +352,7 @@ const generatePDF = async (): Promise<Blob> => {
                 onChange={(newContent) => onContentChange?.('education', newContent)}
               />
 
-              {/* Työkokemus */}
+              {/* Työkokemus 
               <Section
                 title="Työkokemus"
                 content={data.workExperience}
@@ -349,7 +360,7 @@ const generatePDF = async (): Promise<Blob> => {
                 onChange={(newContent) => onContentChange?.('workExperience', newContent)}
               />
 
-              {/* Kielitaito */}
+              {/* Kielitaito 
               <Section
                 title="Kielitaito"
                 content={data.languages}
@@ -364,4 +375,4 @@ const generatePDF = async (): Promise<Blob> => {
   );
 };
 
-export default CreativeCVTemplate;
+export default CreativeCVTemplate;*/

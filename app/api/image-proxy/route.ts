@@ -1,7 +1,6 @@
 // app/api/image-proxy/route.ts - Updated version
 import { NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -44,7 +43,7 @@ export async function GET(request: Request) {
       // For non-relative URLs, proceed as before
       try {
         new URL(imageUrl);
-      } catch (e) {
+      } catch {
         return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
       }
       

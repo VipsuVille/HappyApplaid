@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import {
   generateCVWithLangChain,
-  assessDataQualityWithAI,
+  
 } from "@/lib/langchain/cvGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
 import { 
@@ -46,13 +46,13 @@ export async function POST(req: Request) {
     // 1️⃣ TARKISTA KÄYTTÄJÄN TIER JA RAJOITUKSET
     // ========================================
 
-    const { data: subscription, error: subError } = await supabaseAdmin
+    const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
       .select("plan_type, tokens, status, current_period_end")
       .eq("user_id", currentUserId)
       .single();
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile} = await supabaseAdmin
       .from("user_profiles")
       .select("has_used_free_cv")
       .eq("user_id", currentUserId)

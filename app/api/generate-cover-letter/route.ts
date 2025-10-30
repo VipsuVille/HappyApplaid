@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateCoverLetterWithPersonalityExtraction } from "@/lib/langchain/coverLetterGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
-import { ProfileData, convertProfileToApiFormat } from "@/types";
+import { convertProfileToApiFormat } from "@/types";
 
 // ✅ APUFUNKTIO: Poimii työpaikan otsikon ilmoituksesta
 function extractJobTitleFromDescription(jobDescription: string): string {

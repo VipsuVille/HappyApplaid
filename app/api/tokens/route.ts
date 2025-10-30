@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 }
 
 // NEW GET method for retrieving token information
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
     

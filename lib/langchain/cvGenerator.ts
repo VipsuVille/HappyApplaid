@@ -1,4 +1,5 @@
 // lib/langchain/cvGenerator.ts - KORJATTU JA TÄYDELLINEN VERSIO
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -1298,7 +1299,7 @@ function extractDataManually(rawResponse: string, userData: any): any {
 
 export async function generateCVWithLangChain(userData: LangChainCVInput): Promise<any> {
   // Mock data check
-  if (process.env.NODE_ENV === "test" || process.env.USE_MOCK_DATA === "true") {
+ /* if (process.env.NODE_ENV === "test" || process.env.USE_MOCK_DATA === "true") {
     console.log("Using mock data for CV generation");
     return {
       personal_description: mockCVData.simple.ai_data.profile,
@@ -1311,7 +1312,7 @@ export async function generateCVWithLangChain(userData: LangChainCVInput): Promi
         Object.values(mockCVData.simple.ai_data.html).join("\n"),
       images: { background_prompt: "", visual_elements: [] },
     };
-  }
+  }*/
 
   try {
     console.log("Starting AI-powered CV generation...");

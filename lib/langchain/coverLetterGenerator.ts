@@ -1,4 +1,6 @@
 // lib/langchain/coverLetterGenerator.ts - KORJATTU VERSIO
+// Tiedoston alkuun:
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";

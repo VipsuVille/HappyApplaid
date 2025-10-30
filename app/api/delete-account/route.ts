@@ -13,7 +13,7 @@ interface DeletionResults {
   [tableName: string]: DeletionResult;
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE() {
   try {
     const { userId } = await auth();
 

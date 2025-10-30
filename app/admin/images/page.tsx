@@ -1,3 +1,11 @@
+export default function AccountPage() {
+  return (
+    <div className="container mx-auto py-12">
+      <h1 className="text-3xl font-bold mb-8">Oma tili</h1>
+      <p>Tulossa pian...</p>
+    </div>
+  );
+}/*
 // app/admin/images/page.tsx
 'use client';
 import { useState } from 'react';
@@ -44,7 +52,7 @@ export default function UploadImagesPage() {
       setIsUploading(false);
     }
   };
-  */
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Lataa default-kuvia</h1>
@@ -115,4 +123,4 @@ export default function UploadImagesPage() {
       )}
     </div>
   );
-}
+}*/

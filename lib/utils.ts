@@ -15,7 +15,6 @@ export function determineIndustry(): string {
   return "technology"; // Placeholder
 }
 
-const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 export function validateImagePrompt(prompt: string): boolean {
   const forbiddenWords = ["cv", "resume", "curriculum vitae"];
   const forbiddenPatterns = [/[0-9]{5,}/];
@@ -88,7 +87,7 @@ export async function fetchImageAsBase64(url: string): Promise<string> {
         const blob = await response.blob();
         return await blobToBase64(blob);
       }
-    } catch (error) {
+    } catch {
       console.warn("Direct fetch failed, trying image proxy");
     }
 

@@ -1,14 +1,14 @@
 import type { BaseCV, PreviewData, UserFormData } from '@/types';
 
-export const createPreviewData = (data: BaseCV): PreviewData => {
+export const createPreviewData = (data: PreviewData): PreviewData => {
   return {
-    name: data.cv_data.name,
-    email: data.cv_data.email,
-    phone: data.cv_data.phone,
-    education: data.cv_data.education,
-    workExperience: data.cv_data.workExperience,
-    skills: data.cv_data.skills,
-    languages: data.cv_data.languages
+    name: data.name,
+    email: data.email,
+    phone: data.phone,
+    education: data.education,
+    workExperience: data.workExperience,
+    skills: data.skills,
+    languages: data.languages
   };
 };
 

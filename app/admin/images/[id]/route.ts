@@ -1,4 +1,19 @@
-// app/api/images/[id]/route.ts
+// app/admin/images/[id]/route.ts
+import { NextResponse } from 'next/server';
+
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}
+
+export async function PATCH() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}/*// app/api/images/[id]/route.ts
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { NextResponse } from 'next/server'
 
@@ -37,4 +52,4 @@ export async function PATCH(
   }
 
   return NextResponse.json(data)
-}
+}*/

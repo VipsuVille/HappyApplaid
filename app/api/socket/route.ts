@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
     console.log("✅ Uusi yhteys (CV/kuvat):", socket.id);
 
     socket.on("cv_upload", async (data: { userId: string; cvId: string }) => {
-      const status = await checkCvStatus(data.cvId);
+      const status = await checkCvStatus();
+          console.log("Kuva lähetetty:", data);
+
       socket.emit("cv_status", { status });
     });
 
@@ -44,6 +46,6 @@ export async function GET(req: NextRequest) {
   );
 }
 
-async function checkCvStatus(cvId: string) {
+async function checkCvStatus() {
   return "processed";
 }

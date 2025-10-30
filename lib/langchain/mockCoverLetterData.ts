@@ -1,4 +1,20 @@
-// lib/langchain/mockCoverLetterData.ts
+import { NextResponse } from 'next/server';
+
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}
+
+export async function PATCH() {
+  return NextResponse.json(
+    { error: 'This endpoint is currently disabled' },
+    { status: 503 }
+  );
+}
+
+/*// lib/langchain/mockCoverLetterData.ts
 import { CoverLetter } from '@/types';
 
 export const mockCoverLetterData = {
@@ -136,4 +152,4 @@ export const mockCoverLetterData = {
       title: "Tekninen hakukirje"
     }
   }
-} satisfies Record<string, CoverLetter>;
+} satisfies Record<string, CoverLetter>;*/
