@@ -1,544 +1,579 @@
-// app/create-cv/page.tsx - LISÄTTY GENERIC vs ATS-OPTIMIZED valinta
+//app/edit-cv/[id]/page.tsx - KORJATTU
 
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useUser, useAuth } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import {
-  FileText,
-  Sparkles,
-  Zap,
-  Target,
-  Info,
-  Crown,
-  AlertCircle,
-} from "lucide-react";
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
+import { BaseCV, UserFormData } from '@/types';
+import { supabase } from '@/lib/supabase-client';
+import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
+import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
+import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
+import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
+import { getDefaultImages } from '@/lib/imageUtils'; // ✅ LISÄTTY IMPORT
+import { Button } from '@/components/ui/button';
+import { 
+  ImageIcon, 
+  TextIcon, 
+  SaveIcon, 
+  ArrowLeftIcon, 
+  TrashIcon
+} from 'lucide-react';
+import { toast } from 'sonner';
 
-type CVTemplate = "technical" | "creative" | "simple";
-type CVMode = "generic" | "ats-optimized";
-
-interface SubscriptionStatus {
-  plan_type: "free" | "premium";
-  is_premium: boolean;
-  has_used_free_cv: boolean;
-  tokens: number;
-  cv_count: number;
-  can_create_cv: boolean;
-  message: string;
-}
-
-export default function CreateCVPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
-  const [cvMode, setCvMode] = useState<CVMode>("generic"); // ✅ UUSI STATE
-  const [jobPosting, setJobPosting] = useState(""); 
-  const { user, isLoaded: userLoaded } = useUser();
-  const { getToken } = useAuth();
+const EditCVPage: React.FC = () => {
+  const params = useParams();
   const router = useRouter();
+  const id = params?.id as string;
+  const { userId, getToken } = useAuth();
+ // edit-cv/[id]/page.tsx - LISÄÄ TÄMÄ
 
-  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [profileData, setProfileData] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+const [originalBackgroundImage, setOriginalBackgroundImage] = useState<string | null>(null);
+  const [cvData, setCvData] = useState<BaseCV | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
+  const [defaultImages, setDefaultImages] = useState<{
+    profileImages: string[];
+    backgroundImages: string[];
+  }>({
+    profileImages: [],
+    backgroundImages: []
+  });
 
+  // ✅ KORJATTU CV:n lataus
   useEffect(() => {
-    loadProfile();
-    checkSubscription();
-  }, [user]);
-
-  const checkSubscription = async () => {
-    if (!user) return;
-
-    try {
-      setSubscriptionLoading(true);
-      const response = await fetch("/api/check-subscription");
-      
-      if (response.ok) {
-        const data: SubscriptionStatus = await response.json();
-        setSubscription(data);
-        console.log("✅ Subscription status:", data);
-      } else {
-        console.error("Failed to check subscription");
-        setSubscription(null);
-      }
-    } catch (error) {
-      console.error("Error checking subscription:", error);
-      setSubscription(null);
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  };
-
-  const loadProfile = async () => {
-    if (!user) {
-      console.log("⚠️ No user, skipping profile load");
+    if (!userId || !id) {
+      setIsLoading(false);
       return;
     }
 
+    let isMounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY = 1000;
+
+    const loadCV = async () => {
+      try {
+        console.log(`🔄 Loading CV (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+
+        const token = await getToken({ template: "supabase" });
+        
+        if (!token) {
+          throw new Error("Autentikaatiotoken puuttuu");
+        }
+
+        const { data, error: fetchError } = await fetchCVById(id, userId, token);
+
+        if (fetchError) {
+          console.error('❌ Supabase error:', fetchError);
+          throw fetchError;
+        }
+
+        if (!data && retryCount < MAX_RETRIES - 1) {
+          console.log(`⏳ CV not found yet, retrying in ${RETRY_DELAY}ms...`);
+          retryCount++;
+          setTimeout(() => {
+            if (isMounted) loadCV();
+          }, RETRY_DELAY);
+          return;
+        }
+
+        if (data && isMounted) {
+          console.log('✅ CV loaded successfully');
+          setCvData(data);
+          setIsLoading(false);
+          setError(null);
+        } else if (!data) {
+          setError('CV:tä ei löytynyt');
+          setIsLoading(false);
+        }
+
+      } catch (err) {
+        console.error('❌ Error loading CV:', err);
+        setError(err instanceof Error ? err.message : 'CV:n lataaminen epäonnistui');
+        setIsLoading(false);
+      }
+    };
+
+    loadCV();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, userId, getToken]);
+
+  // ✅ Realtime-päivitykset
+  useEffect(() => {
+    if (!userId || !id) return;
+
+    console.log('📡 Setting up realtime subscription for CV:', id);
+
+    const channel = supabase
+      .channel(`cv_${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'cvs',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('🔔 CV inserted via realtime:', payload.new);
+          setCvData(payload.new as BaseCV);
+          setIsLoading(false);
+          setError(null);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'cvs',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          console.log('🔔 CV updated via realtime');
+          setCvData(payload.new as BaseCV);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔌 Unsubscribing from realtime');
+      channel.unsubscribe();
+    };
+  }, [id, userId]);
+
+  // ✅ Lataa default-kuvat
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const images = await getDefaultImages();
+        setDefaultImages(images);
+      } catch (error) {
+        console.error('⚠️ Kuvien lataus epäonnistui:', error);
+      }
+    };
+    loadImages();
+  }, []);
+
+
+
+// Tallenna alkuperäinen taustakuva kun CV ladataan
+useEffect(() => {
+  if (cvData?.content?.ai_data?.background_image && !originalBackgroundImage) {
+    setOriginalBackgroundImage(cvData.content.ai_data.background_image);
+  }
+}, [cvData]);
+
+// Lisää funktio taustakuvan palauttamiseen
+const handleRestoreOriginalBackground = () => {
+  if (originalBackgroundImage) {
+    setCvData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          ai_data: {
+            ...prev.content.ai_data,
+            background_image: originalBackgroundImage,
+          },
+        },
+      };
+    });
+    alert('Alkuperäinen taustakuva palautettu!');
+  }
+};
+
+// Muuta handleSelectDefaultImage
+// UUSI KOODI (edit-cv/[id]/page.tsx)
+const handleSelectDefaultImage = async (imageUrl: string, field: string) => {
+  try {
+    // ✅ 1. HAE UUSI TOKEN (jos vanha vanhentunut)
+    const token = await getToken({ template: "supabase" });
+    
+    if (!token) {
+      // ✅ 2. JOS TOKEN PUUTTUU, NÄYTÄ VIESTI
+      console.error("❌ No token available");
+      toast.error("Kirjautuminen vanhentunut - päivitä sivu");
+      return; // ← PYSÄYTÄ TÄHÄN
+    }
+
+    // ✅ 3. VASTA NYT VAIHDA KUVA (token on validi)
+    if (field === 'backgroundImage') {
+      setCvData(prev => {
+  if (!prev) return prev; // ← Palauttaa null
+  return {
+    ...prev,
+    content: {
+      ...prev.content,
+      ai_data: {
+        ...prev.content.ai_data,
+        background_image: imageUrl,
+      },
+    },
+  };
+  });
+      toast.success("Taustakuva vaihdettu!");
+    }
+  } catch (error) {
+    // ✅ 4. KÄSITTELE VIRHEET
+    console.error("❌ Error:", error);
+    toast.error("Kuvan vaihto epäonnistui");
+  }
+};
+
+  // Handle content changes
+  const handleContentChange = useCallback(<K extends keyof UserFormData>(
+    key: K, 
+    value: UserFormData[K]
+  ) => {
+    setCvData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          cv_data: {
+            ...prev.content.cv_data,
+            [key]: value,
+          },
+        },
+      };
+    });
+  }, []);
+
+  // Handle image uploads
+  const handleImageChange = async (
+    e: React.ChangeEvent<HTMLInputElement>, 
+    field: 'profileImage' | 'backgroundImage'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Kuvan koko on liian suuri. Maksimikoko on 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      handleContentChange(field, reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ✅ KORJATTU handleSave
+  const handleSave = async () => {
+    if (!cvData || !id) return;
+
+    setIsSaving(true);
     try {
-      setProfileLoading(true);
+      console.log('💾 Saving CV...');
+
       const token = await getToken({ template: "supabase" });
       
       if (!token) {
-        console.error("❌ No Supabase token available");
-        setProfileLoading(false);
-        return;
+        throw new Error("Autentikaatiotoken puuttuu");
       }
-      
-      const response = await fetch(`/api/user-profile/${user.id}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        setProfileData(data);
-      } else if (response.status === 404) {
-        console.warn("⚠️ No profile found");
-        setProfileData(null);
-      } else {
-        const errorData = await response.json();
-        console.error("❌ Error loading profile:", errorData);
-        setProfileData(null);
-      }
+      await updateCV(id, {
+        content: cvData.content,
+      }, token);
+
+      console.log('✅ CV saved successfully');
+      alert('CV tallennettu onnistuneesti!');
+
     } catch (error) {
-      console.error("❌ Exception loading profile:", error);
-      setProfileData(null);
+      console.error('❌ Error saving CV:', error);
+      alert('CV:n tallentaminen epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
     } finally {
-      setProfileLoading(false);
+      setIsSaving(false);
     }
   };
 
-  const generateCVFromProfile = async () => {
-    if (!user) {
-      toast.error("Kirjaudu sisään luodaksesi CV:n");
-      return;
-    }
+  // ✅ KORJATTU handleDelete - LISÄTTY TOKEN
+  const handleDelete = async () => {
+    if (!confirm('Haluatko varmasti poistaa tämän CV:n?')) return;
+    if (!userId) return;
 
-    if (!profileData) {
-      toast.error("Täytä ensin profiilisi!");
-      router.push("/profile");
-      return;
-    }
-
-    // ✅ PREMIUM: ATS-optimoitu CV vaatii job postingin
-    if (subscription?.is_premium && cvMode === "ats-optimized" && !jobPosting) {
-      const confirm = window.confirm(
-        "ATS-optimoitu CV hyötyy työpaikkailmoituksesta.\n\nLuodaanko silti generic CV?"
-      );
-      if (!confirm) return;
-      
-      // Vaihda generic-tilaan jos käyttäjä haluaa jatkaa
-      setCvMode("generic");
-    }
-
-    setIsLoading(true);
     try {
+      console.log('🗑️ Deleting CV...');
+
+      // ✅ HAE TOKEN
       const token = await getToken({ template: "supabase" });
-      if (!token) throw new Error("No auth token");
-
-      // ✅ Lähetä CV-generointi job postingilla (vain jos ATS-mode)
-      const response = await fetch("/api/generate-cv", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cvType: selectedTemplate,
-          forceGenerate: false,
-          jobPosting: cvMode === "ats-optimized" ? jobPosting : undefined, // ✅ Vain ATS-tilassa
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        
-        if (errorData.error === "free_limit_reached") {
-          toast.error(errorData.message, { duration: 8000 });
-          router.push("/pricing");
-          return;
-        }
-
-        if (errorData.error === "free_tier_simple_only") {
-          toast.error(errorData.message);
-          setSelectedTemplate("simple");
-          return;
-        }
-
-        if (errorData.error === "free_tier_no_ats") {
-          toast.error(errorData.message);
-          return;
-        }
-        
-        if (errorData.error === "data_validation_failed") {
-          toast.error(
-            `Profiilisi tarvitsee lisätietoja:\n\n${errorData.message}`,
-            { duration: 8000 }
-          );
-          router.push("/profile");
-          return;
-        }
-        
-        throw new Error(errorData.error || "CV generation failed");
+      
+      if (!token) {
+        throw new Error("Autentikaatiotoken puuttuu");
       }
 
-      const result = await response.json();
-      
-      toast.success(
-        result.isPremium
-          ? result.isAtsOptimized
-            ? "🎯 ATS-optimoitu CV luotu!"
-            : "✅ Premium CV luotu!"
-          : "✅ Ilmainen CV luotu!"
-      );
-      
-      router.push(`/edit-cv/${result.id}`);
-      
+      // ✅ LISÄTTY TOKEN PARAMETRIKSI
+      await deleteCV(id, userId, token);
+
+      console.log('✅ CV deleted successfully');
+      alert('CV poistettu onnistuneesti!');
+      router.push('/my-cvs');
+
     } catch (error) {
-      console.error("CV creation failed:", error);
-      toast.error(
-        error instanceof Error ? error.message : "CV:n luonti epäonnistui"
-      );
-    } finally {
-      setIsLoading(false);
+      console.error('❌ Error deleting CV:', error);
+      alert('CV:n poistaminen epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
     }
   };
 
-  if (!userLoaded || profileLoading || subscriptionLoading) {
+  // Render the appropriate template
+  const renderTemplate = () => {
+    if (!cvData) return null;
+
+    const commonProps = {
+      data: {
+        ...cvData.content.cv_data,
+        bgHeight: cvData.content.cv_data.bgHeight || '80',
+        blueBarHeight: cvData.content.cv_data.blueBarHeight || '11',
+        profilePosition: cvData.content.cv_data.profilePosition || JSON.stringify({
+          top: 10,
+          right: 8,
+          width: 55,
+          height: 55
+        }),
+        infoBarItemsPosition: cvData.content.cv_data.infoBarItemsPosition || JSON.stringify([
+          { id: 'phone', content: cvData.content.cv_data.phone || '', icon: '📞', position: 0 },
+          { id: 'email', content: cvData.content.cv_data.email || '', icon: '📧', position: 1 },
+          { id: 'age', content: cvData.content.cv_data.age || '', icon: '🎂', position: 2 }
+        ])
+      },
+      aiData: cvData.content.ai_data,
+      isEditing: true,
+      editMode: selectedTab,
+      showEditControls: true,
+      onContentChange: handleContentChange
+    };
+
+    const cvType = cvData.content.cv_data.cvType || cvData.content.ai_data?.cvType || 'simple';
+
+    switch (cvType) {
+      case 'technical':
+        return <TechnicalCVTemplate {...commonProps} />;
+      case 'simple':
+      default:
+        return <SimpleCVTemplate {...commonProps} />;
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Ladataan...</p>
+          <div className="text-lg mb-2">Ladataan CV:tä...</div>
         </div>
       </div>
     );
   }
 
-  const isPremium = subscription?.is_premium || false;
-  const canCreateCV = subscription?.can_create_cv || false;
+  // Error state
+  if (error) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="text-center py-8">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={() => router.push('/my-cvs')}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Palaa omiin CV:hin
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // No CV found
+  if (!cvData) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="text-center py-8">
+          <p className="text-gray-600 mb-4">CV:tä ei löytynyt</p>
+          <button
+            onClick={() => router.push('/my-cvs')}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Palaa omiin CV:hin
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Luo Ammattimainen CV
-          </h1>
-          <p className="text-lg text-gray-600">
-            {isPremium
-              ? "Valitse CV-tyyppi ja optimoi työpaikkailmoituksen mukaan"
-              : "Luo ilmainen persoonallisuusvetoinen CV"}
-          </p>
+    <div className="container mx-auto py-6 px-4">
+      {/* Header and action buttons */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-6">
+        <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-0">Muokkaa CV:tä</h1>
+        <div className="flex flex-wrap gap-2 md:gap-4">
+          <Button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-blue-500 hover:bg-blue-600 text-white"
+          >
+            <SaveIcon className="mr-2 h-4 w-4" />
+            {isSaving ? 'Tallennetaan...' : 'Tallenna muutokset'}
+          </Button>
+          <Button
+            onClick={() => router.push('/my-cvs')}
+            variant="outline"
+            className="border-gray-300"
+          >
+            <ArrowLeftIcon className="mr-2 h-4 w-4" />
+            Takaisin CV-listaan
+          </Button>
+          <Button
+            onClick={handleDelete}
+            variant="destructive"
+          >
+            <TrashIcon className="mr-2 h-4 w-4" />
+            Poista CV
+          </Button>
         </div>
+      </div>
 
-        {/* ✅ UUSI: CV MODE SELECTION (Generic vs ATS-Optimized) */}
-        {isPremium && (
-          <div className="mb-12 bg-white rounded-3xl p-8 shadow-lg border-2 border-indigo-200">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-              <Target className="h-7 w-7 text-indigo-600" />
-              Valitse CV-Tyyppi
-            </h3>
+      {/* Tabs */}
+      <div className="mb-6 border-b border-gray-200">
+        <ul className="flex flex-wrap -mb-px text-sm font-medium text-center text-gray-500">
+          <li className="mr-2">
+            <button
+              className={`inline-flex items-center p-4 border-b-2 rounded-t-lg ${
+                selectedTab === 'content' ? 'text-blue-600 border-blue-600' : 'border-transparent hover:text-gray-600 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedTab('content')}
+            >
+              <TextIcon className="mr-2 h-4 w-4" />
+              Sisältö
+            </button>
+          </li>
+          <li className="mr-2">
+            <button
+              className={`inline-flex items-center p-4 border-b-2 rounded-t-lg ${
+                selectedTab === 'images' ? 'text-blue-600 border-blue-600' : 'border-transparent hover:text-gray-600 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedTab('images')}
+            >
+              <ImageIcon className="mr-2 h-4 w-4" />
+              Kuvat
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      {/* Images tab */}
+      {selectedTab === 'images' && cvData && (
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Profile image section */}
+          <div className="p-4 border rounded-lg">
+            <h3 className="text-lg font-medium mb-3">Profiilikuva</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                Lataa oma profiilikuva
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageChange(e, 'profileImage')}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-full file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100"
+              />
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Generic CV */}
-              <button
-                onClick={() => {
-                  setCvMode("generic");
-                  setJobPosting(""); // Tyhjennä job posting
-                }}
-                className={`p-6 border-3 rounded-2xl text-left transition-all ${
-                  cvMode === "generic"
-                    ? "border-indigo-500 bg-indigo-50 shadow-lg scale-105"
-                    : "border-gray-300 hover:border-indigo-300"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <FileText className="h-6 w-6 text-indigo-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">
-                      Yleinen CV
-                    </h4>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Sopii kaikenlaisiin työhakemuksiin. Korostaa vahvuuksiasi ja persoonallisuuttasi.
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-indigo-700">
-                      <Sparkles className="h-4 w-4" />
-                      <span>Nopea luonti, monipuolinen käyttö</span>
-                    </div>
-                  </div>
-                </div>
-                {cvMode === "generic" && (
-                  <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-600">
-                    <div className="h-2 w-2 rounded-full bg-indigo-600"></div>
-                    Valittu
-                  </div>
-                )}
-              </button>
-
-              {/* ATS-Optimized CV */}
-              <button
-                onClick={() => setCvMode("ats-optimized")}
-                className={`p-6 border-3 rounded-2xl text-left transition-all ${
-                  cvMode === "ats-optimized"
-                    ? "border-purple-500 bg-purple-50 shadow-lg scale-105"
-                    : "border-gray-300 hover:border-purple-300"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                    <Zap className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">
-                      ATS-Optimoitu CV
-                    </h4>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Räätälöity tietylle työpaikalle. Maksimoi läpäisyaste ATS-järjestelmissä (60% → 90%+).
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-purple-700">
-                      <Target className="h-4 w-4" />
-                      <span>Vaatii työpaikkailmoituksen</span>
-                    </div>
-                  </div>
-                </div>
-                {cvMode === "ats-optimized" && (
-                  <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-purple-600">
-                    <div className="h-2 w-2 rounded-full bg-purple-600"></div>
-                    Valittu
-                  </div>
-                )}
-              </button>
-            </div>
-
-            {/* Info Box */}
-            <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
-              <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <strong>Vinkki:</strong>{" "}
-                  {cvMode === "generic" 
-                    ? "Yleinen CV toimii hyvin kun haet useita eri paikkoja samanaikaisesti."
-                    : "ATS-optimoitu CV kasvattaa huomattavasti mahdollisuuksiasi päästä haastatteluun tiettyyn työpaikkaan."}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ✅ JOB POSTING TEXTAREA (vain ATS-tilassa) */}
-        {isPremium && cvMode === "ats-optimized" && (
-          <div className="mb-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 border-2 border-purple-200 shadow-xl">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <Target className="h-6 w-6 text-purple-600" />
-              </div>
+            {defaultImages.profileImages.length > 0 && (
               <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                  🎯 Työpaikkailmoitus (ATS-Optimointi)
-                </h3>
-                <p className="text-gray-700">
-                  Liitä työpaikkailmoitus alle, niin optimoimme CV:si läpäisemään
-                  ATS-järjestelmät (Applicant Tracking Systems) ja nostamaan
-                  profiilin relevanssipisteet 60% → 90%+.
-                </p>
-              </div>
-            </div>
-
-            <textarea
-              value={jobPosting}
-              onChange={(e) => setJobPosting(e.target.value)}
-              placeholder="Kopioi työpaikkailmoitus tähän...&#10;&#10;Esimerkki:&#10;'Haemme Full Stack -kehittäjää React/Node.js osaamisella. Tehtävässä työskentelet modernin teknologian parissa ja kehität yrityksen digitaalisia palveluita...'"
-              rows={12}
-              className="w-full p-4 border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:outline-none resize-none font-mono text-sm bg-white"
-            />
-
-            <div className="mt-4 flex items-start gap-2 text-sm text-gray-600">
-              <AlertCircle className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
-              <p>
-                <strong>Vinkki:</strong> Mitä tarkempi työpaikkailmoitus, sitä paremmin
-                CV optimoituu. Sisällytä vaatimukset, toivottu osaaminen ja yrityksen arvot.
-              </p>
-            </div>
-
-            {jobPosting.length > 0 && (
-              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 text-sm text-green-700">
-                  <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                  <span className="font-semibold">
-                    Työpaikkailmoitus vastaanotettu ({jobPosting.length} merkkiä)
-                  </span>
+                <p className="text-sm font-medium mb-2">Tai valitse valmiista kuvista:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {defaultImages.profileImages.map((imgUrl, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectDefaultImage(imgUrl, 'profileImage')}
+                      className={`relative p-1 border-2 rounded-lg ${
+                        cvData.content.cv_data.profileImage === imgUrl ? 'border-blue-500' : 'border-transparent'
+                      }`}
+                    >
+                      <img 
+                        src={imgUrl} 
+                        alt={`Default profile ${idx + 1}`} 
+                        className="w-full h-auto rounded-full"
+                      />
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
           </div>
-        )}
-
-        {/* Template Selection */}
-        <div className="mb-12">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              Valitse CV-Malli
-            </h2>
-            <p className="text-gray-600">
-              {isPremium
-                ? "Kaikki mallit saatavilla Premium-tilauksen kanssa"
-                : "Ilmainen käyttäjä: vain Rento-malli saatavilla"}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Simple CV */}
-            <button
-              onClick={() => setSelectedTemplate("simple")}
-              disabled={!canCreateCV && !isPremium}
-              className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                selectedTemplate === "simple"
-                  ? "border-indigo-500 bg-indigo-50 shadow-xl scale-105"
-                  : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-lg"
-              } ${!canCreateCV && !isPremium ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-4">
-                <FileText className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Rento</h3>
-              <p className="text-sm text-gray-600">
-                Persoonallinen ja lähestyttävä CV
-              </p>
-              {!isPremium && (
-                <div className="mt-3 text-xs text-blue-600 font-semibold">
-                  Ilmainen (1x)
+          
+          {/* Background image section */}
+          <div className="p-4 border rounded-lg">
+            <h3 className="text-lg font-medium mb-3">Taustakuva</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                Lataa oma taustakuva
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageChange(e, 'backgroundImage')}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-full file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100"
+              />
+            </div>
+            
+            {defaultImages.backgroundImages.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-2">Tai valitse valmiista kuvista:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {defaultImages.backgroundImages.map((imgUrl, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectDefaultImage(imgUrl, 'backgroundImage')}
+                      className={`relative p-1 border-2 rounded-lg ${
+                        cvData.content.cv_data.backgroundImage === imgUrl ? 'border-blue-500' : 'border-transparent'
+                      }`}
+                    >
+                      <img 
+                        src={imgUrl} 
+                        alt={`Default background ${idx + 1}`} 
+                        className="w-full h-20 object-cover rounded"
+                      />
+                    </button>
+                  ))}
                 </div>
-              )}
-            </button>
-
-            {/* Professional CV */}
-            <button
-              onClick={() => isPremium && setSelectedTemplate("technical")}
-              disabled={!isPremium}
-              className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                selectedTemplate === "technical" && isPremium
-                  ? "border-purple-500 bg-purple-50 shadow-xl scale-105"
-                  : "border-gray-200 bg-white"
-              } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
-            >
-              <div className="h-16 w-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-                <Sparkles className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Professional</h3>
-              <p className="text-sm text-gray-600">
-                Tekninen ja strukturoitu ammattilaisille
-              </p>
-              {!isPremium && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
-                  <Crown className="h-4 w-4" />
-                  Premium
-                </div>
-              )}
-            </button>
-
-            {/* Creative CV */}
-            <button
-              onClick={() => isPremium && setSelectedTemplate("creative")}
-              disabled={!isPremium}
-              className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                selectedTemplate === "creative" && isPremium
-                  ? "border-pink-500 bg-pink-50 shadow-xl scale-105"
-                  : "border-gray-200 bg-white"
-              } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
-            >
-              <div className="h-16 w-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center mb-4">
-                <Zap className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Creative</h3>
-              <p className="text-sm text-gray-600">
-                Luova ja visuaalinen portfolio-CV
-              </p>
-              {!isPremium && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
-                  <Crown className="h-4 w-4" />
-                  Premium
-                </div>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Action Button */}
-        <div className="bg-gradient-to-br from-white to-indigo-50 rounded-3xl p-12 border-2 border-indigo-200 shadow-2xl">
-          <div className="max-w-2xl mx-auto text-center">
-            <h3 className="text-3xl font-bold text-gray-900 mb-3">
-              Valmis Luomaan CV:si?
-            </h3>
-            <p className="text-lg text-gray-600 mb-8">
-              {isPremium
-                ? cvMode === "ats-optimized" && jobPosting
-                  ? "Tekoäly optimoi CV:si annetun työpaikkailmoituksen mukaan"
-                  : "Tekoäly luo ammattimaisen CV:n profiilitietojesi pohjalta"
-                : "Tekoäly luo persoonallisen ilmaisen CV:n profiilitietojesi pohjalta"}
-            </p>
-
-            <Button
-              onClick={generateCVFromProfile}
-              disabled={isLoading || !user || !canCreateCV}
-              size="lg"
-              className="px-12 py-6 text-lg bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-70 disabled:transform-none"
-            >
-              {isLoading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
-                  Luodaan CV:tä...
-                </div>
-              ) : (
-                <div className="flex items-center">
-                  <Sparkles className="h-6 w-6 mr-3" />
-                  {isPremium 
-                    ? cvMode === "ats-optimized"
-                      ? "🎯 Luo ATS-Optimoitu CV"
-                      : "Luo Premium CV"
-                    : "Luo Ilmainen CV"}
-                </div>
-              )}
-            </Button>
-
-            <p className="text-sm text-gray-500 mt-4">
-              {isPremium
-                ? `CV:n luominen vie 30-60 sekuntia. ${
-                    cvMode === "ats-optimized" 
-                      ? "ATS-optimointi analysoi työpaikkailmoituksen." 
-                      : `Tokenia jäljellä: ${subscription?.tokens || 0}`
-                  }`
-                : "Ilmainen CV ei ole ATS-optimoitu, mutta tuo persoonallisuutesi esille"}
-            </p>
-
-            {/* CTA Premium-päivitykseen (jos FREE) */}
-            {!isPremium && (
-              <div className="mt-8 p-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white">
-                <h4 className="text-xl font-bold mb-2">
-                  Haluatko ATS-optimoinnin?
-                </h4>
-                <p className="mb-4 text-indigo-100">
-                  Päivitä Premium-tiliin ja saat rajattomasti ATS-optimoituja CV:itä + hakukirjeet
-                </p>
-                <Button
-                  onClick={() => router.push("/pricing")}
-                  variant="outline"
-                  className="bg-white text-indigo-600 hover:bg-indigo-50 border-0"
-                >
-                  <Crown className="h-5 w-5 mr-2" />
-                  Katso Premium-hinnat
-                </Button>
               </div>
             )}
           </div>
         </div>
+      )}
+
+      {/* CV preview with edit controls */}
+      <div 
+        className="relative md:h-[310mm] h-auto w-max p-8 md:p-0 ml-3 mr-3 md:ml-0 md:mr-0 md:w-full overflow-hidden rounded-lg shadow-inner" 
+        style={{ 
+          boxShadow: 'inset 0 4px 6px -1px rgba(0, 0, 0, 0.1), inset 0 -4px 6px -1px rgba(0, 0, 0, 0.1)'
+        }}
+      >
+        {renderTemplate()}
       </div>
     </div>
   );
-}
+};
+
+export default EditCVPage;

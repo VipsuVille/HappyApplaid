@@ -13,8 +13,8 @@ import {
   type LangChainCVInput 
 } from "@/lib/profileDataTransform";
 
-export const maxDuration = 30;
-
+export const maxDuration = 60;  // ← LISÄÄ TÄMÄ
+export const runtime = 'edge';   // ← JA TÄMÄ
 export async function POST(req: Request) {
   const authData = await auth();
   const currentUserId = authData.userId;

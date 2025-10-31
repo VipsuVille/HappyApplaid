@@ -1,4 +1,4 @@
-// lib/types/langchain.types.ts
+// lib/types/langchain.types.ts (TÄYDENNÄ TÄMÄ)
 export interface PersonalityData {
   workingStyle?: string;
   problemSolving?: string;
@@ -20,4 +20,15 @@ export interface JobAnalysis {
   industry_keywords: string[];
 }
 
-// Käytä näitä kaikkialla `any`:n sijaan
+// ✅ LISÄÄ NÄMÄ:
+export interface PersonalityExtractionInput {
+  userProfile: string;
+  workingStyleText: string;
+  problemSolvingText: string;
+  energySourcesText: string;
+  strengthsText: string;
+  learningText: string;
+  teamworkText: string;
+  valuesText: string;
+  additionalInfo: string;
+}

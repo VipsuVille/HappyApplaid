@@ -3,6 +3,14 @@
     "app/api/generate-pdf/route.ts": {
       "maxDuration": 300,
       "memory": 3008
+    },
+    "app/api/generate-cv/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "app/api/generate-background-async/route.ts": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   }
 }

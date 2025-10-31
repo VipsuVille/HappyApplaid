@@ -1,11 +1,8 @@
-// lib/langchain/cvGenerator.ts - KORJATTU JA TÄYDELLINEN VERSIO
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
+// lib/langchain/cvGenerator.ts - TÄYDELLINEN OPTIMOITU VERSIO
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
-import { mockCVData } from "./mockCVData";
 import { FALLBACK_IMAGE, optimizeImagePrompt } from "../utils";
 import { supabase } from "@/lib/supabase";
 import {
@@ -17,7 +14,12 @@ import {
 import type { LangChainCVInput } from "@/lib/profileDataTransform";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
-
+function ensureString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+// =====================================
+// TYPES & SCHEMAS
+// =====================================
 const cvOutputSchema = z.object({
   personal_description: z
     .string()
@@ -51,89 +53,92 @@ const cvOutputSchema = z.object({
 });
 
 type CVOutputType = z.infer<typeof cvOutputSchema>;
-const outputParser = StructuredOutputParser.fromZodSchema(cvOutputSchema);
 
-// MESSAGE CONTENT EXTRACTION - KORJATTU FUNKTIO
 interface TextContentPart {
   type: "text";
   text: string;
 }
 
 interface BaseMessage {
-  content: string | TextContentPart[] | any[];
+  content: string | TextContentPart[] | Array<string | TextContentPart | { text: string }>;
 }
 
-function getMessageContent(message: BaseMessage | string): string {
-  if (typeof message === "string") {
-    return message;
-  }
-  if ("content" in message) {
-    const content = message.content;
-    if (typeof content === "string") {
-      return content;
-    }
-    if (Array.isArray(content)) {
-      const jsonTextPart = content.find((item) => {
-        if (
-          typeof item === "object" &&
-          item !== null &&
-          "text" in item &&
-          "type" in item
-        ) {
-          const textPart = item as TextContentPart;
-          if (textPart.type === "text" && typeof textPart.text === "string") {
-            const textContent = textPart.text.trim();
-            return textContent.startsWith("{") && textContent.endsWith("}");
-          }
-        }
-        if (typeof item === "object" && item !== null && "text" in item) {
-          const textItem = item as { text: unknown };
-          if (typeof textItem.text === "string") {
-            const textContent = textItem.text.trim();
-            return textContent.startsWith("{") && textContent.endsWith("}");
-          }
-        }
-        if (typeof item === "string") {
-          const textContent = item.trim();
-          return textContent.startsWith("{") && textContent.endsWith("}");
-        }
-        return false;
-      });
-
-      if (jsonTextPart) {
-        if (typeof jsonTextPart === "string") {
-          return jsonTextPart;
-        }
-        if (typeof jsonTextPart === "object" && jsonTextPart !== null) {
-          if ("text" in jsonTextPart && "type" in jsonTextPart) {
-            const textPart = jsonTextPart as TextContentPart;
-            if (textPart.type === "text") {
-              return textPart.text;
-            }
-          }
-          if ("text" in jsonTextPart) {
-            const textItem = jsonTextPart as { text: string };
-            return textItem.text;
-          }
-        }
-      }
-
-      return content
-        .filter((item): item is string | { text: string } => {
-          if (typeof item === "string") return true;
-          if (typeof item === "object" && item !== null && "text" in item) {
-            return typeof (item as { text: unknown }).text === "string";
-          }
-          return false;
-        })
-        .map((item) => (typeof item === "string" ? item : item.text))
-        .join(" ");
-    }
-  }
-  return "";
+interface JobAnalysis {
+  required_skills: string[];
+  preferred_skills: string[];
+  soft_skills: string[];
+  company_values: string[];
+  key_responsibilities: string[];
+  experience_level: string;
+  industry_keywords: string[];
 }
 
+interface PersonalityExtraction {
+  workingStyle: { extracted: string; confidence: number };
+  problemSolving: { extracted: string; confidence: number };
+  energySources: { extracted: string; confidence: number };
+  uniqueStrength: { extracted: string; confidence: number };
+  learningStyle: { extracted: string; confidence: number };
+  teamRole: { extracted: string; confidence: number };
+  valuesExample: { extracted: string; confidence: number };
+  superpower: { extracted: string; confidence: number };
+  overallPersonality: {
+    summary: string;
+    topTraits: string[];
+  };
+  extractionQuality: {
+    dataCompleteness: number;
+    clarityScore: number;
+    actionabilityScore: number;
+  };
+}
+
+interface ConfidenceScore {
+  averageConfidence: number;
+  strongFields: string[];
+  weakFields: string[];
+  recommendation: string;
+}
+
+interface AIData {
+  html: {
+    skills_section: string;
+    experience_section: string;
+    education_section: string;
+    languages_section: string;
+  };
+  styles?: string;
+  images?: {
+    background_prompt: string;
+    visual_elements: string[];
+  };
+  background_image?: string;
+  background_image_url?: string | null;
+  profile?: string;
+  profile_image?: string;
+  profile_initials?: string;
+  personal_description?: string;
+  fullTextContent?: string;
+  cvType?: "technical" | "creative" | "simple";
+}
+
+interface CVGenerationResult {
+  personal_description: string;
+  html: CVOutputType['cv_content'];
+  background_image: string;
+  profile_initials: string;
+  fullTextContent: string;
+  ats_data: CVOutputType['ats_optimization'] | null;
+  job_analysis: JobAnalysis;
+  images: {
+    background_prompt: string;
+    visual_elements: string[];
+  };
+}
+
+// =====================================
 // AI MODELS
+// =====================================
 const model = new ChatOpenAI({
   openAIApiKey: process.env.OPENAI_API_KEY,
   modelName: "gpt-4o-mini",
@@ -147,146 +152,148 @@ const assessmentModel = new ChatOpenAI({
   maxTokens: 200,
 });
 
-// PÄIVITETTY GENERATECV-FUNKTIO PERSONALLISUUSEKSTRAKTIolla
-export async function generateCVWithPersonalityExtraction(
-  userData: any
-): Promise<any> {
-  const { authToken, jobPostingData, ...restUserData } = userData;
+const outputParser = StructuredOutputParser.fromZodSchema(cvOutputSchema);
 
-  try {
-    // 1. EKSTRAKTOI PERSOONALLISUUSPIIRTEET vapaamuotoisesta tekstistä
-    console.log("🔍 Analysoidaan persoonallisuusdataa...");
+// =====================================
+// PERFORMANCE TIMER CLASS
+// =====================================
+class PerformanceTimer {
+  private stages: Record<string, number> = {};
+  private startTime: number = Date.now();
+  private currentStage: string | null = null;
+  private stageStart: number = 0;
 
-    const personalityExtraction = await extractPersonalityTraits({
-      userProfile: userData.profile || userData.bio || "",
-      workingStyleText:
-        userData.workingStyleDescription || userData.workingStyle || "",
-      problemSolvingText:
-        userData.problemSolvingExample || userData.problemSolving || "",
-      energySourcesText:
-        userData.energyDescription || userData.energySources || "",
-      strengthsText:
-        userData.strengthsDescription || userData.uniqueStrength || "",
-      learningText:
-        userData.learningDescription || userData.learningStyle || "",
-      teamworkText: userData.teamworkDescription || userData.teamRole || "",
-      valuesText: userData.valuesDescription || userData.valuesExample || "",
-      additionalInfo: userData.additionalNotes || userData.superpower || "",
+  start(stageName: string): void {
+    if (this.currentStage) {
+      this.end();
+    }
+    this.currentStage = stageName;
+    this.stageStart = Date.now();
+    console.time(`⏱️  ${stageName}`);
+  }
+
+  end(): void {
+    if (!this.currentStage) return;
+    
+    const duration = Date.now() - this.stageStart;
+    this.stages[this.currentStage] = duration;
+    console.timeEnd(`⏱️  ${this.currentStage}`);
+    this.currentStage = null;
+  }
+
+  getResults(): { totalTime: number; stages: Record<string, number> } {
+    if (this.currentStage) this.end();
+    
+    const totalTime = Date.now() - this.startTime;
+    console.log(`\n🎯 TOTAL: ${totalTime}ms (${(totalTime / 1000).toFixed(2)}s)`);
+    console.log("📊 Breakdown:");
+    Object.entries(this.stages).forEach(([stage, time]) => {
+      console.log(`   ${stage}: ${time}ms (${((time / totalTime) * 100).toFixed(1)}%)`);
     });
-
-    // 2. MUUNNA STRUKTUROITU DATA takaisin vanhaan formaattiin
-    const extractedPersonalityData = convertToLegacyFormat(
-      personalityExtraction
-    );
-
-    // 3. ARVIOI DATAN LAATUA
-    const confidenceScore = getPersonalityConfidenceScore(
-      personalityExtraction
-    );
-    console.log(
-      `📊 Persoonallisuusdatan luotettavuus: ${Math.round(
-        confidenceScore.averageConfidence * 100
-      )}%`
-    );
-
-    // 4. YHDISTÄ EKSTRAKTOITU DATA alkuperäiseen dataan
-    const enhancedUserData = {
-      ...restUserData,
-      // Käytä ekstraktoitua dataa jos se on luotettavampaa
-      workingStyle:
-        extractedPersonalityData.workingStyle ||
-        restUserData.workingStyle ||
-        "",
-      problemSolving:
-        extractedPersonalityData.problemSolving ||
-        restUserData.problemSolving ||
-        "",
-      energySources:
-        extractedPersonalityData.energySources ||
-        restUserData.energySources ||
-        "",
-      uniqueStrength:
-        extractedPersonalityData.uniqueStrength ||
-        restUserData.uniqueStrength ||
-        "",
-      learningStyle:
-        extractedPersonalityData.learningStyle ||
-        restUserData.learningStyle ||
-        "",
-      teamRole:
-        extractedPersonalityData.teamRole || restUserData.teamRole || "",
-      valuesExample:
-        extractedPersonalityData.valuesExample ||
-        restUserData.valuesExample ||
-        "",
-      superpower:
-        extractedPersonalityData.superpower || restUserData.superpower || "",
-
-      // Lisää metadata
-      personalityMetadata: {
-        extractionQuality: personalityExtraction.extractionQuality,
-        confidenceScore: confidenceScore,
-        businessValues: getBusinessValueSummary(personalityExtraction),
-        topTraits: personalityExtraction.overallPersonality.topTraits,
-      },
-    };
-
-
-    // 6. JATKA TAVALLISEEN CV-GENEROINTIIN parannetulla datalla
-    console.log("🚀 Generoidaan CV parannetulla persoonallisuusdatalla...");
-
-    return await generateCVWithLangChain({
-      ...enhancedUserData,
-      authToken,
-      jobPostingData,
-    });
-  } catch (error) {
-    console.error(
-      "❌ Persoonallisuusekstraktointi epäonnistui, käytetään alkuperäistä dataa:",
-      error
-    );
-
-    // Fallback: käytä alkuperäistä generointimenetelmää
-    return await generateCVWithLangChain(userData);
+    
+    return { totalTime, stages: this.stages };
   }
 }
 
-// PARANNETTU TAUSTAKUVAN GENEROINTIFUNKTIO
+// =====================================
+// MESSAGE CONTENT EXTRACTION
+// =====================================
+function getMessageContent(message: unknown): string {
+  // Jos on string, palauta suoraan
+  if (typeof message === "string") return message;
+  
+  // Tarkista onko message-objekti
+  if (typeof message !== "object" || message === null) return "";
+  
+  // Tarkista onko content-kenttä olemassa
+  if (!("content" in message)) return "";
+  
+  const content = (message as { content: unknown }).content;
+  
+  // Jos content on string, palauta se
+  if (typeof content === "string") return content;
+  
+  // Jos content on array, käsittele se
+  if (Array.isArray(content)) {
+    // Etsi ensimmäinen JSON-objekti (priorisoi strukturoitu data)
+    const jsonTextPart = content.find((item: unknown) => {
+      if (typeof item === "string") {
+        const trimmed = item.trim();
+        return trimmed.startsWith("{") && trimmed.endsWith("}");
+      }
+      if (typeof item === "object" && item !== null && "text" in item) {
+        const textItem = item as { text: unknown };
+        if (typeof textItem.text === "string") {
+          const trimmed = textItem.text.trim();
+          return trimmed.startsWith("{") && trimmed.endsWith("}");
+        }
+      }
+      return false;
+    });
+
+    // Jos löytyi JSON-objekti, palauta se
+    if (jsonTextPart) {
+      if (typeof jsonTextPart === "string") return jsonTextPart;
+      if (typeof jsonTextPart === "object" && "text" in jsonTextPart) {
+        const textItem = jsonTextPart as { text: unknown };
+        if (typeof textItem.text === "string") return textItem.text;
+      }
+    }
+
+    // Muuten yhdistä kaikki tekstit
+    return content
+      .map((item: unknown) => {
+        if (typeof item === "string") return item;
+        if (typeof item === "object" && item !== null && "text" in item) {
+          const textItem = item as { text: unknown };
+          if (typeof textItem.text === "string") return textItem.text;
+        }
+        return "";
+      })
+      .filter((text) => text.length > 0)
+      .join(" ");
+  }
+  
+  return "";
+}
+// =====================================
+// LISÄÄ NÄMÄ FUNKTIOT (jos niitä käytetään muualla)
+// =====================================
+
+// 1. Mock data checker (jos testit käyttävät)
+export async function shouldUseMockData(): Promise<boolean> {
+  return process.env.NODE_ENV === "test" || process.env.USE_MOCK_DATA === "true";
+}
+
+// 2. Enhanced background with personality extraction (jos haluat)
 export async function generateEnhancedBackgroundImageWithExtraction(
-  userData: any,
+  userData: LangChainCVInput,
   authToken?: string
 ): Promise<string> {
   try {
-    // 1. EKSTRAKTOI PERSOONALLISUUS kuvaa varten
     const personalityExtraction = await extractPersonalityTraits({
-      userProfile: userData.profile || "",
-      workingStyleText: userData.workingStyle || "",
-      energySourcesText: userData.energySources || "",
-      strengthsText: userData.uniqueStrength || "",
-      teamworkText: userData.teamRole || "",
-      additionalInfo: userData.superpower || "",
+      userProfile: ensureString(userData.profile) || ensureString(userData.bio),
+      workingStyleText: ensureString(userData.workingStyle),
+      energySourcesText: ensureString(userData.energySources),
+      strengthsText: ensureString(userData.uniqueStrength),
+      teamworkText: ensureString(userData.teamRole),
+      additionalInfo: ensureString(userData.superpower),
     });
 
-    // 2. KÄYTÄ EKSTRAKTOITUA DATAA kuvapromptin luontiin
     const imagePromptData = {
       workingStyle: personalityExtraction.workingStyle?.extracted || "",
       energySources: personalityExtraction.energySources?.extracted || "",
       uniqueStrength: personalityExtraction.uniqueStrength?.extracted || "",
       teamRole: personalityExtraction.teamRole?.extracted || "",
       superpower: personalityExtraction.superpower?.extracted || "",
-      jobTitle: userData.jobTitle || "",
-
-      // Lisää visuaalisia vihjeitä
+      jobTitle: userData.title || "",
       personalitySummary: personalityExtraction.overallPersonality.summary,
       topTraits: personalityExtraction.overallPersonality.topTraits,
       businessValues: getBusinessValueSummary(personalityExtraction),
     };
 
-    console.log(
-      "🎨 Generoidaan taustakuva ekstraktoidun persoonallisuuden pohjalta..."
-    );
+    console.log("🎨 Generating background with personality...");
 
-    // Käytä parannettua kuvaprompttia
     const backgroundPrompt = await createEnhancedVisualPrompt(imagePromptData);
 
     const headers: Record<string, string> = {
@@ -304,29 +311,22 @@ export async function generateEnhancedBackgroundImageWithExtraction(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Image API responded with ${response.status}: ${errorText}`
-      );
+      throw new Error(`Image API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { url?: string };
     if (!data.url) {
-      throw new Error("No URL in image generation response");
+      throw new Error("No URL in response");
     }
 
-    // Convert and upload to Supabase
+    // Upload to Supabase
     let imageBlob: Blob;
     if (data.url.startsWith("data:")) {
       const base64Data = data.url.split(",")[1];
-      imageBlob = await (
-        await fetch(`data:application/octet-stream;base64,${base64Data}`)
-      ).blob();
+      imageBlob = await (await fetch(`data:application/octet-stream;base64,${base64Data}`)).blob();
     } else {
       const imageResponse = await fetch(data.url);
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
-      }
+      if (!imageResponse.ok) throw new Error("Failed to fetch image");
       imageBlob = await imageResponse.blob();
     }
 
@@ -334,7 +334,7 @@ export async function generateEnhancedBackgroundImageWithExtraction(
     const cvId = userData.cvId || `cv_${Date.now()}`;
     const filePath = `backgrounds/${userId}/background-${cvId}.png`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("cv_files")
       .upload(filePath, imageBlob, {
         cacheControl: "3600",
@@ -343,7 +343,7 @@ export async function generateEnhancedBackgroundImageWithExtraction(
       });
 
     if (uploadError) {
-      console.error("Failed to upload image to Supabase Storage:", uploadError);
+      console.error("Supabase upload failed:", uploadError);
       return FALLBACK_IMAGE;
     }
 
@@ -353,50 +353,51 @@ export async function generateEnhancedBackgroundImageWithExtraction(
 
     return publicUrlData.publicUrl;
   } catch (error) {
-    console.error(
-      "❌ Taustakuvan persoonallisuusekstraktointi epäonnistui:",
-      error
-    );
+    console.error("❌ Background extraction failed:", error);
     return await generateEnhancedBackgroundImage(userData, authToken);
   }
 }
 
-// APUFUNKTIO PARANNETTUUN KUVAPROMPTTIIN
-async function createEnhancedVisualPrompt(
-  personalityData: any
-): Promise<string> {
+// 3. Enhanced visual prompt creator (helper for above)
+async function createEnhancedVisualPrompt(personalityData: {
+  workingStyle: string;
+  energySources: string;
+  uniqueStrength: string;
+  teamRole: string;
+  superpower: string;
+  jobTitle: string;
+  personalitySummary: string;
+  topTraits: string[];
+  businessValues: string[];
+}): Promise<string> {
   const visualPrompt = ChatPromptTemplate.fromMessages([
     [
       "system",
-      `Olet visuaalinen suunnittelija, joka muuntaa persoonallisuuspiirteet abstrakkteiksi, ATS-yhteensopiviksi CV-taustaelementeiksi.
+      `You are a visual designer translating personality into abstract CV backgrounds.
       
-      SUUNNITTELUPERIAATTEET:
-      - Abstrakti, ei-häiritsevä estetiikka
-      - Väriharmonia persoonallisuuden mukaan
-      - Professionaalinen, mutta persoonallinen
-      - Skalautuvuus eri dokumenttikooissa`,
+DESIGN PRINCIPLES:
+- Abstract, non-distracting
+- Professional color psychology
+- ATS-compatible
+- Personality-inspired but subtle`,
     ],
     [
       "human",
-      `Luo visuaalinen kuvaus CV:n taustakuvalle:
+      `Create visual description for CV background:
       
-      PERSOONALLISUUSPROFIILI:
-      Työtyyli: {workingStyle}
-      Energianlähteet: {energySources}
-      Vahvuus: {uniqueStrength}
-      Tiimirooli: {teamRole}
-      Ammatillinen identiteetti: {superpower}
-      
-      KONTEKSTI:
-      Tavoitetyö: {jobTitle}
-      Persoonallisuuden yhteenveto: {personalitySummary}
-      Keskeiset piirteet: {topTraits}
-      
-      Luo abstrakti, professionaalinen taustakuvan kuvaus joka:
-      - Heijastaa persoonallisuutta värien ja muotojen kautta
-      - Ei häiritse CV:n tekstiä
-      - Sopii ATS-järjestelmiin
-      - Luo positiivisen ensivaikutelman`,
+PERSONALITY:
+Working Style: {workingStyle}
+Energy Sources: {energySources}
+Strength: {uniqueStrength}
+Team Role: {teamRole}
+Identity: {superpower}
+
+CONTEXT:
+Job: {jobTitle}
+Summary: {personalitySummary}
+Traits: {topTraits}
+
+Create abstract, professional background description for AI image generation.`,
     ],
   ]);
 
@@ -416,8 +417,71 @@ async function createEnhancedVisualPrompt(
   return getMessageContent(result);
 }
 
-// AI-POHJAINEN DATA SUFFICIENCY ASSESSOR
-// Korjattu AI-pohjainen data sufficiency assessor
+// =====================================
+// TARKISTA TYYPIT (varmista että nämä ovat olemassa)
+// =====================================
+
+// Jos saat "Cannot find name 'TextContentPart'" virheen, lisää:
+interface TextContentPart {
+  type: "text";
+  text: string;
+}
+
+// Jos saat "Cannot find name 'BaseMessage'" virheen:
+// - Älä lisää uutta BaseMessage interfacea
+// - Käytä vain unknown-tyyppiä getMessageContent:ssa
+// - LangChain hoitaa omat tyyppinsä
+
+// =====================================
+// JOB POSTING ANALYZER
+// =====================================
+export async function analyzeJobPosting(jobPostingText: string): Promise<JobAnalysis> {
+  const analysisPrompt = ChatPromptTemplate.fromMessages([
+    [
+      "system",
+      "You are an ATS and recruitment specialist. Extract key optimization data from job postings.",
+    ],
+    [
+      "human",
+      `Analyze this job posting and extract structured data:
+        
+      JOB POSTING:
+      ${jobPostingText}
+      
+      Extract and return JSON:
+      {
+        "required_skills": ["exact technical terms"],
+        "preferred_skills": ["nice-to-have terms"], 
+        "soft_skills": ["leadership", "communication", etc.],
+        "company_values": ["innovation", "collaboration", etc.],
+        "key_responsibilities": ["main job duties"],
+        "experience_level": "entry/mid/senior",
+        "industry_keywords": ["domain-specific terms"]
+      }`,
+    ],
+  ]);
+
+  try {
+    const result = await model.invoke(await analysisPrompt.formatMessages({}));
+    const analysisText = getMessageContent(result);
+    return JSON.parse(analysisText) as JobAnalysis;
+  } catch (error) {
+    console.error("Job posting analysis failed:", error);
+    return {
+      required_skills: [],
+      preferred_skills: [],
+      soft_skills: [],
+      company_values: [],
+      key_responsibilities: [],
+      experience_level: "mid",
+      industry_keywords: [],
+    };
+  }
+}
+
+// =====================================
+// DATA QUALITY ASSESSOR
+// =====================================
 const dataAssessmentPrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
@@ -432,13 +496,13 @@ FOR SIMPLE CV TYPE: Personality data is MOST IMPORTANT - weight it heavily in as
 FOR OTHER CV TYPES: Focus on professional experience and skills.
 
 Return ONLY valid JSON in this exact format:
-{{
+{
   "quality": "rich or moderate or minimal",
   "score": number_from_0_to_100,
   "reasoning": "Brief explanation of assessment",
   "missing_critical": ["array", "of", "critical", "missing", "elements"],
   "suggestions": ["array", "of", "specific", "improvement", "suggestions"]
-}}`,
+}`,
   ],
   [
     "human",
@@ -471,7 +535,7 @@ Analyze and return quality assessment as valid JSON.`,
   ],
 ]);
 
-export async function assessDataQualityWithAI(userData: any): Promise<{
+export async function assessDataQualityWithAI(userData: LangChainCVInput): Promise<{
   quality: "rich" | "moderate" | "minimal";
   score: number;
   reasoning: string;
@@ -499,26 +563,25 @@ export async function assessDataQualityWithAI(userData: any): Promise<{
     const result = await assessmentModel.invoke(formattedPrompt);
     const responseText = getMessageContent(result);
 
-    console.log("Raw AI assessment response length:", responseText.length);
-
-    // YKSINKERTAINEN RATKAISU: Puhdista kontrollimerkit
     const cleanedResponse = responseText
-      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "") // Poista kontrollimerkit
-      .replace(/\n/g, " ") // Korvaa rivinvaihdot välilyönneillä
-      .replace(/\r/g, "") // Poista carriage return
-      .replace(/\t/g, " ") // Korvaa tabit välilyönneillä
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+      .replace(/\n/g, " ")
+      .replace(/\r/g, "")
+      .replace(/\t/g, " ")
       .trim();
 
-    console.log("Cleaned response preview:", cleanedResponse.substring(0, 300));
+    const assessment = JSON.parse(cleanedResponse) as {
+      quality: string;
+      score: number;
+      reasoning: string;
+      missing_critical: string[];
+      suggestions: string[];
+    };
 
-    // Yritä parsintaa puhdistetulla datalla
-    const assessment = JSON.parse(cleanedResponse);
-
-    // Validoi vastaus
     const validatedAssessment = {
-      quality: ["rich", "moderate", "minimal"].includes(assessment.quality)
+      quality: (["rich", "moderate", "minimal"].includes(assessment.quality)
         ? assessment.quality
-        : "minimal",
+        : "minimal") as "rich" | "moderate" | "minimal",
       score:
         typeof assessment.score === "number" &&
         assessment.score >= 0 &&
@@ -537,12 +600,10 @@ export async function assessDataQualityWithAI(userData: any): Promise<{
         : ["Add more detailed information"],
     };
 
-    console.log("Assessment successful:", validatedAssessment.quality);
     return validatedAssessment;
   } catch (error) {
     console.error("AI assessment failed:", error);
 
-    // FALLBACK: Yksinkertainen paikallinen arviointi
     const hasPersonality = !!(
       userData.workingStyle ||
       userData.uniqueStrength ||
@@ -582,247 +643,9 @@ export async function assessDataQualityWithAI(userData: any): Promise<{
   }
 }
 
-// Uusi funktio keskeneräisen JSON:n korjaamiseen
-function fixIncompleteJson(responseText: string): string | null {
-  try {
-    // Etsi JSON:n alku
-    const startIndex = responseText.indexOf("{");
-    if (startIndex === -1) return null;
-
-    // Ota kaikki { merkistä eteenpäin
-    let jsonStr = responseText.substring(startIndex);
-
-    // Laske aaltosulkeiden tasapaino
-    let braceCount = 0;
-    let lastValidIndex = -1;
-
-    for (let i = 0; i < jsonStr.length; i++) {
-      const char = jsonStr[i];
-      if (char === "{") {
-        braceCount++;
-      } else if (char === "}") {
-        braceCount--;
-        if (braceCount === 0) {
-          lastValidIndex = i;
-          break;
-        }
-      }
-    }
-
-    // Jos löydettiin täydellinen JSON
-    if (lastValidIndex !== -1) {
-      return jsonStr.substring(0, lastValidIndex + 1);
-    }
-
-    // Jos JSON on keskeneräinen, yritä korjata
-    console.log("Attempting to fix incomplete JSON...");
-
-    // Poista viimeinen epätäydellinen rivi
-    const lines = jsonStr.split("\n");
-    let fixedLines = [];
-    let inArray = false;
-    let arrayDepth = 0;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-
-      // Seuraa array-tasoja
-      const openBrackets = (line.match(/\[/g) || []).length;
-      const closeBrackets = (line.match(/\]/g) || []).length;
-      arrayDepth += openBrackets - closeBrackets;
-      inArray = arrayDepth > 0;
-
-      // Jos rivi näyttää keskeneräiseltä (ei päivity lainausmerkeillä tai sulkeilla)
-      if (
-        line &&
-        !line.endsWith(",") &&
-        !line.endsWith('"') &&
-        !line.endsWith("]") &&
-        !line.endsWith("}") &&
-        inArray
-      ) {
-        // Lisää puuttuvat lainausmerkit ja pilkku
-        if (!line.startsWith('"')) {
-          fixedLines.push('    "' + line + '"');
-        } else {
-          fixedLines.push(line + '"');
-        }
-
-        // Sulje array ja objekti
-        fixedLines.push("  ]");
-        fixedLines.push("}");
-        break;
-      } else {
-        fixedLines.push(lines[i]);
-      }
-    }
-
-    const fixedJson = fixedLines.join("\n");
-    console.log(
-      "Attempting to parse fixed JSON:",
-      fixedJson.substring(0, 200) + "..."
-    );
-
-    return fixedJson;
-  } catch (error) {
-    console.error("Error fixing incomplete JSON:", error);
-    return null;
-  }
-}
-
-// Parannettu validointifunktio
-function validateAssessmentResponse(assessment: any) {
-  const validQualities = ["rich", "moderate", "minimal"];
-
-  return {
-    quality: validQualities.includes(assessment.quality)
-      ? assessment.quality
-      : "minimal",
-    score:
-      typeof assessment.score === "number" &&
-      assessment.score >= 0 &&
-      assessment.score <= 100
-        ? assessment.score
-        : 30,
-    reasoning:
-      typeof assessment.reasoning === "string"
-        ? assessment.reasoning
-        : "Assessment completed with basic analysis",
-    missingCritical: Array.isArray(assessment.missing_critical)
-      ? assessment.missing_critical
-      : Array.isArray(assessment.missingCritical)
-      ? assessment.missingCritical
-      : [],
-    suggestions: Array.isArray(assessment.suggestions)
-      ? assessment.suggestions
-      : ["Add more detailed information for better CV quality"],
-  };
-}
-
-// Fallback funktiot (samat kuin aiemmin)
-function getFallbackMissingCritical(userData: any): string[] {
-  const missing = [];
-
-  if (!userData.workExperience || userData.workExperience.length < 20) {
-    missing.push("Detailed work experience");
-  }
-  if (!userData.skills || userData.skills.length < 20) {
-    missing.push("Comprehensive skills list");
-  }
-  if (userData.cvType === "simple" && !userData.workingStyle) {
-    missing.push("Working style description");
-  }
-  if (userData.cvType === "simple" && !userData.uniqueStrength) {
-    missing.push("Unique strengths");
-  }
-
-  return missing;
-}
-
-function getFallbackSuggestions(userData: any): string[] {
-  const suggestions = [];
-
-  if (!userData.workExperience || userData.workExperience.length < 50) {
-    suggestions.push(
-      "Add more detailed work experience with specific achievements"
-    );
-  }
-  if (!userData.skills || userData.skills.length < 30) {
-    suggestions.push(
-      "Expand skills section with both technical and soft skills"
-    );
-  }
-  if (
-    userData.cvType === "simple" &&
-    (!userData.workingStyle || !userData.uniqueStrength)
-  ) {
-    suggestions.push("Complete personality sections for Simple CV type");
-  }
-  if (!userData.education || userData.education.length < 20) {
-    suggestions.push("Add educational background and certifications");
-  }
-
-  return suggestions;
-}
-
-// Fallback funktio AI-virheen varalta
-function calculateBasicScore(userData: any): number {
-  let score = 0;
-
-  if (userData.name?.length > 2) score += 10;
-  if (userData.workExperience?.length > 50) score += 20;
-  if (userData.skills?.length > 30) score += 15;
-  if (userData.education?.length > 20) score += 10;
-
-  // Simple CV:lle persoonallisuus painaa enemmän
-  if (userData.cvType === "simple") {
-    const personalityFields = [
-      userData.workingStyle,
-      userData.problemSolving,
-      userData.energySources,
-      userData.uniqueStrength,
-      userData.learningStyle,
-      userData.teamRole,
-      userData.valuesExample,
-      userData.superpower,
-    ];
-    const filledPersonality = personalityFields.filter(
-      (field) => field?.length > 10
-    ).length;
-    score += filledPersonality * 7; // 7 pistettä per täytetty persoonallisuuskenttä
-  }
-
-  return Math.min(score, 100);
-}
-
-// JOB POSTING ANALYZER
-export async function analyzeJobPosting(jobPostingText: string): Promise<any> {
-  const analysisPrompt = ChatPromptTemplate.fromMessages([
-    [
-      "system",
-      "You are an ATS and recruitment specialist. Extract key optimization data from job postings.",
-    ],
-    {
-      role: "human",
-      content: `
-        Analyze this job posting and extract structured data:
-        
-        JOB POSTING:
-        ${jobPostingText}
-        
-        Extract and return JSON:
-        {
-          "required_skills": ["exact technical terms"],
-          "preferred_skills": ["nice-to-have terms"], 
-          "soft_skills": ["leadership", "communication", etc.],
-          "company_values": ["innovation", "collaboration", etc.],
-          "key_responsibilities": ["main job duties"],
-          "experience_level": "entry/mid/senior",
-          "industry_keywords": ["domain-specific terms"]
-        }
-      `,
-    },
-  ]);
-
-  try {
-    const result = await model.invoke(await analysisPrompt.formatMessages({}));
-    const analysisText = getMessageContent(result);
-    return JSON.parse(analysisText);
-  } catch (error) {
-    console.error("Job posting analysis failed:", error);
-    return {
-      required_skills: [],
-      preferred_skills: [],
-      soft_skills: [],
-      company_values: [],
-      key_responsibilities: [],
-      experience_level: "mid",
-      industry_keywords: [],
-    };
-  }
-}
-
-// SIMPLE CV PROMPT - KORJATTU JA PARANNETTU
+// =====================================
+// PROMPT TEMPLATES
+// =====================================
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
@@ -867,37 +690,6 @@ ADDITIONAL CONTEXT:
 Hobbies/Interests: {hobbies}
 Personality Traits: {personalityTraits}
 
-===== ADAPTIVE CONTENT CREATION =====
-
-**SECTION ADAPTATION:**
-
-1. PERSONAL_DESCRIPTION (1500-2500 characters):
-   RICH DATA: Comprehensive professional story with achievements  
-   MODERATE DATA: Focus on strengths and career direction
-   MINIMAL DATA: Emphasize character, learning potential, and goals
-   
-   - Start with strongest available element (experience/education/personality)
-   - Use personality data to show professional approach
-   - Connect to career goals using available information
-   - Show authenticity - never claim fictional achievements
-
-2. SKILLS_SECTION:
-   - List ONLY skills user provided
-   - Group logically (Technical, Professional, Personal)
-   - Use personality context to explain HOW they use skills
-   - If skills minimal: focus on learning approach and potential
-
-3. EXPERIENCE_SECTION:
-   WITH EXPERIENCE: Detailed role descriptions with personality insights
-   WITHOUT EXPERIENCE: Focus on education projects, volunteer work, personal projects
-   MINIMAL DATA: Emphasize transferable skills from any context (studies, hobbies, life)
-
-4. EDUCATION_SECTION:
-   - Use all provided education information
-   - Connect learning style to academic approach
-   - Show continuous development mindset
-   - If education minimal: emphasize self-directed learning
-
 ===== OUTPUT FORMAT =====
 {{
   "personal_description": "Adaptive professional summary (1500-2500 chars) using available data",
@@ -914,30 +706,22 @@ Personality Traits: {personalityTraits}
   }}
 }}
 
-REMEMBER: Authenticity and potential are more valuable than fictional achievements.
-
 Language: {language}
     `,
   },
 ]);
 
-// TECHNICAL CV PROMPT
 const atsOptimizedTechnicalPrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    `CONTEXT: You are an ATS optimization specialist creating personality-driven technical CVs that rank highest in automated screening systems while compelling human recruiters.
-
-CORE STRATEGY:
-- BEAT ATS: Precise keyword matching, standard formatting, quantified achievements
-- WIN HUMANS: Authentic personality integration, memorable differentiators
-- PROVE VALUE: Concrete metrics that show business impact
+    `CONTEXT: You are an ATS optimization specialist creating personality-driven technical CVs.
 
 ATS OPTIMIZATION PRIORITIES:
 1. Exact keyword matches from job requirements
-2. Industry-standard terminology and section headers
-3. Quantified achievements with specific metrics
+2. Industry-standard terminology
+3. Quantified achievements with metrics
 4. Natural keyword density (2-3% per section)
-5. Professional formatting that parsers can read`,
+5. Professional formatting`,
   ],
   {
     role: "human",
@@ -957,29 +741,29 @@ Work Experience: {workExperience}
 Skills: {skills}
 Languages: {languages}
 
-===== PERSONALITY PROFILE (DIFFERENTIATION ENGINE) =====
+===== PERSONALITY PROFILE =====
 Working Style: {workingStyle}
-Problem-Solving Method: {problemSolving}
+Problem-Solving: {problemSolving}
 Energy Sources: {energySources}
 Unique Strength: {uniqueStrength}
-Learning Approach: {learningStyle}
+Learning: {learningStyle}
 Team Role: {teamRole}
-Values in Action: {valuesExample}
-Professional Identity: {superpower}
+Values: {valuesExample}
+Identity: {superpower}
 
 ===== OUTPUT FORMAT =====
 {{
   "personal_description": "ATS-optimized technical summary with personality hooks (max 2500 chars)",
   "cv_content": {{
-    "skills_section": "Keyword-rich technical skills with personality context as HTML string",
-    "experience_section": "Achievement-focused experience with personality-derived metrics as HTML string", 
-    "education_section": "Standard format education with learning style integration as HTML string",
-    "languages_section": "Professional languages format as HTML string"
+    "skills_section": "Keyword-rich technical skills with personality context as HTML",
+    "experience_section": "Achievement-focused experience as HTML", 
+    "education_section": "Standard format education as HTML",
+    "languages_section": "Professional languages as HTML"
   }},
   "ats_optimization": {{
-    "keyword_density": "Primary technical keywords successfully integrated: [list]",
-    "personality_integration": "Technical differentiators: [how personality creates competitive advantage]",
-    "measurable_achievements": ["Specific quantified technical results"]
+    "keyword_density": "Primary technical keywords: [list]",
+    "personality_integration": "Technical differentiators: [advantages]",
+    "measurable_achievements": ["Quantified technical results"]
   }}
 }}
 
@@ -988,42 +772,39 @@ Language: {language}
   },
 ]);
 
-// CREATIVE CV PROMPT
 const atsOptimizedCreativePrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    `CONTEXT: You are a creative CV strategist who creates memorable, ATS-compliant resumes that pass automated screening AND make human recruiters say "I need to interview this person."
+    `CONTEXT: You are a creative CV strategist creating memorable, ATS-compliant resumes.
 
 BALANCE CHALLENGE: 
 - TECHNICAL: Must pass ATS keyword screening
-- CREATIVE: Must stand out from hundreds of similar profiles
-- AUTHENTIC: Must reflect genuine personality
-
-CREATIVE STRATEGY: Use storytelling and personality to make keyword-rich content memorable and engaging.`,
+- CREATIVE: Must stand out from hundreds
+- AUTHENTIC: Must reflect genuine personality`,
   ],
   {
     role: "human",
     content: `
-===== TARGET JOB ANALYSIS =====
+===== TARGET JOB =====
 Role: {jobTitle}
-Key Requirements: {requiredSkills}
-Company Culture Indicators: {companyValues}
+Requirements: {requiredSkills}
+Culture: {companyValues}
 Industry: {industryKeywords}
 
-===== APPLICANT PERSONALITY CORE =====
+===== APPLICANT CORE =====
 Name: {name} | Contact: {phone}, {email} | Location: {location}
 
-PERSONALITY ESSENCE:
+PERSONALITY:
 Working Style: {workingStyle}
-Problem-Solving Magic: {problemSolving}
-What Energizes Them: {energySources}
-Their Superpower: {uniqueStrength}
-Learning Method: {learningStyle}
-Team Dynamic: {teamRole}
-Values in Practice: {valuesExample}
-Colleague's 3-Word Description: {superpower}
+Problem-Solving: {problemSolving}
+Energy: {energySources}
+Superpower: {uniqueStrength}
+Learning: {learningStyle}
+Team: {teamRole}
+Values: {valuesExample}
+Identity: {superpower}
 
-FOUNDATION DATA:
+FOUNDATION:
 Education: {education}
 Experience: {workExperience}
 Skills: {skills}
@@ -1031,17 +812,17 @@ Languages: {languages}
 
 ===== OUTPUT FORMAT =====
 {{
-  "personal_description": "Hook-driven creative summary with strategic keywords (max 2500 chars)",
+  "personal_description": "Hook-driven creative summary (max 2500 chars)",
   "cv_content": {{
-    "skills_section": "Story-enhanced skills with keyword integration as HTML string",
-    "experience_section": "Impact-narrative experience with personality-driven metrics as HTML string",
-    "education_section": "Learning-focused education section as HTML string",
-    "languages_section": "Cultural adaptability emphasis as HTML string"
+    "skills_section": "Story-enhanced skills as HTML",
+    "experience_section": "Impact-narrative experience as HTML",
+    "education_section": "Learning-focused education as HTML",
+    "languages_section": "Cultural adaptability as HTML"
   }},
   "ats_optimization": {{
-    "keyword_density": "Creative keyword integration achieved: [examples]",
-    "personality_integration": "Memorable differentiators: [specific personality advantages]", 
-    "measurable_achievements": ["Personality-derived quantified results"]
+    "keyword_density": "Creative keyword integration: [examples]",
+    "personality_integration": "Memorable differentiators: [advantages]", 
+    "measurable_achievements": ["Personality-derived results"]
   }}
 }}
 
@@ -1050,334 +831,122 @@ Language: {language}
   },
 ]);
 
-// ENHANCED BACKGROUND PROMPT
-const enhancedBackgroundPrompt = ChatPromptTemplate.fromMessages([
-  [
-    "system",
-    `You are a professional visual designer specializing in abstract, ATS-compatible CV backgrounds that subtly reflect personality while maintaining corporate professionalism.
+// =====================================
+// MAIN: GENERATE CV WITH PERSONALITY EXTRACTION
+// =====================================
 
-DESIGN CONSTRAINTS:
-- Must work with ATS text overlay (no interference)
-- Professional color psychology
-- Minimal, sophisticated aesthetic
-- Personality-inspired but never literal`,
-  ],
-  {
-    role: "human",
-    content: `
-PERSONALITY VISUAL TRANSLATION:
-Working Style: {workingStyle}
-Energy Sources: {energySources}  
-Unique Strength: {uniqueStrength}
-Team Role: {teamRole}
-Professional Identity: {superpower}
+// =====================================
+// KORJATTU generateCVWithPersonalityExtraction
+// =====================================
 
-TARGET ROLE CONTEXT: {jobTitle}
+export async function generateCVWithPersonalityExtraction(
+  userData: LangChainCVInput & { authToken?: string; jobPosting?: string }
+): Promise<CVGenerationResult> {
+  const timer = new PerformanceTimer();
+  timer.start("Total Generation");
 
-===== DESIGN BRIEF =====
-Create an abstract background description that:
-- Reflects personality through color psychology and composition
-- Maintains ATS compatibility (subtle, text-friendly)
-- Uses professional design principles
-- Scales well across different document sizes
+  const { authToken, jobPosting, ...restUserData } = userData;
 
-Generate a detailed visual description for AI image generation.
-    `,
-  },
-]);
-
-// HELPER FUNCTIONS
-function generateInitials(name: string): string {
-  if (!name) return "";
-  const names = name.split(" ");
-  const initials = names.map((name) => name.charAt(0).toUpperCase()).join("");
-  return initials;
-}
-
-// ROBUSTTI PARSING-FUNKTIOT
-function sanitizeAIResponse(rawResponse: string): string {
   try {
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("No JSON found in response");
-    }
+    // ⚡ STAGE 1: PARALLEL EXTRACTION
+    timer.start("Personality + Job Analysis");
+    
+    const [personalityExtraction, jobAnalysis] = await Promise.all([
+      extractPersonalityTraits({
+        userProfile: ensureString(userData.profile) || ensureString(userData.bio) || "",
+        workingStyleText: ensureString(userData.workingStyle),
+        problemSolvingText: ensureString(userData.problemSolving),
+        energySourcesText: ensureString(userData.energySources),
+        strengthsText: ensureString(userData.uniqueStrength),
+        learningText: ensureString(userData.learningStyle),
+        teamworkText: ensureString(userData.teamRole),
+        valuesText: ensureString(userData.valuesExample),
+        additionalInfo: ensureString(userData.superpower),
+      }),
+      jobPosting && jobPosting.length > 50
+        ? analyzeJobPosting(jobPosting)
+        : Promise.resolve<JobAnalysis>({
+            required_skills: [],
+            preferred_skills: [],
+            soft_skills: [],
+            company_values: [],
+            key_responsibilities: [],
+            experience_level: "mid",
+            industry_keywords: [],
+          })
+    ]);
+    
+    timer.end(); // ✅ Sulje tämä stage
 
-    const aiData = JSON.parse(jsonMatch[0]);
+    // ⚡ STAGE 2: DATA TRANSFORMATION
+    timer.start("Data Transformation");
+    
+    const extractedPersonalityData = convertToLegacyFormat(personalityExtraction);
+    const confidenceScore = getPersonalityConfidenceScore(personalityExtraction);
+    
+    console.log(`📊 Personality confidence: ${Math.round(confidenceScore.averageConfidence * 100)}%`);
 
-    if (aiData.cv_content) {
-      // Skills section korjaus
-      if (typeof aiData.cv_content.skills_section === "object") {
-        aiData.cv_content.skills_section = convertSkillsObjectToString(
-          aiData.cv_content.skills_section
-        );
-      }
+    const enhancedUserData: LangChainCVInput = {
+      ...restUserData,
+      workingStyle: extractedPersonalityData.workingStyle || restUserData.workingStyle || "",
+      problemSolving: extractedPersonalityData.problemSolving || restUserData.problemSolving || "",
+      energySources: extractedPersonalityData.energySources || restUserData.energySources || "",
+      uniqueStrength: extractedPersonalityData.uniqueStrength || restUserData.uniqueStrength || "",
+      learningStyle: extractedPersonalityData.learningStyle || restUserData.learningStyle || "",
+      teamRole: extractedPersonalityData.teamRole || restUserData.teamRole || "",
+      valuesExample: extractedPersonalityData.valuesExample || restUserData.valuesExample || "",
+      superpower: extractedPersonalityData.superpower || restUserData.superpower || "",
+    };
+    
+    timer.end(); // ✅ Sulje tämä stage
 
-      // Experience section korjaus
-      if (typeof aiData.cv_content.experience_section === "object") {
-        aiData.cv_content.experience_section = convertExperienceObjectToString(
-          aiData.cv_content.experience_section
-        );
-      }
+    // ⚡ STAGE 3: GENERATE CV (TÄMÄ PUUTTUI!)
+    console.log("🚀 Generating CV content...");
+    const result = await generateCVWithLangChain({
+      ...enhancedUserData,
+      authToken,
+      jobPosting,
+    });
 
-      // Education section korjaus
-      if (typeof aiData.cv_content.education_section === "object") {
-        aiData.cv_content.education_section = convertEducationObjectToString(
-          aiData.cv_content.education_section
-        );
-      }
+    // ✅ Nyt result on määritelty!
+    timer.getResults();
 
-      // Languages section korjaus
-      if (typeof aiData.cv_content.languages_section === "object") {
-        aiData.cv_content.languages_section = convertLanguagesObjectToString(
-          aiData.cv_content.languages_section
-        );
-      }
-    }
-
-    return JSON.stringify(aiData);
+    return result;
   } catch (error) {
-    console.error("Failed to sanitize AI response:", error);
+    console.error("❌ CV generation failed:", error);
     throw error;
   }
 }
-
-// Apufunktiot objektien muuntamiseen stringeiksi
-function convertSkillsObjectToString(skillsObj: any): string {
-  let result = "";
-
-  if (skillsObj.Technical || skillsObj.technical) {
-    const technical = skillsObj.Technical || skillsObj.technical;
-    result += `<strong>Technical Skills:</strong><br>${technical}<br><br>`;
-  }
-
-  if (skillsObj.Professional || skillsObj.professional) {
-    const professional = skillsObj.Professional || skillsObj.professional;
-    result += `<strong>Professional Skills:</strong><br>${professional}<br><br>`;
-  }
-
-  if (skillsObj.Soft || skillsObj.soft) {
-    const soft = skillsObj.Soft || skillsObj.soft;
-    result += `<strong>Soft Skills:</strong><br>${soft}<br><br>`;
-  }
-
-  if (skillsObj.Languages || skillsObj.languages) {
-    const languages = skillsObj.Languages || skillsObj.languages;
-    result += `<strong>Languages:</strong><br>${languages}`;
-  }
-
-  // Jos objektilla on muita kenttiä, yhdistä ne
-  Object.entries(skillsObj).forEach(([key, value]) => {
-    if (
-      ![
-        "Technical",
-        "Professional",
-        "Soft",
-        "Languages",
-        "technical",
-        "professional",
-        "soft",
-        "languages",
-      ].includes(key)
-    ) {
-      result += `<strong>${key}:</strong><br>${value}<br><br>`;
-    }
-  });
-
-  return result.trim() || JSON.stringify(skillsObj);
-}
-
-function convertExperienceObjectToString(expObj: any): string {
-  if (typeof expObj === "string") return expObj;
-
-  if (Array.isArray(expObj)) {
-    return expObj
-      .map((exp) => {
-        if (typeof exp === "string") return exp;
-        return `<strong>${
-          exp.title || exp.position || "Position"
-        }</strong> at ${exp.company || "Company"}<br>${
-          exp.description || exp.details || ""
-        }`;
-      })
-      .join("<br><br>");
-  }
-
-  if (expObj.title || expObj.position || expObj.company) {
-    return `<strong>${
-      expObj.title || expObj.position || "Position"
-    }</strong> at ${expObj.company || "Company"}<br>${
-      expObj.description || expObj.details || ""
-    }`;
-  }
-
-  return JSON.stringify(expObj);
-}
-
-function convertEducationObjectToString(eduObj: any): string {
-  if (typeof eduObj === "string") return eduObj;
-
-  if (Array.isArray(eduObj)) {
-    return eduObj
-      .map((edu) => {
-        if (typeof edu === "string") return edu;
-        return `<strong>${edu.degree || edu.title || "Degree"}</strong><br>${
-          edu.institution || edu.school || "Institution"
-        }<br>${edu.year || edu.graduation || ""}`;
-      })
-      .join("<br><br>");
-  }
-
-  if (eduObj.degree || eduObj.institution || eduObj.school) {
-    return `<strong>${eduObj.degree || eduObj.title || "Degree"}</strong><br>${
-      eduObj.institution || eduObj.school || "Institution"
-    }<br>${eduObj.year || eduObj.graduation || ""}`;
-  }
-
-  return JSON.stringify(eduObj);
-}
-
-function convertLanguagesObjectToString(langObj: any): string {
-  if (typeof langObj === "string") return langObj;
-
-  if (Array.isArray(langObj)) {
-    return langObj
-      .map((lang) => {
-        if (typeof lang === "string") return lang;
-        return `${lang.language || lang.name} (${
-          lang.level || lang.proficiency || "fluent"
-        })`;
-      })
-      .join(", ");
-  }
-
-  const languages = Object.entries(langObj).map(
-    ([lang, level]) => `${lang} (${level})`
-  );
-  return languages.join(", ") || JSON.stringify(langObj);
-}
-
-function extractDataManually(rawResponse: string, userData: any): any {
-  console.log("🔧 Manual extraction initiated");
-
-  return {
-    personal_description:
-      userData.introText ||
-      `${userData.name} - ammattilainen ${userData.jobTitle || "alallaan"}`,
-    cv_content: {
-      skills_section: `<strong>Osaaminen:</strong><br>${
-        userData.skills || "Monipuolinen osaaminen"
-      }`,
-      experience_section: `<strong>Työkokemus:</strong><br>${
-        userData.workExperience || "Relevanttia työkokemusta"
-      }`,
-      education_section: `<strong>Koulutus:</strong><br>${
-        userData.education || "Asianmukainen koulutus"
-      }`,
-      languages_section: `<strong>Kielet:</strong><br>${
-        userData.languages || "Suomi, Englanti"
-      }`,
-    },
-    ats_optimization: {
-      keyword_density: "Manual extraction - keywords preserved from user input",
-      personality_integration:
-        "Fallback generation - basic structure maintained",
-      measurable_achievements: [
-        "Reliable system performance",
-        "Consistent delivery",
-      ],
-    },
-  };
-}
-
-// MAIN GENERATION FUNCTION
-
-// Sitten muuta generateCVWithLangChain funktion alku näin:
-// lib/langchain/cvGenerator.ts - KORJATTU generateCVWithLangChain
-
-// Päivitä generateCVWithLangChain käyttämään LangChainCVInput tyyppiä:
-// lib/langchain/cvGenerator.ts - generateCVWithLangChain TÄYDELLINEN VERSIO
-
-export async function generateCVWithLangChain(userData: LangChainCVInput): Promise<any> {
-  // Mock data check
- /* if (process.env.NODE_ENV === "test" || process.env.USE_MOCK_DATA === "true") {
-    console.log("Using mock data for CV generation");
-    return {
-      personal_description: mockCVData.simple.ai_data.profile,
-      html: mockCVData.simple.ai_data.html,
-      background_image: mockCVData.simple.ai_data.background_image,
-      profile_initials: mockCVData.simple.ai_data.profile_initials,
-      fullTextContent:
-        mockCVData.simple.ai_data.profile +
-        "\n" +
-        Object.values(mockCVData.simple.ai_data.html).join("\n"),
-      images: { background_prompt: "", visual_elements: [] },
-    };
-  }*/
+// =====================================
+// MAIN: GENERATE CV WITH LANGCHAIN
+// =====================================
+export async function generateCVWithLangChain(
+  userData: LangChainCVInput & { authToken?: string; jobPosting?: string }
+): Promise<CVGenerationResult> {
+  const timer = new PerformanceTimer();
 
   try {
-    console.log("Starting AI-powered CV generation...");
-    console.log("Input data summary:", {
-      cvType: userData.cvType,
-      hasName: !!userData.name,
-      hasEducation: !!userData.education,
-      hasWorkExperience: !!userData.workExperience,
-      hasPersonality: !!(userData.workingStyle || userData.uniqueStrength),
-      hasJobPosting: !!(userData as any).jobPosting, // ✅ Tarkista job posting
-      jobPostingLength: ((userData as any).jobPosting as string)?.length || 0,
-    });
-
-    // ========================================
-    // JOB POSTING ANALYYSI (PREMIUM)
-    // ========================================
-    let jobAnalysis = {
-      required_skills: [] as string[],
-      preferred_skills: [] as string[],
-      soft_skills: [] as string[],
-      company_values: [] as string[],
-      key_responsibilities: [] as string[],
-      experience_level: "mid" as string,
-      industry_keywords: [] as string[],
+    // STAGE 1: JOB POSTING ANALYSIS
+    timer.start("Job Analysis");
+    let jobAnalysis: JobAnalysis = {
+      required_skills: [],
+      preferred_skills: [],
+      soft_skills: [],
+      company_values: [],
+      key_responsibilities: [],
+      experience_level: "mid",
+      industry_keywords: [],
     };
 
-    // ✅ AKTIVOI JOB POSTING ANALYYSI jos annettu
-    const jobPosting = (userData as any).jobPosting as string | undefined;
-    
-    if (jobPosting && jobPosting.length > 50) {
-      console.log("🎯 Analyzing job posting for ATS optimization...");
-      console.log("Job posting length:", jobPosting.length);
-      
-      try {
-        jobAnalysis = await analyzeJobPosting(jobPosting);
-        
-        console.log("✅ Job analysis complete:", {
-          required_skills: jobAnalysis.required_skills.length,
-          preferred_skills: jobAnalysis.preferred_skills.length,
-          soft_skills: jobAnalysis.soft_skills.length,
-          company_values: jobAnalysis.company_values.length,
-          experience_level: jobAnalysis.experience_level,
-          industry_keywords: jobAnalysis.industry_keywords.length,
-        });
-        
-        // Jos analyysi epäonnistuu mutta jatkaa, logita
-        if (jobAnalysis.required_skills.length === 0 && 
-            jobAnalysis.industry_keywords.length === 0) {
-          console.warn("⚠️ Job posting analysis returned empty results");
-        }
-      } catch (error) {
-        console.error("❌ Job posting analysis failed:", error);
-        // Jatka ilman ATS-optimointia
-        console.log("Continuing with generic CV (no ATS optimization)");
-      }
-    } else if (jobPosting) {
-      console.log("⚠️ Job posting too short for analysis (< 50 chars)");
-    } else {
-      console.log("ℹ️ No job posting provided - creating generic CV");
+    if (userData.jobPosting && userData.jobPosting.length > 50) {
+      console.log("🎯 Analyzing job posting...");
+      jobAnalysis = await analyzeJobPosting(userData.jobPosting);
     }
+    timer.end();
 
-    // ========================================
-    // VALITSE PROMPT CV-TYYPIN MUKAAN
-    // ========================================
-    let promptTemplate;
+    // STAGE 2: SELECT PROMPT
+    timer.start("Prompt Selection & Formatting");
+    let promptTemplate: ChatPromptTemplate;
     switch (userData.cvType) {
       case "technical":
         promptTemplate = atsOptimizedTechnicalPrompt;
@@ -1390,13 +959,7 @@ export async function generateCVWithLangChain(userData: LangChainCVInput): Promi
         break;
     }
 
-    console.log(`📝 Using prompt template: ${userData.cvType}`);
-
-    // ========================================
-    // FORMATOI PROMPT
-    // ========================================
     const formattedPrompt = await promptTemplate.formatMessages({
-      // Basic data
       name: userData.name || "",
       location: userData.location || "",
       phone: userData.phone || "",
@@ -1406,8 +969,6 @@ export async function generateCVWithLangChain(userData: LangChainCVInput): Promi
       workExperience: userData.workExperience || "",
       skills: userData.skills || "",
       languages: userData.languages || "",
-
-      // Personality profile
       workingStyle: userData.workingStyle || "",
       problemSolving: userData.problemSolving || "",
       energySources: userData.energySources || "",
@@ -1416,77 +977,50 @@ export async function generateCVWithLangChain(userData: LangChainCVInput): Promi
       teamRole: userData.teamRole || "",
       valuesExample: userData.valuesExample || "",
       superpower: userData.superpower || "",
-
-      // Additional fields
       hobbies: userData.hobbies || "",
       personalityTraits: userData.personalityTraits || "",
-
-      // ✅ ATS OPTIMIZATION DATA (käytetään vain jos job posting annettu)
       requiredSkills: jobAnalysis.required_skills.join(", "),
       industryKeywords: jobAnalysis.industry_keywords.join(", "),
       companyValues: jobAnalysis.company_values.join(", "),
       experienceLevel: jobAnalysis.experience_level,
-
       language: userData.language || "finnish",
     });
+    timer.end();
 
-    console.log("🤖 Generating CV content...");
-    if (jobAnalysis.required_skills.length > 0 || jobAnalysis.industry_keywords.length > 0) {
-      console.log("🎯 ATS Keywords to integrate:", {
-        required: jobAnalysis.required_skills.slice(0, 5).join(", "),
-        industry: jobAnalysis.industry_keywords.slice(0, 5).join(", "),
-      });
-    }
-
-    // ========================================
-    // AI-GENEROINTI
-    // ========================================
+    // STAGE 3: AI GENERATION
+    timer.start("AI CV Generation");
     const cvResult = await model.invoke(formattedPrompt);
     const rawContentString = getMessageContent(cvResult);
+    timer.end();
 
-    console.log("=== AI Response Debug ===");
-    console.log("Raw response length:", rawContentString.length);
-    console.log("Response preview:", rawContentString.substring(0, 150) + "...");
-
-    // ========================================
-    // ROBUSTTI PARSING
-    // ========================================
-    let parsedOutput;
+    // STAGE 4: PARSING
+    timer.start("Output Parsing");
+    let parsedOutput: CVOutputType;
     try {
       const sanitizedResponse = sanitizeAIResponse(rawContentString);
       parsedOutput = await outputParser.parse(sanitizedResponse);
-      console.log("✅ Successfully parsed after sanitization");
     } catch (sanitizeError) {
-      console.error("❌ Sanitization failed, trying direct parse:", sanitizeError);
-
+      console.error("❌ Sanitization failed, trying direct parse");
       try {
         parsedOutput = await outputParser.parse(rawContentString);
-        console.log("✅ Direct parse succeeded");
       } catch (directParseError) {
-        console.error("❌ Direct parse also failed:", directParseError);
-
-        const fallbackData = extractDataManually(rawContentString, userData);
-        parsedOutput = fallbackData;
-        console.log("⚠️ Using manual extraction fallback");
+        console.error("❌ Direct parse failed, using fallback");
+        parsedOutput = extractDataManually(rawContentString, userData);
       }
     }
+    timer.end();
 
-    // ========================================
-    // GENEROI TAUSTAKUVA
-    // ========================================
+    // STAGE 5: BACKGROUND IMAGE
+    timer.start("Background Image");
     let backgroundImage = "";
     if (!userData.backgroundImage) {
-      backgroundImage = await generateEnhancedBackgroundImage(
-        userData,
-        (userData as any).authToken
-      );
+      backgroundImage = await generateEnhancedBackgroundImage(userData, userData.authToken);
     } else {
       backgroundImage = userData.backgroundImage;
     }
+    timer.end();
 
-    // ========================================
-    // KOOSTA LOPULLINEN VASTAUS
-    // ========================================
+    // STAGE 6: FINAL ASSEMBLY
     const fullTextContent = `
 ${parsedOutput.personal_description || ""}
 
@@ -1502,21 +1036,19 @@ ${parsedOutput.cv_content.education_section || ""}
 ## Languages
 ${parsedOutput.cv_content.languages_section || ""}
 
-## ATS Optimization Summary
+## ATS Optimization
 Keywords: ${jobAnalysis.required_skills.join(", ")}
-Personality Differentiators: ${
-      parsedOutput.ats_optimization?.personality_integration || ""
-    }
+Personality: ${parsedOutput.ats_optimization?.personality_integration || ""}
     `.trim();
+
+    timer.getResults();
 
     return {
       personal_description: parsedOutput.personal_description,
       html: parsedOutput.cv_content,
       background_image: backgroundImage || FALLBACK_IMAGE,
-      profile_initials: userData.profileImage
-        ? ""
-        : generateInitials(userData.name),
-      fullTextContent: fullTextContent,
+      profile_initials: userData.profileImage ? "" : generateInitials(userData.name),
+      fullTextContent,
       ats_data: parsedOutput.ats_optimization || null,
       job_analysis: jobAnalysis,
       images: {
@@ -1530,26 +1062,15 @@ Personality Differentiators: ${
   }
 }
 
-// Muut funktiot (generateEnhancedBackgroundImage, sanitizeAIResponse, jne.) pysyvät samoina
-
-// ENHANCED BACKGROUND IMAGE GENERATION
+// =====================================
+// BACKGROUND IMAGE GENERATION
+// =====================================
 export async function generateEnhancedBackgroundImage(
-  userData: any,
+  userData: LangChainCVInput,
   authToken?: string
 ): Promise<string> {
   try {
-    const backgroundPrompt = await enhancedBackgroundPrompt.formatMessages({
-      workingStyle: userData.workingStyle || "",
-      energySources: userData.energySources || "",
-      uniqueStrength: userData.uniqueStrength || "",
-      teamRole: userData.teamRole || "",
-      superpower: userData.superpower || "",
-      jobTitle: userData.jobTitle || "",
-    });
-
-    const promptResult = await model.invoke(backgroundPrompt);
-    const promptString = getMessageContent(promptResult);
-    const optimizedPrompt = optimizeImagePrompt(promptString);
+    const optimizedPrompt = `Abstract professional background for ${userData.title || "professional"} CV, subtle gradient, minimal design, ATS-compatible`;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -1567,17 +1088,15 @@ export async function generateEnhancedBackgroundImage(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Image API responded with ${response.status}: ${errorText}`
-      );
+      throw new Error(`Image API error ${response.status}: ${errorText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { url?: string };
     if (!data.url) {
-      throw new Error("No URL in image generation response");
+      throw new Error("No URL in image response");
     }
 
-    // Convert and upload to Supabase
+    // Convert to blob
     let imageBlob: Blob;
     if (data.url.startsWith("data:")) {
       const base64Data = data.url.split(",")[1];
@@ -1592,11 +1111,12 @@ export async function generateEnhancedBackgroundImage(
       imageBlob = await imageResponse.blob();
     }
 
+    // Upload to Supabase
     const userId = userData.userId || "anonymous";
     const cvId = userData.cvId || `cv_${Date.now()}`;
     const filePath = `backgrounds/${userId}/background-${cvId}.png`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("cv_files")
       .upload(filePath, imageBlob, {
         cacheControl: "3600",
@@ -1605,7 +1125,7 @@ export async function generateEnhancedBackgroundImage(
       });
 
     if (uploadError) {
-      console.error("Failed to upload image to Supabase Storage:", uploadError);
+      console.error("Supabase upload failed:", uploadError);
       return FALLBACK_IMAGE;
     }
 
@@ -1615,7 +1135,210 @@ export async function generateEnhancedBackgroundImage(
 
     return publicUrlData.publicUrl;
   } catch (error) {
-    console.error("Enhanced background image generation failed:", error);
+    console.error("Background image generation failed:", error);
     return FALLBACK_IMAGE;
   }
+}
+
+// =====================================
+// UTILITY FUNCTIONS
+// =====================================
+function generateInitials(name: string): string {
+  if (!name) return "";
+  const names = name.split(" ");
+  return names.map((n) => n.charAt(0).toUpperCase()).join("");
+}
+
+function sanitizeAIResponse(rawResponse: string): string {
+  try {
+    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No JSON found in response");
+    }
+
+    const aiData = JSON.parse(jsonMatch[0]) as {
+      cv_content?: {
+        skills_section?: string | Record<string, unknown>;
+        experience_section?: string | Record<string, unknown>;
+        education_section?: string | Record<string, unknown>;
+        languages_section?: string | Record<string, unknown>;
+      };
+    };
+
+    if (aiData.cv_content) {
+      // Skills section
+      if (typeof aiData.cv_content.skills_section === "object") {
+        aiData.cv_content.skills_section = convertSkillsObjectToString(
+          aiData.cv_content.skills_section
+        );
+      }
+
+      // Experience section
+      if (typeof aiData.cv_content.experience_section === "object") {
+        aiData.cv_content.experience_section = convertExperienceObjectToString(
+          aiData.cv_content.experience_section
+        );
+      }
+
+      // Education section
+      if (typeof aiData.cv_content.education_section === "object") {
+        aiData.cv_content.education_section = convertEducationObjectToString(
+          aiData.cv_content.education_section
+        );
+      }
+
+      // Languages section
+      if (typeof aiData.cv_content.languages_section === "object") {
+        aiData.cv_content.languages_section = convertLanguagesObjectToString(
+          aiData.cv_content.languages_section
+        );
+      }
+    }
+
+    return JSON.stringify(aiData);
+  } catch (error) {
+    console.error("Failed to sanitize AI response:", error);
+    throw error;
+  }
+}
+
+// Helper converters
+function convertSkillsObjectToString(skillsObj: Record<string, unknown>): string {
+  let result = "";
+
+  const categories = ['Technical', 'technical', 'Professional', 'professional', 'Soft', 'soft', 'Languages', 'languages'];
+  
+  for (const key of categories) {
+    if (key in skillsObj) {
+      const value = skillsObj[key];
+      if (typeof value === 'string') {
+        const label = key.charAt(0).toUpperCase() + key.slice(1);
+        result += `<strong>${label} Skills:</strong><br>${value}<br><br>`;
+      }
+    }
+  }
+
+  // Add any other fields not covered
+  Object.entries(skillsObj).forEach(([key, value]) => {
+    if (!categories.includes(key) && typeof value === 'string') {
+      result += `<strong>${key}:</strong><br>${value}<br><br>`;
+    }
+  });
+
+  return result.trim() || JSON.stringify(skillsObj);
+}
+
+function convertExperienceObjectToString(expObj: Record<string, unknown> | Record<string, unknown>[]): string {
+  if (typeof expObj === "string") return expObj;
+
+  if (Array.isArray(expObj)) {
+    return expObj
+      .map((exp) => {
+        if (typeof exp === "string") return exp;
+        
+        const expRecord = exp as Record<string, unknown>;
+        const title = (expRecord.title || expRecord.position || "Position") as string;
+        const company = (expRecord.company || "Company") as string;
+        const description = (expRecord.description || expRecord.details || "") as string;
+        
+        return `<strong>${title}</strong> at ${company}<br>${description}`;
+      })
+      .join("<br><br>");
+  }
+
+  const expRecord = expObj as Record<string, unknown>;
+  if (expRecord.title || expRecord.position || expRecord.company) {
+    const title = (expRecord.title || expRecord.position || "Position") as string;
+    const company = (expRecord.company || "Company") as string;
+    const description = (expRecord.description || expRecord.details || "") as string;
+    
+    return `<strong>${title}</strong> at ${company}<br>${description}`;
+  }
+
+  return JSON.stringify(expObj);
+}
+
+function convertEducationObjectToString(eduObj: Record<string, unknown> | Record<string, unknown>[]): string {
+  if (typeof eduObj === "string") return eduObj;
+
+  if (Array.isArray(eduObj)) {
+    return eduObj
+      .map((edu) => {
+        if (typeof edu === "string") return edu;
+        
+        const eduRecord = edu as Record<string, unknown>;
+        const degree = (eduRecord.degree || eduRecord.title || "Degree") as string;
+        const institution = (eduRecord.institution || eduRecord.school || "Institution") as string;
+        const year = (eduRecord.year || eduRecord.graduation || "") as string;
+        
+        return `<strong>${degree}</strong><br>${institution}<br>${year}`;
+      })
+      .join("<br><br>");
+  }
+
+  const eduRecord = eduObj as Record<string, unknown>;
+  if (eduRecord.degree || eduRecord.institution || eduRecord.school) {
+    const degree = (eduRecord.degree || eduRecord.title || "Degree") as string;
+    const institution = (eduRecord.institution || eduRecord.school || "Institution") as string;
+    const year = (eduRecord.year || eduRecord.graduation || "") as string;
+    
+    return `<strong>${degree}</strong><br>${institution}<br>${year}`;
+  }
+
+  return JSON.stringify(eduObj);
+}
+
+function convertLanguagesObjectToString(langObj: Record<string, unknown> | Record<string, unknown>[]): string {
+  if (typeof langObj === "string") return langObj;
+
+  if (Array.isArray(langObj)) {
+    return langObj
+      .map((lang) => {
+        if (typeof lang === "string") return lang;
+        
+        const langRecord = lang as Record<string, unknown>;
+        const language = (langRecord.language || langRecord.name || "") as string;
+        const level = (langRecord.level || langRecord.proficiency || "fluent") as string;
+        
+        return `${language} (${level})`;
+      })
+      .join(", ");
+  }
+
+  const languages = Object.entries(langObj).map(
+    ([lang, level]) => `${lang} (${level})`
+  );
+  return languages.join(", ") || JSON.stringify(langObj);
+}
+
+function extractDataManually(rawResponse: string, userData: LangChainCVInput): CVOutputType {
+  console.log("🔧 Manual extraction fallback");
+
+  return {
+    personal_description:
+      userData.introText ||
+      `${userData.name} - professional in ${userData.title || "their field"}`,
+    cv_content: {
+      skills_section: `<strong>Skills:</strong><br>${
+        userData.skills || "Versatile skill set"
+      }`,
+      experience_section: `<strong>Experience:</strong><br>${
+        userData.workExperience || "Relevant work experience"
+      }`,
+      education_section: `<strong>Education:</strong><br>${
+        userData.education || "Appropriate educational background"
+      }`,
+      languages_section: `<strong>Languages:</strong><br>${
+        userData.languages || "Finnish, English"
+      }`,
+    },
+    ats_optimization: {
+      keyword_density: "Manual extraction - keywords from user input",
+      personality_integration: "Fallback generation - basic structure maintained",
+      measurable_achievements: [
+        "Reliable performance",
+        "Consistent delivery",
+      ],
+    },
+  };
 }
