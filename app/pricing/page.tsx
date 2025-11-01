@@ -1,8 +1,10 @@
 //app/pricing/page.tsx
+import PromoCodeRedeem from '@/components/promoCode';
 import { Button } from '@/components/ui/button';
 import { PRICING } from '@/lib/pricing';
 import { createCheckoutSession, Tier } from '@/lib/stripe/subscriptions';
 import { currentUser } from '@clerk/nextjs/server';
+import { Link } from 'lucide-react';
 import { redirect } from 'next/navigation';
 
 export default async function PricingPage() {
@@ -11,7 +13,17 @@ export default async function PricingPage() {
   return (
     <div className="container mx-auto py-12">
       <h1 className="text-3xl font-bold mb-8">Valitse sopiva tilaus</h1>
-     
+     <div> <p> onko sinulla etukoodi?</p></div>
+           <PromoCodeRedeem />
+<Link href="/">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-600 hover:text-indigo-600"
+                  >
+                    Etusivulle
+                  </Button>
+                </Link>
       <div className="grid md:grid-cols-2 gap-8">
         {Object.entries(PRICING).map(([tier, details]) => (
           <div key={tier} className="border rounded-lg p-6 shadow-sm">
