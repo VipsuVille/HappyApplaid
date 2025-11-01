@@ -1,9 +1,8 @@
-// app/api/generate-cv/route.ts - FREEMIUM VERSION
+// app/api/generate-cv/route.ts - KORJATTU
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import {
   generateCVWithLangChain,
-  
 } from "@/lib/langchain/cvGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
 import { 
@@ -13,9 +12,12 @@ import {
   type LangChainCVInput 
 } from "@/lib/profileDataTransform";
 
-export const maxDuration = 60;  // ← LISÄÄ TÄMÄ
-export const runtime = 'edge';   // ← JA TÄMÄ
+export const maxDuration = 60; // ✅ SÄILYTÄ
+// export const runtime = 'edge'; // ❌ POISTA TÄMÄ RIVI!
+
 export async function POST(req: Request) {
+  const startTime = Date.now(); // ✅ LISÄÄ AIKAMITTAUS
+  
   const authData = await auth();
   const currentUserId = authData.userId;
 
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
     const requestData = await req.json();
     const forceGenerate = requestData.forceGenerate || false;
     const cvType: "simple" | "technical" | "creative" = requestData.cvType || "simple";
-    const jobPosting: string | undefined = requestData.jobPosting; // ✅ UUSI
+    const jobPosting: string | undefined = requestData.jobPosting;
 
     console.log(`🎯 CV Generation Request - Type: ${cvType}, Force: ${forceGenerate}, Has Job Posting: ${!!jobPosting}`);
 
@@ -58,7 +60,6 @@ export async function POST(req: Request) {
       .eq("user_id", currentUserId)
       .single();
 
-    // Määritä tier
     let planType: "free" | "premium" = "free";
     let isPremiumActive = false;
 
@@ -86,7 +87,6 @@ export async function POST(req: Request) {
     // ========================================
 
     if (isFree) {
-      // ❌ Tarkista onko FREE CV jo käytetty
       if (hasUsedFreeCv) {
         return NextResponse.json(
           {
@@ -94,11 +94,10 @@ export async function POST(req: Request) {
             message: "Olet jo käyttänyt ilmaisen CV:si. Päivitä Premium-tiliin saadaksesi:\n• Rajattomasti CV:itä\n• ATS-optimointi\n• Hakukirjeet",
             redirectTo: "/pricing",
           },
-          { status: 402 } // Payment Required
+          { status: 402 }
         );
       }
 
-      // ❌ FREE vain Simple CV
       if (cvType !== "simple") {
         return NextResponse.json(
           {
@@ -110,12 +109,11 @@ export async function POST(req: Request) {
         );
       }
 
-      // ❌ FREE ei saa käyttää job postingia (ATS)
       if (jobPosting) {
         return NextResponse.json(
           {
             error: "free_tier_no_ats",
-            message: "ATS-optimointi on vain Premium-käyttäjille. Ilmainen CV on persoonallisuusvetoinen mutta ei optimoitu ATS-järjestelmille.",
+            message: "ATS-optimointi on vain Premium-käyttäjille.",
           },
           { status: 403 }
         );
@@ -129,13 +127,13 @@ export async function POST(req: Request) {
     // ========================================
 
     if (isPremiumActive) {
-      const requiredTokens = 5; // Perustokenit
+      const requiredTokens = 5;
 
       if ((subscription?.tokens || 0) < requiredTokens) {
         return NextResponse.json(
           {
             error: "insufficient_tokens",
-            message: `Tokenit lopussa (${subscription?.tokens || 0}/${requiredTokens}). Odota seuraavaa jaksoa tai päivitä tilaus.`,
+            message: `Tokenit lopussa (${subscription?.tokens || 0}/${requiredTokens}).`,
             tokensRemaining: subscription?.tokens || 0,
           },
           { status: 402 }
@@ -146,7 +144,7 @@ export async function POST(req: Request) {
     }
 
     // ========================================
-    // 4️⃣ HAE PROFIILIDATAA TIETOKANNASTA
+    // 4️⃣ HAE PROFIILIDATAA
     // ========================================
 
     const { data: dbProfile, error: profileDbError } = await supabaseAdmin
@@ -166,15 +164,16 @@ export async function POST(req: Request) {
     }
 
     // ========================================
-    // 5️⃣ MUUNNA TIETOKANTA → LANGCHAIN MUOTO
+    // 5️⃣ MUUNNA TIETOKANTA → LANGCHAIN
     // ========================================
+
+    console.log(`⏱️  Time after profile fetch: ${Date.now() - startTime}ms`);
 
     const langchainInput: LangChainCVInput = transformDBToLangChain(
       dbProfile,
       cvType
     );
 
-    // ✅ LISÄÄ JOB POSTING (jos PREMIUM ja annettu)
     const enhancedInput: LangChainCVInput & { jobPosting?: string } = {
       ...langchainInput,
       jobPosting: isPremiumActive ? jobPosting : undefined,
@@ -183,39 +182,33 @@ export async function POST(req: Request) {
     console.log("📊 Transformed data summary:", {
       hasName: !!enhancedInput.name,
       hasEmail: !!enhancedInput.email,
-      educationLength: enhancedInput.education.length,
-      workExperienceLength: enhancedInput.workExperience.length,
-      skillsLength: enhancedInput.skills.length,
       cvType: enhancedInput.cvType,
       hasJobPosting: !!enhancedInput.jobPosting,
-      jobPostingLength: enhancedInput.jobPosting?.length || 0,
     });
 
     // ========================================
-    // 6️⃣ PERSOONALLISUUSDATAN ANALYYSI (Simple CV)
+    // 6️⃣ PERSOONALLISUUSDATAN ANALYYSI
     // ========================================
 
     if (cvType === "simple") {
       const personalityStats = calculatePersonalityCompleteness(enhancedInput);
-      console.log("💭 Personality data completeness:", {
+      console.log("💭 Personality completeness:", {
         percentage: personalityStats.completeness.toFixed(1) + "%",
         filled: personalityStats.filledFields,
         total: personalityStats.totalFields,
-        missing: personalityStats.missingFields,
       });
     }
 
     // ========================================
-    // 7️⃣ VALIDOI DATAN RIITTÄVYYS
+    // 7️⃣ VALIDOI DATA
     // ========================================
 
     const validation = validateProfileForCVType(enhancedInput, cvType);
 
-    console.log("✓ Validation result:", {
-      cvType: cvType,
+    console.log("✓ Validation:", {
       isValid: validation.isValid,
       score: validation.score,
-      missing: validation.missingCritical,
+      missing: validation.missingCritical.length,
     });
 
     if (!validation.isValid && !forceGenerate) {
@@ -226,23 +219,23 @@ export async function POST(req: Request) {
           missingCritical: validation.missingCritical,
           suggestions: validation.suggestions,
           score: validation.score,
-          message: `❌ CV-tyyppi "${cvType}" vaatii lisätietoja (${validation.score}/100):\n\n` +
-                   `Puuttuu:\n${validation.missingCritical.map(m => `• ${m}`).join('\n')}\n\n` +
-                   `Suositukset:\n${validation.suggestions.map(s => `• ${s}`).join('\n')}`,
         },
         { status: 422 }
       );
     }
 
     // ========================================
-    // 8️⃣ GENEROI CV LANGCHAIN:lla
+    // 8️⃣ GENEROI CV (KRIITTISIN OSA)
     // ========================================
 
-    console.log(`🚀 Starting AI CV generation (${planType.toUpperCase()})...`);
+    console.log(`🚀 Starting AI generation at ${Date.now() - startTime}ms...`);
+    
     const aiData = await generateCVWithLangChain(enhancedInput);
+    
+    console.log(`✅ AI generation completed in ${Date.now() - startTime}ms`);
 
     // ========================================
-    // 9️⃣ TALLENNA CV TIETOKANTAAN
+    // 9️⃣ TALLENNA CV
     // ========================================
 
     const content = {
@@ -257,8 +250,8 @@ export async function POST(req: Request) {
         title: `${enhancedInput.name || "My"} CV - ${cvType}`,
         content: content,
         is_public: false,
-        is_ats_optimized: isPremiumActive && !!jobPosting, // ✅ UUSI
-        job_posting: isPremiumActive ? jobPosting : null, // ✅ UUSI
+        is_ats_optimized: isPremiumActive && !!jobPosting,
+        job_posting: isPremiumActive ? jobPosting : null,
       })
       .select("id, content")
       .single();
@@ -268,21 +261,20 @@ export async function POST(req: Request) {
       throw new Error("Failed to save CV.");
     }
 
+    console.log(`💾 CV saved in ${Date.now() - startTime}ms total`);
+
     // ========================================
-    // 🔟 KULUTA TOKENIT / MERKITSE FREE CV KÄYTETYKSI
+    // 🔟 KULUTA TOKENIT / MERKITSE FREE
     // ========================================
 
     if (isPremiumActive) {
-      // PREMIUM: Kuluta tokenit
       const requiredTokens = 5;
 
-      const { data: consumeResult } = await supabaseAdmin.rpc("consume_tokens", {
+      await supabaseAdmin.rpc("consume_tokens", {
         p_user_id: currentUserId,
         p_action_type: "cv_generation",
         p_tokens_required: requiredTokens,
       });
-
-      if (!consumeResult) throw new Error("Token consumption failed");
 
       const { data: updatedTokens } = await supabaseAdmin
         .from("subscriptions")
@@ -290,7 +282,7 @@ export async function POST(req: Request) {
         .eq("user_id", currentUserId)
         .single();
 
-      console.log(`✅ CV generated (PREMIUM). Tokens used: ${requiredTokens}, Remaining: ${updatedTokens?.tokens || 0}`);
+      console.log(`✅ PREMIUM CV generated in ${Date.now() - startTime}ms. Tokens: ${updatedTokens?.tokens}`);
 
       return NextResponse.json(
         {
@@ -302,24 +294,16 @@ export async function POST(req: Request) {
           qualityScore: validation.score,
           isPremium: true,
           isAtsOptimized: !!jobPosting,
-          message: jobPosting 
-            ? "Premium CV luotu ATS-optimoinnilla!"
-            : "Premium CV luotu onnistuneesti!",
+          generationTime: Date.now() - startTime, // ✅ Palauta aika
         },
         { status: 200 }
       );
     } else {
-      // FREE: Merkitse FREE CV käytetyksi
-      const { error: markError } = await supabaseAdmin.rpc("mark_free_cv_used", {
+      await supabaseAdmin.rpc("mark_free_cv_used", {
         p_user_id: currentUserId,
       });
 
-      if (markError) {
-        console.error("Failed to mark FREE CV as used:", markError);
-        // Jatka silti, CV on jo tallennettu
-      }
-
-      console.log("✅ CV generated (FREE). User has now used their free CV.");
+      console.log(`✅ FREE CV generated in ${Date.now() - startTime}ms`);
 
       return NextResponse.json(
         {
@@ -331,13 +315,13 @@ export async function POST(req: Request) {
           qualityScore: validation.score,
           isPremium: false,
           isAtsOptimized: false,
-          message: "Ilmainen CV luotu onnistuneesti! Päivitä Premium-tiliin saadaksesi ATS-optimoinnin ja hakukirjeet.",
+          generationTime: Date.now() - startTime,
         },
         { status: 200 }
       );
     }
   } catch (error) {
-    console.error("❌ CV generation failed:", error);
+    console.error(`❌ CV generation failed after ${Date.now() - startTime}ms:`, error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "CV generation failed",
