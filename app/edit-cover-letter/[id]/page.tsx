@@ -6,7 +6,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { SaveIcon, ArrowLeftIcon, TrashIcon, Download, EyeIcon, PenIcon } from 'lucide-react';
-import Header from '@/components/ui/Header';
 import { Loader2 } from 'lucide-react';
 import { fetchCoverLetterById, updateCoverLetter, deleteCoverLetter } from '@/services/coverLetterService-client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +14,7 @@ import { HexColorPicker } from 'react-colorful';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
+import SmartHeader from '@/components/ui/smartHeader';
 
 interface CoverLetterStyles {
   mainColor: string;
@@ -313,7 +313,7 @@ export default function EditCoverLetterPage() {
   if (!coverLetter) {
     return (
       <div className="min-h-screen">
-        <Header isLoading />
+ <SmartHeader />
         <div className="container mx-auto py-8 px-4 text-center pt-16">
           {error ? <div className="text-red-500">{error}</div> : <div>Ladataan...</div>}
         </div>
@@ -323,7 +323,7 @@ export default function EditCoverLetterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header isLoading />
+      <SmartHeader />
       <main className="container mx-auto py-6 px-4 pt-20">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Muokkaa: {getJobTitle()}</h1>

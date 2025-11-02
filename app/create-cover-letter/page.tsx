@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import Header from "@/components/ui/Header";
 import {
   Loader2,
   HelpCircle,
@@ -14,6 +13,7 @@ import {
   User,
 } from "lucide-react";
 import { useSubscription } from "@/components/SubscriptionStatus"; // ✅ KORJATTU
+import SmartHeader from "@/components/ui/smartHeader";
 
 interface PersonalityProfile {
   workingStyle?: string;
@@ -347,8 +347,8 @@ if (!isActive) {
   if (loadingProfile) {
     return (
       <div className="min-h-screen">
-        <Header isLoading />
-        <main className="container mx-auto py-8 px-4">
+ <SmartHeader />
+         <main className="container mx-auto py-8 px-4">
           <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -364,8 +364,8 @@ if (!isActive) {
   if (showQuestions && aiQuestions.length > 0) {
     return (
       <div className="min-h-screen">
-        <Header isLoading />
-        <main className="container mx-auto py-8 px-4">
+ <SmartHeader />   
+      <main className="container mx-auto py-8 px-4">
           <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center mb-6">
               <Button
@@ -452,7 +452,10 @@ if (!isActive) {
   // Main form
   return (
     <div className="min-h-screen">
-      <Header isLoading />
+ <SmartHeader />
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50">
+      {/* ✅ Client Component Navbar */}
+      </div>
       <main className="container mx-auto py-8 px-4">
         <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
           <h1 className="text-2xl font-bold mb-6">{getFieldLabel("title")}</h1>

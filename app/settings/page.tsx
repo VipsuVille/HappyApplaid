@@ -1,6 +1,8 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
+import { getFreemiumStatus } from "@/lib/server/getFreemiumStatus";
+import SmartHeader from "@/components/ui/smartHeader";
 
 export default async function SettingsPage() {
   const user = await currentUser();
@@ -8,10 +10,13 @@ export default async function SettingsPage() {
   if (!user) {
     redirect("/sign-in");
   }
+  const freemiumStatus = await getFreemiumStatus(user.id); // ✅ Käytä
 
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
-      <div className="space-y-8">
+      {/* ✅ Client Component Navbar */}
+ <SmartHeader />     
+  <div className="space-y-8">
         {/* Otsikko */}
         <div>
           <h1 className="text-3xl font-bold">Tilin asetukset</h1>

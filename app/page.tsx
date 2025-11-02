@@ -34,6 +34,7 @@ import {
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
 import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
+import SmartHeader from "@/components/ui/smartHeader";
 
 interface SubscriptionStatus {
   plan_type: "free" | "premium";
@@ -583,103 +584,11 @@ export default function Home() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-6">
               <div className="flex items-center">
-                <div className="h-8 w-8 mr-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                  <FileText className="h-5 w-5 text-white" />
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  HappyApplaid
-                </span>
-              </div>
-
-              <nav className="hidden md:flex items-center gap-1">
-                <Link href="/">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-600 hover:text-indigo-600"
-                  >
-                    {language === "en" ? "Home" : "Etusivu"}
-                  </Button>
-                </Link>
-                <Link href="/my-cvs">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-600 hover:text-indigo-600"
-                  >
-                    {language === "en" ? "CVs" : "CV:t"}
-                  </Button>
-                </Link>
-                {isPremium && (
-                  <Link href="/my-cover-letters">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-600 hover:text-indigo-600"
-                    >
-                      {language === "en" ? "Cover Letters" : "Hakukirjeet"}
-                    </Button>
-                  </Link>
-                )}
-                <Link href="/profile">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-600 hover:text-indigo-600"
-                  >
-                    {language === "en" ? "Profile" : "Profiili"}
-                  </Button>
-                </Link>
-              </nav>
+ 
+              </div>    <div className="min-h-screen">
+     <SmartHeader /></div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {!freemiumLoading && (
-                <>
-                  {isPremium ? (
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-300 px-3 py-1.5 rounded-full shadow-sm">
-                      <Crown className="h-4 w-4 text-yellow-600" />
-                      <span className="text-sm font-semibold text-yellow-800">
-                        Premium ({freemiumStatus?.tokens || 0})
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-300 px-3 py-1.5 rounded-full shadow-sm">
-                      <span className="text-sm font-semibold text-gray-700">
-                        {hasUsedFreeCv
-                          ? language === "en"
-                            ? "Free CV Used"
-                            : "Ilmainen CV käytetty"
-                          : language === "en"
-                          ? "1 Free CV"
-                          : "1 Ilmainen CV"}
-                      </span>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
-                <User className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">
-                  {user?.firstName}
-                </span>
-              </div>
-
-              <Link href="/settings">
-                <Button variant="ghost" size="sm" className="text-gray-600">
-                  {language === "en" ? "Settings" : "Asetukset"}
-                </Button>
-              </Link>
-
-              {isDevelopmentMode && isSignedIn && (
-                <SignOutButton>
-                  <Button variant="outline" size="sm">
-                    {language === "en" ? "Sign Out" : "Kirjaudu ulos"}
-                  </Button>
-                </SignOutButton>
-              )}
-            </div>
           </div>
         </div>
       </header>

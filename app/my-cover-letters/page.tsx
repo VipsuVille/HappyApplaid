@@ -4,13 +4,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Edit, Trash2, FileText, Download, Loader2 } from 'lucide-react';
-import Header from '@/components/ui/Header';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
 import ATSReport from '@/components/ats-raportti'; // ← TÄMÄ IMPORT
+import SmartHeader from '@/components/ui/smartHeader';
 
 export default function MyCoverLettersPage() {
   const { user } = useUser();
@@ -325,7 +324,7 @@ export default function MyCoverLettersPage() {
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <Header isLoading={loading} />
+      <SmartHeader />
         <h1 className="text-2xl font-bold mb-4">Omat hakukirjeet</h1>
         <div className="text-center py-8">
           <p className="text-red-500 mb-4">{error}</p>
@@ -343,7 +342,7 @@ export default function MyCoverLettersPage() {
   if (coverLetters.length === 0) {
     return (
       <div className="container mx-auto p-4">
-        <Header isLoading={loading} />
+        <SmartHeader />
         <h1 className="text-2xl font-bold mb-4">Omat hakukirjeet</h1>
         <div className="text-center py-8">
           <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -361,7 +360,7 @@ export default function MyCoverLettersPage() {
 
   return (
     <div className="container mx-auto mb-4 md:inline-block md:ml-64 md:-10 pt-4 md:pt-0" style={{ maxWidth: '230mm'}}>
-      <Header isLoading={loading} />
+      <SmartHeader />
       <div className="flex justify-between items-center mb-6 mt-20">
         <h1 className="text-2xl font-bold">Omat hakukirjeet</h1>
         <Link

@@ -9,10 +9,10 @@ import CVTemplate from "@/components/cv/CVSimpleTemplate";
 import TechnicalCVTemplate from "@/components/cv/CVTemplateTechnical";
 import CreativeCVTemplate from "@/components/cv/CVCreativeTemplate";
 import Link from "next/link";
-import Header from "@/components/ui/Header";
 import CVContainer from "@/components/cv/CVContainer";
 import { supabase } from "@/lib/supabase-client";
 import { fetchCVs, deleteCV } from "@/services/cvService-client";
+import SmartHeader from "@/components/ui/smartHeader";
 
 export default function MyCVsPage() {
   const { userId, getToken } = useAuth(); // ✅ HAE getToken
@@ -164,7 +164,7 @@ export default function MyCVsPage() {
   if (error) {
     return (
       <div className="container mx-auto p-4">
-        <Header isLoading={loading} />
+        <SmartHeader />
         <h1 className="text-2xl font-bold mb-4">Omat CV:t</h1>
         <div className="text-center py-8">
           <p className="text-red-500 mb-4">{error}</p>
@@ -182,7 +182,7 @@ export default function MyCVsPage() {
   if (cvs.length === 0) {
     return (
       <div className="container mx-auto p-4">
-        <Header isLoading={loading} />
+        <SmartHeader />
         <h1 className="text-2xl font-bold mb-4">Omat CV:t</h1>
         <div className="text-center py-8">
           <p className="text-gray-600 mb-4">Ei vielä luotuja CV:itä</p>
@@ -202,7 +202,7 @@ export default function MyCVsPage() {
       className="container mx-auto mb-4 md:inline-block md:ml-64 md:-10 pt-4 md:pt-0"
       style={{ maxWidth: "230mm" }}
     >
-      <Header isLoading={loading} />
+      <SmartHeader />
       <div className="flex justify-between items-center mb-6 mt-20">
         <h1 className="text-2xl font-bold">Omat CV:t</h1>
         <Link

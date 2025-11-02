@@ -649,186 +649,195 @@ export async function assessDataQualityWithAI(userData: LangChainCVInput): Promi
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    `You are a CV writer who creates honest, engaging resumes using ONLY factual information provided. 
+    `You are a CV content writer who creates FIRST-PERSON professional descriptions.
 
-CORE PRINCIPLES:
-- FACTUAL ACCURACY: Use only provided information, never invent details
-- ADAPTIVE APPROACH: Create compelling content regardless of data amount
-- PERSONALITY FOCUS: For Simple CV, emphasize character and potential over experience
-- REALISTIC EXPECTATIONS: Work with available data, don't fabricate
+CRITICAL RULES:
+- Write in FIRST PERSON: "I am..." NOT "Candidate is..." or "Name is..."
+- NEVER use placeholder names like [Name], [Candidate], or any third-person references
+- Focus on PERSONALITY and POTENTIAL over credentials
+- Be HONEST - use only provided information
+- Create compelling narrative from available data
 
-CONTENT STRATEGY BY DATA AVAILABILITY:
-- RICH DATA: Create comprehensive sections with detailed descriptions
-- MODERATE DATA: Focus on strengths, use personality to fill narrative gaps
-- MINIMAL DATA: Emphasize potential, learning ability, and character traits`,
+VOICE:
+- Authentic and personal ("I bring...")
+- Confident but humble ("I've developed...")
+- Future-focused ("I aim to...")
+
+OUTPUT LANGUAGE: Generate all content in {language} (e.g., Finnish, English)`,
   ],
-  {
-    role: "human",
-    content: `
-===== AVAILABLE USER DATA =====
-Name: {name}
-Contact: {phone} | {email} | {location}
-Job Title/Goal: {jobTitle}
+  [
+    "human",
+    `Create a compelling CV content for a person with these characteristics:
 
-EXPERIENCE DATA:
+=== PROFESSIONAL PROFILE ===
+Target Role: {jobTitle}
 Work Experience: {workExperience}
 Education: {education}
 Skills: {skills}
 Languages: {languages}
 
-PERSONALITY DATA (for authentic voice):
-Work Style: {workingStyle}
-Problem-Solving: {problemSolving}
-Energy Sources: {energySources}
-Unique Strength: {uniqueStrength}
-Learning Style: {learningStyle}
-Team Role: {teamRole}
-Values Example: {valuesExample}
-Personal Identity: {superpower}
+=== PERSONALITY (Write from this person's perspective) ===
+Working Style: {workingStyle}
+Problem-Solving Approach: {problemSolving}
+What Energizes Me: {energySources}
+My Unique Strength: {uniqueStrength}
+How I Learn: {learningStyle}
+My Role in Teams: {teamRole}
+What I Value: {valuesExample}
+My Professional Identity: {superpower}
 
-ADDITIONAL CONTEXT:
-Hobbies/Interests: {hobbies}
-Personality Traits: {personalityTraits}
+=== CONTEXT ===
+Additional Interests: {hobbies}
+Character Traits: {personalityTraits}
 
-===== OUTPUT FORMAT =====
+=== REQUIRED OUTPUT FORMAT ===
 {{
-  "personal_description": "Adaptive professional summary (1500-2500 chars) using available data",
+  "personal_description": "First-person professional summary (1500-2500 chars). Start with 'I am...' or 'As a...' Write in {language}",
   "cv_content": {{
-    "skills_section": "User's actual skills with personality context as HTML string",
-    "experience_section": "Honest experience/education focus with growth narrative as HTML string",
-    "education_section": "Complete educational background with learning approach as HTML string",
-    "languages_section": "All provided languages with authentic context as HTML string"
+    "skills_section": "First-person skills description in HTML. Use 'I have expertise in...' Write in {language}",
+    "experience_section": "First-person experience narrative in HTML. Use 'I have worked...' or 'My experience includes...' Write in {language}",
+    "education_section": "First-person education background in HTML. Use 'I studied...' or 'I hold...' Write in {language}",
+    "languages_section": "First-person language skills in HTML. Use 'I speak...' or 'I am fluent in...' Write in {language}"
   }},
   "ats_optimization": {{
-    "keyword_density": "Keywords naturally integrated throughout extended content: [list]",
-    "personality_integration": "Comprehensive personality differentiation: [detailed advantages]",
-    "measurable_achievements": ["Detailed quantified results with context"]
+    "keyword_density": "Key skills integrated naturally throughout (list in {language})",
+    "personality_integration": "How personality differentiates this candidate (in {language})",
+    "measurable_achievements": ["Quantified results and accomplishments (in {language})"]
   }}
 }}
 
-Language: {language}
-    `,
-  },
+IMPORTANT: 
+- ALL content must be in {language}
+- Use first-person perspective throughout
+- Never mention placeholder names or third-person references
+- Write as if YOU are this person describing yourself`,
+  ],
 ]);
 
 const atsOptimizedTechnicalPrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    `CONTEXT: You are an ATS optimization specialist creating personality-driven technical CVs.
+    `You are an ATS optimization specialist creating FIRST-PERSON technical CVs.
 
-ATS OPTIMIZATION PRIORITIES:
+RULES:
+- Write EXCLUSIVELY in FIRST PERSON: "I have..." "My expertise..."
+- NO third-person: Never "The candidate has..."
+- KEYWORD-RICH: Natural integration of technical terms
+- QUANTIFIED: Metrics and achievements with numbers
+- PROFESSIONAL: Technical but personable tone
+
+ATS PRIORITIES:
 1. Exact keyword matches from job requirements
-2. Industry-standard terminology
-3. Quantified achievements with metrics
-4. Natural keyword density (2-3% per section)
-5. Professional formatting`,
+2. Industry-standard terminology in first person
+3. Quantified achievements ("I increased X by Y%")
+4. Natural keyword density (2-3% per section)`,
   ],
-  {
-    role: "human",
-    content: `
-===== JOB TARGETING DATA =====
-Target Role: {jobTitle}
+  [
+    "human",
+    `Create ATS-optimized technical CV content in FIRST PERSON:
+
+=== TARGET JOB ===
+Role: {jobTitle}
 Required Skills: {requiredSkills}
-Industry Keywords: {industryKeywords}
+Industry: {industryKeywords}
 Experience Level: {experienceLevel}
 
-===== APPLICANT DATA =====
-Name: {name} | Location: {location} | Phone: {phone} | Email: {email}
-
-FOUNDATION:
+=== MY PROFESSIONAL BACKGROUND ===
 Education: {education}
 Work Experience: {workExperience}
-Skills: {skills}
+Technical Skills: {skills}
 Languages: {languages}
 
-===== PERSONALITY PROFILE =====
-Working Style: {workingStyle}
+=== MY PERSONALITY ===
+How I Work: {workingStyle}
 Problem-Solving: {problemSolving}
-Energy Sources: {energySources}
-Unique Strength: {uniqueStrength}
-Learning: {learningStyle}
-Team Role: {teamRole}
-Values: {valuesExample}
-Identity: {superpower}
+What Energizes Me: {energySources}
+My Strength: {uniqueStrength}
+Learning Style: {learningStyle}
+Team Contribution: {teamRole}
+Core Values: {valuesExample}
+Professional Identity: {superpower}
 
-===== OUTPUT FORMAT =====
+=== OUTPUT (All in {language}, first-person) ===
 {{
-  "personal_description": "ATS-optimized technical summary with personality hooks (max 2500 chars)",
+  "personal_description": "Technical summary starting with 'I am a...' or 'As a...' (max 2500 chars in {language})",
   "cv_content": {{
-    "skills_section": "Keyword-rich technical skills with personality context as HTML",
-    "experience_section": "Achievement-focused experience as HTML", 
-    "education_section": "Standard format education as HTML",
-    "languages_section": "Professional languages as HTML"
+    "skills_section": "First-person technical skills: 'I have expertise in...' (HTML in {language})",
+    "experience_section": "First-person achievements: 'I developed...' 'I led...' (HTML in {language})",
+    "education_section": "First-person education: 'I studied...' 'I hold...' (HTML in {language})",
+    "languages_section": "First-person languages: 'I speak...' (HTML in {language})"
   }},
   "ats_optimization": {{
-    "keyword_density": "Primary technical keywords: [list]",
-    "personality_integration": "Technical differentiators: [advantages]",
-    "measurable_achievements": ["Quantified technical results"]
+    "keyword_density": "Technical keywords naturally integrated (in {language})",
+    "personality_integration": "How my personality enhances technical work (in {language})",
+    "measurable_achievements": ["Quantified technical results (in {language})"]
   }}
 }}
 
-Language: {language}
-    `,
-  },
+Write everything in {language} from first-person perspective.`,
+  ],
 ]);
 
 const atsOptimizedCreativePrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
-    `CONTEXT: You are a creative CV strategist creating memorable, ATS-compliant resumes.
+    `You are a creative CV strategist creating memorable FIRST-PERSON resumes.
 
-BALANCE CHALLENGE: 
-- TECHNICAL: Must pass ATS keyword screening
-- CREATIVE: Must stand out from hundreds
-- AUTHENTIC: Must reflect genuine personality`,
+VOICE:
+- PERSONAL: "I create..." "My approach..." "I believe..."
+- STORYTELLING: Narrative arc showing growth
+- AUTHENTIC: Genuine personality shines through
+- MEMORABLE: Hook that makes recruiters remember YOU
+
+BALANCE:
+- Creative storytelling in first person
+- ATS-compliant keyword integration
+- Personality-driven but professional`,
   ],
-  {
-    role: "human",
-    content: `
-===== TARGET JOB =====
+  [
+    "human",
+    `Create creative first-person CV content:
+
+=== TARGET OPPORTUNITY ===
 Role: {jobTitle}
-Requirements: {requiredSkills}
-Culture: {companyValues}
+Key Requirements: {requiredSkills}
+Company Culture: {companyValues}
 Industry: {industryKeywords}
 
-===== APPLICANT CORE =====
-Name: {name} | Contact: {phone}, {email} | Location: {location}
-
-PERSONALITY:
-Working Style: {workingStyle}
-Problem-Solving: {problemSolving}
-Energy: {energySources}
-Superpower: {uniqueStrength}
-Learning: {learningStyle}
-Team: {teamRole}
-Values: {valuesExample}
-Identity: {superpower}
-
-FOUNDATION:
+=== WHO I AM ===
+Professional Background: {workExperience}
 Education: {education}
-Experience: {workExperience}
 Skills: {skills}
 Languages: {languages}
 
-===== OUTPUT FORMAT =====
+=== MY AUTHENTIC VOICE ===
+My Working Style: {workingStyle}
+How I Solve Problems: {problemSolving}
+What Energizes Me: {energySources}
+My Superpower: {uniqueStrength}
+How I Learn: {learningStyle}
+My Team Role: {teamRole}
+What I Stand For: {valuesExample}
+My Identity: {superpower}
+
+=== OUTPUT (First-person in {language}) ===
 {{
-  "personal_description": "Hook-driven creative summary (max 2500 chars)",
+  "personal_description": "Hook-driven first-person intro: 'I am...' 'My journey...' (max 2500 chars in {language})",
   "cv_content": {{
-    "skills_section": "Story-enhanced skills as HTML",
-    "experience_section": "Impact-narrative experience as HTML",
-    "education_section": "Learning-focused education as HTML",
-    "languages_section": "Cultural adaptability as HTML"
+    "skills_section": "Story-enhanced skills: 'I bring...' 'My expertise spans...' (HTML in {language})",
+    "experience_section": "Impact narrative: 'I've worked on...' 'My proudest moment...' (HTML in {language})",
+    "education_section": "Learning journey: 'My education includes...' (HTML in {language})",
+    "languages_section": "Cultural adaptability: 'I communicate in...' (HTML in {language})"
   }},
   "ats_optimization": {{
-    "keyword_density": "Creative keyword integration: [examples]",
-    "personality_integration": "Memorable differentiators: [advantages]", 
-    "measurable_achievements": ["Personality-derived results"]
+    "keyword_density": "Creative keyword integration examples (in {language})",
+    "personality_integration": "What makes me memorable (in {language})",
+    "measurable_achievements": ["Results from my unique approach (in {language})"]
   }}
 }}
 
-Language: {language}
-    `,
-  },
+Everything in first-person, written in {language}.`,
+  ],
 ]);
 
 // =====================================
@@ -1065,12 +1074,32 @@ Personality: ${parsedOutput.ats_optimization?.personality_integration || ""}
 // =====================================
 // BACKGROUND IMAGE GENERATION
 // =====================================
+// =====================================
+// BACKGROUND IMAGE GENERATION (KORJATTU)
+// =====================================
 export async function generateEnhancedBackgroundImage(
   userData: LangChainCVInput,
   authToken?: string
 ): Promise<string> {
   try {
-    const optimizedPrompt = `Abstract professional background for ${userData.title || "professional"} CV, subtle gradient, minimal design, ATS-compatible`;
+    // ✅ UUSI: Yksinkertainen, persoonallisuuteen perustuva prompt
+    const personalityKeywords = [
+      userData.workingStyle?.toLowerCase().includes('metikuloos') ? 'structured' : '',
+      userData.workingStyle?.toLowerCase().includes('luova') ? 'creative' : '',
+      userData.energySources?.toLowerCase().includes('analyyttinen') ? 'analytical' : '',
+      userData.energySources?.toLowerCase().includes('tiimi') ? 'collaborative' : '',
+      userData.uniqueStrength?.toLowerCase().includes('innovatiiv') ? 'innovative' : '',
+    ].filter(Boolean).join(' ');
+
+    const optimizedPrompt = `
+Abstract minimal professional background, 
+soft gradient, ${personalityKeywords || 'balanced'} aesthetic,
+clean geometric shapes, no text, no numbers, no icons, no people,
+single sophisticated color palette, ultra minimal design,
+suitable for CV background
+    `.trim();
+
+    console.log(`🎨 Generating minimal background: "${optimizedPrompt.substring(0, 80)}..."`);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -1088,25 +1117,32 @@ export async function generateEnhancedBackgroundImage(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Image API error ${response.status}: ${errorText}`);
+      console.error(`Image API error ${response.status}: ${errorText}`);
+      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
     }
 
     const data = await response.json() as { url?: string };
     if (!data.url) {
-      throw new Error("No URL in image response");
+      console.error("No URL in image response");
+      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
     }
 
     // Convert to blob
     let imageBlob: Blob;
     if (data.url.startsWith("data:")) {
       const base64Data = data.url.split(",")[1];
+      if (!base64Data) {
+        console.error("Invalid base64 data");
+        return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+      }
       imageBlob = await (
         await fetch(`data:application/octet-stream;base64,${base64Data}`)
       ).blob();
     } else {
       const imageResponse = await fetch(data.url);
       if (!imageResponse.ok) {
-        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+        console.error(`Failed to fetch image: ${imageResponse.statusText}`);
+        return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
       }
       imageBlob = await imageResponse.blob();
     }
@@ -1126,17 +1162,24 @@ export async function generateEnhancedBackgroundImage(
 
     if (uploadError) {
       console.error("Supabase upload failed:", uploadError);
-      return FALLBACK_IMAGE;
+      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
     }
 
     const { data: publicUrlData } = supabase.storage
       .from("cv_files")
       .getPublicUrl(filePath);
 
-    return publicUrlData.publicUrl;
+    if (!publicUrlData?.publicUrl) {
+      console.error("Failed to get public URL");
+      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+    }
+
+    console.log(`✅ Background image uploaded: ${publicUrlData.publicUrl}`);
+    return publicUrlData.publicUrl; // ✅ KORJAUS: Palauta URL
+
   } catch (error) {
-    console.error("Background image generation failed:", error);
-    return FALLBACK_IMAGE;
+    console.error("❌ Background image generation failed:", error);
+    return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
   }
 }
 
