@@ -39,7 +39,8 @@ const isProtectedApiRoute = createRouteMatcher([
   '/api/generate-cv',
   '/api/generate-pdf',
   '/api/generate-cover-letter',
-  '/api/user-profile(.*)'
+  '/api/user-profile(.*)',
+  '/api/save-profile'
 ]);
 
 // Määritä julkiset API-reitit
@@ -139,17 +140,26 @@ export default clerkMiddleware(async (auth, req) => { // auth on tässä ClerkAu
   // CSRF-suojaus POST-pyynnöille (ei muutoksia, jos toimii)
   if (req.method === 'POST') {
     const origin = req.headers.get('origin');
+    
+    // ✅ ENV-pohjainen (turvallinen)
     const validOrigins = [
-      process.env.NEXT_PUBLIC_SITE_URL,
+      process.env.NEXT_PUBLIC_APP_URL,
+      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
       'http://localhost:3000',
-      'https://localhost:3000'
-    ].filter(Boolean);
+      'https://localhost:3000',
+    ].filter(Boolean) as string[];
+
+    // Debug-loki (voit poistaa tuotannossa)
+    console.log('🔍 CSRF Check:', {
+      origin,
+      validOrigins: validOrigins.map(o => o?.replace(/^https?:\/\//, '...')),
+    });
 
     if (origin && !validOrigins.includes(origin)) {
+      console.error('❌ CSRF blocked:', { origin });
       return new NextResponse('CSRF protection - invalid origin', { status: 403 });
     }
   }
-
   return NextResponse.next(); // Salli kaikki muut reitit, joita ei ole estetty/ohjattu
 });
 
