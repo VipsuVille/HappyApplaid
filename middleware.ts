@@ -62,7 +62,10 @@ export default clerkMiddleware(async (auth, req) => { // auth on tässä ClerkAu
   if (url.pathname === '/api/webhooks/stripe') {
     return NextResponse.next();
   }
-
+  if (url.pathname.startsWith('/cv-preview/') || 
+      url.pathname.startsWith('/cover-letter-preview/')) {
+    return NextResponse.next();
+  }
   // 2. Julkiset API-reitit - ohita autentikointi
   if (isPublicApiRoute(req)) {
     return NextResponse.next();
