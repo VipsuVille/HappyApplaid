@@ -36,9 +36,9 @@ const isProtectedApiRoute = createRouteMatcher([
   '/api/save-profile'
 ]);
 const isPublicApiRoute = createRouteMatcher([
-  '/api/image-base64',
   '/api/webhooks/stripe',
   '/api/proxy-image',
+  '/api/image-proxy',
   '/api/webhooks',
   '/api/generate-image',
   '/api/webhooks/(.*)',
