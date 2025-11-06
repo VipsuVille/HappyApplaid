@@ -1,4 +1,4 @@
-// app/api/image-proxy/route.ts - KORJATTU JA DEBUGATTU VERSIO
+// app/api/image-proxy/route.ts - KORJATTU VERSIO 2: Octet-Stream tuki
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -16,8 +16,11 @@ export async function GET(request: Request) {
  
   const isRelativePath = imageUrl.startsWith('/') && !imageUrl.startsWith('//');
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+  
+  // LISÄTTY: application/octet-stream, koska Supabase usein palauttaa sen
   const ALLOWED_CONTENT_TYPES = [
-    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml',
+    'application/octet-stream', // TÄMÄ ON KORJAUS
   ];
  
   try {
@@ -27,7 +30,7 @@ export async function GET(request: Request) {
     
     // Jos URL on relatiivinen, muunnetaan se absoluuttiseksi (tarvitaan Supabase-linkeille)
     if (isRelativePath) {
-      // Käytä NEXT_PUBLIC_APP_URL, jonka näimme olevan käytettävissä ENV-muuttujissa
+      // Käytä NEXT_PUBLIC_APP_URL
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
       fetchUrl = new URL(imageUrl, baseUrl).toString();
       console.log(`[IMAGE_PROXY] 🌐 Relative path detected. Full URL: ${fetchUrl.substring(0, 100) + '...'}`);
@@ -71,19 +74,40 @@ export async function GET(request: Request) {
     contentType = imageResponse.headers.get('content-type');
     arrayBuffer = await imageResponse.arrayBuffer();
 
-    // Tarkista Content Type
+    // TARKISTA Content Type
+    
+    // Jos Content Type on application/octet-stream, yritetään arvata oikea tyyppi.
+    if (contentType === 'application/octet-stream' || !contentType) {
+      console.warn(`[IMAGE_PROXY] ⚠️ Generic content type: ${contentType}. Attempting to guess from file structure...`);
+      
+      // Helppo tarkistus ensimmäisistä tavuista (Magic number)
+      const buffer = Buffer.from(arrayBuffer);
+      
+      if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+        contentType = 'image/jpeg';
+        console.log(`[IMAGE_PROXY] ✅ Guessed type: ${contentType} (JPEG)`);
+      } else if (buffer.length >= 8 && buffer.toString('hex', 0, 8) === '89504e470d0a1a0a') {
+        contentType = 'image/png';
+        console.log(`[IMAGE_PROXY] ✅ Guessed type: ${contentType} (PNG)`);
+      } else if (buffer.length >= 3 && buffer.toString('hex', 0, 3) === '474946') {
+        contentType = 'image/gif';
+        console.log(`[IMAGE_PROXY] ✅ Guessed type: ${contentType} (GIF)`);
+      }
+    }
+
+    // Tarkista, että Content Type on sallittu (nyt mukaan lukien arvatut tyypit)
     if (!contentType || !ALLOWED_CONTENT_TYPES.some(type => contentType!.startsWith(type))) {
       console.error(`[IMAGE_PROXY] ❌ Unsupported content type: ${contentType}`);
       return NextResponse.json({ error: `Unsupported content type: ${contentType}` }, { status: 400 });
     }
-   
+    
     // Tarkista tiedostokoko
     if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
       console.error(`[IMAGE_PROXY] ❌ Image too large: ${arrayBuffer.byteLength / 1024 / 1024}MB`);
       return NextResponse.json({ error: 'Image too large' }, { status: 400 });
     }
     
-    console.log(`[IMAGE_PROXY] ✅ Size: ${arrayBuffer.byteLength} bytes. Content-Type: ${contentType}`);
+    console.log(`[IMAGE_PROXY] ✅ Size: ${arrayBuffer.byteLength} bytes. Final Content-Type: ${contentType}`);
    
     // Muunna base64:ksi
     const buffer = Buffer.from(arrayBuffer);
