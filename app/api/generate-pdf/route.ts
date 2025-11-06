@@ -13,9 +13,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "CV ID is required" }, { status: 400 });
     }
 
-    const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}`;
+    // ✅ Fallback jos NEXT_PUBLIC_SITE_URL puuttuu
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 
+                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
+                    'https://happyapplaid.com';
+    
+    const cvUrl = `${baseUrl}/cv-preview/${cvId}`;
 
-    // ✅ Minimaalinen, toimiva konfiguraatio
+    console.log(`Navigating to: ${cvUrl}`); // ✅ Näet nyt oikean URL:n
+
     const browser = await puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
@@ -39,8 +45,6 @@ export async function POST(req: NextRequest) {
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
-
-    console.log(`Navigating to: ${cvUrl}`);
 
     await page.goto(cvUrl, {
       waitUntil: "networkidle0",
