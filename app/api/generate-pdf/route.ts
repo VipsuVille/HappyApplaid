@@ -16,8 +16,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ TÄRKEÄ MUUTOS: Lisää ?pdf=true query-parametri URL:iin
-    const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}?pdf=true`; 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 
+                    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
 
+    if (!siteUrl || siteUrl.includes('undefined')) {
+         throw new Error("Site URL environment variable is not set correctly.");
+    }
+    
+    const cvUrl = `${siteUrl}/cv-preview/${cvId}?pdf=true`;
     // Vercel-yhteensopiva Puppeteer setup
     const browser = await puppeteer.launch({
       args: chromium.args,
