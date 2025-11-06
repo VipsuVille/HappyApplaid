@@ -13,10 +13,10 @@ export default async function SettingsPage() {
   const freemiumStatus = await getFreemiumStatus(user.id); // ✅ Käytä
 
   return (
-    <div className="container max-w-4xl mx-auto py-8 px-4">
-      {/* ✅ Client Component Navbar */}
- <SmartHeader />     
-  <div className="space-y-8">
+<div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 container max-w-5xl mx-auto">
+  <SmartHeader />
+
+  <div className="space-y-8  py-8 px-4">
         {/* Otsikko */}
         <div>
           <h1 className="text-3xl font-bold">Tilin asetukset</h1>

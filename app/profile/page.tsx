@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ProfileData} from "@/types";
+import SmartHeader from "@/components/ui/smartHeader";
 
 type ArrayFieldName = "education" | "workExperience" | "languages";
 type ProfileFieldName = keyof ProfileData;
@@ -1418,9 +1419,10 @@ const renderExperience = () => (
   const overallProgress = getOverallProgress();
 
   return (
-    <div className="max-w-4xl mx-auto p-6 min-h-screen">
-      {/* Header */}
-      <div className="text-center mb-8">
+<div className="min-h-screen container max-w-5xl mx-auto">
+  <SmartHeader />
+
+      <div className="text-center mb-8 space-y-8  py-8 px-4 from-gray-0 to-indigo-00">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           Luo Profiilisi
         </h1>

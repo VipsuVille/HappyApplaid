@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUser } from '@clerk/nextjs';
+import { SignOutButton, useUser } from '@clerk/nextjs';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   Crown,
   LogOut,
   Languages,
+  ChevronDown,
 } from 'lucide-react';
 
 // ===================================
@@ -35,7 +36,6 @@ interface FreemiumStatus {
 interface SmartHeaderProps {
   isLoading?: boolean;
   showAuthButtons?: boolean;
-  // OPTIONAL: Server Component voi antaa statuksen suoraan (nopeampi)
   serverFreemiumStatus?: FreemiumStatus | null;
 }
 
@@ -51,8 +51,8 @@ export default function SmartHeader({
   const { language, toggleLanguage } = useLanguage();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // Client-side status (jos ei serverFreemiumStatus)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
   const [clientStatus, setClientStatus] = useState<FreemiumStatus>({
     is_premium: false,
     tokens: 0,
@@ -65,25 +65,20 @@ export default function SmartHeader({
 
   const isDevelopmentMode = process.env.NEXT_PUBLIC_DEVELOPMENT_MODE === 'true';
 
-  // ===================================
-  // USE SERVER STATUS IF PROVIDED
-  // ===================================
   const freemiumStatus = serverFreemiumStatus || clientStatus;
   const isPremium = freemiumStatus.is_premium;
   const tokens = freemiumStatus.tokens;
   const hasUsedFreeCv = freemiumStatus.has_used_free_cv;
 
   // ===================================
-  // FETCH STATUS (only if not from server)
+  // FETCH STATUS
   // ===================================
   useEffect(() => {
-    // Jos server on jo antanut statuksen, älä fetchaa
     if (serverFreemiumStatus) {
       setStatusLoading(false);
       return;
     }
 
-    // Jos ei kirjautunut, ei tarvitse fetchata
     if (!isSignedIn || !user?.id) {
       setStatusLoading(false);
       return;
@@ -144,9 +139,6 @@ export default function SmartHeader({
     },
   ];
 
-  // ===================================
-  // HELPERS
-  // ===================================
   const isActive = (href: string) => pathname === href;
   const handleLinkClick = () => setMobileMenuOpen(false);
 
@@ -155,7 +147,7 @@ export default function SmartHeader({
   // ===================================
   if (!isLoaded || (isSignedIn && statusLoading && !serverFreemiumStatus)) {
     return (
-      <header className="bg-white/90 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="h-8 w-32 bg-gray-200 animate-pulse rounded" />
@@ -173,7 +165,7 @@ export default function SmartHeader({
   // MAIN RENDER
   // ===================================
   return (
-    <header className="bg-white/90 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
+    <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           
@@ -233,7 +225,7 @@ export default function SmartHeader({
               <span className="text-xs">{language === 'en' ? 'FI' : 'EN'}</span>
             </Button>
 
-            {/* Premium/Free Badge */}
+            {/* Premium/Free Badge (Desktop) */}
             {isSignedIn && !statusLoading && (
               <>
                 {isPremium ? (
@@ -255,22 +247,39 @@ export default function SmartHeader({
               </>
             )}
 
-            {/* User Name (Desktop) */}
-            {isSignedIn && (
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
-                <UserIcon className="h-4 w-4 text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">
-                  {user?.firstName}
-                </span>
-              </div>
-            )}
+        {isSignedIn && (
+  <div className="hidden sm:block relative">
+    <button
+      onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+      className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+    >
+      <UserIcon className="h-4 w-4 text-gray-600" />
+      <span className="text-sm font-medium text-gray-700">
+        {user?.firstName}
+      </span>
+      <ChevronDown className="h-3 w-3 text-gray-500" />
+    </button>
+
+    {profileMenuOpen && (
+      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+        <div className="border-t border-gray-100 my-1" />
+        <SignOutButton>
+          <button className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+            <LogOut className="h-4 w-4" />
+            {language === 'en' ? 'Sign Out' : 'Kirjaudu ulos'}
+          </button>
+        </SignOutButton>
+      </div>
+    )}
+  </div>
+)}
 
             {/* Auth Buttons (Desktop) */}
             {showAuthButtons && isDevelopmentMode && !isSignedIn && (
-              <div className="hidden md:block">
+              <div className="hidden md:flex gap-2">
                 <Link href="/sign-in">
                   <Button variant="outline" size="sm">
-                    {language === 'en' ? 'Sign In' : 'Kirjaudu sisään'}
+                    {language === 'en' ? 'Sign In' : 'Kirjaudu'}
                   </Button>
                 </Link>
               </div>
@@ -299,24 +308,24 @@ export default function SmartHeader({
             
             {/* User Info Card (Mobile) */}
             {isSignedIn && (
-              <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg mb-4">
-                <div className="h-10 w-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+              <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl mb-4 border border-indigo-100">
+                <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
                   {user?.firstName?.charAt(0) || 'U'}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-bold text-gray-900">
                     {user?.firstName} {user?.lastName}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-gray-600 mt-0.5">
                     {isPremium ? (
-                      <span className="text-yellow-600">
-                        ⭐ Premium ({tokens} tokens)
+                      <span className="text-yellow-600 font-semibold">
+                        ⭐ Premium • {tokens} tokens
                       </span>
                     ) : (
                       <span className="text-gray-600">
                         {hasUsedFreeCv
-                          ? language === 'en' ? 'Free CV Used' : 'Ilmainen CV käytetty'
-                          : language === 'en' ? '1 Free CV Available' : '1 Ilmainen CV käytettävissä'}
+                          ? language === 'en' ? '✓ Free CV Used' : '✓ Ilmainen CV käytetty'
+                          : language === 'en' ? '1 Free CV Available' : '1 Ilmainen CV'}
                       </span>
                     )}
                   </p>
@@ -330,53 +339,55 @@ export default function SmartHeader({
                 toggleLanguage();
                 handleLinkClick();
               }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl hover:from-blue-100 hover:to-indigo-100 transition-all border border-blue-200"
             >
-              <Languages className="h-5 w-5" />
-              <span className="font-medium">
-                {language === 'en' ? 'Suomeksi' : 'English'}
+              <Languages className="h-5 w-5 text-indigo-600" />
+              <span className="font-semibold text-gray-800">
+                {language === 'en' ? 'Suomeksi 🇫🇮' : 'English 🇬🇧'}
               </span>
             </button>
 
             {/* Navigation Links (Mobile) */}
-            {navLinks
-              .filter((link) => link.show)
-              .map((link) => {
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={handleLinkClick}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                      isActive(link.href)
-                        ? 'bg-indigo-50 text-indigo-600'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="font-medium">{link.label}</span>
-                  </Link>
-                );
-              })}
+            <div className="space-y-1">
+              {navLinks
+                .filter((link) => link.show)
+                .map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={handleLinkClick}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                        isActive(link.href)
+                          ? 'bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 font-semibold border border-indigo-200'
+                          : 'text-gray-700 hover:bg-gray-50 border border-transparent'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span className="font-medium">{link.label}</span>
+                    </Link>
+                  );
+                })}
+            </div>
 
             {/* Sign Out Button (Mobile) */}
-            {showAuthButtons && isDevelopmentMode && isSignedIn && (
-              <div className="pt-4 border-t border-gray-200 mt-4">
-                <Link href="/sign-out" onClick={handleLinkClick}>
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium">
-                    <LogOut className="h-5 w-5" />
-                    {language === 'en' ? 'Sign Out' : 'Kirjaudu ulos'}
-                  </button>
-                </Link>
-              </div>
-            )}
+{showAuthButtons && isDevelopmentMode && isSignedIn && (
+  <div className="pt-4 border-t border-gray-200 mt-4">
+    <SignOutButton>
+      <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-xl hover:from-red-100 hover:to-pink-100 transition-all font-semibold border border-red-200">
+        <LogOut className="h-5 w-5" />
+        {language === 'en' ? 'Sign Out' : 'Kirjaudu ulos'}
+      </button>
+    </SignOutButton>
+  </div>
+)}
 
             {/* Sign In Button (Mobile) */}
             {showAuthButtons && isDevelopmentMode && !isSignedIn && (
               <div className="pt-4 border-t border-gray-200 mt-4">
                 <Link href="/sign-in" onClick={handleLinkClick}>
-                  <button className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+                  <button className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all font-semibold shadow-md">
                     {language === 'en' ? 'Sign In' : 'Kirjaudu sisään'}
                   </button>
                 </Link>

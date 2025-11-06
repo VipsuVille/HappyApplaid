@@ -30,6 +30,7 @@ import {
   Clock,
   Crown,
   Lock,
+  X,
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -59,7 +60,9 @@ export default function Home() {
   const [isFirstVisit, setIsFirstVisit] = useState(false);
   const [freemiumStatus, setFreemiumStatus] = useState<SubscriptionStatus | null>(null);
   const [freemiumLoading, setFreemiumLoading] = useState(true);
-  
+    const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+
+
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const {
@@ -381,9 +384,6 @@ export default function Home() {
               <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 HappyApplaid
               </span>
-              <Link href="/settings" className="text-sm hover:underline ml-4">
-                {language === "en" ? "Settings" : "Asetukset"}
-              </Link>
             </div>
             {isDevelopmentMode && (
               <>
@@ -532,28 +532,6 @@ export default function Home() {
     );
   }
 
-  if (profileCompleted === false && !isFirstVisit) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-sm border p-6 text-center">
-          <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            {language === "en" ? "Complete Your Profile" : "Täytä Profiilisi"}
-          </h2>
-          <p className="text-gray-600 mb-6">
-            {language === "en"
-              ? "Please complete your profile to access the dashboard and create your first documents."
-              : "Täytä profiilisi päästäksesi hallintapaneeliin ja luodaksesi ensimmäiset dokumenttisi."}
-          </p>
-          <Link href="/profile">
-            <Button className="w-full">
-              {language === "en" ? "Complete Profile" : "Täytä Profiili"}
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   if (profileCompleted === null || freemiumLoading) {
     return (
@@ -577,14 +555,62 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50">
-      {/* Rest of the dashboard code remains exactly the same... */}
-      {/* I'll include the complete dashboard here for completeness */}
+ {/* Ystävällinen profiilikehotus pop-up */}
+      {showProfilePrompt && profileCompleted === false && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm animate-slide-up">
+          <div className="bg-white rounded-2xl shadow-2xl border-2 border-indigo-200 p-6">
+            <button
+              onClick={() => setShowProfilePrompt(false)}
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <User className="h-6 w-6 text-white" />
+                </div>
+              </div>
+              
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {language === "en" 
+                    ? `Hi, ${user?.firstName || "there"}!` 
+                    : `Hei, ${user?.firstName || "siellä"}!`}
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  {language === "en"
+                    ? "We recommend completing your profile, as it's needed for our program to work effectively and create personalized documents."
+                    : "Suosittelemme profiilin täyttämistä, koska sitä tarvitaan ohjelmamme toimimiseen ja henkilökohtaisten dokumenttien luomiseen."}
+                </p>
+                
+                <div className="flex gap-2">
+                  <Link href="/profile" className="flex-1">
+                    <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700">
+                      {language === "en" ? "Complete Profile" : "Täytä Profiili"}
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowProfilePrompt(false)}
+                    className="flex-shrink-0"
+                  >
+                    {language === "en" ? "Later" : "Myöhemmin"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-6">
               <div className="flex items-center">
- 
+     
               </div>    <div className="min-h-screen">
      <SmartHeader /></div>
             </div>
