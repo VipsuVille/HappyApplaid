@@ -1,5 +1,6 @@
+// app/api/generate-pdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import puppeteer from "puppeteer-core"; // ✅ Vaihdettu
+import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
 export const maxDuration = 300;
@@ -12,14 +13,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "CV ID is required" }, { status: 400 });
     }
 
- const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}`;
+    const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}`;
 
-const browser = await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true,
-      acceptInsecureCerts: true, // ✅ Uusi nimi
-    });
+    // ✅ Minimaalinen, toimiva konfiguraatio
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
 
     const page = await browser.newPage();
 

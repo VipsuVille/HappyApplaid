@@ -1,6 +1,7 @@
 // app/api/generate-cover-letter-pdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 
 export const maxDuration = 300;
 
@@ -17,18 +18,11 @@ export async function POST(req: NextRequest) {
 
     console.log(`📄 Generating PDF for cover letter: ${letterId || 'unknown'}`);
 
+    // ✅ Minimaalinen, toimiva konfiguraatio
     const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
       headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-web-security",
-        "--disable-features=VizDisplayCompositor",
-        "--disable-background-timer-throttling",
-        "--disable-backgrounding-occluded-windows",
-        "--disable-renderer-backgrounding",
-      ],
     });
 
     const page = await browser.newPage();
