@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer-core"; // ✅ Vaihdettu
 import chromium from "@sparticuz/chromium";
 
 export const maxDuration = 300;
@@ -12,25 +12,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "CV ID is required" }, { status: 400 });
     }
 
-    const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}`;
+ const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}`;
 
-    // Vercel-yhteensopiva Puppeteer setup
-    const browser = await puppeteer.launch({
-      args: chromium.args,
-      executablePath: await chromium.executablePath(),
-      headless: true,
-    });
+const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+      acceptInsecureCerts: true, // ✅ Uusi nimi
+    });
 
     const page = await browser.newPage();
 
-    // A4-koko optimoitu PDF:lle
     await page.setViewport({
       width: 794,
       height: 1123,
       deviceScaleFactor: 1,
     });
 
-    // Aseta auth token jos saatavilla
     if (authToken) {
       await page.setExtraHTTPHeaders({
         Authorization: `Bearer ${authToken}`,
@@ -48,7 +46,6 @@ export async function POST(req: NextRequest) {
       timeout: 30000,
     });
 
-    // Odota että kaikki kuvat latautuvat
     await page.evaluate(() => {
       return Promise.all(
         Array.from(document.images)
@@ -64,7 +61,6 @@ export async function POST(req: NextRequest) {
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Varmista että background-image CSS propertyt latautuvat
     await page.evaluate(() => {
       return new Promise<void>((resolve) => {
         const elementsWithBg = document.querySelectorAll("*");
