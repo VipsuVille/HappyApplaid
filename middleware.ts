@@ -108,7 +108,9 @@ export default clerkMiddleware(async (auth, req) => { // auth on tässä ClerkAu
     }
     return NextResponse.next();
   }
-
+  if (url.pathname.startsWith('/cv-preview/') || url.pathname.startsWith('/cover-letter-preview/')) {
+    return NextResponse.next();
+  }
   // Admin-reitit
   if (url.pathname.startsWith('/admin')) {
     if (!userId) {
