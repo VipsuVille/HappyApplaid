@@ -1,4 +1,4 @@
-// app/api/image-proxy/route.ts - DEBUG VERSION
+// app/api/image-proxy/route.ts - KORJATTU JA DEBUGATTU VERSIO
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   // --- DEBUG: Loppu ---
  
   if (!imageUrl) {
-    console.error('[IMAGE_PROXY] ❌ URL parameter is missing.');
+    console.error('[IMAGE_PROXY] ❌ URL parameter is missing. Returning 400.');
     return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 });
   }
  
@@ -25,16 +25,18 @@ export async function GET(request: Request) {
     let contentType;
     let fetchUrl = imageUrl; // URL jota kutsutaan
     
+    // Jos URL on relatiivinen, muunnetaan se absoluuttiseksi (tarvitaan Supabase-linkeille)
     if (isRelativePath) {
-      const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+      // Käytä NEXT_PUBLIC_APP_URL, jonka näimme olevan käytettävissä ENV-muuttujissa
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
       fetchUrl = new URL(imageUrl, baseUrl).toString();
       console.log(`[IMAGE_PROXY] 🌐 Relative path detected. Full URL: ${fetchUrl.substring(0, 100) + '...'}`);
     } else {
       try {
-        new URL(imageUrl);
+        new URL(imageUrl); // Tarkistaa onko kelvollinen absoluuttinen URL
         console.log(`[IMAGE_PROXY] 🔗 Absolute URL validated.`);
       } catch {
-        console.error('[IMAGE_PROXY] ❌ Invalid absolute URL format.');
+        console.error('[IMAGE_PROXY] ❌ Invalid absolute URL format. Returning 400.');
         return NextResponse.json({ error: 'Invalid URL format' }, { status: 400 });
       }
     }
@@ -42,11 +44,16 @@ export async function GET(request: Request) {
     // --- KUTSU ULKOISEEN KUVAAN ---
     console.log(`[IMAGE_PROXY] 📥 Attempting to fetch: ${fetchUrl.substring(0, 100) + '...'}`);
     
-    const imageResponse = await fetch(fetchUrl);
+    // Käytä User-Agent otsaketta välttääksesi estoja
+    const imageResponse = await fetch(fetchUrl, {
+      headers: {
+        'User-Agent': 'PDF-Generator-Bot/1.0',
+      },
+    });
     
     if (!imageResponse.ok) {
       console.error(`[IMAGE_PROXY] ❌ Fetch failed. Status: ${imageResponse.status}, StatusText: ${imageResponse.statusText}`);
-      // Yritä lukea virheteksti, jos mahdollista
+      // Yritä lukea virheteksti
       try {
         const errorBody = await imageResponse.text();
         console.error(`[IMAGE_PROXY] ❌ Response Body snippet: ${errorBody.substring(0, 200)}`);
@@ -56,7 +63,7 @@ export async function GET(request: Request) {
       
       return NextResponse.json({
         error: `Failed to fetch image: ${imageResponse.status} ${imageResponse.statusText}`
-      }, { status: imageResponse.status >= 400 && imageResponse.status < 500 ? 400 : 500 });
+      }, { status: 500 });
     }
     
     console.log('[IMAGE_PROXY] ✅ Image fetched successfully.');
@@ -64,13 +71,13 @@ export async function GET(request: Request) {
     contentType = imageResponse.headers.get('content-type');
     arrayBuffer = await imageResponse.arrayBuffer();
 
-    // Check content type
+    // Tarkista Content Type
     if (!contentType || !ALLOWED_CONTENT_TYPES.some(type => contentType!.startsWith(type))) {
       console.error(`[IMAGE_PROXY] ❌ Unsupported content type: ${contentType}`);
       return NextResponse.json({ error: `Unsupported content type: ${contentType}` }, { status: 400 });
     }
    
-    // Check size
+    // Tarkista tiedostokoko
     if (arrayBuffer.byteLength > MAX_IMAGE_SIZE) {
       console.error(`[IMAGE_PROXY] ❌ Image too large: ${arrayBuffer.byteLength / 1024 / 1024}MB`);
       return NextResponse.json({ error: 'Image too large' }, { status: 400 });
@@ -78,7 +85,7 @@ export async function GET(request: Request) {
     
     console.log(`[IMAGE_PROXY] ✅ Size: ${arrayBuffer.byteLength} bytes. Content-Type: ${contentType}`);
    
-    // Convert to base64
+    // Muunna base64:ksi
     const buffer = Buffer.from(arrayBuffer);
     const base64 = `data:${contentType};base64,${buffer.toString('base64')}`;
     
