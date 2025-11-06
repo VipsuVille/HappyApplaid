@@ -8,20 +8,16 @@ interface ClerkPublicMetadata {
   role?: string;
 }
 
-// Määritä etusivu ja "coming soon" -sivu julkisiksi
+// ... (Kaikki isPublicPage, isAuthPage, isProtectedRoute, isProtectedApiRoute ja isPublicApiRoute määritykset pysyvät ennallaan)
 const isPublicPage = createRouteMatcher([
-  '/', // Etusivu
-  '/coming-soon', // Tälle sivulle ohjataan tuotannossa
+  '/', 
+  '/coming-soon',
 ]);
-
-// Määritä Clerkin autentikaatiosivut julkisiksi
 const isAuthPage = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/sso-callback', 
 ]);
-
-// Määritä suojatut UI-reitit
 const isProtectedRoute = createRouteMatcher([
   '/my-cvs(.*)',
   '/edit-cv(.*)',
@@ -32,8 +28,6 @@ const isProtectedRoute = createRouteMatcher([
   '/pricing(.*)',
   '/admin(.*)', 
 ]);
-
-// Määritä suojatut API-reitit
 const isProtectedApiRoute = createRouteMatcher([
   '/api/generate-cv',
   '/api/generate-pdf',
@@ -41,8 +35,6 @@ const isProtectedApiRoute = createRouteMatcher([
   '/api/user-profile(.*)',
   '/api/save-profile'
 ]);
-
-// Määritä julkiset API-reitit
 const isPublicApiRoute = createRouteMatcher([
   '/api/image-base64',
   '/api/webhooks/stripe',
@@ -52,6 +44,8 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/webhooks/(.*)',
   '/api/waitlist', 
 ]);
+// ...
+
 
 /**
  * Tarkistaa, onko kyseessä PDF-generointipyynnön tekemä navigointi.
@@ -77,8 +71,9 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   // 2. PDF-generointi - TÄRKEÄ MUUTOS: Salli Puppeteerille pääsy
-  // Tämä sallii sivun ladata ilman autentikointia, kun ?pdf=true
+  // Tämän on oltava ensimmäisten joukossa, jotta se ohittaa muut tarkistukset
   if (isPdfGenerationRoute(req)) {
+    console.log(`✅ Middleware bypassing Clerk for PDF generation: ${url.pathname}`);
     return NextResponse.next();
   }
   
@@ -89,11 +84,10 @@ export default clerkMiddleware(async (auth, req) => {
 
   // Jos ollaan tuotantotilassa (Development Mode = false)
   if (!isDevelopmentMode) {
-    // Jos käyttäjä yrittää päästä millekään muulle kuin sallitulle sivulle, ohjaa etusivulle
+    // Tuotantotilassa ohjaa kaikki ei-julkiset reitit etusivulle
     if (!isPublicPage(req)) { 
       return NextResponse.redirect(new URL('/', req.url)); 
     }
-    // Salli etusivu ja coming-soon-sivu
     return NextResponse.next();
   }
 
@@ -111,7 +105,7 @@ export default clerkMiddleware(async (auth, req) => {
       );
     }
 
-    // Tarkista tilaus cover letter -generointia varten
+    // Tilaustarkistus (jos on tarpeen)
     if (url.pathname === '/api/generate-cover-letter') {
       if (userId) { 
           const { active } = await getSubscription(userId);
@@ -125,11 +119,6 @@ export default clerkMiddleware(async (auth, req) => {
     }
     return NextResponse.next();
   }
-
-  // Tämä redundantti tarkistus poistetaan, koska isPdfGenerationRoute hoitaa sen aiemmin
-  // if (url.pathname.startsWith('/cv-preview/') || url.pathname.startsWith('/cover-letter-preview/')) {
-  //   return NextResponse.next();
-  // }
 
   // Admin-reitit
   if (url.pathname.startsWith('/admin')) {
