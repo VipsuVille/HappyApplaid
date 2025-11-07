@@ -12,9 +12,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "CV ID is required" }, { status: 400 });
     }
 
-    const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}`;
+    // ✅ LISÄÄ ?pdf=true parametri
+    const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}?pdf=true`;
 
-    // Vercel-yhteensopiva Puppeteer setup
+    console.log(`📄 Navigating to: ${cvUrl}`);
+
     const browser = await puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
@@ -23,32 +25,29 @@ export async function POST(req: NextRequest) {
 
     const page = await browser.newPage();
 
-    // A4-koko optimoitu PDF:lle
     await page.setViewport({
       width: 794,
       height: 1123,
       deviceScaleFactor: 1,
     });
 
-    // Aseta auth token jos saatavilla
-    if (authToken) {
-      await page.setExtraHTTPHeaders({
-        Authorization: `Bearer ${authToken}`,
-      });
-    }
+    // ❌ POISTA authToken - middleware ohittaa sen nyt
+    // if (authToken) {
+    //   await page.setExtraHTTPHeaders({
+    //     Authorization: `Bearer ${authToken}`,
+    //   });
+    // }
 
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
-
-    console.log(`Navigating to: ${cvUrl}`);
 
     await page.goto(cvUrl, {
       waitUntil: "networkidle0",
       timeout: 30000,
     });
 
-    // Odota että kaikki kuvat latautuvat
+    // Odota kuvat
     await page.evaluate(() => {
       return Promise.all(
         Array.from(document.images)
@@ -64,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Varmista että background-image CSS propertyt latautuvat
+    // Background images
     await page.evaluate(() => {
       return new Promise<void>((resolve) => {
         const elementsWithBg = document.querySelectorAll("*");
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    console.log("Generating PDF...");
+    console.log("🖨️ Generating PDF...");
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -110,7 +109,7 @@ export async function POST(req: NextRequest) {
 
     await browser.close();
 
-    console.log("PDF generated successfully");
+    console.log("✅ PDF generated successfully");
 
     return new NextResponse(pdfBuffer, {
       headers: {
@@ -120,7 +119,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("PDF generation failed:", error);
+    console.error("❌ PDF generation failed:", error);
     return NextResponse.json(
       {
         error: "PDF generation failed",

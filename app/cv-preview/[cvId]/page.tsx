@@ -21,37 +21,43 @@ export default function CVPreviewPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Funktio kuvien muuntamiseen PDF:ää varten
-  const convertImageForPDF = async (imageUrl: string): Promise<string> => {
-    if (!isPDFGeneration || !imageUrl || imageUrl.startsWith("data:")) {
-      return imageUrl;
+ // Lisää tämä convertImageForPDF-funktioon
+const convertImageForPDF = async (imageUrl: string): Promise<string> => {
+  if (!isPDFGeneration || !imageUrl || imageUrl.startsWith("data:")) {
+    console.log("⏭️ Skipping image conversion:", {
+      isPDFGeneration,
+      hasUrl: !!imageUrl,
+      isBase64: imageUrl?.startsWith("data:")
+    });
+    return imageUrl;
+  }
+
+  try {
+    console.log("🔄 Converting image for PDF:", imageUrl.substring(0, 100) + "...");
+
+    const response = await fetch(
+      `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
+    );
+
+    if (!response.ok) {
+      console.error("❌ Image proxy failed:", response.statusText);
+      return imageUrl; // Fallback alkuperäiseen
     }
 
-    try {
-      console.log("Converting image for PDF:", imageUrl);
+    const data = await response.json();
 
-      const response = await fetch(
-        `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
-      );
-
-      if (!response.ok) {
-        console.error("Image proxy failed:", response.statusText);
-        return imageUrl;
-      }
-
-      const data = await response.json();
-
-      if (data.base64) {
-        console.log("Image converted to base64 successfully");
-        return data.base64;
-      }
-
-      return imageUrl;
-    } catch (error) {
-      console.error("Error converting image for PDF:", error);
-      return imageUrl;
+    if (data.base64) {
+      console.log("✅ Image converted to base64 successfully");
+      return data.base64;
     }
-  };
 
+    console.warn("⚠️ No base64 in response");
+    return imageUrl;
+  } catch (error) {
+    console.error("❌ Error converting image for PDF:", error);
+    return imageUrl; // Fallback alkuperäiseen
+  }
+};
   useEffect(() => {
     const loadCV = async () => {
       if (!cvId || typeof cvId !== "string") {
