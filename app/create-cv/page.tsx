@@ -1,4 +1,4 @@
-// app/create-cv/page.tsx - LISÄTTY GENERIC vs ATS-OPTIMIZED valinta
+// app/create-cv/page.tsx - PARANNETTU VERSIO
 
 "use client";
 
@@ -16,6 +16,7 @@ import {
   Crown,
   AlertCircle,
 } from "lucide-react";
+import SmartHeader from "@/components/ui/smartHeader";
 
 type CVTemplate = "technical" | "creative" | "simple";
 type CVMode = "generic" | "ats-optimized";
@@ -33,7 +34,7 @@ interface SubscriptionStatus {
 export default function CreateCVPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
-  const [cvMode, setCvMode] = useState<CVMode>("generic"); // ✅ UUSI STATE
+  const [cvMode, setCvMode] = useState<CVMode>("generic");
   const [jobPosting, setJobPosting] = useState(""); 
   const { user, isLoaded: userLoaded } = useUser();
   const { getToken } = useAuth();
@@ -48,6 +49,19 @@ export default function CreateCVPage() {
     loadProfile();
     checkSubscription();
   }, [user]);
+
+  // ✅ UUSI: Estä sivun sulkeminen generoinnin aikana
+  useEffect(() => {
+    if (isLoading) {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = '';
+      };
+      
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+  }, [isLoading]);
 
   const checkSubscription = async () => {
     if (!user) return;
@@ -126,6 +140,15 @@ export default function CreateCVPage() {
       return;
     }
 
+    // ✅ FREE-käyttäjät: tarkista onko jo käytetty ilmainen CV
+    if (!subscription?.is_premium && subscription?.has_used_free_cv) {
+      toast.error("Olet jo käyttänyt ilmaisen CV:n! Päivitä Premium-tiliin luodaksesi lisää.", {
+        duration: 6000
+      });
+      router.push("/pricing");
+      return;
+    }
+
     // ✅ PREMIUM: ATS-optimoitu CV vaatii job postingin
     if (subscription?.is_premium && cvMode === "ats-optimized" && !jobPosting) {
       const confirm = window.confirm(
@@ -133,7 +156,6 @@ export default function CreateCVPage() {
       );
       if (!confirm) return;
       
-      // Vaihda generic-tilaan jos käyttäjä haluaa jatkaa
       setCvMode("generic");
     }
 
@@ -142,14 +164,13 @@ export default function CreateCVPage() {
       const token = await getToken({ template: "supabase" });
       if (!token) throw new Error("No auth token");
 
-      // ✅ Lähetä CV-generointi job postingilla (vain jos ATS-mode)
       const response = await fetch("/api/generate-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cvType: selectedTemplate,
           forceGenerate: false,
-          jobPosting: cvMode === "ats-optimized" ? jobPosting : undefined, // ✅ Vain ATS-tilassa
+          jobPosting: cvMode === "ats-optimized" ? jobPosting : undefined,
         }),
       });
 
@@ -194,6 +215,9 @@ export default function CreateCVPage() {
             : "✅ Premium CV luotu!"
           : "✅ Ilmainen CV luotu!"
       );
+
+      // ✅ Päivitä subscription status
+      await checkSubscription();
       
       router.push(`/edit-cv/${result.id}`);
       
@@ -222,320 +246,366 @@ export default function CreateCVPage() {
   const canCreateCV = subscription?.can_create_cv || false;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
-      <div className="max-w-5xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Luo Ammattimainen CV
-          </h1>
-          <p className="text-lg text-gray-600">
-            {isPremium
-              ? "Valitse CV-tyyppi ja optimoi työpaikkailmoituksen mukaan"
-              : "Luo ilmainen persoonallisuusvetoinen CV"}
-          </p>
-        </div>
-
-        {/* ✅ UUSI: CV MODE SELECTION (Generic vs ATS-Optimized) */}
-        {isPremium && (
-          <div className="mb-12 bg-white rounded-3xl p-8 shadow-lg border-2 border-indigo-200">
-            <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-              <Target className="h-7 w-7 text-indigo-600" />
-              Valitse CV-Tyyppi
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Generic CV */}
-              <button
-                onClick={() => {
-                  setCvMode("generic");
-                  setJobPosting(""); // Tyhjennä job posting
-                }}
-                className={`p-6 border-3 rounded-2xl text-left transition-all ${
-                  cvMode === "generic"
-                    ? "border-indigo-500 bg-indigo-50 shadow-lg scale-105"
-                    : "border-gray-300 hover:border-indigo-300"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <FileText className="h-6 w-6 text-indigo-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">
-                      Yleinen CV
-                    </h4>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Sopii kaikenlaisiin työhakemuksiin. Korostaa vahvuuksiasi ja persoonallisuuttasi.
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-indigo-700">
-                      <Sparkles className="h-4 w-4" />
-                      <span>Nopea luonti, monipuolinen käyttö</span>
-                    </div>
-                  </div>
-                </div>
-                {cvMode === "generic" && (
-                  <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-600">
-                    <div className="h-2 w-2 rounded-full bg-indigo-600"></div>
-                    Valittu
-                  </div>
-                )}
-              </button>
-
-              {/* ATS-Optimized CV */}
-              <button
-                onClick={() => setCvMode("ats-optimized")}
-                className={`p-6 border-3 rounded-2xl text-left transition-all ${
-                  cvMode === "ats-optimized"
-                    ? "border-purple-500 bg-purple-50 shadow-lg scale-105"
-                    : "border-gray-300 hover:border-purple-300"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                    <Zap className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">
-                      ATS-Optimoitu CV
-                    </h4>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Räätälöity tietylle työpaikalle. Maksimoi läpäisyaste ATS-järjestelmissä (60% → 90%+).
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-purple-700">
-                      <Target className="h-4 w-4" />
-                      <span>Vaatii työpaikkailmoituksen</span>
-                    </div>
-                  </div>
-                </div>
-                {cvMode === "ats-optimized" && (
-                  <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-purple-600">
-                    <div className="h-2 w-2 rounded-full bg-purple-600"></div>
-                    Valittu
-                  </div>
-                )}
-              </button>
-            </div>
-
-            {/* Info Box */}
-            <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
-              <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <strong>Vinkki:</strong>{" "}
-                  {cvMode === "generic" 
-                    ? "Yleinen CV toimii hyvin kun haet useita eri paikkoja samanaikaisesti."
-                    : "ATS-optimoitu CV kasvattaa huomattavasti mahdollisuuksiasi päästä haastatteluun tiettyyn työpaikkaan."}
+    <div>
+      <SmartHeader />
+      
+      {/* ✅ Floating notification generoinnin aikana */}
+      {isLoading && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-lg animate-fade-in">
+          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-5 rounded-2xl shadow-2xl border-2 border-white/20">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <div className="relative">
+                  <div className="animate-spin rounded-full h-8 w-8 border-3 border-white border-t-transparent"></div>
+                  <div className="absolute inset-0 rounded-full bg-white/10 animate-ping"></div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* ✅ JOB POSTING TEXTAREA (vain ATS-tilassa) */}
-        {isPremium && cvMode === "ats-optimized" && (
-          <div className="mb-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 border-2 border-purple-200 shadow-xl">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <Target className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                  🎯 Työpaikkailmoitus (ATS-Optimointi)
-                </h3>
-                <p className="text-gray-700">
-                  Liitä työpaikkailmoitus alle, niin optimoimme CV:si läpäisemään
-                  ATS-järjestelmät (Applicant Tracking Systems) ja nostamaan
-                  profiilin relevanssipisteet 60% → 90%+.
+              <div className="flex-1">
+                <p className="font-bold text-lg mb-1">CV:tä luodaan...</p>
+                <p className="text-sm text-indigo-100 leading-relaxed">
+                  ⏱️ Kestää 30-60 sekuntia. Älä sulje sivua tai navigoi pois.
                 </p>
               </div>
+              <button
+                onClick={() => setIsLoading(false)}
+                className="flex-shrink-0 text-white/60 hover:text-white transition-colors p-1"
+                aria-label="Sulje ilmoitus"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-
-            <textarea
-              value={jobPosting}
-              onChange={(e) => setJobPosting(e.target.value)}
-              placeholder="Kopioi työpaikkailmoitus tähän...&#10;&#10;Esimerkki:&#10;'Haemme Full Stack -kehittäjää React/Node.js osaamisella. Tehtävässä työskentelet modernin teknologian parissa ja kehität yrityksen digitaalisia palveluita...'"
-              rows={12}
-              className="w-full p-4 border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:outline-none resize-none font-mono text-sm bg-white"
-            />
-
-            <div className="mt-4 flex items-start gap-2 text-sm text-gray-600">
-              <AlertCircle className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
-              <p>
-                <strong>Vinkki:</strong> Mitä tarkempi työpaikkailmoitus, sitä paremmin
-                CV optimoituu. Sisällytä vaatimukset, toivottu osaaminen ja yrityksen arvot.
-              </p>
-            </div>
-
-            {jobPosting.length > 0 && (
-              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 text-sm text-green-700">
-                  <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                  <span className="font-semibold">
-                    Työpaikkailmoitus vastaanotettu ({jobPosting.length} merkkiä)
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Template Selection */}
-        <div className="mb-12">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
-              Valitse CV-Malli
-            </h2>
-            <p className="text-gray-600">
-              {isPremium
-                ? "Kaikki mallit saatavilla Premium-tilauksen kanssa"
-                : "Ilmainen käyttäjä: vain Rento-malli saatavilla"}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Simple CV */}
-            <button
-              onClick={() => setSelectedTemplate("simple")}
-              disabled={!canCreateCV && !isPremium}
-              className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                selectedTemplate === "simple"
-                  ? "border-indigo-500 bg-indigo-50 shadow-xl scale-105"
-                  : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-lg"
-              } ${!canCreateCV && !isPremium ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-4">
-                <FileText className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Rento</h3>
-              <p className="text-sm text-gray-600">
-                Persoonallinen ja lähestyttävä CV
-              </p>
-              {!isPremium && (
-                <div className="mt-3 text-xs text-blue-600 font-semibold">
-                  Ilmainen (1x)
-                </div>
-              )}
-            </button>
-
-            {/* Professional CV */}
-            <button
-              onClick={() => isPremium && setSelectedTemplate("technical")}
-              disabled={!isPremium}
-              className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                selectedTemplate === "technical" && isPremium
-                  ? "border-purple-500 bg-purple-50 shadow-xl scale-105"
-                  : "border-gray-200 bg-white"
-              } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
-            >
-              <div className="h-16 w-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
-                <Sparkles className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Professional</h3>
-              <p className="text-sm text-gray-600">
-                Tekninen ja strukturoitu ammattilaisille
-              </p>
-              {!isPremium && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
-                  <Crown className="h-4 w-4" />
-                  Premium
-                </div>
-              )}
-            </button>
-
-            {/* Creative CV */}
-            <button
-              onClick={() => isPremium && setSelectedTemplate("creative")}
-              disabled={!isPremium}
-              className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                selectedTemplate === "creative" && isPremium
-                  ? "border-pink-500 bg-pink-50 shadow-xl scale-105"
-                  : "border-gray-200 bg-white"
-              } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
-            >
-              <div className="h-16 w-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center mb-4">
-                <Zap className="h-8 w-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Creative</h3>
-              <p className="text-sm text-gray-600">
-                Luova ja visuaalinen portfolio-CV
-              </p>
-              {!isPremium && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
-                  <Crown className="h-4 w-4" />
-                  Premium
-                </div>
-              )}
-            </button>
           </div>
         </div>
+      )}
 
-        {/* Action Button */}
-        <div className="bg-gradient-to-br from-white to-indigo-50 rounded-3xl p-12 border-2 border-indigo-200 shadow-2xl">
-          <div className="max-w-2xl mx-auto text-center">
-            <h3 className="text-3xl font-bold text-gray-900 mb-3">
-              Valmis Luomaan CV:si?
-            </h3>
-            <p className="text-lg text-gray-600 mb-8">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
+        <div className="max-w-5xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              Luo Ammattimainen CV
+            </h1>
+            <p className="text-lg text-gray-600">
               {isPremium
-                ? cvMode === "ats-optimized" && jobPosting
-                  ? "Tekoäly optimoi CV:si annetun työpaikkailmoituksen mukaan"
-                  : "Tekoäly luo ammattimaisen CV:n profiilitietojesi pohjalta"
-                : "Tekoäly luo persoonallisen ilmaisen CV:n profiilitietojesi pohjalta"}
+                ? "Valitse CV-tyyppi ja optimoi työpaikkailmoituksen mukaan"
+                : "Luo ilmainen persoonallisuusvetoinen CV"}
             </p>
+          </div>
 
-            <Button
-              onClick={generateCVFromProfile}
-              disabled={isLoading || !user || !canCreateCV}
-              size="lg"
-              className="px-12 py-6 text-lg bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-70 disabled:transform-none"
-            >
-              {isLoading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
-                  Luodaan CV:tä...
-                </div>
-              ) : (
-                <div className="flex items-center">
-                  <Sparkles className="h-6 w-6 mr-3" />
-                  {isPremium 
-                    ? cvMode === "ats-optimized"
-                      ? "🎯 Luo ATS-Optimoitu CV"
-                      : "Luo Premium CV"
-                    : "Luo Ilmainen CV"}
-                </div>
-              )}
-            </Button>
-
-            <p className="text-sm text-gray-500 mt-4">
-              {isPremium
-                ? `CV:n luominen vie 30-60 sekuntia. ${
-                    cvMode === "ats-optimized" 
-                      ? "ATS-optimointi analysoi työpaikkailmoituksen." 
-                      : `Tokenia jäljellä: ${subscription?.tokens || 0}`
-                  }`
-                : "Ilmainen CV ei ole ATS-optimoitu, mutta tuo persoonallisuutesi esille"}
-            </p>
-
-            {/* CTA Premium-päivitykseen (jos FREE) */}
-            {!isPremium && (
-              <div className="mt-8 p-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white">
-                <h4 className="text-xl font-bold mb-2">
-                  Haluatko ATS-optimoinnin?
-                </h4>
-                <p className="mb-4 text-indigo-100">
-                  Päivitä Premium-tiliin ja saat rajattomasti ATS-optimoituja CV:itä + hakukirjeet
-                </p>
-                <Button
-                  onClick={() => router.push("/pricing")}
-                  variant="outline"
-                  className="bg-white text-indigo-600 hover:bg-indigo-50 border-0"
+          {/* CV MODE SELECTION */}
+          {isPremium && (
+            <div className="mb-12 bg-white rounded-3xl p-8 shadow-lg border-2 border-indigo-200">
+              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
+                <Target className="h-7 w-7 text-indigo-600" />
+                Valitse CV-Tyyppi
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Generic CV */}
+                <button
+                  onClick={() => {
+                    setCvMode("generic");
+                    setJobPosting("");
+                  }}
+                  className={`p-6 border-3 rounded-2xl text-left transition-all ${
+                    cvMode === "generic"
+                      ? "border-indigo-500 bg-indigo-50 shadow-lg scale-105"
+                      : "border-gray-300 hover:border-indigo-300"
+                  }`}
                 >
-                  <Crown className="h-5 w-5 mr-2" />
-                  Katso Premium-hinnat
-                </Button>
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-xl font-bold text-gray-900 mb-2">
+                        Yleinen CV
+                      </h4>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Sopii kaikenlaisiin työhakemuksiin. Korostaa vahvuuksiasi ja persoonallisuuttasi.
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-indigo-700">
+                        <Sparkles className="h-4 w-4" />
+                        <span>Nopea luonti, monipuolinen käyttö</span>
+                      </div>
+                    </div>
+                  </div>
+                  {cvMode === "generic" && (
+                    <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-600">
+                      <div className="h-2 w-2 rounded-full bg-indigo-600"></div>
+                      Valittu
+                    </div>
+                  )}
+                </button>
+
+                {/* ATS-Optimized CV */}
+                <button
+                  onClick={() => setCvMode("ats-optimized")}
+                  className={`p-6 border-3 rounded-2xl text-left transition-all ${
+                    cvMode === "ats-optimized"
+                      ? "border-purple-500 bg-purple-50 shadow-lg scale-105"
+                      : "border-gray-300 hover:border-purple-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                      <Zap className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-xl font-bold text-gray-900 mb-2">
+                        ATS-Optimoitu CV
+                      </h4>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Räätälöity tietylle työpaikalle. Maksimoi läpäisyaste ATS-järjestelmissä (60% → 90%+).
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-purple-700">
+                        <Target className="h-4 w-4" />
+                        <span>Vaatii työpaikkailmoituksen</span>
+                      </div>
+                    </div>
+                  </div>
+                  {cvMode === "ats-optimized" && (
+                    <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-purple-600">
+                      <div className="h-2 w-2 rounded-full bg-purple-600"></div>
+                      Valittu
+                    </div>
+                  )}
+                </button>
               </div>
-            )}
+
+              {/* Info Box */}
+              <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <strong>Vinkki:</strong>{" "}
+                    {cvMode === "generic" 
+                      ? "Yleinen CV toimii hyvin kun haet useita eri paikkoja samanaikaisesti."
+                      : "ATS-optimoitu CV kasvattaa huomattavasti mahdollisuuksiasi päästä haastatteluun tiettyyn työpaikkaan."}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* JOB POSTING TEXTAREA */}
+          {isPremium && cvMode === "ats-optimized" && (
+            <div className="mb-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 border-2 border-purple-200 shadow-xl">
+              <div className="flex items-start gap-4 mb-6">
+                <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+                  <Target className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    🎯 Työpaikkailmoitus (ATS-Optimointi)
+                  </h3>
+                  <p className="text-gray-700">
+                    Liitä työpaikkailmoitus alle, niin optimoimme CV:si läpäisemään
+                    ATS-järjestelmät (Applicant Tracking Systems) ja nostamaan
+                    profiilin relevanssipisteet 60% → 90%+.
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                value={jobPosting}
+                onChange={(e) => setJobPosting(e.target.value)}
+                placeholder="Kopioi työpaikkailmoitus tähän...&#10;&#10;Esimerkki:&#10;'Haemme Full Stack -kehittäjää React/Node.js osaamisella. Tehtävässä työskentelet modernin teknologian parissa ja kehität yrityksen digitaalisia palveluita...'"
+                rows={12}
+                className="w-full p-4 border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:outline-none resize-none font-mono text-sm bg-white"
+              />
+
+              <div className="mt-4 flex items-start gap-2 text-sm text-gray-600">
+                <AlertCircle className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                <p>
+                  <strong>Vinkki:</strong> Mitä tarkempi työpaikkailmoitus, sitä paremmin
+                  CV optimoituu. Sisällytä vaatimukset, toivottu osaaminen ja yrityksen arvot.
+                </p>
+              </div>
+
+              {jobPosting.length > 0 && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-sm text-green-700">
+                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                    <span className="font-semibold">
+                      Työpaikkailmoitus vastaanotettu ({jobPosting.length} merkkiä)
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Template Selection */}
+          <div className="mb-12">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Valitse CV-Malli
+              </h2>
+              <p className="text-gray-600">
+                {isPremium
+                  ? "Kaikki mallit saatavilla Premium-tilauksen kanssa"
+                  : "Ilmainen käyttäjä: vain Rento-malli saatavilla"}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Simple CV */}
+              <button
+                onClick={() => setSelectedTemplate("simple")}
+                disabled={!canCreateCV && !isPremium}
+                className={`p-8 rounded-2xl border-2 transition-all text-left ${
+                  selectedTemplate === "simple"
+                    ? "border-indigo-500 bg-indigo-50 shadow-xl scale-105"
+                    : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-lg"
+                } ${!canCreateCV && !isPremium ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-4">
+                  <FileText className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Rento</h3>
+                <p className="text-sm text-gray-600">
+                  Persoonallinen ja lähestyttävä CV
+                </p>
+                {!isPremium && (
+                  <div className="mt-3 text-xs text-blue-600 font-semibold">
+                    Ilmainen (1x)
+                  </div>
+                )}
+              </button>
+
+              {/* Professional CV */}
+              <button
+                onClick={() => isPremium && setSelectedTemplate("technical")}
+                disabled={!isPremium}
+                className={`p-8 rounded-2xl border-2 transition-all text-left ${
+                  selectedTemplate === "technical" && isPremium
+                    ? "border-purple-500 bg-purple-50 shadow-xl scale-105"
+                    : "border-gray-200 bg-white"
+                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
+              >
+                <div className="h-16 w-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
+                  <Sparkles className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Professional</h3>
+                <p className="text-sm text-gray-600">
+                  Tekninen ja strukturoitu ammattilaisille
+                </p>
+                {!isPremium && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
+                    <Crown className="h-4 w-4" />
+                    Premium
+                  </div>
+                )}
+              </button>
+
+              {/* Creative CV */}
+              <button
+                onClick={() => isPremium && setSelectedTemplate("creative")}
+                disabled={!isPremium}
+                className={`p-8 rounded-2xl border-2 transition-all text-left ${
+                  selectedTemplate === "creative" && isPremium
+                    ? "border-pink-500 bg-pink-50 shadow-xl scale-105"
+                    : "border-gray-200 bg-white"
+                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
+              >
+                <div className="h-16 w-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center mb-4">
+                  <Zap className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Creative</h3>
+                <p className="text-sm text-gray-600">
+                  Luova ja visuaalinen portfolio-CV
+                </p>
+                {!isPremium && (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
+                    <Crown className="h-4 w-4" />
+                    Premium
+                  </div>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Action Button */}
+          <div className="bg-gradient-to-br from-white to-indigo-50 rounded-3xl p-12 border-2 border-indigo-200 shadow-2xl">
+            <div className="max-w-2xl mx-auto text-center">
+              <h3 className="text-3xl font-bold text-gray-900 mb-3">
+                Valmis Luomaan CV:si?
+              </h3>
+              
+              {/* ✅ PÄIVITETTY: Selkeämpi varoitus */}
+              <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
+                <div className="flex items-center justify-center gap-2 text-amber-800">
+                  <AlertCircle className="h-5 w-5" />
+                  <p className="font-semibold">
+                    Generointi kestää 30-60 sekuntia. Älä sulje sivua!
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-lg text-gray-600 mb-8">
+                {isPremium
+                  ? cvMode === "ats-optimized" && jobPosting
+                    ? "Tekoäly optimoi CV:si annetun työpaikkailmoituksen mukaan"
+                    : "Tekoäly luo ammattimaisen CV:n profiilitietojesi pohjalta"
+                  : "Tekoäly luo persoonallisen ilmaisen CV:n profiilitietojesi pohjalta"}
+              </p>
+
+              <Button
+                onClick={generateCVFromProfile}
+                disabled={isLoading || !user || !canCreateCV}
+                size="lg"
+                className="px-12 py-6 text-lg bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-70 disabled:transform-none"
+              >
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
+                    Luodaan CV:tä... (30-60s)
+                  </div>
+                ) : (
+                  <div className="flex items-center">
+                    <Sparkles className="h-6 w-6 mr-3" />
+                    {isPremium 
+                      ? cvMode === "ats-optimized"
+                        ? "🎯 Luo ATS-Optimoitu CV"
+                        : "Luo Premium CV"
+                      : "Luo Ilmainen CV"}
+                  </div>
+                )}
+              </Button>
+
+              <p className="text-sm text-gray-500 mt-4">
+                {isPremium
+                  ? cvMode === "ats-optimized" 
+                    ? "ATS-optimointi analysoi työpaikkailmoituksen ja räätälöi CV:n" 
+                    : `Tokenia jäljellä: ${subscription?.tokens || 0}`
+                  : subscription?.has_used_free_cv 
+                    ? "❌ Olet jo käyttänyt ilmaisen CV:n"
+                    : "✅ Ilmainen CV käytettävissä (1x)"}
+              </p>
+
+              {/* CTA Premium-päivitykseen (jos FREE) */}
+              {!isPremium && (
+                <div className="mt-8 p-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white">
+                  <h4 className="text-xl font-bold mb-2">
+                    Haluatko ATS-optimoinnin?
+                  </h4>
+                  <p className="mb-4 text-indigo-100">
+                    Päivitä Premium-tiliin ja saat rajattomasti ATS-optimoituja CV:itä + hakukirjeet
+                  </p>
+                  <Button
+                    onClick={() => router.push("/pricing")}
+                    variant="outline"
+                    className="bg-white text-indigo-600 hover:bg-indigo-50 border-0"
+                  >
+                    <Crown className="h-5 w-5 mr-2" />
+                    Katso Premium-hinnat
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
