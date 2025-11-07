@@ -32,18 +32,41 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
 
   const validData: UserFormData = data || ({} as UserFormData);
   const validAiData: AIData = aiData || ({} as AIData);
+// Get background image
+const getBackgroundImageForCV = () => {
+  console.log("🎨 getBackgroundImageForCV called:", {
+    hasBackground: !!validAiData.background_image,
+    prefix: validAiData.background_image?.substring(0, 50) || 'N/A',
+    hasBackgroundUrl: !!validAiData.background_image_url,
+  });
 
-  // Get background image
-  const getBackgroundImageForCV = () => {
-    if (!validAiData.background_image) return null;
-    if (validAiData.background_image.startsWith("http")) {
-      return validAiData.background_image;
-    }
-    if (validAiData.background_image_url) {
-      return validAiData.background_image_url;
-    }
+  if (!validAiData.background_image) {
+    console.log("🎨 No background_image found");
     return null;
-  };
+  }
+
+  // ✅ KORJAUS: Tarkista base64 ensin
+  if (validAiData.background_image.startsWith("data:image")) {
+    console.log("🎨 Using base64 background");
+    return validAiData.background_image;
+  }
+
+  // ✅ Sitten HTTP URL
+  if (validAiData.background_image.startsWith("http")) {
+    console.log("🎨 Using HTTP background");
+    return validAiData.background_image;
+  }
+
+  // ✅ Fallback: background_image_url
+  if (validAiData.background_image_url) {
+    console.log("🎨 Using background_image_url");
+    return validAiData.background_image_url;
+  }
+
+  console.log("🎨 No valid background found, returning original");
+  // ✅ Jos mikään muu ei toimi, palauta alkuperäinen
+  return validAiData.background_image;
+};
 
   // Get profile image or initials
   const getProfileDisplay = () => {

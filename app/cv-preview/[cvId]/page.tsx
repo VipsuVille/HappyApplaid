@@ -226,6 +226,14 @@ export default function CVPreviewPage() {
         }
 
         console.log("✅ CV prosessoitu onnistuneesti");
+        // Lisää tämä juuri ennen setCv(processedCV):
+console.log("🎨 FINAL CV DATA:", {
+  hasBackgroundImage: !!processedCV.content.ai_data.background_image,
+  backgroundImagePrefix: processedCV.content.ai_data.background_image?.substring(0, 100) || "N/A",
+  hasProfileImage: !!processedCV.content.cv_data.profileImage,
+  profileImagePrefix: processedCV.content.cv_data.profileImage?.substring(0, 100) || "N/A",
+});
+
         setCv(processedCV);
       } catch (error) {
         console.error("❌ Virhe CV:n latauksessa:", error);
