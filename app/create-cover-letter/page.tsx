@@ -451,7 +451,7 @@ if (!isActive) {
 
   // Main form
   return (
-    <div className="min-h-screen">
+    <div>
  <SmartHeader />
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50">
       {/* ✅ Client Component Navbar */}
