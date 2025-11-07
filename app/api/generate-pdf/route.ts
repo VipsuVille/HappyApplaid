@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     await page.goto(cvUrl, {
       waitUntil: "networkidle0",
-      timeout: 30000,
+      timeout: 60000,
     });
 
     // Odota kuvat
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       );
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Background images
     await page.evaluate(() => {
