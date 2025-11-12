@@ -346,8 +346,10 @@ if (!isActive) {
 
   if (loadingProfile) {
     return (
+      <>
+      <SmartHeader />
+
       <div className="min-h-screen">
- <SmartHeader />
          <main className="container mx-auto py-8 px-4">
           <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center justify-center">
@@ -357,14 +359,15 @@ if (!isActive) {
           </div>
         </main>
       </div>
-    );
+</>    );
   }
 
   // Questions form
   if (showQuestions && aiQuestions.length > 0) {
     return (
+      <> <SmartHeader />  
       <div className="min-h-screen">
- <SmartHeader />   
+ 
       <main className="container mx-auto py-8 px-4">
           <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center mb-6">
@@ -446,14 +449,14 @@ if (!isActive) {
           </div>
         </main>
       </div>
-    );
+    </>);
   }
 
   // Main form
   return (
     <div>
  <SmartHeader />
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50">
+        <div className=" bg-gradient-to-br from-gray-50 to-indigo-50">
       {/* ✅ Client Component Navbar */}
       </div>
       <main className="container mx-auto py-8 px-4">

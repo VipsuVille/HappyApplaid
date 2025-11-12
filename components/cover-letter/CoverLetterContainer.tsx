@@ -22,7 +22,7 @@ const CoverLetterContainer = forwardRef<HTMLDivElement, CoverLetterContainerProp
           backgroundColor: 'white',
           position: 'relative',
           overflow: 'hidden',
-          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15), 0 2px 10px rgba(0, 0, 0, 0.12)', // Vahvempi varjo
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15), 0 2px 10px rgba(0, 0, 0, 0.12)',
           borderRadius: '3px'
         }}
       >
@@ -46,7 +46,7 @@ const CoverLetterContainer = forwardRef<HTMLDivElement, CoverLetterContainerProp
           style={{
             position: 'absolute',
             top: 0,
-            left: '12px', // alkaa vasemman reunan jälkeen
+            left: '12px',
             right: 0,
             height: '8px',
             background: 'linear-gradient(to right, #3498db, #ede7f6)',

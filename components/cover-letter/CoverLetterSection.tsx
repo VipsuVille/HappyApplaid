@@ -10,7 +10,7 @@ interface SectionProps {
   className?: string;
 }
 
-const CoverLetterSection: React.FC<SectionProps> = ({
+export const CoverLetterSection: React.FC<SectionProps> = ({
   title,
   content,
   isEditing,
@@ -37,21 +37,26 @@ const CoverLetterSection: React.FC<SectionProps> = ({
           ref={textareaRef}
           value={content}
           onChange={(e) => onChange?.(e.target.value)}
-          className="editable-textarea w-full"
+          className="editable-textarea w-full border border-gray-300 rounded p-2 focus:border-blue-500 focus:outline-none"
           style={{
             minHeight: '100px',
             resize: 'none',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            fontFamily: '"Merriweather", serif',
+            lineHeight: '1.7'
           }}
         />
       ) : (
         <div
           className="section-content"
+          style={{
+            fontFamily: '"Merriweather", serif',
+            lineHeight: '1.7',
+            whiteSpace: 'pre-wrap'
+          }}
           dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}
         />
       )}
     </div>
   );
 };
-
-export default CoverLetterSection;

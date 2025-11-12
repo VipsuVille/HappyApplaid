@@ -1,0 +1,288 @@
+# 🎯 Realistinen ATS-järjestelmä - Toteutusohje
+
+## 📋 Yhteenveto
+
+Uusi ATS-järjestelmä tunnistaa **realistisesti** miten työnantajan ATS-järjestelmä toimii:
+- ✅ Täsmälliset avainsanamatchit (ei synonyymejä)
+- ✅ Kielentunnistus ja varoitus ristiriidasta
+- ✅ ATS-käytön tunnistus (onko ihminen vai kone)
+- ✅ 3-sarakkeinen edit-näkymä
+
+---
+
+## 🚀 Asennus
+
+### 1. Luo uudet API-reitit
+
+```bash
+# Luo tiedostot:
+app/api/detect-ats/route.ts
+app/api/analyze-ats-realistic/route.ts
+app/api/insert-keyword-smart/route.ts
+```
+
+### 2. Korvaa vanha edit-sivu
+
+```bash
+# Varmuuskopioi vanha:
+mv app/edit-cover-letter/[id]/page.tsx app/edit-cover-letter/[id]/page.OLD.tsx
+
+# Luo uusi:
+# Kopioi new_edit_page_ui sisältö → app/edit-cover-letter/[id]/page.tsx
+```
+
+### 3. Lisää tyypit
+
+```bash
+# Luo types-kansio jos ei ole:
+mkdir -p types
+
+# Luo:
+types/ats.ts
+```
+
+### 4. Päivitä ympäristömuuttujat
+
+```env
+# .env.local
+NEXT_PUBLIC_URL=http://localhost:3000  # Tuotannossa: https://yourdomain.com
+OPENAI_API_KEY=sk-...
+```
+
+---
+
+## 🎨 Uusi UI Layout
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  [←] Hakukirje            [Esikatselu] [Lataa PDF] [Tallenna]   │
+└──────────────────────────────────────────────────────────────────┘
+
+┌─────────────┬───────────────────────────┬─────────────┐
+│             │                           │             │
+│ ATS PISTEET │   HAKUKIRJE (A4)         │  MUOKKAUS   │
+│             │                           │             │
+│  ┌────────┐ │ ┌──────────────────────┐ │ Vinkit      │
+│  │  67%   │ │ │ [Suoraan muokattava] │ │ Ilmoitus    │
+│  │  🟡    │ │ │                      │ │ Yhteystiedot│
+│  └────────┘ │ │  Fullstack Dev...    │ │             │
+│             │ │                      │ │             │
+│ 🤖 ATS 85%  │ │  Hei,                │ │             │
+│             │ │                      │ │             │
+│ ⚠️ Puuttuu: │ │  Olen innoissani...  │ │             │
+│             │ │                      │ │             │
+│ [TypeScript]│ │  [contentEditable]   │ │             │
+│ [problem-   │ │                      │ │             │
+│  solving]   │ │                      │ │             │
+│ ↑ Klikkaa!  │ │                      │ │             │
+│             │ │                      │ │             │
+│ ✅ Löydetty:│ │  Ystävällisin...     │ │             │
+│ React       │ │                      │ │             │
+│ Python      │ └──────────────────────┘ │             │
+│             │                           │             │
+└─────────────┴───────────────────────────┴─────────────┘
+  25%              50%                      25%
+```
+
+---
+
+## 🔧 Toiminnot
+
+### 1. Automaattinen ATS-tunnistus
+
+```typescript
+// Tunnistaa automaattisesti käyttääkö yritys ATS:ää
+const detection = await detectATSUsage(jobDescription);
+
+// Vastaus:
+{
+  usesATS: true,
+  confidence: 0.85,
+  reasoning: "Suuri yritys, hakeminen portaalin kautta",
+  indicators: {
+    hasATS: ["Apply through portal", "Workday"],
+    noATS: []
+  }
+}
+```
+
+### 2. Realistinen keyword matching
+
+```typescript
+// ❌ VANHA (väärä):
+"problem-solving" matchaa "ongelmanratkaisu" ✓
+
+// ✅ UUSI (oikea):
+"problem-solving" EI matchaa "ongelmanratkaisu" ✗
+→ Varoitus: "Kirjoita hakukirje samalla kielellä!"
+```
+
+### 3. Klikkautuvat avainsanat
+
+```typescript
+// Käyttäjä klikkaa "TypeScript" vasemmalla
+→ Lisätään kursorin kohdalle keskellä
+→ ATS-pisteet päivittyvät automaattisesti
+```
+
+### 4. Reaaliaikainen analyysi
+
+```typescript
+// Käyttäjä kirjoittaa tekstiä
+→ 2 sekunnin viive
+→ Automaattinen ATS-analyysi
+→ Pisteet päivittyvät
+```
+
+---
+
+## 📊 ATS-pisteiden laskenta
+
+```typescript
+// Kaava:
+score = (löydetyt_avainsanat / kaikki_avainsanat) * 100
+
+// Esimerkki:
+Työpaikkailmoitus: "React, Python, TypeScript, problem-solving"
+Hakukirje: "React, Python, ongelmanratkaisu"
+
+Löydetty: 2 (React, Python)
+Kaikki: 4
+Pisteet: (2/4) * 100 = 50%
+
+⚠️ Varoitus: "TypeScript ja problem-solving puuttuvat"
+```
+
+---
+
+## 🌍 Kielentunnistus
+
+```typescript
+// Automaattinen tunnistus:
+detectLanguageSimple(text)
+
+// Palauttaa:
+"suomi" | "englanti" | "ruotsi" | "tuntematon"
+
+// Jos eri kielet:
+{
+  languageMismatch: true,
+  warningMessage: "⚠️ KRIITTINEN: Ilmoitus englanniksi, hakukirje suomeksi"
+}
+```
+
+---
+
+## 🎯 Käyttöohjeet loppukäyttäjälle
+
+### Kun ATS-pisteet ovat matalat (< 75%):
+
+1. **Tarkista kieli**
+   - Jos ilmoitus on englanniksi, kirjoita hakukirje englanniksi
+   - Älä käännä - ATS ei ymmärrä käännöksiä
+
+2. **Lisää puuttuvat avainsanat**
+   - Klikkaa vasemmalla olevia punaisia nappeja
+   - Ne lisätään automaattisesti tekstiin
+
+3. **Käytä TÄSMÄLLISIÄ termejä**
+   - Jos ilmoitus sanoo "React" → kirjoita "React"
+   - ÄLÄ kirjoita "React-kehys" tai "Reactin osaaminen"
+
+4. **Tarkista pisteet**
+   - Klikkaa "Päivitä pisteet" nähdäksesi uudet tulokset
+   - Tavoite: 75%+
+
+### Jos yritys EI käytä ATS:ää:
+
+```
+✅ Ihminen lukee hakemuksesi
+→ Keskity sisällön laatuun
+→ Avainsanat eivät ole yhtä kriittisiä
+→ Voit kirjoittaa luonnollisemmin
+```
+
+---
+
+## 🐛 Yleisimmät ongelmat
+
+### Ongelma: ATS-pisteet 0%
+**Syy:** Eri kieli ilmoituksessa ja hakukirjeessä
+**Ratkaisu:** Kirjoita hakukirje samalla kielellä kuin ilmoitus
+
+### Ongelma: Avainsanan klikkaus ei toimi
+**Syy:** Kursori ei ole tekstissä
+**Ratkaisu:** Klikkaa ensin tekstiin, sitten avainsanaa
+
+### Ongelma: Pisteet eivät päivity
+**Syy:** Analyysi on käynnissä (2 sek viive)
+**Ratkaisu:** Odota tai klikkaa "Päivitä pisteet"
+
+---
+
+## 📈 Mittarit
+
+Seuraa näitä metriikoita:
+
+```typescript
+// Käyttäjätyytyväisyys:
+- ATS-pisteet ennen: keskiarvo
+- ATS-pisteet jälkeen: keskiarvo
+- Parannus: %
+
+// Tekninen:
+- API response time: < 2s
+- Analyysi tarkkuus: 85%+
+- Kielentunnistus tarkkuus: 95%+
+```
+
+---
+
+## 🔄 Päivitykset tulevaisuudessa
+
+### Lyhyellä aikavälillä:
+- [ ] "Kumoa muutokset" -nappi
+- [ ] Versiohistoria
+- [ ] Ennen/jälkeen vertailu
+
+### Pitkällä aikavälillä:
+- [ ] AI-pohjainen "Paranna koko hakukirje"
+- [ ] ATS-simulaattori (näytä miltä ATS näkee)
+- [ ] Keyword heatmap (visualisoi avainsanat)
+
+---
+
+## 🤝 Tuki
+
+Jos kohtaat ongelmia:
+
+1. Tarkista että API-reitit ovat oikein
+2. Tarkista console.log-viestit
+3. Testaa API-kutsut erikseen (curl/Postman)
+4. Varmista että OPENAI_API_KEY on asetettu
+
+---
+
+## ✅ Tsekkauslista ennen tuotantoa
+
+- [ ] API-reitit toimivat
+- [ ] Kielentunnistus toimii
+- [ ] Avainsanojen klikkaus toimii
+- [ ] Tallenna toimii
+- [ ] PDF-lataus toimii
+- [ ] Responsiivinen design (mobile)
+- [ ] Error handling kaikissa API-kutsuissa
+- [ ] Loading-indikaattorit näkyvissä
+- [ ] OPENAI_API_KEY asetettu tuotannossa
+
+---
+
+**Valmista!** 🎉
+
+Sinulla on nyt realistinen ATS-järjestelmä joka:
+- Tunnistaa työnantajan ATS-käytön
+- Varoittaa kieliristiriidoista
+- Näyttää TÄSMÄLLISET puuttuvat avainsanat
+- Tarjoaa intuitiivisen muokkausnäkymän
+
+Onnea rekrytointiin! 🚀

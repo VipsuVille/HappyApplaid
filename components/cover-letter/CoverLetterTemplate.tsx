@@ -1,7 +1,6 @@
-// components/cover-letter/CoverLetterTemplate.tsx - KORJATTU A4-KOKO
+// components/cover-letter/CoverLetterTemplate.tsx - KORJATTU PADDING
 import React from 'react';
 import DOMPurify from 'dompurify';
-import { Sparkles, Target, Zap } from 'lucide-react';
 
 interface CoverLetterTemplateProps {
   data: {
@@ -44,24 +43,21 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
   isPdfPreview = false,
   onContentChange
 }) => {
-  // ✅ KORJATTU: A4-koon maksimi (297mm miinus marginaalit)
+  // ✅ KORJATTU: Poistettu padding, lisätty vain overflow
   const pageStyle: React.CSSProperties = {
     width: '210mm',
-    minHeight: '297mm',
-    maxHeight: '297mm', // ✅ LISÄTTY: estää ylivuodon
-    padding: '20mm',
+    height: '297mm', // ✅ Kiinteä korkeus kuten CVContainer
     boxSizing: 'border-box',
     fontFamily: '"Merriweather", serif',
     lineHeight: 1.5,
     backgroundColor: 'white',
     color: '#333',
-    overflow: 'hidden', // ✅ LISÄTTY: estää ylivuodon
+    overflow: 'hidden',
+    position: 'relative', // ✅ Lisätty positioning
   };
 
   const contentStyle = ai_data?.styles?.main_style || '';
 
-
-  // ✅ KORJATTU: Allekirjoitus vain nimellä
   const renderSignature = () => {
     const name = data.content?.applicant_info?.name || 'Hakija';
     const closing = '';
@@ -106,7 +102,6 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
     );
   };
 
-  // ✅ KORJATTU: Työpaikan otsikko jobDescriptionista
   const getJobTitle = () => {
     if (data.content?.job_description) {
       const firstLine = data.content.job_description.split('\n')[0];
@@ -124,7 +119,6 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           className="w-full border border-gray-300 rounded p-2"
           rows={15}
           placeholder="Kirjoita hakukirjeen sisältö tähän..."
-          style={{ maxHeight: '180mm' }} // ✅ Rajoita tekstikentän korkeus
         />
       );
     } else {
@@ -132,10 +126,6 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
       return (
         <div 
           className="cover-letter-content" 
-          style={{
-            maxHeight: '200mm', // ✅ KORJATTU: Rajoita sisällön korkeus
-            overflow: 'hidden', // ✅ Estä ylivuoto
-          }}
           dangerouslySetInnerHTML={{ __html: cleanHtml }} 
         />
       );
@@ -151,8 +141,7 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           @media print {
             body, .cover-letter-template {
               width: 210mm !important;
-              min-height: 297mm !important;
-              max-height: 297mm !important;
+              height: 297mm !important;
               margin: 0 !important;
               page-break-after: avoid;
             }
@@ -164,7 +153,6 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           .cover-letter-content {
             ${contentStyle}
             white-space: pre-wrap;
-            overflow: hidden;
           }
 
           .cover-letter-template {
@@ -214,28 +202,30 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         `}
       </style>
 
-
-      {isEditing ? (
-        <div>
-          <h1>
-            <input
-              type="text"
-              value={getJobTitle()}
-              onChange={(e) => onContentChange?.('title', e.target.value)}
-              className="w-full border-b-2 border-gray-300 focus:border-blue-500 outline-none text-xl font-bold mb-4"
-              placeholder="Hakukirjeen otsikko"
-            />
-          </h1>
-          {renderContent()}
-          {renderSignature()}
-        </div>
-      ) : (
-        <>
-          <h1 className="text-2xl font-bold mb-6">{getJobTitle()}</h1>
-          {renderContent()}
-          {renderSignature()}
-        </>
-      )}
+      {/* ✅ KORJATTU: Padding lisätty wrapperin sisään */}
+      <div style={{ padding: '20mm', height: '100%', boxSizing: 'border-box' }}>
+        {isEditing ? (
+          <div>
+            <h1>
+              <input
+                type="text"
+                value={getJobTitle()}
+                onChange={(e) => onContentChange?.('title', e.target.value)}
+                className="w-full border-b-2 border-gray-300 focus:border-blue-500 outline-none text-xl font-bold mb-4"
+                placeholder="Hakukirjeen otsikko"
+              />
+            </h1>
+            {renderContent()}
+            {renderSignature()}
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold mb-6">{getJobTitle()}</h1>
+            {renderContent()}
+            {renderSignature()}
+          </>
+        )}
+      </div>
     </div>
   );
 };

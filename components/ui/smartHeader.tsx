@@ -322,11 +322,16 @@ export default function SmartHeader({
                         ⭐ Premium • {tokens} tokens
                       </span>
                     ) : (
-                      <span className="text-gray-600">
-                        {hasUsedFreeCv
-                          ? language === 'en' ? '✓ Free CV Used' : '✓ Ilmainen CV käytetty'
-                          : language === 'en' ? '1 Free CV Available' : '1 Ilmainen CV'}
-                      </span>
+                     // ✅ TEE TÄSTÄ KLIKKAUTUVA:
+  <Link href={hasUsedFreeCv ? "/pricing" : "/create-cv"}>
+    <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-300 px-2 sm:px-3 py-1.5 rounded-full shadow-sm hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer">
+      <span className="text-xs sm:text-sm font-semibold text-gray-700">
+        {hasUsedFreeCv
+          ? language === 'en' ? '🔒 Upgrade' : '🔒 Päivitä'
+          : language === 'en' ? '1 Free CV' : '1 Ilmainen CV'}
+      </span>
+    </div>
+  </Link>
                     )}
                   </p>
                 </div>

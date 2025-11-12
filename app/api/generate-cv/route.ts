@@ -1,4 +1,5 @@
 // app/api/generate-cv/route.ts - KORJATTU
+
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import {
@@ -85,7 +86,10 @@ export async function POST(req: Request) {
     // ========================================
     // 2️⃣ FREE-TIER RAJOITUKSET
     // ========================================
-
+console.log("🚀 CV Generation started");
+console.log("📊 User ID:", currentUserId);
+console.log("📊 Plan type:", planType);
+console.log("📊 has_used_free_cv (before):", hasUsedFreeCv);
     if (isFree) {
       if (hasUsedFreeCv) {
         return NextResponse.json(
@@ -302,6 +306,7 @@ export async function POST(req: Request) {
       await supabaseAdmin.rpc("mark_free_cv_used", {
         p_user_id: currentUserId,
       });
+console.log("📊 has_used_free_cv (after):", profile?.has_used_free_cv);
 
       console.log(`✅ FREE CV generated in ${Date.now() - startTime}ms`);
 
@@ -316,6 +321,7 @@ export async function POST(req: Request) {
           isPremium: false,
           isAtsOptimized: false,
           generationTime: Date.now() - startTime,
+          has_used_free_cv: true
         },
         { status: 200 }
       );
@@ -329,4 +335,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+} 

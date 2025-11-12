@@ -163,8 +163,9 @@ export default function MyCVsPage() {
 
   if (error) {
     return (
+      <>
+              <SmartHeader />
       <div className="container mx-auto p-4">
-        <SmartHeader />
         <h1 className="text-2xl font-bold mb-4">Omat CV:t</h1>
         <div className="text-center py-8">
           <p className="text-red-500 mb-4">{error}</p>
@@ -176,13 +177,17 @@ export default function MyCVsPage() {
           </button>
         </div>
       </div>
-    );
+   </>
+ );
   }
+
 
   if (cvs.length === 0) {
     return (
+      <>
+              <SmartHeader />
+
       <div className="container mx-auto p-4">
-        <SmartHeader />
         <h1 className="text-2xl font-bold mb-4">Omat CV:t</h1>
         <div className="text-center py-8">
           <p className="text-gray-600 mb-4">Ei vielä luotuja CV:itä</p>
@@ -194,15 +199,16 @@ export default function MyCVsPage() {
           </Link>
         </div>
       </div>
-    );
+   </> );
   }
 
   return (
+    <>
+          <SmartHeader />
     <div
       className="container mx-auto mb-4 md:inline-block md:ml-64 md:-10 pt-4 md:pt-0"
       style={{ maxWidth: "230mm" }}
     >
-      <SmartHeader />
       <div className="flex justify-between items-center mb-6 mt-20">
         <h1 className="text-2xl font-bold">Omat CV:t</h1>
         <Link
@@ -309,5 +315,6 @@ const templateType = cv.content?.cv_data?.cvType || cv.content?.ai_data?.cvType 
         })}
       </div>
     </div>
+</>
   );
 }
