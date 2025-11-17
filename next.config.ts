@@ -2,12 +2,28 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // WebSocket- ja Webhook-tuki
-  // Tämä osa on poistettu, koska se saattoi aiheuttaa ristiriitoja Turbopackin kanssa.
-  // webpack: (config) => {
-  //   config.externals.push('ws'); // WebSocket-tuki
-  //   return config;
-  // },
+  // Content Security Policy headers
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com",
+              "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com https://api.openai.com https://xgwwnqzbbzpdvgnchpzn.supabase.co wss://*.clerk.com",
+              "img-src 'self' data: https: blob:",
+              "style-src 'self' 'unsafe-inline'",
+              "font-src 'self' data:",
+              "frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com",
+            ].join('; '),
+          },
+        ],
+      },
+    ];
+  },
 
   // Kuvien optimointi
   images: {
@@ -25,7 +41,6 @@ const nextConfig: NextConfig = {
         pathname: "/storage/v1/**",
       },
     ],
-    
   },
 
   // Ympäristömuuttujat
