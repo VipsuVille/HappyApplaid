@@ -19,7 +19,8 @@ export interface JobAnalysis {
   experience_level: string;
   industry_keywords: string[];
 }
-
+// ✅ LISÄÄ BACKWARD COMPATIBILITY
+export type PersonalityInput = PersonalityExtractionInput;
 // ✅ LISÄÄ NÄMÄ:
 export interface PersonalityExtractionInput {
   userProfile: string;

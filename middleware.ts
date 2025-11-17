@@ -1,4 +1,4 @@
-// middleware.ts - KORJATTU ATS-REITEILLE
+// middleware.ts - PRODUCTION-READY
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -25,25 +25,20 @@ const isProtectedRoute = createRouteMatcher([
   '/create-cv(.*)',
   '/create-cover-letter(.*)',
   '/my-cover-letters(.*)',
-  '/edit-cover-letter(.*)',  // ✅ LISÄTTY
+  '/edit-cover-letter(.*)',
   '/profile(.*)',
   '/pricing(.*)',
   '/admin(.*)', 
 ]);
 
-// ✅ LISÄTTY UUDET ATS-REITIT
 const isProtectedApiRoute = createRouteMatcher([
   '/api/generate-cv',
   '/api/generate-pdf',
   '/api/generate-cover-letter',
-  '/api/generate-cover-letter-pdf',  // ✅ LISÄTTY
+  '/api/generate-cover-letter-pdf',
   '/api/user-profile(.*)',
   '/api/save-profile',
-  '/api/cover-letters(.*)',  // ✅ LISÄTTY
-  // ✅ UUDET ATS-REITIT
-  '/api/detect-ats',
-  '/api/extract-keywords-ai',
-  '/api/insert-keyword-smart',
+  '/api/cover-letters(.*)',
 ]);
 
 const isPublicApiRoute = createRouteMatcher([
@@ -54,11 +49,13 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/generate-image',
   '/api/webhooks/(.*)',
   '/api/waitlist', 
+  // ✅ ATS-reitit julkisia (ei käytä tietokantaa)
+  '/api/detect-ats',
+  '/api/extract-keywords-ai',
+  '/api/analyze-ats-realistic',
+  '/api/insert-keyword-smart',
 ]);
 
-/**
- * Tarkistaa, onko kyseessä PDF-generointipyynnön tekemä navigointi.
- */
 const isPdfGenerationRoute = (req: NextRequest) => {
   const isPreviewPath = (
     req.nextUrl.pathname.startsWith('/cv-preview/') ||
@@ -67,24 +64,97 @@ const isPdfGenerationRoute = (req: NextRequest) => {
   return isPreviewPath && req.nextUrl.searchParams.get('pdf') === 'true';
 }
 
+// ✅ RATE LIMITING - Yksinkertainen IP-pohjainen
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string, limit: number = 100, windowMs: number = 60000): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= limit) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+// ✅ PUHDISTA VANHENTUNEET RATE LIMIT TIEDOT (1h välein)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of rateLimitMap.entries()) {
+    if (now > record.resetAt) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 3600000);
+
 export default clerkMiddleware(async (auth, req) => { 
   const url = req.nextUrl;
   const isDevelopmentMode = process.env.NEXT_PUBLIC_DEVELOPMENT_MODE === 'true';
 
+  // ✅ TURVALLISUUSHEADERIT (XSS, Clickjacking, etc.)
+  const response = NextResponse.next();
+  
+  // Prevent clickjacking
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  
+  // XSS Protection
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  
+  // Referrer Policy
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Content Security Policy (mukautettu tarpeen mukaan)
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https: blob:",
+    "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://api.openai.com https://*.supabase.co",
+    "frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com",
+  ].join('; ');
+  response.headers.set('Content-Security-Policy', csp);
+
   // 1. Stripe webhook - ohita kaikki
   if (url.pathname === '/api/webhooks/stripe') {
-    return NextResponse.next();
+    return response;
   }
 
   // 2. PDF-generointi - Salli Puppeteerille pääsy
   if (isPdfGenerationRoute(req)) {
     console.log(`✅ Middleware bypassing Clerk for PDF generation: ${url.pathname}`);
-    return NextResponse.next();
+    return response;
   }
   
   // 3. Julkiset API-reitit - ohita autentikointi
   if (isPublicApiRoute(req)) {
-    return NextResponse.next();
+    return response;
+  }
+
+  // ✅ 4. RATE LIMITING kaikille API-reiteille
+  if (url.pathname.startsWith('/api/')) {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 
+               req.headers.get('x-real-ip') || 
+               'unknown';
+    
+    // Kovempi rate limit suojattomille reiteille
+    const limit = isPublicApiRoute(req) ? 50 : 100;
+    
+    if (!checkRateLimit(ip, limit)) {
+      console.warn(`⚠️ Rate limit exceeded for IP: ${ip}`);
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
   }
 
   // Jos ollaan tuotantotilassa
@@ -92,7 +162,7 @@ export default clerkMiddleware(async (auth, req) => {
     if (!isPublicPage(req)) { 
       return NextResponse.redirect(new URL('/', req.url)); 
     }
-    return NextResponse.next();
+    return response;
   }
 
   // --- Kehitystila ---
@@ -110,7 +180,7 @@ export default clerkMiddleware(async (auth, req) => {
       );
     }
 
-    // ✅ TILAUSTARKISTUS VAIN GENEROINTIREITEILLE
+    // TILAUSTARKISTUS VAIN GENEROINTIREITEILLE
     const requiresSubscription = [
       '/api/generate-cover-letter',
       '/api/generate-cv',
@@ -126,9 +196,8 @@ export default clerkMiddleware(async (auth, req) => {
       }
     }
 
-    // ✅ SALLI ATS-REITIT ILMAN LISÄTARKISTUKSIA
     console.log(`✅ Authorized API call: ${url.pathname} (userId: ${userId})`);
-    return NextResponse.next();
+    return response;
   }
 
   // Admin-reitit
@@ -143,7 +212,7 @@ export default clerkMiddleware(async (auth, req) => {
     if (role !== 'admin') {
       return NextResponse.redirect(new URL('/unauthorized', req.url));
     }
-    return NextResponse.next();
+    return response;
   }
 
   // Muut suojatut UI-reitit
@@ -155,27 +224,39 @@ export default clerkMiddleware(async (auth, req) => {
   
   // Clerkin autentikaatiosivut
   if (isAuthPage(req)) {
-    return NextResponse.next();
+    return response;
   }
 
-  // CSRF-suojaus POST-pyynnöille
-  if (req.method === 'POST') {
+  // ✅ CSRF-SUOJAUS POST/PUT/DELETE-pyynnöille
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
     const origin = req.headers.get('origin');
+    const host = req.headers.get('host');
     
     const validOrigins = [
       process.env.NEXT_PUBLIC_APP_URL,
       process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+      `https://${host}`,
+      `http://${host}`,
       'http://localhost:3000',
       'https://localhost:3000',
     ].filter(Boolean) as string[];
 
-    if (origin && !validOrigins.includes(origin)) {
-      console.error('❌ CSRF blocked:', { origin, pathname: url.pathname });
+    // Tarkista että origin on sallittu TAI että pyyntö tulee samasta domainista
+    const isSameOrigin = origin && host && new URL(origin).host === host;
+    const isAllowedOrigin = origin && validOrigins.some(allowed => origin.startsWith(allowed));
+
+    if (!isSameOrigin && !isAllowedOrigin) {
+      console.error('❌ CSRF blocked:', { 
+        origin, 
+        host,
+        pathname: url.pathname,
+        method: req.method 
+      });
       return new NextResponse('CSRF protection - invalid origin', { status: 403 });
     }
   }
 
-  return NextResponse.next(); 
+  return response; 
 });
 
 export const config = {

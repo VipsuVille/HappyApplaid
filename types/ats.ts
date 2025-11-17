@@ -1,4 +1,4 @@
-// types/ats.ts - KAIKKI ATS-TYYPIT YHDESSÄ PAIKASSA
+// types/ats.ts - KORJATTU VERSIO (lisää puuttuvat kentät)
 
 export interface ATSDetection {
   usesATS: boolean;
@@ -12,9 +12,23 @@ export interface ATSDetection {
   recommendation: string;
 }
 
+// ✅ KORJATTU: Lisää synonym + partial matches
 export interface ATSAnalysis {
   score: number; // 0-100
   exactMatches: string[];
+  
+  // ✅ LISÄÄ NÄMÄ (puuttuivat ennen)
+  synonymMatches?: Array<{
+    keyword: string;
+    foundAs: string;
+    confidence: number;
+  }>;
+  partialMatches?: Array<{
+    keyword: string;
+    foundPart: string;
+    confidence: number;
+  }>;
+  
   missingCritical: string[];
   languageMismatch: boolean;
   jobLanguage: string;
@@ -23,9 +37,15 @@ export interface ATSAnalysis {
   warningType: 'critical' | 'warning' | 'info' | 'success';
   atsDetection: ATSDetection;
   totalKeywords: number;
+  
+  // ✅ KORJATTU: analysis kenttä
   analysis: {
-    technical: number;
-    soft: number;
+    exact: number;      // ✅ Lisää 'exact'
+    synonyms: number;   // ✅ Lisää 'synonyms'
+    partial: number;    // ✅ Lisää 'partial'
+    missing: number;    // ✅ Lisää 'missing'
+    technical?: number; // Säilytä vanhat (backward compat)
+    soft?: number;
   };
 }
 
@@ -38,7 +58,7 @@ export interface CoverLetterData {
   updated_at: string;
   content: {
     job_description: string;
-    cover_letter_content: string;
+    cover_letter_content?: string;
     body: string;
     signature: string;
     applicant_info: {
@@ -57,6 +77,17 @@ export interface CoverLetterData {
       main_style: string;
       custom_styles?: string;
     };
+    
+    // ✅ GROUND TRUTH (molemmat V1 & V2)
+    ground_truth?: any;
+    guardian_check?: {
+      approved: boolean;
+      riskLevel: 'safe' | 'warning' | 'danger';
+      violations: any;
+      timestamp: string;
+    };
+    
+    // ✅ ATS-DATA (vain V2)
     ats_optimization?: {
       report: {
         keyword_match_score: number;
@@ -94,16 +125,25 @@ export interface InsertKeywordRequest {
   keyword: string;
   currentContent: string;
   jobDescription?: string;
+  coverLetterId?: string; // ✅ Lisää (Guardian tarvitsee)
 }
 
 export interface InsertKeywordResponse {
   improvedContent: string;
   insertedKeyword: string;
+  validated?: boolean;
+  guardianApproved?: boolean;
+  warning?: {
+    show: boolean;
+    message: string;
+    violations: any;
+    requiresConfirmation: boolean;
+  };
 }
 
 // Component Props
 export interface ATSScorePanelProps {
-  analysis: ATSAnalysis;
+  analysis: ATSAnalysis | null;
   isAnalyzing: boolean;
   onRefresh: () => void;
   onKeywordClick: (keyword: string) => void;

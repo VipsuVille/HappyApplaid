@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
-import { Edit, Trash2, FileText, Download, Loader2, Sparkles, TrendingUp } from 'lucide-react';
+import { Edit, Trash2, FileText, Download, Loader2, Sparkles, TrendingUp, Zap } from 'lucide-react';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
@@ -431,144 +431,108 @@ export default function MyCoverLettersPage() {
   }
 
   return (
-    <>
-      <SmartHeader />
-      <div
-        className="container mx-auto mb-4 md:inline-block md:ml-64 md:-10 pt-4 md:pt-0"
-        style={{ maxWidth: '230mm' }}
-      >
-        <div className="flex justify-between items-center mb-6 mt-20">
-          <h1 className="text-2xl font-bold">Omat hakukirjeet</h1>
-          <Link
-            href="/create-cover-letter"
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            + Luo uusi hakukirje
-          </Link>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-          {coverLetters.map((letter) => {
-            const smartTitle = generateSmartTitle(
-              letter.content?.job_description,
-              letter.title
-            );
-            
-            const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
-            const isEditingTitle = editingTitleId === letter.id;
-            
-            // ✅ TARKISTA ATS-PISTEET
-            const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
-            const needsATSImprovement = atsScore > 0 && atsScore < 75;
+  <>
+    <SmartHeader />
+    <div className="container mx-auto mb-4 md:inline-block md:ml-64 pt-4">
+      <div className="flex justify-between items-center mb-6 mt-20">
+        <h1 className="text-2xl font-bold">Omat hakukirjeet</h1>
+        <Link
+          href="/create-cover-letter"
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          + Luo uusi hakukirje
+        </Link>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+        {coverLetters.map((letter) => {
+          const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
+          const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
+          const isEditingTitle = editingTitleId === letter.id;
+          
+          // ✅ TARKISTA ONKO ATS-OPTIMOITU
+          const isATSOptimized = !!letter.ai_data?.ats_optimization;
+          const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
+          const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
 
-            return (
-              <div 
-                key={letter.id} 
-                className="m-4 rounded-lg p-1 md:p-4 shadow-lg relative group md:h-full h-auto"
-              >
-                {/* Delete Button */}
-                <div className="absolute top-2 right-2 z-10">
-                  <button
-                    onClick={() => handleDelete(letter.id)}
-                    disabled={deletingId === letter.id}
-                    className="p-2 rounded-full bg-white shadow hover:bg-red-50 transition-colors"
-                    title="Poista hakukirje"
-                  >
-                    <Trash2 
-                      className={`w-5 h-5 ${deletingId === letter.id ? 'text-gray-400' : 'text-red-500'}`}
-                    />
-                  </button>
-                </div>
-
-                {/* Title Section */}
-                <div className="mb-4">
-                  {isEditingTitle ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        defaultValue={displayTitle}
-                        onBlur={(e) => handleSaveTitle(letter.id, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSaveTitle(letter.id, e.currentTarget.value);
-                          }
-                          if (e.key === 'Escape') {
-                            setEditingTitleId(null);
-                          }
-                        }}
-                        autoFocus
-                        className="text-xl font-semibold border-2 border-blue-500 rounded px-2 py-1 w-full"
-                      />
-                      <button
-                        onClick={() => setEditingTitleId(null)}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <h2 
-                        className="text-xl font-semibold cursor-pointer hover:text-blue-600 transition-colors"
-                        onClick={() => setEditingTitleId(letter.id)}
-                        title="Klikkaa muokataksesi otsikkoa"
-                      >
-                        {displayTitle}
-                      </h2>
-                      
-                      {/* ✅ ATS-PISTEMERKKARI */}
-                      {atsScore > 0 && (
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                          atsScore >= 75 
-                            ? 'bg-green-100 text-green-700' 
-                            : atsScore >= 50 
-                              ? 'bg-yellow-100 text-yellow-700' 
-                              : 'bg-red-100 text-red-700'
-                        }`}>
-                          <TrendingUp className="w-3 h-3" />
-                          ATS: {atsScore}%
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-gray-600">
-                    Luotu: {new Date(letter.created_at).toLocaleDateString('fi-FI')}
-                  </p>
-                </div>
-
-                {/* ✅ PARANNA ATS-PISTEITÄ NAPPI */}
-                {needsATSImprovement && (
-                  <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-500 rounded">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-800 mb-1">
-                          💡 ATS-pisteet voidaan parantaa
-                        </p>
-                        <p className="text-xs text-gray-600 mb-2">
-                          Nykyiset pisteet: {atsScore}%. Tavoite: 75%+
-                        </p>
+          return (
+            <div key={letter.id} className="m-4 rounded-lg p-4 shadow-lg relative group">
+              {/* Title Section */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-xl font-semibold">{displayTitle}</h2>
+                  
+                  <div className="flex items-center gap-2">
+                    {/* ✅ ATS-OPTIMOITU MERKKI */}
+                    {isATSOptimized ? (
+                      <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-300 rounded-full">
+                        <Zap className="w-3 h-3 text-purple-600" />
+                        <span className="text-xs font-semibold text-purple-700">
+                          ATS-optimoitu
+                        </span>
                       </div>
-                      <button
-                        onClick={() => handleImproveATS(letter.id)}
-                        disabled={improvingATSId === letter.id}
-                        className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {improvingATSId === letter.id ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Parannetaan...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4" />
-                            Paranna ATS
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                    ) : (
+                      <div className="flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-full">
+                        <Sparkles className="w-3 h-3 text-gray-600" />
+                        <span className="text-xs font-semibold text-gray-700">
+                          Tavallinen
+                        </span>
+                      </div>
+                    )}
 
+                    {/* ✅ ATS-PISTEET (jos optimoitu) */}
+                    {isATSOptimized && atsScore > 0 && (
+                      <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                        atsScore >= 75 
+                          ? 'bg-green-100 text-green-700' 
+                          : atsScore >= 50 
+                            ? 'bg-yellow-100 text-yellow-700' 
+                            : 'bg-red-100 text-red-700'
+                      }`}>
+                        <TrendingUp className="w-3 h-3" />
+                        {atsScore}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <p className="text-gray-600 text-sm">
+                  Luotu: {new Date(letter.created_at).toLocaleDateString('fi-FI')}
+                </p>
+              </div>
+
+              {/* ✅ ATS-PARANNUS NAPPI (vain ATS-optimoiduille) */}
+              {needsATSImprovement && (
+                <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-500 rounded">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-800 mb-1">
+                        💡 ATS-pisteet voidaan parantaa
+                      </p>
+                      <p className="text-xs text-gray-600 mb-2">
+                        Nykyiset pisteet: {atsScore}%. Tavoite: 75%+
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleImproveATS(letter.id)}
+                      disabled={improvingATSId === letter.id}
+                      className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm disabled:opacity-50"
+                    >
+                      {improvingATSId === letter.id ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Parannetaan...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Paranna ATS
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
                 {/* ATS Report */}
                 {letter.ai_data?.ats_optimization?.report && (
                   <div className="mb-4">

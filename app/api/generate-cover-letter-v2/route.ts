@@ -1,12 +1,17 @@
-// app/api/generate-cover-letter-v2/route.ts
+// app/api/generate-cover-letter-v2/route.ts - ATS-OPTIMOITU + GUARDIAN
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import type { ATSCoverLetterInput } from "@/types/coverLetter";
 import {
   generateATSOptimizedCoverLetter,
   formatToA4CoverLetter,
   generateATSReport,
 } from "@/lib/langchain/coverLetterGeneratorV2";
+import { 
+  extractGroundTruth, 
+  masterConsistencyCheck 
+} from "@/lib/ats/masterGuardian";
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -18,7 +23,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // ✅ TARKISTA TILAUS
+    // ✅ TARKISTA PREMIUM-TILAUS (ATS-optimointi vaatii Premium)
     const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
       .select("*")
@@ -28,65 +33,116 @@ export async function POST(req: Request) {
 
     if (!subscription) {
       return NextResponse.json(
-        { error: "Subscription required" },
+        { 
+          error: "PREMIUM_REQUIRED",
+          message: "ATS-optimoitu hakukirje vaatii Premium-tilauksen",
+          upgradeUrl: "/pricing"
+        },
         { status: 403 }
       );
     }
 
-    // ✅ HAE KÄYTTÄJÄN PROFIILI (jos ei lähetetty)
-    let profileData = body.profileData;
-    if (!profileData) {
-      const { data: dbProfile } = await supabaseAdmin
-        .from("user_profiles")
-        .select("*")
-        .eq("user_id", userId)
-        .single();
+    // ✅ 1. HAE KÄYTTÄJÄN PROFIILI + GROUND TRUTH
+    const { data: userProfile } = await supabaseAdmin
+      .from("user_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
 
-      if (dbProfile) {
-        profileData = {
-          name: dbProfile.name,
-          email: dbProfile.email,
-          phone: dbProfile.phone,
-          workExperience: formatWorkExperience(dbProfile.work_experience),
-          education: formatEducation(dbProfile.education),
-          skills: dbProfile.skills,
-          workingStyle: dbProfile.working_style,
-          problemSolving: dbProfile.problem_solving,
-          energySources: dbProfile.energy_sources,
-          uniqueStrength: dbProfile.unique_strength,
-          learningStyle: dbProfile.learning_style,
-          teamRole: dbProfile.team_role,
-          superpower: dbProfile.superpower,
-          valuesExample: dbProfile.values_example,
-        };
-      }
+    const groundTruth = extractGroundTruth(userProfile || {});
+    
+    console.log('🛡️ Ground Truth established:', {
+      name: groundTruth.name,
+      yearsOfExperience: groundTruth.yearsOfExperience,
+      corePersonality: groundTruth.corePersonality.primary,
+    });
+
+    // ✅ 2. MUODOSTA PROFIILIDATA
+    let profileData = body.profileData;
+    if (!profileData && userProfile) {
+      profileData = {
+        name: userProfile.name,
+        email: userProfile.email,
+        phone: userProfile.phone,
+        workExperience: formatWorkExperience(userProfile.work_experience),
+        education: formatEducation(userProfile.education),
+        skills: userProfile.skills,
+        workingStyle: userProfile.working_style,
+        problemSolving: userProfile.problem_solving,
+        energySources: userProfile.energy_sources,
+        uniqueStrength: userProfile.unique_strength,
+        learningStyle: userProfile.learning_style,
+        teamRole: userProfile.team_role,
+        superpower: userProfile.superpower,
+        valuesExample: userProfile.values_example,
+      };
     }
 
-    // ✅ GENEROI ATS-OPTIMOITU HAKUKIRJE
-    const result = await generateATSOptimizedCoverLetter({
+    // ✅ 3. MUODOSTA INPUT + GROUND TRUTH WARNING
+    const input: ATSCoverLetterInput = {
       jobDescription: body.jobDescription,
       personalNotes: body.personalNotes,
       language: body.language || "finnish",
       style: body.style || "formal",
       ...profileData,
-    });
+      
+      // ✅ GROUND TRUTH WARNING (Master Guardian tarvitsee tämän)
+      groundTruthWarning: `
+        CRITICAL: IMMUTABLE FACTS - DO NOT DEVIATE:
+        - Years of Experience: ${groundTruth.yearsOfExperience || 'Not specified'}
+        - Core Personality: ${groundTruth.corePersonality.primary}
+        - Skills: ${groundTruth.technicalSkills.join(', ')}
+        - FORBIDDEN to claim: ${groundTruth.cannotClaim.join(', ')}
+      `,
+      
+      atsOptimization: true,
+    };
 
-    // ✅ MUOTOILE A4-TEKSTIKSI
+    // ✅ 4. GENEROI ATS-OPTIMOITU HAKUKIRJE
+    console.log("🚀 Generating ATS-optimized cover letter...");
+    const result = await generateATSOptimizedCoverLetter(input);
+
+    // ✅ 5. CHECKPOINT 1: MASTER GUARDIAN VALIDATION
+    console.log('🛡️ Running Master Guardian validation...');
     const formattedContent = formatToA4CoverLetter(result);
+    const guardianCheck = await masterConsistencyCheck(
+      formattedContent,
+      groundTruth,
+      'generation'
+    );
 
-    // ✅ LUO ATS-RAPORTTI
+    // 🚨 HYLKÄÄ JOS DANGER
+    if (guardianCheck.riskLevel === 'danger') {
+      console.error('🚨 MASTER GUARDIAN BLOCKED GENERATION!');
+      console.error('Violations:', guardianCheck.violations);
+      
+      return NextResponse.json({
+        error: 'CONSISTENCY_VIOLATION',
+        message: 'AI generoi epäjohdonmukaisen hakukirjeen. Yritä uudelleen.',
+        violations: guardianCheck.violations,
+        recommendation: guardianCheck.recommendation,
+        fixSuggestions: guardianCheck.fixSuggestions
+      }, { status: 400 });
+    }
+
+    // ⚠️ LOGITA WARNING
+    if (guardianCheck.riskLevel === 'warning') {
+      console.warn('⚠️ Guardian warning:', guardianCheck.violations);
+    }
+
+    console.log('✅ Guardian approved:', guardianCheck.riskLevel);
+
+    // ✅ 6. LUO ATS-RAPORTTI
     const atsReport = generateATSReport(result);
-
-    // ✅ POIMII OTSIKKO
     const jobTitle = extractJobTitle(body.jobDescription);
 
-    // ✅ TALLENNA TIETOKANTAAN
+    // ✅ 7. TALLENNA TIETOKANTAAN
     const { data: coverLetter, error } = await supabaseAdmin
       .from("cover_letters")
       .insert({
         user_id: userId,
         title: jobTitle,
-        language: body.language || "finnish",
+        language: input.language,
         content: {
           job_description: body.jobDescription,
           body: formattedContent,
@@ -113,6 +169,17 @@ export async function POST(req: Request) {
               'font-family: "Merriweather", serif; line-height: 1.7; font-size: 11pt;',
           },
           
+          // ✅ GROUND TRUTH TALLENNETTU
+          ground_truth: groundTruth,
+          
+          // ✅ GUARDIAN CHECK TALLENNETTU
+          guardian_check: {
+            approved: guardianCheck.approved,
+            riskLevel: guardianCheck.riskLevel,
+            violations: guardianCheck.violations,
+            timestamp: new Date().toISOString()
+          },
+          
           // ✅ ATS-DATA
           ats_optimization: {
             matched_keywords: result.ats_data.matched_keywords,
@@ -135,6 +202,11 @@ export async function POST(req: Request) {
       success: true,
       coverLetterId: coverLetter.id,
       title: jobTitle,
+      guardianCheck: {
+        approved: guardianCheck.approved,
+        riskLevel: guardianCheck.riskLevel,
+        hasWarnings: guardianCheck.riskLevel === 'warning'
+      },
       ats_report: atsReport,
       preview: {
         introduction: result.introduction.opening_hook,
@@ -143,7 +215,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.error("Error generating cover letter:", error);
+    console.error("Error generating ATS cover letter:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
@@ -172,9 +244,6 @@ function formatWorkExperience(arr: any[]): string {
 function formatEducation(arr: any[]): string {
   if (!Array.isArray(arr) || arr.length === 0) return "";
   return arr
-    .map(
-      (e) =>
-        `${e.degree || ""}, ${e.school || e.institution || ""} ${e.year || e.startDate || ""}`
-    )
+    .map(e => `${e.degree || ""}, ${e.school || e.institution || ""} ${e.year || e.startDate || ""}`)
     .join("\n");
 }

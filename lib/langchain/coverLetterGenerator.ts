@@ -6,13 +6,23 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { BaseMessage } from "@langchain/core/messages";
+import type { 
+  CoverLetterInput, 
+  CoverLetterOutput,
+  AIQuestion,
+  DataQuality, 
+  PersonalityInput
+} from "@/types/coverLetter";
+
 import {
   extractPersonalityTraits,
   convertToLegacyFormat,
   getPersonalityConfidenceScore,
   getBusinessValueSummary,
-  PersonalityInput,
 } from "./personalityExtractor";
+
+// ✅ KORJATTU: PersonalityInput on nyt PersonalityExtractionInput
+import type { PersonalityExtractionInput } from "@/types/coverLetter";
 
 // Enhanced styling options with more nuanced choices
 const styleDescriptions = {
@@ -85,37 +95,6 @@ const coverLetterOutputSchema = z.object({
 const outputParser = StructuredOutputParser.fromZodSchema(
   coverLetterOutputSchema
 );
-
-// Enhanced interface with more personality fields
-interface CoverLetterInput {
-  jobDescription: string;
-  name: string;
-  email: string;
-  phone: string;
-  location?: string;
-  jobTitle?: string;
-  education?: string;
-  workExperience?: string;
-  skills?: string;
-  personalNotes?: string;
-  language?: string;
-  style?: keyof typeof styleDescriptions;
-
-  // Personality fields - same as CV generator
-  workingStyle?: string;
-  problemSolving?: string;
-  energySources?: string;
-  uniqueStrength?: string;
-  learningStyle?: string;
-  teamRole?: string;
-  valuesExample?: string;
-  superpower?: string;
-
-  // Additional context
-  hobbies?: string;
-  personalityTraits?: string;
-  motivations?: string;
-}
 
 // Enhanced job analysis with deeper personality matching
 function analyzeJobPersonalityFit(

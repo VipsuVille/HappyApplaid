@@ -3,6 +3,11 @@ import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
+// ✅ KÄYTÄ KESKITETTYÄ TYYPPIÄ
+import type { PersonalityExtractionInput } from "@/types/coverLetter";
+
+// ✅ EXPORTOI OIKEA TYYPPI (vanhat importit toimii yhä)
+export type PersonalityInput = PersonalityExtractionInput;
 
 // YKSINKERTAINEN, KIELIAGNOSTINEN SKEEMA
 const personalityExtractionSchema = z.object({
@@ -297,18 +302,6 @@ function getMessageContent(message: any): string {
     return message.content;
   }
   return JSON.stringify(message);
-}
-
-export interface PersonalityInput {
-  userProfile?: string;
-  workingStyleText?: string;
-  problemSolvingText?: string;
-  energySourcesText?: string;
-  strengthsText?: string;
-  learningText?: string;
-  teamworkText?: string;
-  valuesText?: string;
-  additionalInfo?: string;
 }
 
 // LEGACY-YHTEENSOPIVUUS (sama kuin ennen)

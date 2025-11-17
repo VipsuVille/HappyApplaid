@@ -271,14 +271,17 @@ export async function generateEnhancedBackgroundImageWithExtraction(
   authToken?: string
 ): Promise<string> {
   try {
-    const personalityExtraction = await extractPersonalityTraits({
-      userProfile: ensureString(userData.profile) || ensureString(userData.bio),
-      workingStyleText: ensureString(userData.workingStyle),
-      energySourcesText: ensureString(userData.energySources),
-      strengthsText: ensureString(userData.uniqueStrength),
-      teamworkText: ensureString(userData.teamRole),
-      additionalInfo: ensureString(userData.superpower),
-    });
+   const personalityExtraction = await extractPersonalityTraits({
+  userProfile: ensureString(userData.profile) || ensureString(userData.bio),
+  workingStyleText: ensureString(userData.workingStyle),
+  problemSolvingText: ensureString(userData.problemSolving), // LISÄÄ TÄMÄ
+  energySourcesText: ensureString(userData.energySources),
+  strengthsText: ensureString(userData.uniqueStrength),
+  learningText: ensureString(userData.learning), // LISÄÄ TÄMÄ
+  teamworkText: ensureString(userData.teamRole),
+  valuesText: ensureString(userData.values), // LISÄÄ TÄMÄ
+  additionalInfo: ensureString(userData.superpower),
+});
 
     const imagePromptData = {
       workingStyle: personalityExtraction.workingStyle?.extracted || "",
