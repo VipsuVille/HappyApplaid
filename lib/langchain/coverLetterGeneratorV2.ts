@@ -41,31 +41,48 @@ type ATSCoverLetter = z.infer<typeof atsOptimizedCoverLetterSchema>;
 
 // ✅ ANALYSOI TYÖPAIKKAILMOITUS
 async function analyzeJobPosting(jobDescription: string) {
-  const model = new ChatOpenAI({
-    openAIApiKey: process.env.OPENAI_API_KEY,
-    modelName: "gpt-4o-mini",
-    temperature: 0.3,
-  });
+  const model = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY,
+    modelName: "gpt-4o-mini",
+    temperature: 0.3,
+  });
 
-  const prompt = `
+  const prompt = `
 Analysoi tämä työpaikkailmoitus ATS-optimointia varten:
 
 ${jobDescription}
 
-Palauta JSON:
+Palauta **VAIN RAADATA JSON-OBJEKTI ILMAN MITÄÄN MARKKDOWN-MUOTOILUA (EI \`\`\`json tai \`\`\`):**
 {
-  "keywords": ["avainsana1", "avainsana2", ...], // TÄRKEIMMÄT 10-15 sanaa
-  "required_skills": ["taito1", "taito2", ...],
-  "required_experience": "0-2 vuotta" tai "ei mainittu",
-  "soft_skills": ["tiimityö", "kommunikaatio", ...],
-  "company_values": ["innovatiivisuus", "asiakaslähtöisyys", ...]
+  "keywords": ["avainsana1", "avainsana2", ...], // TÄRKEIMMÄT 10-15 sanaa
+  "required_skills": ["taito1", "taito2", ...],
+  "required_experience": "0-2 vuotta" tai "ei mainittu",
+  "soft_skills": ["tiimityö", "kommunikaatio", ...],
+  "company_values": ["innovatiivisuus", "asiakaslähtöisyys", ...]
 }
 `;
 
-  const response = await model.invoke(prompt);
-  return JSON.parse(response.content as string);
+  const response = await model.invoke(prompt);
+  
+  // 🚨 KÄYTÄ CLEAN-funktiota ENNEN PARSINTAA
+  const cleaned = cleanJsonResponse(response.content as string);
+  
+  return JSON.parse(cleaned); // Korjattu
 }
+function cleanJsonResponse(text: string): string {
+  // Poista kaikki markdown koodilohkot: ```json...``` tai ```...```
+  let cleaned = text
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
 
+  // Poista mahdolliset ylimääräiset lainausmerkit alusta/lopusta, jos malli ne lisää
+  if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+    cleaned = cleaned.slice(1, -1);
+  }
+
+  return cleaned;
+}
 // ✅ PÄÄGENERAATTORI - 3 OSIOTA + ATS
 export async function generateATSOptimizedCoverLetter(input: {
   // Pakollinen
@@ -114,9 +131,8 @@ export async function generateATSOptimizedCoverLetter(input: {
   const prompt = ChatPromptTemplate.fromMessages([
     [
       "system",
-      `Olet ATS-optimoitu hakukirjegeneraattori. Luo AINA 3-osainen rakenne:
-
-**KRIITTISET SÄÄNNÖT:**
+`Olet ATS-optimoitu hakukirjegeneraattori. Luo AINA 3-osainen rakenne.
+**KRIITTISET SÄÄNNÖT:** Palauta **VAIN** JSON-objekti ilman mitään Markdown-muotoilua tai koodilohkoja (ei \`\`\`json tai \`\`\`):
 1. **OSIO 1 (Esittely):** 150-200 sanaa - Persoonallisuus + ainutlaatuinen arvo
 2. **OSIO 2 (Osaaminen):** 200-250 sanaa - Kokemus TAI persoonallinen osaaminen
 3. **OSIO 3 (Motivaatio):** 100-150 sanaa - Miksi tämä työ + tavoitteet

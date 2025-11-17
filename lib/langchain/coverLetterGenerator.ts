@@ -31,7 +31,19 @@ const styleDescriptions = {
   confident: "assertive and self-assured while remaining respectful",
   story: "narrative-driven with personal examples and experiences",
 };
+function cleanJsonResponse(text: string): string {
+  // Poista kaikki markdown koodilohkot: ```json...``` tai ```...```
+  let cleaned = text
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
 
+  // Poista mahdolliset ylimääräiset lainausmerkit alusta/lopusta, jos malli ne lisää
+  if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+    cleaned = cleaned.slice(1, -1);
+  }
+  return cleaned;
+}
 // Helper function to extract content from different message types
 function getMessageContent(message: BaseMessage | string): string {
   if (typeof message === "string") return message;
@@ -710,10 +722,13 @@ export async function generateCoverLetterWithLangChain(
     // Parse with enhanced error handling
     let parsedOutput;
     try {
-      parsedOutput = await outputParser.parse(getMessageContent(result));
+      const cleanResult = cleanJsonResponse(getMessageContent(result));
+      parsedOutput = await outputParser.parse(cleanResult);
     } catch (parseError) {
-      // Fallback logic
-      const content = getMessageContent(result);
+      // Fallback logic      // Fallback logic
+      const rawContent = getMessageContent(result);
+      // UUSI: Puhdista sisällöstä mahdolliset JSON-koodilohkot
+      const content = cleanJsonResponse(rawContent);
 
       const titleMatch = content.match(/(?:title|otsikko):\s*(.+?)(?:\n|$)/i);
       const title = titleMatch
