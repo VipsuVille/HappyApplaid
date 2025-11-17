@@ -49,7 +49,6 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/generate-image',
   '/api/webhooks/(.*)',
   '/api/waitlist', 
-  // ✅ ATS-reitit julkisia (ei käytä tietokantaa)
   '/api/detect-ats',
   '/api/extract-keywords-ai',
   '/api/analyze-ats-realistic',
@@ -111,14 +110,14 @@ export default clerkMiddleware(async (auth, req) => {
   // Referrer Policy
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   
-  // Content Security Policy (mukautettu tarpeen mukaan)
+  // ✅ Content Security Policy (KORJATTU - sisältää clerk.happyapplaid.com)
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://api.openai.com https://*.supabase.co",
+    "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com https://api.openai.com https://*.supabase.co wss://*.clerk.com",
     "frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com",
   ].join('; ');
   response.headers.set('Content-Security-Policy', csp);
