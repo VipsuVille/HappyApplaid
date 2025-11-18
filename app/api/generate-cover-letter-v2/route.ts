@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter-v2/route.ts - ATS-OPTIMOITU + GUARDIAN
+// app/api/generate-cover-letter-v2/route.ts - KORJATTU TEMPLATE-VIRHE
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -12,6 +12,7 @@ import {
   extractGroundTruth, 
   masterConsistencyCheck 
 } from "@/lib/ats/masterGuardian";
+import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate"; // ✅ UUSI
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
       };
     }
 
-    // ✅ 3. MUODOSTA INPUT + GROUND TRUTH WARNING
+    // ✅ 3. MUODOSTA INPUT + GROUND TRUTH WARNING (ESCAPETA)
     const input: ATSCoverLetterInput = {
       jobDescription: body.jobDescription,
       personalNotes: body.personalNotes,
@@ -86,14 +87,8 @@ export async function POST(req: Request) {
       style: body.style || "formal",
       ...profileData,
       
-      // ✅ GROUND TRUTH WARNING (Master Guardian tarvitsee tämän)
-      groundTruthWarning: `
-        CRITICAL: IMMUTABLE FACTS - DO NOT DEVIATE:
-        - Years of Experience: ${groundTruth.yearsOfExperience || 'Not specified'}
-        - Core Personality: ${groundTruth.corePersonality.primary}
-        - Skills: ${groundTruth.technicalSkills.join(', ')}
-        - FORBIDDEN to claim: ${groundTruth.cannotClaim.join(', ')}
-      `,
+      // ✅ KORJATTU: Escapeta {} promptia varten
+      groundTruthWarning: sanitizeGroundTruthForPrompt(groundTruth),
       
       atsOptimization: true,
     };

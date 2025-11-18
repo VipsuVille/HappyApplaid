@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter/route.ts - KORJATTU OTSIKON TALLENNUS
+// app/api/generate-cover-letter/route.ts - KORJATTU TEMPLATE-VIRHE
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -6,6 +6,7 @@ import { generateCoverLetterWithPersonalityExtraction } from "@/lib/langchain/co
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruth, masterConsistencyCheck, GroundTruth } from "@/lib/ats/masterGuardian";
+import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate"; // ✅ UUSI
 
 function extractJobTitleFromDescription(jobDescription: string): string {
   if (!jobDescription) return "Työhakemus";
@@ -100,14 +101,8 @@ export async function POST(req: Request) {
         valuesExample: profileData.valuesExample,
         superpower: profileData.superpower,
         
-        // ✅ GROUND TRUTH WARNING MUKANA
-        groundTruthWarning: `
-          CRITICAL: IMMUTABLE FACTS - DO NOT DEVIATE:
-          - Years of Experience: ${groundTruth.yearsOfExperience || 'Not specified'}
-          - Core Personality: ${groundTruth.corePersonality.primary}
-          - Skills: ${groundTruth.technicalSkills.join(', ')}
-          - FORBIDDEN to claim: ${groundTruth.cannotClaim.join(', ')}
-        `
+        // ✅ KORJATTU: Escapeta {} promptia varten
+        groundTruthWarning: sanitizeGroundTruthForPrompt(groundTruth)
       };
     } else {
       coverLetterInput = {
@@ -123,13 +118,8 @@ export async function POST(req: Request) {
         language: language || "finnish",
         style: style || "formal",
         
-        // ✅ GROUND TRUTH WARNING
-        groundTruthWarning: `
-          CRITICAL: IMMUTABLE FACTS:
-          - Years: ${groundTruth.yearsOfExperience || 'Not specified'}
-          - Core: ${groundTruth.corePersonality.primary}
-          - FORBIDDEN: ${groundTruth.cannotClaim.join(', ')}
-        `
+        // ✅ KORJATTU: Escapeta {} promptia varten
+        groundTruthWarning: sanitizeGroundTruthForPrompt(groundTruth)
       };
     }
 
@@ -153,13 +143,14 @@ export async function POST(req: Request) {
       coverLetterInput
     );
 
-    // If questions returned, skip Guardian check
+    // ✅ JOS KYSYMYKSIÄ, PALAUTA NE
     if (coverLetterData.questions && coverLetterData.questions.length > 0) {
       return NextResponse.json({
         success: true,
+        needsMoreInfo: true, // ✅ Merkki että kysymyksiä
         questions: coverLetterData.questions,
         title: coverLetterData.title,
-        content: coverLetterData.content,
+        tempContent: coverLetterData.content, // ✅ Väliaikainen sisältö
         signature: coverLetterData.signature,
         job_match_score: coverLetterData.job_match_score,
         personality_hooks: coverLetterData.personality_hooks,

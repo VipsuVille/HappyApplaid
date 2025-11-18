@@ -40,6 +40,7 @@ export default function EditCoverLetterPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [insertingKeyword, setInsertingKeyword] = useState<string | null>(null);
+  const [isImproving, setIsImproving] = useState(false); // ✅ UUSI
   
   const [showMissingKeywords, setShowMissingKeywords] = useState(true);
   const [showFoundKeywords, setShowFoundKeywords] = useState(false);
@@ -227,6 +228,70 @@ export default function EditCoverLetterPage() {
 
   const handleRejectWarning = () => {
     setValidationWarning(null);
+  };
+
+  // ✅ IMPROVE ATS AUTOMAATTISESTI
+  const handleImproveATS = async () => {
+    if (!atsAnalysis || !coverLetter) return;
+
+    if (!confirm(
+      `Nykyiset ATS-pisteet: ${atsAnalysis.score}%\n\n` +
+      `Puuttuvia avainsanoja: ${atsAnalysis.missingCritical.length} kpl\n\n` +
+      'Haluatko että AI lisää ne automaattisesti?\n\n' +
+      '⚠️ HUOM: Tämä muokkaa hakukirjettäsi. Tarkista tulokset huolellisesti.'
+    )) return;
+
+    setIsImproving(true);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No token');
+
+      const response = await fetch('/api/improve-ats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          currentContent: coverLetter.content?.body || coverLetter.ai_data?.html?.content,
+          missingKeywords: atsAnalysis.missingCritical.slice(0, 5), // Top 5
+          jobDescription: coverLetter.content?.job_description,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'ATS improvement failed');
+      }
+
+      const data = await response.json();
+
+      // Päivitä sisältö
+      setCoverLetter((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          content: {
+            ...prev.content,
+            body: data.improvedContent
+          }
+        };
+      });
+
+      // Analysoi uudelleen
+      await analyzeATS(data.improvedContent);
+
+      setSuccessMessage(
+        `✅ ATS-pisteet parannettu! Lisättiin avainsanat: ${data.addedKeywords?.join(', ') || 'useita'}`
+      );
+      setTimeout(() => setSuccessMessage(null), 5000);
+
+    } catch (error) {
+      console.error('Improve ATS error:', error);
+      alert('ATS-parannuksen luonti epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
+    } finally {
+      setIsImproving(false);
+    }
   };
 
   // Save
@@ -422,6 +487,27 @@ export default function EditCoverLetterPage() {
           {/* ✅ LEFT: ATS Panel (vain jos V2) */}
           {isATSOptimized && atsAnalysis && (
             <div className="lg:col-span-3 space-y-4">
+              {/* ✅ IMPROVE ATS BUTTON (jos pisteet alle 75%) */}
+              {atsAnalysis.score < 75 && atsAnalysis.missingCritical.length > 0 && (
+                <button
+                  onClick={handleImproveATS}
+                  disabled={isImproving}
+                  className="w-full p-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-purple-600 transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isImproving ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Parannetaan...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      Paranna ATS automaattisesti
+                    </>
+                  )}
+                </button>
+              )}
+              
               {/* ATS Score Card */}
               <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
                 <div className={`p-4 md:p-6 ${getScoreBg(atsAnalysis.score)}`}>

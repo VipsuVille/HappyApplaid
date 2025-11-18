@@ -1,4 +1,4 @@
-// app/create-cover-letter/page.tsx - V1 (TAVALLINEN) vs V2 (ATS-OPTIMOITU)
+// app/create-cover-letter/page.tsx - KYSYMYSTEN TUKI LISÄTTY
 "use client";
 import { useState, useEffect } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useSubscription } from "@/components/SubscriptionStatus";
 import SmartHeader from "@/components/ui/smartHeader";
+import CoverLetterQuestionsModal from "@/components/CoverLetterQuestionsModal";
 
 interface PersonalityProfile {
   workingStyle?: string;
@@ -28,9 +29,17 @@ interface PersonalityProfile {
   superpower?: string;
 }
 
+interface AIQuestion {
+  id: string;
+  question: string;
+  context: string;
+  personality_focus?: string;
+  priority?: 'high' | 'medium' | 'low';
+}
+
 type Language = "finnish" | "english" | "swedish" | string;
 type Style = "formal" | "casual";
-type CoverLetterVersion = "v1" | "v2"; // V1 = tavallinen, V2 = ATS-optimoitu
+type CoverLetterVersion = "v1" | "v2";
 
 export default function CreateCoverLetter() {
   const { user } = useUser();
@@ -45,7 +54,6 @@ export default function CreateCoverLetter() {
   const [style, setStyle] = useState<Style>("formal");
   const [showCustomLanguage, setShowCustomLanguage] = useState(false);
 
-  // ✅ UUSI: V1 vs V2 valinta
   const [selectedVersion, setSelectedVersion] = useState<CoverLetterVersion>("v1");
   const isPremium = isActive && subscription?.plan_type === "premium";
 
@@ -55,6 +63,11 @@ export default function CreateCoverLetter() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ UUSI: Kysymysten tila
+  const [showQuestions, setShowQuestions] = useState(false);
+  const [questions, setQuestions] = useState<AIQuestion[]>([]);
+  const [tempCoverLetterData, setTempCoverLetterData] = useState<any>(null);
 
   // Load personality profile
   useEffect(() => {
@@ -95,13 +108,11 @@ export default function CreateCoverLetter() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // ✅ TARKISTA TILAUS
     if (!isActive) {
       setError("Tilaajille suunnattu ominaisuus. Osta tilaus käyttääksesi.");
       return;
     }
 
-    // ✅ TARKISTA PREMIUM (jos V2 valittu)
     if (selectedVersion === "v2" && !isPremium) {
       setError("ATS-optimoitu hakukirje vaatii Premium-tilauksen. Päivitä tilaus!");
       return;
@@ -138,7 +149,6 @@ export default function CreateCoverLetter() {
         ...personalityProfile,
       };
 
-      // ✅ VALITSE OIKEA API VERSION MUKAAN
       const apiEndpoint = selectedVersion === "v2" 
         ? "/api/generate-cover-letter-v2" 
         : "/api/generate-cover-letter";
@@ -154,7 +164,6 @@ export default function CreateCoverLetter() {
       if (!response.ok) {
         const errorData = await response.json();
         
-        // ✅ ERIKOISKÄSITTELY PREMIUM-VAATIMUKSELLE
         if (errorData.error === "PREMIUM_REQUIRED") {
           setError(
             "🔒 ATS-optimoitu hakukirje vaatii Premium-tilauksen. " +
@@ -168,11 +177,24 @@ export default function CreateCoverLetter() {
 
       const data = await response.json();
 
-      if (data.questions && data.questions.length > 0) {
-        // Kysymyksiä palautettu - käsittele ne
-        console.log("❓ AI kysyy lisätietoja");
-        // TODO: Näytä kysymykset käyttäjälle
-      } else if (data.coverLetterId) {
+      // ✅ JOS KYSYMYKSIÄ PALAUTETTIIN
+      if (data.needsMoreInfo && data.questions && data.questions.length > 0) {
+        console.log("❓ AI kysyy lisätietoja:", data.questions.length, "kysymystä");
+        setQuestions(data.questions);
+        setTempCoverLetterData({
+          title: data.title,
+          tempContent: data.tempContent,
+          signature: data.signature,
+          job_match_score: data.job_match_score,
+          personality_hooks: data.personality_hooks,
+        });
+        setShowQuestions(true);
+        setIsGenerating(false);
+        return;
+      }
+
+      // ✅ MUUTEN VALMIS
+      if (data.coverLetterId) {
         router.push("/my-cover-letters");
       } else {
         throw new Error("Vastaus ei sisältänyt hakukirjeen tunnusta");
@@ -180,6 +202,50 @@ export default function CreateCoverLetter() {
     } catch (error) {
       console.error("Virhe hakukirjeen luonnissa:", error);
       setError(error instanceof Error ? error.message : "Tuntematon virhe");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // ✅ KÄSITTELE KYSYMYSTEN VASTAUKSET
+  const handleQuestionsSubmit = async (answers: Record<string, string>) => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/finalize-cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tempCoverLetterData,
+          answers,
+          jobDescription: jobDescription.trim(),
+          personalNotes: personalNotes.trim(),
+          name: user?.fullName || "",
+          email: user?.primaryEmailAddress?.emailAddress || "",
+          phone: user?.phoneNumbers?.[0]?.phoneNumber || "",
+          jobTitle: "", // Haetaan profiilista
+          education: "",
+          workExperience: "",
+          skills: "",
+          language: showCustomLanguage ? customLanguage : language,
+          style,
+          ...personalityProfile,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Finalization failed");
+      }
+
+      const data = await response.json();
+      
+      if (data.coverLetterId) {
+        router.push("/my-cover-letters");
+      }
+    } catch (error) {
+      console.error("Finalization error:", error);
+      setError(error instanceof Error ? error.message : "Tuntematon virhe");
+      setShowQuestions(false);
     } finally {
       setIsGenerating(false);
     }
@@ -222,7 +288,7 @@ export default function CreateCoverLetter() {
           <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md p-6">
             <h1 className="text-2xl font-bold mb-6">Luo uusi hakukirje</h1>
 
-            {/* ✅ VERSION VALINTA */}
+            {/* VERSION VALINTA */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-3">
                 Valitse hakukirjetyyppi:
@@ -271,7 +337,6 @@ export default function CreateCoverLetter() {
                   }`}
                   disabled={!isPremium}
                 >
-                  {/* 🔒 LUKKO-IKONI JOS EI PREMIUM */}
                   {!isPremium && (
                     <div className="absolute top-2 right-2">
                       <Lock className="w-5 h-5 text-gray-400" />
@@ -301,7 +366,6 @@ export default function CreateCoverLetter() {
                     )}
                   </div>
                   
-                  {/* 🎁 HOUKUTUS PÄIVITTÄÄ */}
                   {!isPremium && (
                     <div className="mt-2 pt-2 border-t border-gray-200">
                       <button
@@ -318,7 +382,6 @@ export default function CreateCoverLetter() {
                 </button>
               </div>
 
-              {/* ℹ️ INFO V2:STA */}
               {selectedVersion === "v2" && isPremium && (
                 <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                   <p className="text-sm text-purple-800">
@@ -335,7 +398,7 @@ export default function CreateCoverLetter() {
               )}
             </div>
 
-            {/* LOPUT LOMAKKEESTA (sama kuin ennen) */}
+            {/* LOMAKE */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label htmlFor="jobDescription" className="block text-sm font-medium text-gray-700 mb-2">
@@ -437,6 +500,21 @@ export default function CreateCoverLetter() {
           </div>
         </main>
       </div>
+
+      {/* ✅ KYSYMYSTEN MODAL */}
+      {showQuestions && (
+        <CoverLetterQuestionsModal
+          questions={questions}
+          tempCoverLetterData={tempCoverLetterData}
+          jobDescription={jobDescription}
+          onSubmit={handleQuestionsSubmit}
+          onCancel={() => {
+            setShowQuestions(false);
+            setQuestions([]);
+            setTempCoverLetterData(null);
+          }}
+        />
+      )}
     </div>
   );
 }
