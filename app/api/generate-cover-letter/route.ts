@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter/route.ts - KORJATTU TEMPLATE-VIRHE
+// app/api/generate-cover-letter/route.ts - LISÄTTY HONEST VALIDATOR
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -6,7 +6,8 @@ import { generateCoverLetterWithPersonalityExtraction } from "@/lib/langchain/co
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruth, masterConsistencyCheck, GroundTruth } from "@/lib/ats/masterGuardian";
-import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate"; // ✅ UUSI
+import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate";
+import { validateCoverLetterData } from "@/lib/langchain/honestCoverLetterValidator"; // ✅ UUSI
 
 function extractJobTitleFromDescription(jobDescription: string): string {
   if (!jobDescription) return "Työhakemus";

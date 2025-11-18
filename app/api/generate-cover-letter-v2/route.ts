@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter-v2/route.ts - KORJATTU TEMPLATE-VIRHE
+// app/api/generate-cover-letter-v2/route.ts - LISÄTTY HONEST VALIDATOR
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -12,7 +12,8 @@ import {
   extractGroundTruth, 
   masterConsistencyCheck 
 } from "@/lib/ats/masterGuardian";
-import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate"; // ✅ UUSI
+import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate";
+import { validateCoverLetterData } from "@/lib/langchain/honestCoverLetterValidator"; // ✅ UUSI
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
       corePersonality: groundTruth.corePersonality.primary,
     });
 
+ 
     // ✅ 2. MUODOSTA PROFIILIDATA
     let profileData = body.profileData;
     if (!profileData && userProfile) {
@@ -78,6 +80,44 @@ export async function POST(req: Request) {
         valuesExample: userProfile.values_example,
       };
     }
+   // ✅ 1.5. VALIDOI DATA (HONEST VALIDATOR) - MYÖS V2:lle!
+    console.log('🔍 Validating ATS cover letter data...');
+    const validation = await validateCoverLetterData({
+      jobDescription: body.jobDescription,
+      name: profileData?.name || body.name,
+      email: profileData?.email || body.email,
+      phone: profileData?.phone || body.phone,
+      workExperience: profileData?.workExperience || body.workExperience,
+      education: profileData?.education || body.education,
+      skills: profileData?.skills || body.skills,
+      workingStyle: profileData?.workingStyle,
+      problemSolving: profileData?.problemSolving,
+      energySources: profileData?.energySources,
+      uniqueStrength: profileData?.uniqueStrength,
+      learningStyle: profileData?.learningStyle,
+      teamRole: profileData?.teamRole,
+      valuesExample: profileData?.valuesExample,
+      superpower: profileData?.superpower,
+    });
+
+    // 🚫 JOS EI VOI GENEROIDA → PALAUTA KYSYMYKSET
+    if (validation.canGenerate === 'no') {
+      console.log('❌ Cannot generate ATS letter - returning questions');
+      return NextResponse.json({
+        success: true,
+        needsMoreInfo: true,
+        questions: validation.questions,
+        reason: validation.reason,
+        title: extractJobTitle(body.jobDescription),
+      });
+    }
+
+    // ⚠️ JOS RAJOITUKSILLA → LOGITA
+    if (validation.canGenerate === 'with_limitations') {
+      console.warn('⚠️ Generating ATS letter with limitations:', validation.reason);
+    }
+
+    console.log(`✅ ATS validation passed: ${validation.canGenerate}`);
 
     // ✅ 3. MUODOSTA INPUT + GROUND TRUTH WARNING (ESCAPETA)
     const input: ATSCoverLetterInput = {
