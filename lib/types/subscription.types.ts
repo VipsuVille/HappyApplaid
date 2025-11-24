@@ -1,3 +1,5 @@
+//TYPES/SUBSCRIPTION.TYPES.TS
+
 export interface FreemiumStatus {
   is_premium: boolean;
   tokens: number;

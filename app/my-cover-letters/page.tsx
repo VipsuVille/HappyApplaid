@@ -223,164 +223,221 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  const handleDownloadPDF = async (letter: any) => {
-    setIsDownloading(letter.id);
-    try {
-      const smartTitle = generateSmartTitle(
-        letter.content?.job_description,
-        letter.title
-      );
-      const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
+// Korvaa handleDownloadPDF funktio tällä versiolla
 
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8">
-            <style>
-              @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;700&display=swap');
-              
-              * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-              }
+const handleDownloadPDF = async (letter: any) => {
+  setIsDownloading(letter.id);
+  try {
+    const smartTitle = generateSmartTitle(
+      letter.content?.job_description,
+      letter.title
+    );
+    const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
 
-              @page {
-                size: A4;
-                margin: 0;
-              }
-
-              body { 
-                margin: 0;
-                padding: 20mm 25mm 20mm 35mm;
-                font-family: 'Merriweather', serif;
-                line-height: 1.7;
-                font-size: 11pt;
-                color: #333;
-                width: 210mm;
-                height: 297mm;
-                position: relative;
-              }
-              
-              .cover-letter-accent {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 12px;
-                height: 100%;
-                background: linear-gradient(to bottom, #3498db, #2980b9, #3498db);
-              }
-              
-              .cover-letter-top-accent {
-                position: fixed;
-                top: 0;
-                left: 12px;
-                right: 0;
-                height: 8px;
-                background: linear-gradient(to right, #3498db, #ede7f6);
-                opacity: 0.7;
-              }
-              
-              .cover-letter-content {
-                position: relative;
-                z-index: 1;
-              }
-              
-              h1 {
-                color: #2c3e50;
-                border-bottom: 3px solid #3498db;
-                padding-bottom: 12px;
-                margin-bottom: 30px;
-                font-weight: 700;
-                font-size: 18pt;
-                line-height: 1.3;
-              }
-              
-              p {
-                margin-bottom: 16px;
-                line-height: 1.7;
-                text-align: justify;
-                font-size: 11pt;
-              }
-              
-              .signature-section {
-                margin-top: 50px;
-                page-break-inside: avoid;
-              }
-              
-              .closing-text {
-                font-size: 11pt;
-                color: #555;
-                margin-bottom: 8px;
-              }
-              
-              .signature-line {
-                border-bottom: 2px solid #3498db;
-                width: 230px;
-                margin-bottom: 12px;
-              }
-              
-              .signature-text {
-                font-family: 'Dancing Script', cursive;
-                font-size: 18pt;
-                color: #2c3e50;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="cover-letter-accent"></div>
-            <div class="cover-letter-top-accent"></div>
-            
-            <div class="cover-letter-content">
-              <h1>${displayTitle}</h1>
-              ${letter.content?.body || letter.ai_data?.html?.content || ''}
-              
-              <div class="signature-section">
-                <div class="closing-text">Ystävällisin terveisin,</div>
-                <div class="signature-line"></div>
-                <div class="signature-text">${letter.content?.applicant_info?.name || user?.fullName || 'Hakija'}</div>
-              </div>
-            </div>
-          </body>
-        </html>
-      `;
-
-      const response = await fetch('/api/generate-cover-letter-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          htmlContent: html,
-          letterId: letter.id,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('PDF error:', errorData);
-        throw new Error(errorData.error || 'PDF generation failed');
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `hakukirje_${letter.content?.jobTitle}_${letter.content?.applicant_info?.name || 'cv'}.pdf`;
-      
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
-      
-      console.log('✅ PDF downloaded successfully');
-    } catch (error) {
-      console.error('PDF generation failed:', error);
-      alert('PDF:n luonti epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
-    } finally {
-      setIsDownloading(null);
+    // ✅ HAE RENDERÖITY HTML SUORAAN DOM:sta
+    const letterElement = letterRefs.current[letter.id];
+    
+    if (!letterElement) {
+      throw new Error('Letter element not found');
     }
-  };
 
+    // Kloonaa elementti jotta voidaan muokata sitä ilman että se vaikuttaa näkyvään versioon
+    const clonedElement = letterElement.cloneNode(true) as HTMLElement;
+    
+    // Luo väliaikainen kontti
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.width = '210mm'; // A4 leveys
+    tempContainer.style.padding = '20mm 25mm 20mm 35mm'; // A4 marginaalit
+    document.body.appendChild(tempContainer);
+    
+    // Lisää kloonattu elementti konttiin
+    tempContainer.appendChild(clonedElement);
+    
+    // Hae kaikki inline-tyylit ja lasketut tyylit
+    const getAllStyles = (element: HTMLElement): string => {
+      const styles = window.getComputedStyle(element);
+      let styleString = '';
+      
+      // Kopioi kaikki tärkeät tyylit
+      const importantStyles = [
+        'font-family', 'font-size', 'font-weight', 'line-height',
+        'color', 'background-color', 'border', 'margin', 'padding',
+        'width', 'height', 'display', 'position', 'text-align'
+      ];
+      
+      importantStyles.forEach(prop => {
+        styleString += `${prop}: ${styles.getPropertyValue(prop)};`;
+      });
+      
+      return styleString;
+    };
+    
+    // Käy läpi kaikki elementit ja kopioi niiden tyylit
+    const applyStylesToElements = (parent: HTMLElement) => {
+      const elements = parent.querySelectorAll('*');
+      elements.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        const styles = getAllStyles(htmlEl);
+        htmlEl.setAttribute('style', styles);
+      });
+    };
+    
+    applyStylesToElements(clonedElement);
+
+    // Luo lopullinen HTML
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;700&display=swap');
+            
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+
+            @page {
+              size: A4;
+              margin: 0;
+            }
+
+            body { 
+              margin: 0;
+              padding: 20mm 25mm 20mm 35mm;
+              font-family: 'Merriweather', serif;
+              line-height: 1.7;
+              font-size: 11pt;
+              color: #333;
+              width: 210mm;
+              height: 297mm;
+              position: relative;
+            }
+            
+            .cover-letter-accent {
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 12px;
+              height: 100%;
+              background: linear-gradient(to bottom, #3498db, #2980b9, #3498db);
+            }
+            
+            .cover-letter-top-accent {
+              position: fixed;
+              top: 0;
+              left: 12px;
+              right: 0;
+              height: 8px;
+              background: linear-gradient(to right, #3498db, #ede7f6);
+              opacity: 0.7;
+            }
+            
+            .cover-letter-content {
+              position: relative;
+              z-index: 1;
+            }
+            
+            h1 {
+              color: #2c3e50;
+              border-bottom: 3px solid #3498db;
+              padding-bottom: 12px;
+              margin-bottom: 30px;
+              font-weight: 700;
+              font-size: 18pt;
+              line-height: 1.3;
+            }
+            
+            p {
+              margin-bottom: 16px;
+              line-height: 1.7;
+              text-align: justify;
+              font-size: 11pt;
+            }
+            
+            .signature-section {
+              margin-top: 50px;
+              page-break-inside: avoid;
+            }
+            
+            .closing-text {
+              font-size: 11pt;
+              color: #555;
+              margin-bottom: 8px;
+            }
+            
+            .signature-line {
+              border-bottom: 2px solid #3498db;
+              width: 230px;
+              margin-bottom: 12px;
+            }
+            
+            .signature-text {
+              font-family: 'Dancing Script', cursive;
+              font-size: 18pt;
+              color: #2c3e50;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="cover-letter-accent"></div>
+          <div class="cover-letter-top-accent"></div>
+          
+          <div class="cover-letter-content">
+            <h1>${displayTitle}</h1>
+            ${clonedElement.innerHTML}
+            
+            <div class="signature-section">
+              <div class="closing-text">Ystävällisin terveisin,</div>
+              <div class="signature-line"></div>
+              <div class="signature-text">${letter.content?.applicant_info?.name || user?.fullName || 'Hakija'}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Poista väliaikainen kontti
+    document.body.removeChild(tempContainer);
+
+    const response = await fetch('/api/generate-cover-letter-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        htmlContent: html,
+        letterId: letter.id,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('PDF error:', errorData);
+      throw new Error(errorData.error || 'PDF generation failed');
+    }
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hakukirje_${letter.content?.jobTitle || 'hakemus'}_${letter.content?.applicant_info?.name || 'cv'}.pdf`;
+    
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+    
+    console.log('✅ PDF downloaded successfully');
+  } catch (error) {
+    console.error('PDF generation failed:', error);
+    alert('PDF:n luonti epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
+  } finally {
+    setIsDownloading(null);
+  }
+};
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">

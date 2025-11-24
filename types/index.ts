@@ -32,6 +32,7 @@ export interface WorkExperienceItem {
   duration: string;
   description: string;
   value: string;
+  achievements: string;
 }
 
 export interface LanguageItem {

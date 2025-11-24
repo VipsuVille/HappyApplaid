@@ -968,15 +968,15 @@ const renderExperience = () => (
                 </label>
                 <textarea
                   placeholder="Mitä erityistä saavutit? Esim: Myynnin kasvu 20%, Asiakaspalautteen parantaminen, Uusien järjestelmien käyttöönotto..."
-                  value={work.value || ""}
-                  onChange={(e) =>
-                    handleArrayItemChange(
-                      "workExperience",
-                      work.id,
-                      "achievements",
-                      e.target.value
-                    )
-                  }
+                  value={work.achievements || ""}
+  onChange={(e) =>
+    handleArrayItemChange(
+      "workExperience",
+      work.id,
+      "achievements", // Tähän kenttään tallennetaan, joten value pitää lukea samasta
+      e.target.value
+    )
+  }
                   className="w-full px-4 py-3 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none bg-white"
                   rows={2}
                 />
@@ -1502,9 +1502,11 @@ const renderExperience = () => (
 
   const overallProgress = getOverallProgress();
 
-  return (
+  return ( 
+  <>
+<SmartHeader />
 <div className="min-h-screen container max-w-5xl mx-auto">
-  <SmartHeader />
+ 
 
       <div className="text-center mb-8 space-y-8  py-8 px-4 from-gray-0 to-indigo-00">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -1651,6 +1653,7 @@ const renderExperience = () => (
         {isSaving ? "Tallennetaan..." : "Tiedot tallentuvat automaattisesti"}
       </p>
     </div>
+      </>
   );
 };
 

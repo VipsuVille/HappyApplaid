@@ -60,7 +60,7 @@ Job Posting:
 ${jobDescription}
 
 Return JSON:
-{
+{{
   "detected_industry": "industry name",
   "company_size": "startup|small|medium|large|enterprise",
   "keywords": ["keyword1 from THIS job", "keyword2"],
@@ -68,7 +68,7 @@ Return JSON:
   "required_experience": "X years" or "Entry level",
   "company_name": "Company Name" or "Not specified",
   "job_title": "Exact title from posting"
-}`;
+}}`;
 
   try {
     const response = await model.invoke(prompt);

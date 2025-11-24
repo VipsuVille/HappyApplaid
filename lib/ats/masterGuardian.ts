@@ -49,6 +49,7 @@ export async function extractGroundTruthAI(userProfile: any): Promise<GroundTrut
     temperature: 0.0,
   });
 
+  // KORJAUS: JSON-esimerkin aaltosulkeet on tuplattu {{ ja }}
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are a professional profile analyzer.
 
@@ -65,27 +66,27 @@ Extract IMMUTABLE FACTS from user profile - things that CANNOT be fabricated.
 7. CANNOT CLAIM (skills/experience user DOES NOT have)
 
 **OUTPUT:**
-{
+{{
   "name": "User Name",
   "yearsOfExperience": 3,
   "education": ["Bachelor in CS"],
   "currentRole": "Junior Developer",
   "technicalSkills": ["React", "Python"],
   "languages": ["Finnish", "English"],
-  "corePersonality": {
+  "corePersonality": {{
     "primary": "Analytical",
     "secondary": ["Team player"]
-  },
+  }},
   "values": ["Learning"],
   "workHistory": [
-    {
+    {{
       "role": "Warehouse Worker",
       "duration": "1 year",
       "responsibilities": ["Inventory"]
-    }
+    }}
   ],
   "cannotClaim": ["Senior experience", "Management", "PhD"]
-}`],
+}}`],
 
     ['human', `**USER PROFILE:**
 Name: {name}
@@ -151,7 +152,7 @@ Extract GROUND TRUTH. Return JSON only.`]
 export async function masterConsistencyCheckAI(
   text: string,
   groundTruth: GroundTruth,
-  context: 'generation' | 'keyword_insertion' | 'translation' | 'ats_generation' // ✅ LISÄTTY ats_generation
+  context: 'generation' | 'keyword_insertion' | 'translation' | 'ats_generation'
 ): Promise<GuardianCheck> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -159,6 +160,7 @@ export async function masterConsistencyCheckAI(
     temperature: 0.0,
   });
 
+  // KORJAUS: JSON-esimerkin aaltosulkeet on tuplattu {{ ja }}
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are THE MASTER GUARDIAN.
 
@@ -173,20 +175,20 @@ Detect ANY deviation from IMMUTABLE FACTS.
 5. Changed work history
 
 **OUTPUT:**
-{
+{{
   "approved": true/false,
-  "violations": {
+  "violations": {{
     "factual": [],
     "personality": [],
     "skills": [],
     "experience": [],
     "education": []
-  },
+  }},
   "riskLevel": "safe|warning|danger",
   "confidence": 0.95,
   "recommendation": "Brief in user's language",
   "fixSuggestions": []
-}`],
+}}`],
 
     ['human', `**GROUND TRUTH:**
 Name: {name}

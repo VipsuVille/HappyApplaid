@@ -178,7 +178,7 @@ export default function SmartHeader({
     {/* Poista "bg-gradient-to-r... text-transparent" -luokat, sillä ne koskevat tekstiä */}
     <span className="text-xl font-bold hidden sm:inline relative h-20 w-60">
         <Image 
-            src="/logo.jpg" // KORJAA POLKU: Olettaen, että kuva on public-kansiossa
+            src="/logo.png" // KORJAA POLKU: Olettaen, että kuva on public-kansiossa
             alt="Yrityksen logo" 
             fill // Käytä "fill" täyttämään vanhempi span-elementti
             style={{ objectFit: "contain"}} // Varmistaa, että kuva skaalautuu oikein

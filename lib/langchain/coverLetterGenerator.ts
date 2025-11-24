@@ -99,7 +99,7 @@ What does THIS employer value? What personality traits would excel HERE?
 - INFER from THIS job text ONLY
 
 **OUTPUT:**
-{
+{{
   "detected_industry": "industry name",
   "role_type": "entry|mid|senior|specialist",
   "personality_traits": ["trait1 THIS job needs", "trait2"],
@@ -108,7 +108,7 @@ What does THIS employer value? What personality traits would excel HERE?
   "key_requirements": ["requirement1", "requirement2"],
   "red_flags": ["don't claim X if you lack Y"],
   "green_flags": ["emphasize Z if you have it"]
-}
+    }}
 
 Return JSON only.`],
     ["human", `Analyze THIS job posting. Treat it as completely unique.
@@ -208,7 +208,7 @@ Write a cover letter that fits THIS SPECIFIC context. Do NOT use generic templat
 
 Return JSON only.`
 
-    const humanTemplate = `Write cover letter for THIS candidate applying to THIS job.
+   const humanTemplate = `Write cover letter for THIS candidate applying to THIS job.
 
 **THIS JOB POSTING:**
 {jobDescription}
@@ -254,14 +254,14 @@ Challenge Learned: {failureLesson}
 4. 280-350 words, natural tone for THIS field
 
 **OUTPUT:**
-{
+{{
   "content": "full letter text",
   "title": "Job Title from posting",
   "signature": "Candidate Name",
   "personality_hooks": ["trait1 highlighted", "trait2"],
   "job_match_score": 1-10,
   "key_differentiators": ["what makes them unique for THIS role"]
-}
+}}
 
 Return JSON only.`
 
