@@ -225,76 +225,43 @@ export default function MyCoverLettersPage() {
 
 // Korvaa handleDownloadPDF funktio tällä versiolla
 
+// app/my-cover-letters/page.tsx
+// ✅ YKSINKERTAINEN RATKAISU: Kopioi DOM → PDF
+
 const handleDownloadPDF = async (letter: any) => {
   setIsDownloading(letter.id);
   try {
-    const smartTitle = generateSmartTitle(
-      letter.content?.job_description,
-      letter.title
-    );
-    const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
-
-    // ✅ HAE RENDERÖITY HTML SUORAAN DOM:sta
+    // 1️⃣ HAE RENDERÖITY ELEMENTTI
     const letterElement = letterRefs.current[letter.id];
     
     if (!letterElement) {
-      throw new Error('Letter element not found');
+      throw new Error('Elementtiä ei löytynyt');
     }
 
-    // Kloonaa elementti jotta voidaan muokata sitä ilman että se vaikuttaa näkyvään versioon
+    // 2️⃣ KLOONAA ELEMENTTI (jotta emme muuta näkyvää versiota)
     const clonedElement = letterElement.cloneNode(true) as HTMLElement;
-    
-    // Luo väliaikainen kontti
-    const tempContainer = document.createElement('div');
-    tempContainer.style.position = 'absolute';
-    tempContainer.style.left = '-9999px';
-    tempContainer.style.width = '210mm'; // A4 leveys
-    tempContainer.style.padding = '20mm 25mm 20mm 35mm'; // A4 marginaalit
-    document.body.appendChild(tempContainer);
-    
-    // Lisää kloonattu elementti konttiin
-    tempContainer.appendChild(clonedElement);
-    
-    // Hae kaikki inline-tyylit ja lasketut tyylit
-    const getAllStyles = (element: HTMLElement): string => {
-      const styles = window.getComputedStyle(element);
-      let styleString = '';
-      
-      // Kopioi kaikki tärkeät tyylit
-      const importantStyles = [
-        'font-family', 'font-size', 'font-weight', 'line-height',
-        'color', 'background-color', 'border', 'margin', 'padding',
-        'width', 'height', 'display', 'position', 'text-align'
-      ];
-      
-      importantStyles.forEach(prop => {
-        styleString += `${prop}: ${styles.getPropertyValue(prop)};`;
-      });
-      
-      return styleString;
-    };
-    
-    // Käy läpi kaikki elementit ja kopioi niiden tyylit
-    const applyStylesToElements = (parent: HTMLElement) => {
-      const elements = parent.querySelectorAll('*');
-      elements.forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        const styles = getAllStyles(htmlEl);
-        htmlEl.setAttribute('style', styles);
-      });
-    };
-    
-    applyStylesToElements(clonedElement);
 
-    // Luo lopullinen HTML
+    // 3️⃣ LUO HTML joka sisältää:
+    // - Kaikki fontit
+    // - Kaikki Tailwind CSS:t
+    // - Renderöidyn sisällön
+    
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          
+          <!-- ✅ FONTIT -->
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+          
+          <!-- ✅ TAILWIND CSS (CDN) -->
+          <script src="https://cdn.tailwindcss.com"></script>
+          
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;700&display=swap');
-            
             * {
               margin: 0;
               padding: 0;
@@ -306,29 +273,35 @@ const handleDownloadPDF = async (letter: any) => {
               margin: 0;
             }
 
-            body { 
+            body {
               margin: 0;
-              padding: 20mm 25mm 20mm 35mm;
-              font-family: 'Merriweather', serif;
-              line-height: 1.7;
-              font-size: 11pt;
-              color: #333;
+              padding: 0;
               width: 210mm;
-              height: 297mm;
-              position: relative;
+              min-height: 297mm;
+              background: white;
             }
-            
+
+            /* ✅ Kopioi kaikki tärkeät tyylit komponentin CSS:stä */
+            .cover-letter-container {
+              width: 210mm;
+              min-height: 297mm;
+              background-color: white;
+              position: relative;
+              overflow: hidden;
+            }
+
             .cover-letter-accent {
-              position: fixed;
+              position: absolute;
               top: 0;
               left: 0;
               width: 12px;
               height: 100%;
               background: linear-gradient(to bottom, #3498db, #2980b9, #3498db);
+              box-shadow: inset -1px 0 3px rgba(0,0,0,0.1);
             }
-            
+
             .cover-letter-top-accent {
-              position: fixed;
+              position: absolute;
               top: 0;
               left: 12px;
               right: 0;
@@ -336,74 +309,68 @@ const handleDownloadPDF = async (letter: any) => {
               background: linear-gradient(to right, #3498db, #ede7f6);
               opacity: 0.7;
             }
-            
-            .cover-letter-content {
-              position: relative;
-              z-index: 1;
+
+            /* ✅ Sisältöalueen tyyli */
+            [style*="margin-left: 20px"] {
+              margin-left: 20px;
+              width: calc(100% - 20px);
+              padding-top: 12px;
             }
-            
-            h1 {
+
+            /* ✅ Template-tyylit */
+            .cover-letter-template {
+              font-family: 'Merriweather', serif;
+              color: #333;
+              line-height: 1.7;
+            }
+
+            .cover-letter-content h1 {
               color: #2c3e50;
               border-bottom: 3px solid #3498db;
               padding-bottom: 12px;
               margin-bottom: 30px;
               font-weight: 700;
-              font-size: 18pt;
-              line-height: 1.3;
+              font-size: 24px;
+              letter-spacing: 0.5px;
             }
-            
-            p {
+
+            .cover-letter-content p {
               margin-bottom: 16px;
               line-height: 1.7;
-              text-align: justify;
               font-size: 11pt;
+              letter-spacing: 0.2px;
             }
-            
+
             .signature-section {
               margin-top: 50px;
-              page-break-inside: avoid;
             }
-            
-            .closing-text {
-              font-size: 11pt;
-              color: #555;
-              margin-bottom: 8px;
-            }
-            
+
             .signature-line {
               border-bottom: 2px solid #3498db;
               width: 230px;
-              margin-bottom: 12px;
+              margin: 8px 0 12px 0;
             }
-            
+
             .signature-text {
               font-family: 'Dancing Script', cursive;
-              font-size: 18pt;
+              font-size: 24px;
               color: #2c3e50;
+              font-weight: 600;
+            }
+
+            /* ✅ Padding sisällölle */
+            .cover-letter-template > div {
+              padding: 20mm;
             }
           </style>
         </head>
         <body>
-          <div class="cover-letter-accent"></div>
-          <div class="cover-letter-top-accent"></div>
-          
-          <div class="cover-letter-content">
-            <h1>${displayTitle}</h1>
-            ${clonedElement.innerHTML}
-            
-            <div class="signature-section">
-              <div class="closing-text">Ystävällisin terveisin,</div>
-              <div class="signature-line"></div>
-              <div class="signature-text">${letter.content?.applicant_info?.name || user?.fullName || 'Hakija'}</div>
-            </div>
-          </div>
+          ${clonedElement.outerHTML}
         </body>
       </html>
     `;
 
-    // Poista väliaikainen kontti
-    document.body.removeChild(tempContainer);
-
+    // 4️⃣ LÄHETÄ PDF-GENEROINTIIN
     const response = await fetch('/api/generate-cover-letter-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -415,24 +382,32 @@ const handleDownloadPDF = async (letter: any) => {
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('PDF error:', errorData);
       throw new Error(errorData.error || 'PDF generation failed');
     }
-    
+
+    // 5️⃣ LATAA PDF
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `hakukirje_${letter.content?.jobTitle || 'hakemus'}_${letter.content?.applicant_info?.name || 'cv'}.pdf`;
+    
+    const smartTitle = generateSmartTitle(
+      letter.content?.job_description,
+      letter.title
+    );
+    const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
+    const applicantName = letter.content?.applicant_info?.name || user?.fullName || 'Hakija';
+    
+    a.download = `hakukirje_${displayTitle.substring(0, 30)}_${applicantName.replace(/\s+/g, '_')}.pdf`;
     
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
     a.remove();
     
-    console.log('✅ PDF downloaded successfully');
+    console.log('✅ PDF ladattu onnistuneesti');
   } catch (error) {
-    console.error('PDF generation failed:', error);
+    console.error('PDF-generointi epäonnistui:', error);
     alert('PDF:n luonti epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
   } finally {
     setIsDownloading(null);
