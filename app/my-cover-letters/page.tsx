@@ -223,146 +223,46 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-// Korvaa handleDownloadPDF funktio tällä versiolla
+// Korvaa handleDownloadPDF funktio page.tsx:ssä tällä YKSINKERTAISELLA versiolla
 
 const handleDownloadPDF = async (letter: any) => {
   setIsDownloading(letter.id);
   try {
-    // 1️⃣ HAE RENDERÖITY ELEMENTTI
-    const letterElement = letterRefs.current[letter.id];
-    
-    if (!letterElement) {
-      throw new Error('Elementtiä ei löytynyt');
-    }
-
-    // 2️⃣ FUNKTIO: Kopioi computed styles inline-muotoon
-    const applyComputedStyles = (element: HTMLElement): HTMLElement => {
-      const clone = element.cloneNode(false) as HTMLElement;
-      
-      // Hae lasketut tyylit
-      const computedStyle = window.getComputedStyle(element);
-      
-      // Kopioi tärkeät tyylit inline-muotoon
-      const importantStyles = [
-        'font-family', 'font-size', 'font-weight', 'font-style',
-        'line-height', 'letter-spacing', 'text-align', 'text-decoration',
-        'color', 'background', 'background-color', 'background-image',
-        'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
-        'border-radius', 'box-shadow',
-        'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-        'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-        'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
-        'display', 'position', 'top', 'right', 'bottom', 'left',
-        'opacity', 'z-index', 'overflow'
-      ];
-      
-      let styleString = '';
-      importantStyles.forEach(prop => {
-        const value = computedStyle.getPropertyValue(prop);
-        if (value && value !== 'none' && value !== 'auto') {
-          styleString += `${prop}: ${value}; `;
-        }
-      });
-      
-      if (styleString) {
-        clone.setAttribute('style', styleString);
-      }
-      
-      // Käsittele lapset rekursiivisesti
-      Array.from(element.childNodes).forEach(child => {
-        if (child.nodeType === Node.ELEMENT_NODE) {
-          clone.appendChild(applyComputedStyles(child as HTMLElement));
-        } else if (child.nodeType === Node.TEXT_NODE) {
-          clone.appendChild(child.cloneNode(true));
-        }
-      });
-      
-      return clone;
-    };
-
-    // 3️⃣ LUO KLOONATTU VERSIO JOSSA ON KAIKKI TYYLIT INLINE
-    console.log('📋 Kopioidaan DOM-elementti ja tyylit...');
-    const styledClone = applyComputedStyles(letterElement);
-
-    // 4️⃣ LUO PUHDAS HTML
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          
-          <!-- ✅ FONTIT -->
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
-          
-          <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-
-            @page {
-              size: A4;
-              margin: 0;
-            }
-
-            body {
-              margin: 0;
-              padding: 0;
-              width: 210mm;
-              min-height: 297mm;
-              background: white;
-            }
-          </style>
-        </head>
-        <body>
-          ${styledClone.outerHTML}
-        </body>
-      </html>
-    `;
-
-    // 5️⃣ LÄHETÄ PDF-GENEROINTIIN
-    console.log('📄 Lähetetään PDF-generointiin...');
+    // ✅ LÄHETÄ VAIN LETTER ID (kuten CV:ssä)
     const response = await fetch('/api/generate-cover-letter-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        htmlContent: html,
-        letterId: letter.id,
+        letterId: letter.id,  // ← Pelkkä ID!
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('PDF error:', errorData);
       throw new Error(errorData.error || 'PDF generation failed');
     }
-
-    // 6️⃣ LATAA PDF
+    
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     
-    const smartTitle = generateSmartTitle(
-      letter.content?.job_description,
-      letter.title
-    );
-    const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
-    const applicantName = letter.content?.applicant_info?.name || user?.fullName || 'Hakija';
+    // Käytä letterin titlea tiedostonimessä
+    const fileName = `hakukirje_${letter.title || 'hakemus'}.pdf`
+      .replace(/[^\w\s-]/g, '_')
+      .replace(/\s+/g, '_');
     
-    a.download = `hakukirje_${displayTitle.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}_${applicantName.replace(/\s+/g, '_')}.pdf`;
+    a.download = fileName;
     
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
     a.remove();
     
-    console.log('✅ PDF ladattu onnistuneesti');
+    console.log('✅ PDF downloaded successfully');
   } catch (error) {
-    console.error('❌ PDF-generointi epäonnistui:', error);
+    console.error('PDF generation failed:', error);
     alert('PDF:n luonti epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
   } finally {
     setIsDownloading(null);
