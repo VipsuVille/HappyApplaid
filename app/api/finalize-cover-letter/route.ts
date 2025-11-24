@@ -1,7 +1,8 @@
-// app/api/finalize-cover-letter/route.ts - Päivitetty persoonallisuustuella
+// app/api/finalize-cover-letter/route.ts - KORJATTU
+
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { generateCoverLetterWithLangChain } from "@/lib/langchain/coverLetterGenerator";
+import { generateCoherentCoverLetter, generateATSReport } from "@/lib/langchain/coverLetterGeneratorV2";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: Request) {
@@ -13,20 +14,19 @@ export async function POST(req: Request) {
 
   try {
     const {
-      tempCoverLetterData,
       answers,
       jobDescription,
       personalNotes,
       name,
       email,
       phone,
+      age,
       jobTitle,
       education,
       workExperience,
       skills,
       language,
       style,
-      // PERSOONALLISUUSTIEDOT - lisätty
       workingStyle,
       problemSolving,
       energySources,
@@ -44,14 +44,14 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!tempCoverLetterData) {
+    if (!answers || Object.keys(answers).length === 0) {
       return NextResponse.json(
-        { error: "Temporary cover letter data is missing" },
+        { error: "Answers required" },
         { status: 400 }
       );
     }
 
-    // Check user's subscription status
+    // Tarkista tilaus
     const { data: subscription, error: subscriptionError } = await supabaseAdmin
       .from("subscriptions")
       .select("*")
@@ -60,67 +60,57 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (subscriptionError || !subscription) {
-      console.log("Subscription error:", subscriptionError);
       return NextResponse.json(
         { error: "Subscription required" },
         { status: 403 }
       );
     }
 
-    // Format answers as enhanced personal notes
+    // ✅ YHDISTÄ VASTAUKSET personalNotes:iin
     const answersText = Object.entries(answers)
-      .map(([questionId, answer]) => {
-        const question = tempCoverLetterData.questions?.find(
-          (q: any) => q.id === questionId
-        );
-        if (question && answer) {
-          return `${question.question}: ${answer}`;
-        }
-        return null;
-      })
-      .filter(Boolean)
-      .join("\n\n");
+      .map(([questionId, answer]) => `${questionId}: ${answer}`)
+      .join('\n\n');
+    
+    const enhancedPersonalNotes = personalNotes 
+      ? `${personalNotes}\n\nLISÄTIEDOT KYSYMYKSISTÄ:\n${answersText}`
+      : `LISÄTIEDOT KYSYMYKSISTÄ:\n${answersText}`;
 
-    // Combine original personal notes and answers
-    const enhancedPersonalNotes = personalNotes
-      ? `${personalNotes}\n\nLisätietoja:\n${answersText}`
-      : `Lisätietoja:\n${answersText}`;
-
-    // Generate enhanced cover letter with personality data
-    const coverLetterData = await generateCoverLetterWithLangChain({
+    // ✅ LUO HAKUKIRJE
+    console.log(`📝 Finalizing cover letter with ${Object.keys(answers).length} answers...`);
+    
+    const coverLetterData = await generateCoherentCoverLetter({
       jobDescription,
-      personalNotes: enhancedPersonalNotes,
       name,
       email,
       phone,
-      jobTitle,
-      education,
+      age,
       workExperience,
+      education,
       skills,
       language,
       style,
-      // PERSOONALLISUUSTIEDOT - välitetään generaattorille
       workingStyle,
       problemSolving,
       energySources,
       uniqueStrength,
       learningStyle,
       teamRole,
-      valuesExample,
       superpower,
+      valuesExample,
+      personalNotes: enhancedPersonalNotes,
     });
 
-    // Save enhanced cover letter to Supabase
-    const { data: coverLetter, error: insertError } = await supabaseAdmin
+    const atsReport = generateATSReport({ atsData: coverLetterData.atsData });
+
+    // ✅ TALLENNA
+    const { data: savedLetter, error: insertError } = await supabaseAdmin
       .from("cover_letters")
       .insert({
         user_id: userId,
-        title: coverLetterData.title,
+        title: coverLetterData.title || "Työhakemus",
         language: language || "finnish",
         content: {
           job_description: jobDescription,
-          cover_letter_content: coverLetterData.content,
-          signature: coverLetterData.signature,
           body: coverLetterData.content,
           applicant_info: {
             name,
@@ -130,7 +120,7 @@ export async function POST(req: Request) {
             education,
             workExperience,
             skills,
-            // Tallenna persoonallisuustiedot hakukirjeen tietoihin
+            age,
             personality_profile: {
               workingStyle,
               problemSolving,
@@ -142,7 +132,6 @@ export async function POST(req: Request) {
               superpower,
             },
           },
-          // Tallenna käyttäjän vastaukset kysymyksiin
           user_answers: answers,
           enhanced_notes: enhancedPersonalNotes,
         },
@@ -151,42 +140,37 @@ export async function POST(req: Request) {
             content: coverLetterData.content,
           },
           styles: {
-            main_style:
-              'font-family: "Merriweather", serif; line-height: 1.7; font-size: 1rem;',
+            main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
-          // Tallenna persoonallisuusanalyysit
-          personality_analysis: {
-            hooks_used: coverLetterData.personality_hooks || [],
-            job_match_score: coverLetterData.job_match_score || 7,
-            traits_emphasized: [
-              uniqueStrength,
-              workingStyle,
-              superpower,
-            ].filter(Boolean),
-            questions_answered: Object.keys(answers).length,
+          ats_optimization: {
+            report: atsReport,
+            generated_at: new Date().toISOString(),
+            job_analysis: coverLetterData.jobAnalysis,
+            key_points: coverLetterData.keyPoints,
           },
-          // Säilytä alkuperäinen tempData referenssi
-          temp_data_reference: {
-            original_score: tempCoverLetterData.job_match_score,
-            original_hooks: tempCoverLetterData.personality_hooks,
-          },
+          generation_params: {
+            style: style || 'formal',
+            language: language || 'finnish',
+            answered_questions: answers,
+            questions_count: Object.keys(answers).length,
+          }
         },
       })
       .select()
-      .maybeSingle();
+      .single();
 
     if (insertError) {
       console.error("Insert error:", insertError);
       throw insertError;
     }
 
+    console.log(`✅ Finalized cover letter saved: ${savedLetter.id}`);
+
     return NextResponse.json({
       success: true,
-      coverLetterId: coverLetter.id,
-      title: coverLetterData.title,
+      coverLetterId: savedLetter.id,
+      title: coverLetterData.title || "Työhakemus",
       personality_insights: {
-        job_match_score: coverLetterData.job_match_score,
-        personality_hooks: coverLetterData.personality_hooks,
         questions_answered: Object.keys(answers).length,
       },
     });
@@ -194,8 +178,7 @@ export async function POST(req: Request) {
     console.error("Error finalizing cover letter:", error);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "An unknown error occurred",
+        error: error instanceof Error ? error.message : "An unknown error occurred",
       },
       { status: 500 }
     );

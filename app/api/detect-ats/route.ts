@@ -1,7 +1,7 @@
 // app/api/detect-ats/route.ts - REFAKTOROITU
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { detectATSUsage } from '@/lib/langchain/realisticATSAnalyzer';
+import { detectATSUsageAI } from '@/lib/langchain/realisticATSAnalyzer';
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     // ✅ KÄYTÄ JAETTUA FUNKTIOTA
-    const result = await detectATSUsage(jobDescription);
+    const result = await detectATSUsageAI(jobDescription);
     return NextResponse.json(result);
     
   } catch (error) {

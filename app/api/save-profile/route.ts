@@ -1,4 +1,4 @@
-// app/api/save-profile/route.ts - KORJATTU VERSIO
+// app/api/save-profile/route.ts - KORJATTU
 import { currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -98,14 +98,14 @@ export async function GET() {
       return NextResponse.json({ profile: null }, { status: 404 });
     }
 
-    // MUUNNA TAKAISIN UI-MUOTOON
+    // ✅ MUUNNA TAKAISIN UI-MUOTOON (LISÄÄ UUDET KENTÄT)
     const profilePageFormat: ProfileData = {
       name: dbProfile.name || "",
       email: dbProfile.email || "",
       phone: dbProfile.phone || "",
       location: dbProfile.location || "",
       jobTitle: dbProfile.job_title || "",
-      profileImage: dbProfile.profile_image || "", // ✅ LISÄÄ TÄMÄ!
+      profileImage: dbProfile.profile_image || "",
 
       // Arrays suoraan (ne ovat jo JSONB:nä)
       education: Array.isArray(dbProfile.education) ? dbProfile.education : [],
@@ -123,6 +123,11 @@ export async function GET() {
       teamRole: dbProfile.team_role || "",
       valuesExample: dbProfile.values_example || "",
       superpower: dbProfile.superpower || "",
+      
+      // ✅ LISÄÄ UUDET KENTÄT
+      careerGoals: dbProfile.career_goals || "",
+      bestProjectExample: dbProfile.best_project_example || "",
+      failureLesson: dbProfile.failure_lesson || "",
     };
 
     return NextResponse.json({ profile: profilePageFormat });

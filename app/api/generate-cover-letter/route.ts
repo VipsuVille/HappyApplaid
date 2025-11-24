@@ -1,13 +1,12 @@
-// app/api/generate-cover-letter/route.ts - LISÄTTY HONEST VALIDATOR
+// app/api/generate-cover-letter/route.ts - KORJATTU
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { generateCoverLetterWithPersonalityExtraction } from "@/lib/langchain/coverLetterGenerator";
+import { generateCoverLetterV1 } from "@/lib/langchain/coverLetterGenerator"; // ✅ KORJATTU IMPORT
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
-import { extractGroundTruth, masterConsistencyCheck, GroundTruth } from "@/lib/ats/masterGuardian";
+import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
 import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate";
-import { validateCoverLetterData } from "@/lib/langchain/honestCoverLetterValidator"; // ✅ UUSI
 
 function extractJobTitleFromDescription(jobDescription: string): string {
   if (!jobDescription) return "Työhakemus";
@@ -61,14 +60,15 @@ export async function POST(req: Request) {
 
     const extractedJobTitle = extractJobTitleFromDescription(finalJobDescription);
 
-    // ✅ 1. HAE KÄYTTÄJÄN PROFIILI JA EKSTRAKTOI GROUND TRUTH
+    // ✅ 1. HAE GROUND TRUTH (AWAIT!)
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    const groundTruth: GroundTruth = extractGroundTruth(userProfile || {});
+    // ✅ KORJATTU: Lisää await
+    const groundTruth = await extractGroundTruthAI(userProfile || {});
     
     console.log('🛡️ Ground Truth established:', {
       name: groundTruth.name,
@@ -102,7 +102,11 @@ export async function POST(req: Request) {
         valuesExample: profileData.valuesExample,
         superpower: profileData.superpower,
         
-        // ✅ KORJATTU: Escapeta {} promptia varten
+        // ✅ LISÄÄ UUDET KENTÄT
+        careerGoals: profileData.careerGoals,
+        bestProjectExample: profileData.bestProjectExample,
+        failureLesson: profileData.failureLesson,
+        
         groundTruthWarning: sanitizeGroundTruthForPrompt(groundTruth)
       };
     } else {
@@ -119,7 +123,6 @@ export async function POST(req: Request) {
         language: language || "finnish",
         style: style || "formal",
         
-        // ✅ KORJATTU: Escapeta {} promptia varten
         groundTruthWarning: sanitizeGroundTruthForPrompt(groundTruth)
       };
     }
@@ -139,28 +142,28 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log("🚀 Generating cover letter with personality extraction...");
-    const coverLetterData = await generateCoverLetterWithPersonalityExtraction(
-      coverLetterInput
-    );
+    console.log("🚀 Generating V1 cover letter (human-focused)...");
+    
+    // ✅ KORJATTU: Käytä oikeaa funktiota
+    const coverLetterData = await generateCoverLetterV1(coverLetterInput);
 
     // ✅ JOS KYSYMYKSIÄ, PALAUTA NE
     if (coverLetterData.questions && coverLetterData.questions.length > 0) {
       return NextResponse.json({
         success: true,
-        needsMoreInfo: true, // ✅ Merkki että kysymyksiä
+        needsMoreInfo: true,
         questions: coverLetterData.questions,
         title: coverLetterData.title,
-        tempContent: coverLetterData.content, // ✅ Väliaikainen sisältö
+        tempContent: coverLetterData.content,
         signature: coverLetterData.signature,
         job_match_score: coverLetterData.job_match_score,
         personality_hooks: coverLetterData.personality_hooks,
       });
     }
 
-    // ✅ 2. CHECKPOINT 1: MASTER GUARDIAN VALIDATION
+    // ✅ MASTER GUARDIAN VALIDATION
     console.log('🛡️ Running Master Guardian validation...');
-    const guardianCheck = await masterConsistencyCheck(
+    const guardianCheck = await masterConsistencyCheckAI(
       coverLetterData.content,
       groundTruth,
       'generation'
@@ -169,11 +172,10 @@ export async function POST(req: Request) {
     // 🚨 HYLKÄÄ JOS DANGER
     if (guardianCheck.riskLevel === 'danger') {
       console.error('🚨 MASTER GUARDIAN BLOCKED GENERATION!');
-      console.error('Violations:', guardianCheck.violations);
       
       return NextResponse.json({
         error: 'CONSISTENCY_VIOLATION',
-        message: 'AI generoi epäjohdonmukaisen hakukirjeen. Yritä uudelleen.',
+        message: 'AI generoi epäjohdonmukaisen hakukirjeen.',
         violations: guardianCheck.violations,
         recommendation: guardianCheck.recommendation,
         fixSuggestions: guardianCheck.fixSuggestions
@@ -187,7 +189,7 @@ export async function POST(req: Request) {
 
     console.log('✅ Guardian approved:', guardianCheck.riskLevel);
 
-    // ✅ 3. TALLENNA + GROUND TRUTH MUKANA
+    // ✅ TALLENNA
     const { data: coverLetter, error: insertError } = await supabaseAdmin
       .from("cover_letters")
       .insert({
@@ -218,6 +220,11 @@ export async function POST(req: Request) {
                 problemSolving: profileData.problemSolving,
                 learningStyle: profileData.learningStyle,
                 valuesExample: profileData.valuesExample,
+                
+                // ✅ UUDET
+                careerGoals: profileData.careerGoals,
+                bestProjectExample: profileData.bestProjectExample,
+                failureLesson: profileData.failureLesson,
               },
             }),
           },
@@ -228,13 +235,11 @@ export async function POST(req: Request) {
           },
           styles: {
             main_style:
-              'font-family: "Merriweather", serif; line-height: 1.7; font-size: 1rem;',
+              'font-family: "Merriweather", serif; line-height: 1.7;',
           },
           
-          // ✅ GROUND TRUTH TALLENNETTU
           ground_truth: groundTruth,
           
-          // ✅ GUARDIAN CHECK TALLENNETTU
           guardian_check: {
             approved: guardianCheck.approved,
             riskLevel: guardianCheck.riskLevel,
@@ -248,16 +253,6 @@ export async function POST(req: Request) {
             key_differentiators: coverLetterData.key_differentiators || [],
             data_quality: coverLetterData.data_quality || null,
           },
-          personality_used: profileData
-            ? {
-                workingStyle: profileData.workingStyle,
-                problemSolving: profileData.problemSolving,
-                uniqueStrength: profileData.uniqueStrength,
-                teamRole: profileData.teamRole,
-                energySources: profileData.energySources,
-                superpower: profileData.superpower,
-              }
-            : null,
         },
       })
       .select()

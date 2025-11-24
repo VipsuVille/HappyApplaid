@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import { smartFilterKeywords } from '@/lib/ats/smartStopwords';
+import { filterKeywordsUniversal } from '@/lib/ats/smartStopwords';
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -89,7 +89,7 @@ Return JSON only.`]
 
     // ✅ SMART STOPWORDS FILTER (hybrid mode - nopea + tarkka)
     console.log(`🔍 Filtering ${allKeywordTexts.length} keywords...`);
-    const filtered = await smartFilterKeywords(
+    const filtered = await filterKeywordsUniversal(
       allKeywordTexts,
       jobDescription,
       'balanced' // TF-IDF + Heuristic (~50ms)
@@ -127,7 +127,7 @@ Return JSON only.`]
       
       // Debug-tieto
       filtered_stopwords: filtered.filtered,
-      filter_method: filtered.method
+      filter_method: filtered.reasoning
     });
   } catch (error) {
     console.error('AI keyword extraction error:', error);

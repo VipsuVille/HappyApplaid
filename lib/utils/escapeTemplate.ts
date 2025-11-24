@@ -1,13 +1,13 @@
-// lib/utils/escapeTemplate.ts - UUSI TIEDOSTO
+// lib/utils/escapeTemplate.ts - LANGCHAIN TEMPLATE ESCAPE
+
 /**
  * ✅ ESCAPETA AALTOSULUT LANGCHAIN-PROMPTEISSA
- * LangChain käyttää {variable} syntaksia, joten meidän pitää escapeta {}.
+ * LangChain käyttää {variable} syntaksia, joten escapetaan {}
  */
 
 export function escapeTemplateString(text: string): string {
   if (!text) return '';
   
-  // Korvaa { -> {{ ja } -> }}
   return text
     .replace(/\{/g, '{{')
     .replace(/\}/g, '}}');
@@ -16,14 +16,13 @@ export function escapeTemplateString(text: string): string {
 export function unescapeTemplateString(text: string): string {
   if (!text) return '';
   
-  // Palauta takaisin {{ -> { ja }} -> }
   return text
     .replace(/\{\{/g, '{')
     .replace(/\}\}/g, '}');
 }
 
 /**
- * ✅ KÄYTÄ TÄTÄ GROUND TRUTH WARNINGIIN
+ * ✅ KÄYTÄ GROUND TRUTH WARNINGIIN
  */
 export function sanitizeGroundTruthForPrompt(groundTruth: any): string {
   const text = `
@@ -34,6 +33,5 @@ export function sanitizeGroundTruthForPrompt(groundTruth: any): string {
     - FORBIDDEN to claim: ${groundTruth.cannotClaim?.join(', ') || 'None'}
   `;
   
-  // Escapeta kaikki {} promptia varten
   return escapeTemplateString(text);
 }

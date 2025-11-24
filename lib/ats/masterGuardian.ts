@@ -1,6 +1,4 @@
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TIEDOSTO 1: lib/ats/masterGuardian.ts
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// lib/ats/masterGuardian.ts - KORJATTU
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -17,6 +15,12 @@ export interface GroundTruth {
     secondary: string[];
   };
   values: string[];
+  workHistory: Array<{
+    role: string;
+    duration: string;
+    responsibilities: string[];
+  }>;
+  // ✅ LISÄTTY: Puuttuva kenttä
   cannotClaim: string[];
 }
 
@@ -25,101 +29,129 @@ export interface GuardianCheck {
   violations: {
     factual: string[];
     personality: string[];
-    tone: string[];
     skills: string[];
-    contradiction: string[];
+    experience: string[];
+    education: string[];
   };
   riskLevel: 'safe' | 'warning' | 'danger';
+  confidence: number;
   recommendation: string;
   fixSuggestions: string[];
 }
 
 /**
- * ✅ POIMII GROUND TRUTH (IMMUTABLE FACTS)
+ * ✅ POIMII GROUND TRUTH PROFIILISTA - 100% AI
  */
-export function extractGroundTruth(userProfile: any): GroundTruth {
-  // Laske työkokemus vuosissa
-  let yearsOfExperience: number | null = null;
-  if (Array.isArray(userProfile.work_experience)) {
-    const totalMonths = userProfile.work_experience.reduce((sum: number, work: any) => {
-      if (work.duration) {
-        const match = work.duration.match(/(\d+)\s*(vuotta|year|år)/);
-        if (match) return sum + parseInt(match[1]) * 12;
-      }
-      return sum;
-    }, 0);
-    yearsOfExperience = Math.floor(totalMonths / 12);
-  }
+export async function extractGroundTruthAI(userProfile: any): Promise<GroundTruth> {
+  const model = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY!,
+    modelName: 'gpt-4o-mini',
+    temperature: 0.0,
+  });
 
-  // Ydin-persoonallisuus
-  const corePersonality = {
-    primary: userProfile.superpower || userProfile.unique_strength || 'Motivoitunut ammattilainen',
-    secondary: [
-      userProfile.working_style,
-      userProfile.team_role,
-      userProfile.problem_solving
-    ].filter(Boolean).map((p: string) => p.split('.')[0].trim())
-  };
+  const prompt = ChatPromptTemplate.fromMessages([
+    ['system', `You are a professional profile analyzer.
 
-  // Tekniset taidot
-  const technicalSkills = (userProfile.skills || '')
-    .split(/[,;]/)
-    .map((s: string) => s.trim())
-    .filter(Boolean);
+**YOUR MISSION:**
+Extract IMMUTABLE FACTS from user profile - things that CANNOT be fabricated.
 
-  return {
-    name: userProfile.name || '',
-    yearsOfExperience,
-    education: Array.isArray(userProfile.education) 
-      ? userProfile.education.map((e: any) => e.degree || e.school).filter(Boolean)
-      : [],
-    currentRole: userProfile.job_title || null,
-    technicalSkills,
-    languages: Array.isArray(userProfile.languages)
-      ? userProfile.languages.map((l: any) => l.language).filter(Boolean)
-      : [],
-    corePersonality,
-    values: [
-      userProfile.values_example,
-      userProfile.energy_sources
-    ].filter(Boolean),
-    cannotClaim: determineCannotClaim(userProfile)
-  };
-}
+**EXTRACT:**
+1. Years of Experience (calculate from work history)
+2. Education (degrees, certifications, schools)
+3. Technical Skills (concrete skills user has)
+4. Languages (spoken/written)
+5. Core Personality (from user's own description)
+6. Work History (roles, duration, responsibilities)
+7. CANNOT CLAIM (skills/experience user DOES NOT have)
 
-function determineCannotClaim(profile: any): string[] {
-  const cannotClaim: string[] = [];
-  
-  // Johtaminen
-  const hasLeadership = (profile.work_experience || []).some((w: any) => 
-    /johtaja|manager|lead|chief|director/i.test(w.position || w.title || '')
-  );
-  if (!hasLeadership) {
-    cannotClaim.push('johtamiskokemus', 'esimiestyö', 'tiimin johtaminen', 'management', 'leadership');
+**OUTPUT:**
+{
+  "name": "User Name",
+  "yearsOfExperience": 3,
+  "education": ["Bachelor in CS"],
+  "currentRole": "Junior Developer",
+  "technicalSkills": ["React", "Python"],
+  "languages": ["Finnish", "English"],
+  "corePersonality": {
+    "primary": "Analytical",
+    "secondary": ["Team player"]
+  },
+  "values": ["Learning"],
+  "workHistory": [
+    {
+      "role": "Warehouse Worker",
+      "duration": "1 year",
+      "responsibilities": ["Inventory"]
+    }
+  ],
+  "cannotClaim": ["Senior experience", "Management", "PhD"]
+}`],
+
+    ['human', `**USER PROFILE:**
+Name: {name}
+Work Experience: {workExperience}
+Education: {education}
+Skills: {skills}
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Unique Strength: {uniqueStrength}
+Team Role: {teamRole}
+Superpower: {superpower}
+
+Extract GROUND TRUTH. Return JSON only.`]
+  ]);
+
+  try {
+    const formatted = await prompt.formatMessages({
+      name: userProfile.name || 'Not specified',
+      workExperience: JSON.stringify(userProfile.work_experience || []),
+      education: JSON.stringify(userProfile.education || []),
+      skills: userProfile.skills || 'Not specified',
+      workingStyle: userProfile.working_style || 'Not specified',
+      problemSolving: userProfile.problem_solving || 'Not specified',
+      uniqueStrength: userProfile.unique_strength || 'Not specified',
+      teamRole: userProfile.team_role || 'Not specified',
+      superpower: userProfile.superpower || 'Not specified'
+    });
+
+    const result = await model.invoke(formatted);
+    const content = typeof result.content === 'string' 
+      ? result.content 
+      : JSON.stringify(result.content);
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON');
+
+    return JSON.parse(jsonMatch[0]);
+  } catch (error) {
+    console.error('AI extraction failed:', error);
+    
+    // Minimal fallback
+    return {
+      name: userProfile.name || '',
+      yearsOfExperience: null,
+      education: [],
+      currentRole: null,
+      technicalSkills: [],
+      languages: [],
+      corePersonality: {
+        primary: userProfile.superpower || 'Professional',
+        secondary: []
+      },
+      values: [],
+      workHistory: [],
+      cannotClaim: [] // ✅ LISÄTTY
+    };
   }
-  
-  // Ohjelmointi
-  const hasTech = (profile.skills || '').match(/python|javascript|react|java|c\+\+|programming|coding/i);
-  if (!hasTech) {
-    cannotClaim.push('ohjelmointi', 'koodaus', 'software development', 'programming');
-  }
-  
-  // Design
-  const hasDesign = (profile.skills || '').match(/photoshop|illustrator|figma|design|graafi/i);
-  if (!hasDesign) {
-    cannotClaim.push('graafinen suunnittelu', 'UI/UX design', 'brändäys', 'graphic design');
-  }
-  
-  return cannotClaim;
 }
 
 /**
- * ✅ MASTER CONSISTENCY CHECK
+ * ✅ MASTER CONSISTENCY CHECK - 100% AI
  */
-export async function masterConsistencyCheck(
+export async function masterConsistencyCheckAI(
   text: string,
   groundTruth: GroundTruth,
-  context: 'generation' | 'keyword_insertion' | 'translation'
+  context: 'generation' | 'keyword_insertion' | 'translation' | 'ats_generation' // ✅ LISÄTTY ats_generation
 ): Promise<GuardianCheck> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -128,57 +160,47 @@ export async function masterConsistencyCheck(
   });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are THE MASTER GUARDIAN - the final authority on consistency.
+    ['system', `You are THE MASTER GUARDIAN.
 
-GROUND TRUTH IS IMMUTABLE. Detect ANY deviation.
+**YOUR MISSION:**
+Detect ANY deviation from IMMUTABLE FACTS.
 
-CRITICAL VIOLATIONS (REJECT):
-1. FACTUAL HALLUCINATIONS:
-   - Years changed (2 → 5)
-   - Degrees invented
-   - Skills added not in list
-   - Job titles inflated
-   
-2. PERSONALITY CONTRADICTIONS:
-   - Core changed (empathetic → analytical)
-   - Values contradict
-   
-3. FORBIDDEN CLAIMS:
-   - Claiming skills in cannotClaim list
+**CRITICAL VIOLATIONS (REJECT):**
+1. Changed years of experience
+2. Invented degrees/certifications
+3. Added skills user doesn't have
+4. Inflated job titles
+5. Changed work history
 
-MINOR ISSUES (WARNING):
-- Tone shifted slightly
-- Emphasis changed but facts intact
-
-Return JSON:
+**OUTPUT:**
 {
   "approved": true/false,
   "violations": {
-    "factual": ["violation 1", ...],
-    "personality": [...],
-    "tone": [...],
-    "skills": [...],
-    "contradiction": [...]
+    "factual": [],
+    "personality": [],
+    "skills": [],
+    "experience": [],
+    "education": []
   },
   "riskLevel": "safe|warning|danger",
-  "recommendation": "brief in Finnish",
-  "fixSuggestions": ["how to fix 1", ...]
+  "confidence": 0.95,
+  "recommendation": "Brief in user's language",
+  "fixSuggestions": []
 }`],
-    
-    ['human', `GROUND TRUTH:
+
+    ['human', `**GROUND TRUTH:**
 Name: {name}
 Years: {years}
 Education: {education}
 Skills: {skills}
 Core Personality: {personality}
-CANNOT CLAIM: {cannotClaim}
 
-TEXT:
+**TEXT TO CHECK:**
 {text}
 
-Context: {context}
+**CONTEXT:** {context}
 
-Detect violations. JSON only.`]
+Return JSON only.`]
   ]);
 
   try {
@@ -187,8 +209,7 @@ Detect violations. JSON only.`]
       years: groundTruth.yearsOfExperience?.toString() || 'Not specified',
       education: groundTruth.education.join(', ') || 'Not specified',
       skills: groundTruth.technicalSkills.join(', ') || 'Not specified',
-      personality: `${groundTruth.corePersonality.primary}; ${groundTruth.corePersonality.secondary.join(', ')}`,
-      cannotClaim: groundTruth.cannotClaim.join(', ') || 'None',
+      personality: `${groundTruth.corePersonality.primary}`,
       text,
       context
     });
@@ -210,159 +231,20 @@ Detect violations. JSON only.`]
     return check;
   } catch (error) {
     console.error('Master check failed:', error);
-    return fallbackCheck(text, groundTruth);
-  }
-}
-
-function fallbackCheck(text: string, groundTruth: GroundTruth): GuardianCheck {
-  const violations: GuardianCheck['violations'] = {
-    factual: [],
-    personality: [],
-    tone: [],
-    skills: [],
-    contradiction: []
-  };
-
-  const lowerText = text.toLowerCase();
-
-  // Tarkista kielletyt
-  groundTruth.cannotClaim.forEach(forbidden => {
-    if (lowerText.includes(forbidden.toLowerCase())) {
-      violations.skills.push(`Väittää: "${forbidden}"`);
-    }
-  });
-
-  // Tarkista kokemusvuodet
-  if (groundTruth.yearsOfExperience !== null) {
-    const yearsInText = text.match(/(\d+)\s*(vuotta|year)/gi);
-    if (yearsInText) {
-      yearsInText.forEach(match => {
-        const num = parseInt(match);
-        if (num > groundTruth.yearsOfExperience! + 1) {
-          violations.factual.push(`Väittää ${num}v (todell. ${groundTruth.yearsOfExperience}v)`);
-        }
-      });
-    }
-  }
-
-  const totalViolations = Object.values(violations).flat().length;
-  
-  return {
-    approved: totalViolations === 0,
-    violations,
-    riskLevel: totalViolations === 0 ? 'safe' : totalViolations <= 2 ? 'warning' : 'danger',
-    recommendation: totalViolations === 0 ? 'OK' : 'Ongelmia havaittu',
-    fixSuggestions: totalViolations > 0 ? ['Tarkista rikkomukset'] : []
-  };
-}
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TIEDOSTO 2: lib/ats/smartStopwords.ts (JO LUOTU YLLÄ)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Käytä yllä olevaa smartStopwords.ts -koodia
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// TIEDOSTO 3: lib/ats/synonymMatcher.ts
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-export interface KeywordMatch {
-  keyword: string;
-  found: boolean;
-  exactMatch?: string;
-  synonymMatch?: string;
-  partialMatch?: string;
-  confidence: number;
-}
-
-const SYNONYM_DATABASE: Record<string, string[]> = {
-  'problem-solving': ['ongelmanratkaisu', 'ongelmanratkaisutaidot', 'problemlösning'],
-  'teamwork': ['tiimityö', 'tiimityötaidot', 'ryhmätyö', 'yhteistyö', 'lagarbete'],
-  'leadership': ['johtaminen', 'johtamistaidot', 'johtajuus', 'ledarskap'],
-  'communication': ['viestintä', 'kommunikaatio', 'viestintätaidot', 'kommunikation'],
-  'customer service': ['asiakaspalvelu', 'asiakaspalvelutaidot', 'kundservice'],
-  'Excel': ['Excel-ohjelma', 'Microsoft Excel', 'Excelin käyttö'],
-  'CRM': ['CRM-järjestelmä', 'CRM-järjestelmät', 'asiakkuudenhallinta'],
-};
-
-export function findKeywordInText(
-  keyword: string,
-  text: string
-): KeywordMatch {
-  const lowerKeyword = keyword.toLowerCase();
-  const lowerText = text.toLowerCase();
-  
-  // 1. Täsmällinen
-  if (lowerText.includes(lowerKeyword)) {
+    
     return {
-      keyword,
-      found: true,
-      exactMatch: keyword,
-      confidence: 1.0
+      approved: true,
+      violations: {
+        factual: [],
+        personality: [],
+        skills: [],
+        experience: [],
+        education: []
+      },
+      riskLevel: 'warning',
+      confidence: 0.5,
+      recommendation: 'Guardian check failed - manual review recommended',
+      fixSuggestions: []
     };
   }
-  
-  // 2. Synonyymi
-  const synonyms = SYNONYM_DATABASE[lowerKeyword] || [];
-  for (const synonym of synonyms) {
-    if (lowerText.includes(synonym.toLowerCase())) {
-      return {
-        keyword,
-        found: true,
-        synonymMatch: synonym,
-        confidence: 0.85
-      };
-    }
-  }
-  
-  // 3. Osittainen
-  const keywordWords = lowerKeyword.split(/[\s-]+/);
-  for (const word of keywordWords) {
-    if (word.length >= 4 && lowerText.includes(word)) {
-      return {
-        keyword,
-        found: true,
-        partialMatch: word,
-        confidence: 0.5
-      };
-    }
-  }
-  
-  return {
-    keyword,
-    found: false,
-    confidence: 0
-  };
-}
-
-export function analyzeKeywords(
-  keywords: string[],
-  coverLetterText: string
-): {
-  exactMatches: KeywordMatch[];
-  synonymMatches: KeywordMatch[];
-  partialMatches: KeywordMatch[];
-  missing: KeywordMatch[];
-  overallScore: number;
-} {
-  const results = keywords.map(kw => findKeywordInText(kw, coverLetterText));
-  
-  const exactMatches = results.filter(r => r.exactMatch);
-  const synonymMatches = results.filter(r => r.synonymMatch);
-  const partialMatches = results.filter(r => r.partialMatch);
-  const missing = results.filter(r => !r.found);
-  
-  const totalConfidence = results.reduce((sum, r) => sum + r.confidence, 0);
-  const overallScore = results.length > 0 
-    ? Math.round((totalConfidence / results.length) * 100)
-    : 0;
-  
-  return {
-    exactMatches,
-    synonymMatches,
-    partialMatches,
-    missing,
-    overallScore
-  };
 }

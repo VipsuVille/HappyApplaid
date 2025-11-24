@@ -115,7 +115,7 @@ const SimplifiedProfilePage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [profileData, setProfileData] = useState<ProfileData>({
+ const [profileData, setProfileData] = useState<ProfileData>({
     name: "",
     email: "",
     phone: "",
@@ -134,8 +134,12 @@ const SimplifiedProfilePage: React.FC = () => {
     superpower: "",
     languages: [],
     skills: "",
+    
+    // ✅ LISÄÄ NÄMÄ UUDET KENTÄT (puuttuivat!)
+    careerGoals: "",
+    bestProjectExample: "",
+    failureLesson: "",
   });
-
   const steps: StepData[] = [
     {
       id: "essential",
@@ -352,226 +356,306 @@ const SimplifiedProfilePage: React.FC = () => {
 
   // RENDER FUNCTIONS
   const renderEssentials = () => {
-    const progress = getEssentialProgress();
+  const progress = getEssentialProgress();
 
-    return (
-      <div className="space-y-8">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            Persoonallisuutesi - Simple CV:n ydin
-          </h2>
-          <p className="text-gray-600 mb-4">
-            <span className="text-green-600 font-medium">
-              Ei vaadi työkokemusta!
-            </span>{" "}
-            Vastaa omien kokemustesi pohjalta.
-          </p>
+  return (
+    <div className="space-y-8">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+          Persoonallisuutesi - Simple CV:n ydin
+        </h2>
+        <p className="text-gray-600 mb-4">
+          <span className="text-green-600 font-medium">
+            Ei vaadi työkokemusta!
+          </span>{" "}
+          Vastaa omien kokemustesi pohjalta.
+        </p>
 
-          <div className="bg-gray-100 rounded-full p-1 max-w-md mx-auto">
-            <div className="flex justify-between text-sm mb-2">
-              <span>Simple CV valmius</span>
-              <span className="font-medium">
-                {progress.completed}/{progress.total}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div
-                className="bg-green-500 h-3 rounded-full transition-all"
-                style={{ width: `${progress.percentage}%` }}
-              />
-            </div>
-            {progress.completed === progress.total && (
-              <div className="flex items-center justify-center mt-2 text-green-600">
-                <CheckCircle className="w-4 h-4 mr-1" />
-                <span className="text-sm font-medium">
-                  Valmis Simple CV:hen!
-                </span>
-              </div>
-            )}
+        <div className="bg-gray-100 rounded-full p-1 max-w-md mx-auto">
+          <div className="flex justify-between text-sm mb-2">
+            <span>Simple CV valmius</span>
+            <span className="font-medium">
+              {progress.completed}/{progress.total}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div
+              className="bg-green-500 h-3 rounded-full transition-all"
+              style={{ width: `${progress.percentage}%` }}
+            />
           </div>
         </div>
-
-        <div className="space-y-6">
-          <QuestionCard
-            title="Miten tykkäät työskennellä?"
-            isRequired={true}
-            isCompleted={profileData.workingStyle.length >= 50}
-            charCount={profileData.workingStyle.length}
-            minChars={50}
-            helpText="Kerro työskentelytapasi ja olosuhteet"
-          >
-            <textarea
-              value={profileData.workingStyle}
-              onChange={(e) =>
-                handleInputChange("workingStyle", e.target.value)
-              }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-              rows={3}
-              placeholder="Esim: 'Tykkään selvistä ohjeista ja rauhallisesta ympäristöstä...'"
-            />
-            <ExampleHint
-              examples={[
-                "Olen järjestelmällinen, pidän aikatauluista",
-                "Tykkään tiimityöstä ja ideointipalaverista",
-                "Työskentelen parhaiten rauhassa keskittyen",
-              ]}
-            />
-          </QuestionCard>
-
-          <QuestionCard
-            title="Anna esimerkki kun ratkaisit haastavan tilanteen"
-            isRequired={true}
-            isCompleted={profileData.problemSolving.length >= 80}
-            charCount={profileData.problemSolving.length}
-            minChars={80}
-            helpText="Voi olla koulusta, harrastuksista tai vapaa-ajalta"
-          >
-            <textarea
-              value={profileData.problemSolving}
-              onChange={(e) =>
-                handleInputChange("problemSolving", e.target.value)
-              }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-              rows={4}
-              placeholder="Kerro tilanne, mitä teit, lopputulos..."
-            />
-            <ExampleHint
-              examples={[
-                "Ryhmätyön konflikti → listasimme tehtävät",
-                "Tekninen ongelma → googlailin ja kysyin apua",
-                "Autoin ystävää kuuntelemalla ja ehdottamalla",
-              ]}
-            />
-          </QuestionCard>
-
-          <QuestionCard
-            title="Mistä saat energiaa ja motivaatiota?"
-            isRequired={true}
-            isCompleted={profileData.energySources.length >= 40}
-            charCount={profileData.energySources.length}
-            minChars={40}
-            helpText="Mikä saa sinut innostumaan?"
-          >
-            <textarea
-              value={profileData.energySources}
-              onChange={(e) =>
-                handleInputChange("energySources", e.target.value)
-              }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-              rows={3}
-              placeholder="Esim: 'Saan energiaa auttamisesta ja oppimisesta...'"
-            />
-            <ExampleHint
-              examples={[
-                "Ihmisten auttaminen",
-                "Ongelmanratkaisu",
-                "Uuden oppiminen",
-              ]}
-            />
-          </QuestionCard>
-
-          <QuestionCard
-            title="Mikä tekee sinusta erityisen?"
-            isRequired={true}
-            isCompleted={profileData.uniqueStrength.length >= 60}
-            charCount={profileData.uniqueStrength.length}
-            minChars={60}
-            helpText="Mitä ihmiset pyytävät juuri sinulta?"
-          >
-            <textarea
-              value={profileData.uniqueStrength}
-              onChange={(e) =>
-                handleInputChange("uniqueStrength", e.target.value)
-              }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-              rows={3}
-              placeholder="Esim: 'Olen hyvä selittämään asioita yksinkertaisesti...'"
-            />
-            <ExampleHint
-              examples={[
-                "Hyvä kuuntelija, rauhoitan tilanteita",
-                "Huomaan yksityiskohdat ja virheet",
-                "Motivoin ryhmän yhteen",
-              ]}
-            />
-          </QuestionCard>
-
-          <QuestionCard
-            title="Miten opit parhaiten?"
-            isRequired={true}
-            isCompleted={profileData.learningStyle.length >= 40}
-            charCount={profileData.learningStyle.length}
-            minChars={40}
-            helpText="Sopeutumiskykysi todistus"
-          >
-            <textarea
-              value={profileData.learningStyle}
-              onChange={(e) =>
-                handleInputChange("learningStyle", e.target.value)
-              }
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-              rows={3}
-              placeholder="Esim: 'Opin tekemällä ja kokeilemalla...'"
-            />
-            <ExampleHint
-              examples={[
-                "Tekemällä käytännössä",
-                "Videoista ja ohjeista",
-                "Kysymällä ja keskustelemalla",
-              ]}
-            />
-          </QuestionCard>
-
-          <QuestionCard
-            title="Millainen rooli sinulla on ryhmässä?"
-            isRequired={true}
-            isCompleted={profileData.teamRole.length >= 40}
-            charCount={profileData.teamRole.length}
-            minChars={40}
-            helpText="Johtaja, tukija vai ideankeksijä?"
-          >
-            <textarea
-              value={profileData.teamRole}
-              onChange={(e) => handleInputChange("teamRole", e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-              rows={3}
-              placeholder="Esim: 'Huolehdin että hommat tulee tehtyä...'"
-            />
-            <ExampleHint
-              examples={[
-                "Organisoin ja pidän aikataulut",
-                "Keksin ideoita ja inspiroin",
-                "Kuuntelen ja tuen",
-              ]}
-            />
-          </QuestionCard>
-
-          <QuestionCard
-            title="Kuvaa itsesi kolmella sanalla"
-            isRequired={true}
-            isCompleted={profileData.superpower.length >= 10}
-            charCount={profileData.superpower.length}
-            minChars={10}
-            helpText="Valitse sanat jotka todella kuvaavat sinua"
-          >
-            <input
-              type="text"
-              value={profileData.superpower}
-              onChange={(e) => handleInputChange("superpower", e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-              placeholder="Esim: Luotettava, Oppimishaluinen, Huolellinen"
-            />
-            <ExampleHint
-              examples={[
-                "Luotettava, Innostunut, Järjestelmällinen",
-                "Kärsivällinen, Tarkka, Yhteistyökykyinen",
-              ]}
-            />
-          </QuestionCard>
-        </div>
       </div>
-    );
-  };
+
+      <div className="space-y-6">
+        {/* 1. MITEN TYÖSKENTELET */}
+        <QuestionCard
+          title="Miten tykkäät työskennellä?"
+          isRequired={true}
+          isCompleted={profileData.workingStyle.length >= 50}
+          charCount={profileData.workingStyle.length}
+          minChars={50}
+          helpText="Kerro työskentelytapasi ja olosuhteet"
+        >
+          <textarea
+            value={profileData.workingStyle}
+            onChange={(e) =>
+              handleInputChange("workingStyle", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={3}
+            placeholder="Esim: 'Tykkään selvistä ohjeista ja rauhallisesta ympäristöstä...'"
+          />
+          <ExampleHint
+            examples={[
+              "Olen järjestelmällinen, pidän aikatauluista",
+              "Tykkään tiimityöstä ja ideointipalaverista",
+              "Työskentelen parhaiten rauhassa keskittyen",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 2. ✅ UUSI: MILLAISISSA TILANTEISSA OLLUT PARHAIMMILLAAN */}
+        <QuestionCard
+          title="Millaisissa tilanteissa olet ollut parhaimmillaan?"
+          isRequired={true}
+          isCompleted={profileData.bestProjectExample.length >= 60}
+          charCount={profileData.bestProjectExample.length}
+          minChars={60}
+          helpText="Kuvaa projekti, tehtävä tai tilanne jossa menestyit"
+        >
+          <textarea
+            value={profileData.bestProjectExample}
+            onChange={(e) =>
+              handleInputChange("bestProjectExample", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={4}
+            placeholder="Esim: 'Rakensimme uuden prosessin ja minulla oli päärooli...', 'Johdin projektin joka vaati koordinointia', 'Olin vastuussa asiakassuhteesta joka kasvoi 20%...'"
+          />
+          <ExampleHint
+            examples={[
+              "Rakensin sovelluksen varastoon - se säästää 5h/viikko",
+              "Organisoin tapahtuman 200 hengelle onnistuneesti",
+              "Mentoroin uutta työntekijää - nyt menestyy hyvin",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 3. ✅ UUSI: SUURIN HAASTE JA MITÄ OPIT */}
+        <QuestionCard
+          title="Kerro suurimmasta haasteesta ja mitä siitä opit"
+          isRequired={true}
+          isCompleted={profileData.failureLesson.length >= 70}
+          charCount={profileData.failureLesson.length}
+          minChars={70}
+          helpText="Growth mindset! Näytä että kehityt virheistä"
+        >
+          <textarea
+            value={profileData.failureLesson}
+            onChange={(e) =>
+              handleInputChange("failureLesson", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={4}
+            placeholder="Esim: 'Projektissa kului budjetti, opin aikataulutuksesta...'"
+          />
+          <ExampleHint
+            examples={[
+              "Ensimmäinen asiakaspalvelu ei menny hyvin - opin kuuntelemaan",
+              "Koodi hajosi tuotannossa - nyt teen testejä paremmin",
+              "Ryhmätyössa oli konflikteja - opin kommunikaatiosta",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 4. ONGELMANRATKAISU */}
+        <QuestionCard
+          title="Anna esimerkki kun ratkaisit haastavan tilanteen"
+          isRequired={true}
+          isCompleted={profileData.problemSolving.length >= 80}
+          charCount={profileData.problemSolving.length}
+          minChars={80}
+          helpText="Voi olla koulusta, harrastuksista tai vapaa-ajalta"
+        >
+          <textarea
+            value={profileData.problemSolving}
+            onChange={(e) =>
+              handleInputChange("problemSolving", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={4}
+            placeholder="Kerro tilanne, mitä teit, lopputulos..."
+          />
+          <ExampleHint
+            examples={[
+              "Ryhmätyön konflikti → listasimme tehtävät",
+              "Tekninen ongelma → googlailin ja kysyin apua",
+              "Autoin ystävää kuuntelemalla ja ehdottamalla",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 5. ENERGIANLÄHTEET */}
+        <QuestionCard
+          title="Mistä saat energiaa ja motivaatiota?"
+          isRequired={true}
+          isCompleted={profileData.energySources.length >= 40}
+          charCount={profileData.energySources.length}
+          minChars={40}
+          helpText="Mikä saa sinut innostumaan?"
+        >
+          <textarea
+            value={profileData.energySources}
+            onChange={(e) =>
+              handleInputChange("energySources", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={3}
+            placeholder="Esim: 'Saan energiaa auttamisesta ja oppimisesta...'"
+          />
+          <ExampleHint
+            examples={[
+              "Ihmisten auttaminen",
+              "Ongelmanratkaisu ja kokeilu",
+              "Uuden oppiminen ja haasteet",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 6. AINUTLAATUINEN VAHVUUS */}
+        <QuestionCard
+          title="Mikä tekee sinusta erityisen?"
+          isRequired={true}
+          isCompleted={profileData.uniqueStrength.length >= 60}
+          charCount={profileData.uniqueStrength.length}
+          minChars={60}
+          helpText="Mitä ihmiset pyytävät juuri sinulta?"
+        >
+          <textarea
+            value={profileData.uniqueStrength}
+            onChange={(e) =>
+              handleInputChange("uniqueStrength", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={3}
+            placeholder="Esim: 'Olen hyvä selittämään asioita yksinkertaisesti...'"
+          />
+          <ExampleHint
+            examples={[
+              "Hyvä kuuntelija, rauhoitan tilanteita",
+              "Huomaan yksityiskohdat ja virheet",
+              "Motivoin ryhmän yhteen",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 7. OPPIMISTYYLI */}
+        <QuestionCard
+          title="Miten opit parhaiten?"
+          isRequired={true}
+          isCompleted={profileData.learningStyle.length >= 40}
+          charCount={profileData.learningStyle.length}
+          minChars={40}
+          helpText="Sopeutumiskykysi todistus"
+        >
+          <textarea
+            value={profileData.learningStyle}
+            onChange={(e) =>
+              handleInputChange("learningStyle", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={3}
+            placeholder="Esim: 'Opin tekemällä ja kokeilemalla...'"
+          />
+          <ExampleHint
+            examples={[
+              "Tekemällä käytännössä",
+              "Videoista ja ohjeista",
+              "Kysymällä ja keskustelemalla",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 8. TIIMIROOLI */}
+        <QuestionCard
+          title="Millainen rooli sinulla on ryhmässä?"
+          isRequired={true}
+          isCompleted={profileData.teamRole.length >= 40}
+          charCount={profileData.teamRole.length}
+          minChars={40}
+          helpText="Johtaja, tukija vai ideankeksijä?"
+        >
+          <textarea
+            value={profileData.teamRole}
+            onChange={(e) => handleInputChange("teamRole", e.target.value)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
+            rows={3}
+            placeholder="Esim: 'Huolehdin että hommat tulee tehtyä...'"
+          />
+          <ExampleHint
+            examples={[
+              "Organisoin ja pidän aikataulut",
+              "Keksin ideoita ja inspiroin",
+              "Kuuntelen ja tuen",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 9. ✅ UUSI: URATAVOITTEET */}
+        <QuestionCard
+          title="Mitä haluat saavuttaa uralla seuraavassa 3 vuodessa?"
+          isRequired={false}
+          isCompleted={profileData.careerGoals.length >= 40}
+          charCount={profileData.careerGoals.length}
+          minChars={40}
+          helpText="Motivaatiosi ja suuntasi näkökulmasta"
+        >
+          <textarea
+            value={profileData.careerGoals}
+            onChange={(e) =>
+              handleInputChange("careerGoals", e.target.value)
+            }
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+            rows={3}
+            placeholder="Esim: 'Haluan oppia projektinhallintaa ja johtaa omaa timiä...'"
+          />
+          <ExampleHint
+            examples={[
+              "Haluan oppia [tekniikka] ja erikoistua siihen",
+              "Kasvaa johtajiksi ja johtaa timiä",
+              "Perustaa oman yrityksen [alalla]",
+            ]}
+          />
+        </QuestionCard>
+
+        {/* 10. SUPERPOWER */}
+        <QuestionCard
+          title="Kuvaa itsesi kolmella sanalla"
+          isRequired={true}
+          isCompleted={profileData.superpower.length >= 10}
+          charCount={profileData.superpower.length}
+          minChars={10}
+          helpText="Valitse sanat jotka todella kuvaavat sinua"
+        >
+          <input
+            type="text"
+            value={profileData.superpower}
+            onChange={(e) => handleInputChange("superpower", e.target.value)}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+            placeholder="Esim: Luotettava, Oppimishaluinen, Järjestelmällinen"
+          />
+          <ExampleHint
+            examples={[
+              "Luotettava, Innostunut, Järjestelmällinen",
+              "Kärsivällinen, Tarkka, Yhteistyökykyinen",
+            ]}
+          />
+        </QuestionCard>
+      </div>
+    </div>
+  );
+};
 
   const renderBasicInfo = () => (
     <div className="space-y-6">

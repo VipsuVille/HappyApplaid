@@ -49,12 +49,16 @@ export interface DBProfileData {
   values_example: string | null;
   superpower: string | null;
   
+  career_goals: string | null;
+  best_project_example: string | null;
+  failure_lesson: string | null;
+  
   created_at?: string;
   updated_at?: string;
 }
 
 /**
- * ✅ KORJATTU: Muunna UI:n PROFILEDATA TIETOKANTAMUOTOON
+ * ✅ UI → DATABASE
  */
 export function transformUIToDB(
   uiProfile: ProfileData,
@@ -69,7 +73,6 @@ export function transformUIToDB(
     job_title: uiProfile.jobTitle || null,
     profile_image: uiProfile.profileImage || null,
     
-    // Persoonallisuuskysymykset
     working_style: uiProfile.workingStyle || null,
     problem_solving: uiProfile.problemSolving || null,
     energy_sources: uiProfile.energySources || null,
@@ -79,12 +82,14 @@ export function transformUIToDB(
     values_example: uiProfile.valuesExample || null,
     superpower: uiProfile.superpower || null,
     
-    // Arrays - tallennetaan JSONB:nä suoraan
+    career_goals: uiProfile.careerGoals || null,
+    best_project_example: uiProfile.bestProjectExample || null,
+    failure_lesson: uiProfile.failureLesson || null,
+    
     education: uiProfile.education || [],
     work_experience: uiProfile.workExperience || [],
     languages: uiProfile.languages || [],
     
-    // Tekstikentät
     skills: uiProfile.skills || null,
     
     language: "Suomi",
@@ -92,7 +97,7 @@ export function transformUIToDB(
 }
 
 /**
- * MUUNNA TIETOKANNASTA LANGCHAIN-MUOTOON
+ * ✅ DATABASE → LANGCHAIN
  */
 export function transformDBToLangChain(
   dbProfile: DBProfileData,
@@ -119,7 +124,7 @@ export function transformDBToLangChain(
           }
           
           if (isOngoing && startDate) {
-            formatted += ` (${startDate} - Kesken)`;
+            formatted += ` (${startDate} - Ongoing)`;
           } else if (startDate && endDate) {
             formatted += ` (${startDate} - ${endDate})`;
           } else if (startDate) {
@@ -161,7 +166,7 @@ export function transformDBToLangChain(
           } else if (startDate && endDate) {
             formatted += ` (${startDate} - ${endDate})`;
           } else if (startDate) {
-            formatted += ` (${startDate} - Nykyinen)`;
+            formatted += ` (${startDate} - Current)`;
           }
           
           if (description) {
@@ -169,7 +174,7 @@ export function transformDBToLangChain(
           }
           
           if (achievements) {
-            formatted += `\nSaavutukset: ${achievements}`;
+            formatted += `\nAchievements: ${achievements}`;
           }
           
           return formatted;
@@ -182,14 +187,14 @@ export function transformDBToLangChain(
         .filter(lang => lang.language)
         .map(lang => {
           const language = lang.language || "";
-          const level = lang.level || "Hyvä";
+          const level = lang.level || "Good";
           const speaking = lang.speaking || "";
           const writing = lang.writing || "";
           
           let formatted = `${language}: ${level}`;
           
           if (speaking && writing && speaking !== level) {
-            formatted += ` (Puhuminen: ${speaking}, Kirjoittaminen: ${writing})`;
+            formatted += ` (Speaking: ${speaking}, Writing: ${writing})`;
           }
           
           return formatted;
@@ -228,8 +233,12 @@ export function transformDBToLangChain(
     valuesExample: dbProfile.values_example || "",
     superpower: dbProfile.superpower || "",
     
+    careerGoals: dbProfile.career_goals || "",
+    bestProjectExample: dbProfile.best_project_example || "",
+    failureLesson: dbProfile.failure_lesson || "",
+    
     personalityTraits: dbProfile.superpower 
-      ? `${dbProfile.superpower}${dbProfile.working_style ? `; Työtyyli: ${dbProfile.working_style}` : ""}`
+      ? `${dbProfile.superpower}${dbProfile.working_style ? `; ${dbProfile.working_style}` : ""}`
       : "",
     
     hobbies: dbProfile.hobbies || "",
@@ -252,10 +261,13 @@ export type LangChainCVInput = UserFormData & {
   cvId: string;
   cvType: "simple" | "technical" | "creative";
   language: string;
+  careerGoals?: string;
+  bestProjectExample?: string;
+  failureLesson?: string;
 };
 
 /**
- * ✅ KORJATTU: CV-tyypin mukainen validointi
+ * ✅ CV-TYYPIN VALIDOINTI
  */
 export function validateProfileForCVType(
   langchainInput: LangChainCVInput,
@@ -270,53 +282,40 @@ export function validateProfileForCVType(
   const suggestions: string[] = [];
   let score = 0;
 
-  // ✅ PAKOLLISET KAIKILLE CV-TYYPEILLE
   if (!langchainInput.name || langchainInput.name.length < 2) {
-    missing.push("Nimi");
-    suggestions.push("Lisää koko nimesi");
+    missing.push("Name");
+    suggestions.push("Add your full name");
   } else {
     score += 10;
   }
   
   if (!langchainInput.email || !langchainInput.email.includes("@")) {
-    missing.push("Sähköposti");
-    suggestions.push("Lisää toimiva sähköpostiosoite");
+    missing.push("Email");
+    suggestions.push("Add valid email address");
   } else {
     score += 10;
   }
 
-  // ✅ CV-TYYPIN MUKAISET VAATIMUKSET
-
   if (cvType === "simple") {
-    // 🟢 SIMPLE CV: Persoonallisuus on TÄRKEIN, työkokemus vapaaehtoinen
-    
-    console.log("🔍 Validating SIMPLE CV:", {
-      hasWorkingStyle: !!langchainInput.workingStyle,
-      workingStyleLength: langchainInput.workingStyle?.length || 0,
-      hasProblemSolving: !!langchainInput.problemSolving,
-      problemSolvingLength: langchainInput.problemSolving?.length || 0,
-    });
-
     const personalityFields = [
-      { field: langchainInput.workingStyle, name: "Työtyyli", min: 50, points: 12 },
-      { field: langchainInput.problemSolving, name: "Ongelmanratkaisu", min: 80, points: 15 },
-      { field: langchainInput.energySources, name: "Energianlähteet", min: 40, points: 10 },
-      { field: langchainInput.uniqueStrength, name: "Ainutlaatuinen vahvuus", min: 60, points: 13 },
-      { field: langchainInput.learningStyle, name: "Oppimistyyli", min: 40, points: 10 },
-      { field: langchainInput.teamRole, name: "Tiimirooli", min: 40, points: 10 },
-      { field: langchainInput.superpower, name: "Ammatti-identiteetti", min: 10, points: 10 },
+      { field: langchainInput.workingStyle, name: "Working Style", min: 50, points: 12 },
+      { field: langchainInput.problemSolving, name: "Problem Solving", min: 80, points: 15 },
+      { field: langchainInput.energySources, name: "Energy Sources", min: 40, points: 10 },
+      { field: langchainInput.uniqueStrength, name: "Unique Strength", min: 60, points: 13 },
+      { field: langchainInput.learningStyle, name: "Learning Style", min: 40, points: 10 },
+      { field: langchainInput.teamRole, name: "Team Role", min: 40, points: 10 },
+      { field: langchainInput.superpower, name: "Professional Identity", min: 10, points: 10 },
     ];
 
     personalityFields.forEach(({ field, name, min, points }) => {
       if (!field || field.length < min) {
-        missing.push(`${name} (${field?.length || 0}/${min} merkkiä)`);
-        suggestions.push(`Täydennä ${name} persoonallisuuskysymys (vähintään ${min} merkkiä)`);
+        missing.push(`${name} (${field?.length || 0}/${min} chars)`);
+        suggestions.push(`Complete ${name} (min ${min} chars)`);
       } else {
         score += points;
       }
     });
 
-    // BONUKSET (vapaaehtoiset Simple CV:lle)
     if (langchainInput.education && langchainInput.education.length > 20) {
       score += 5;
     }
@@ -324,63 +323,41 @@ export function validateProfileForCVType(
     if (langchainInput.workExperience && langchainInput.workExperience.length > 50) {
       score += 5;
     }
-
-    console.log(`✅ Simple CV validation score: ${score}/100, Missing: ${missing.length}`);
   }
 
   if (cvType === "technical" || cvType === "creative") {
-    // 🔵 TECHNICAL/CREATIVE CV: Työkokemus, koulutus, taidot PAKOLLISIA
-    
-    console.log("🔍 Validating TECHNICAL/CREATIVE CV:", {
-      hasWorkExperience: !!langchainInput.workExperience,
-      workExperienceLength: langchainInput.workExperience?.length || 0,
-      hasEducation: !!langchainInput.education,
-      educationLength: langchainInput.education?.length || 0,
-      hasSkills: !!langchainInput.skills,
-      skillsLength: langchainInput.skills?.length || 0,
-    });
-
-    // TYÖKOKEMUS (pakollinen)
     if (!langchainInput.workExperience || langchainInput.workExperience.length < 100) {
-      missing.push(`Työkokemus (${langchainInput.workExperience?.length || 0}/100 merkkiä)`);
-      suggestions.push(
-        `${cvType === "technical" ? "Technical" : "Creative"} CV vaatii vähintään yhden työkokemuksen kuvauksineen (100+ merkkiä yhteensä)`
-      );
+      missing.push(`Work Experience (${langchainInput.workExperience?.length || 0}/100 chars)`);
+      suggestions.push("Add at least one work experience with description (100+ chars total)");
     } else {
-      score += 30; // Tärkeä
+      score += 30;
     }
 
-    // KOULUTUS (pakollinen)
     if (!langchainInput.education || langchainInput.education.length < 20) {
-      missing.push(`Koulutus (${langchainInput.education?.length || 0}/20 merkkiä)`);
-      suggestions.push("Lisää vähintään yksi koulutus (esim. lukio, ammattikoulu, korkeakoulu)");
+      missing.push(`Education (${langchainInput.education?.length || 0}/20 chars)`);
+      suggestions.push("Add at least one education entry");
     } else {
       score += 20;
     }
 
-    // TAIDOT (pakollinen)
     if (!langchainInput.skills || langchainInput.skills.length < 50) {
-      missing.push(`Osaaminen (${langchainInput.skills?.length || 0}/50 merkkiä)`);
-      suggestions.push("Listaa vähintään 5-10 taitoa (esim. Excel, PowerPoint, asiakaspalvelu, projektinhallinta, Photoshop...)");
+      missing.push(`Skills (${langchainInput.skills?.length || 0}/50 chars)`);
+      suggestions.push("List at least 5-10 skills");
     } else {
       score += 20;
     }
 
-    // KIELET (suositeltava)
     if (!langchainInput.languages || langchainInput.languages.length < 10) {
-      suggestions.push("Lisää kielitaito (suositeltava Professional CV:lle)");
+      suggestions.push("Add language skills (recommended for Professional CV)");
     } else {
-      score += 5; // Bonus
+      score += 5;
     }
 
-    // PERSOONALLISUUS (vapaaehtoinen mutta antaa bonusta)
     if (langchainInput.workingStyle && langchainInput.uniqueStrength) {
-      score += 10; // Bonus
+      score += 10;
     } else {
-      suggestions.push("Täytä myös persoonallisuuskysymykset - ne erottavat sinut muista (vapaaehtoinen)");
+      suggestions.push("Complete personality questions for better differentiation (optional)");
     }
-
-    console.log(`✅ Technical/Creative CV validation score: ${score}/100, Missing: ${missing.length}`);
   }
 
   const isValid = missing.length === 0;

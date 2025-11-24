@@ -1,4 +1,4 @@
-// types/index.ts
+// types/index.ts - TÄYDELLINEN VERSIO
 
 export enum StatusText {
   UPLOADING = "Valmistellaan tietoja...",
@@ -40,52 +40,54 @@ export interface LanguageItem {
   level: string;
 }
 
-// ProfileData interface - päivitetty vastaamaan profiilisivun kysymyksiä
+// ProfileData interface - TÄYDELLINEN
 export interface ProfileData {
   // Perustiedot
   name: string;
   email: string;
   phone: string;
   location: string;
-  jobTitle: string; // "Tavoitteet työstä" profiilisivulla
-  profileImage?: string;  // ← VARMISTA ETTÄ TÄMÄ ON OLEMASSA!
+  jobTitle: string;
+  profileImage?: string;
 
-  // Koulutus ja kokemus (säilytetään array-muodossa)
+  // Koulutus ja kokemus
   education: EducationItem[];
   workExperience: WorkExperienceItem[];
 
-  // Syvällisemmät persoonallisuuskysymykset (muokattu ensimmäistä työpaikkaa hakeville)
-  workingStyle: string; // "Miten kuvailisit omaa tapaasi työskennellä?"
-  problemSolving: string; // "Anna esimerkki haastavasta tilanteesta ja miten ratkaisit sen (voi olla koulu, harrastus, vapaa-aika...)"
-  energySources: string; // "Mistä työtehtävistä saat eniten energiaa?"
-  uniqueStrength: string; // "Mikä on sellainen asia, jota ihmiset tulevat pyytämään juuri sinulta apua?"
-  learningStyle: string; // "Miten opit parhaiten uusia asioita?"
-  teamRole: string; // "Millainen rooli sinulla on yleensä ryhmässä?"
-  valuesExample: string; // "Anna esimerkki tilanteesta, jossa toimit arvojesi mukaisesti (vapaaehtoinen)"
-  superpower: string; // "Jos kuvailisit itseäsi kolmella sanalla työntekijänä, mitä ne olisivat?"
+  // Story-pohjaiset kentät (universaalit)
+  careerGoals: string;
+  bestProjectExample: string;
+  failureLesson: string;
+
+  // Persoonallisuuskysymykset (universaalit)
+  workingStyle: string;
+  problemSolving: string;
+  energySources: string;
+  uniqueStrength: string;
+  learningStyle: string;
+  teamRole: string;
+  valuesExample: string;
+  superpower: string;
 
   // Taidot ja kielet
   languages: LanguageItem[];
   skills: string;
 }
 
-// Apufunktio: muuntaa ProfileData -> stringit API:tä varten
+// Apufunktio: muuntaa ProfileData -> API-muotoon
 export const convertProfileToApiFormat = (profileData: ProfileData) => {
   return {
-    // Perustiedot
     name: profileData.name,
     email: profileData.email,
     phone: profileData.phone,
     location: profileData.location,
     jobTitle: profileData.jobTitle,
 
-    // Muunna arrayt stringeiksi
     education: formatEducationForApi(profileData.education),
     workExperience: formatWorkExperienceForApi(profileData.workExperience),
     languages: formatLanguagesForApi(profileData.languages),
     skills: profileData.skills,
 
-    // Persoonallisuustiedot (nämä voidaan käyttää sekä CV:ssä että hakukirjeessä)
     workingStyle: profileData.workingStyle,
     problemSolving: profileData.problemSolving,
     energySources: profileData.energySources,
@@ -95,14 +97,16 @@ export const convertProfileToApiFormat = (profileData: ProfileData) => {
     valuesExample: profileData.valuesExample,
     superpower: profileData.superpower,
 
-    // Vanhat kentät yhteensopivuuden vuoksi
-    personalityTraits: `${profileData.superpower}; Työskentelyn tapa: ${profileData.workingStyle}`,
-    hobbies: "", // Ei kerätä enää erikseen
-    age: "", // Ei kerätä enää
+    careerGoals: profileData.careerGoals,
+    bestProjectExample: profileData.bestProjectExample,
+    failureLesson: profileData.failureLesson,
+
+    personalityTraits: `${profileData.superpower}; ${profileData.workingStyle}`,
+    hobbies: "",
+    age: "",
   };
 };
 
-// Apufunktiot formatointiin
 const formatEducationForApi = (education: EducationItem[]): string => {
   return education
     .filter((edu) => edu.school && edu.degree)
@@ -148,43 +152,38 @@ const formatLanguagesForApi = (languages: LanguageItem[]): string => {
     .join(", ");
 };
 
-// Type for array field names (for type safety in your handlers)
 export type ArrayFieldName = "education" | "workExperience" | "languages";
-
-// Type for the different array item types
 export type ArrayItemType = EducationItem | WorkExperienceItem | LanguageItem;
-
-// Type for individual field names
 export type ProfileFieldName = keyof ProfileData;
 
-// Default items for adding new array items
 export interface DefaultItems {
   education: Omit<EducationItem, "id">;
   workExperience: Omit<WorkExperienceItem, "id">;
   languages: Omit<LanguageItem, "id">;
 }
 
-// Handler function types
 export type HandleInputChangeType = (
   field: ProfileFieldName,
   value: string
 ) => void;
+
 export type HandleArrayItemChangeType = (
   arrayName: ArrayFieldName,
   id: number,
   field: string,
   value: string | boolean
 ) => void;
+
 export type AddArrayItemType = (
   arrayName: ArrayFieldName,
   defaultItem: any
 ) => void;
+
 export type RemoveArrayItemType = (
   arrayName: ArrayFieldName,
   id: number
 ) => void;
 
-// Position types for layout editing (keeping existing ones)
 export interface Position {
   x: number;
   y: number;
@@ -209,7 +208,6 @@ export interface BlueBarItem {
   position: number;
 }
 
-// Cover letter interfaces (keeping existing)
 export interface CoverLetter {
   id?: string;
   user_id: string;
@@ -233,7 +231,6 @@ export interface CoverLetter {
     html?: {
       content: string;
     };
-    // Lisää persoonallisuustiedot AI-dataan
     personality_used?: {
       workingStyle: string;
       uniqueStrength: string;
@@ -262,33 +259,32 @@ export interface CoverLetterResponse {
   created_at: string;
 }
 
-// Updated UserFormData to match the new simplified profile structure
 export interface UserFormData {
-  [key: string]: string | boolean | undefined; // ✅ Lisää boolean
+  [key: string]: string | boolean | undefined;
 
-  // Basic info
   name: string;
   email: string;
   phone: string;
-  age?: string; // Optional now
+  age?: string;
   location: string;
   linkedIn?: string;
   language: string;
 
-  // CV presentation fields
   title?: string;
   introText?: string;
   profileImage?: string;
   backgroundImage?: string;
 
-  // Content fields (these will be generated from ProfileData)
   education: string;
   workExperience: string;
   skills: string;
   languages: string;
-  hobbies?: string; // Optional now
+  hobbies?: string;
 
-  // CV generation fields (these come from ProfileData personality questions)
+  careerGoals?: string;
+  bestProjectExample?: string;
+  failureLesson?: string;
+
   workingStyle?: string;
   problemSolving?: string;
   energySources?: string;
@@ -297,13 +293,12 @@ export interface UserFormData {
   teamRole?: string;
   valuesExample?: string;
   superpower?: string;
-  personalityTraits?: string; // Computed field
+  personalityTraits?: string;
 
   cvType?: "technical" | "creative" | "simple";
   userId: string;
   cvId: string;
 
-  // Layout fields
   bgHeight?: string;
   blueBarHeight?: string;
   profilePosition?: string;
@@ -315,17 +310,16 @@ export interface UserFormData {
   infoBarItemsPosition?: string;
   signature?: string;
 
-  // Font size fields
   nameFontSize?: string;
   titleFontSize?: string;
   introFontSize?: string;
   signatureFontSize?: string;
-  jobPosting?: string;           // Työpaikkailmoitus (PREMIUM)
-  isAtsOptimized?: boolean;      // Onko ATS-optimoitu
-  userTier?: "free" | "premium"; // Käyttäjän taso
+  
+  jobPosting?: string;
+  isAtsOptimized?: boolean;
+  userTier?: "free" | "premium";
 }
 
-// AI generated data interface (keeping existing)
 export interface AIData {
   html: {
     skills_section: string;
@@ -363,26 +357,23 @@ export interface BaseCV {
   is_public: boolean;
   is_mock: boolean;
   created_at: string;
-   is_ats_optimized?: boolean;    // Onko ATS-optimoitu
-  job_posting?: string;          // Mihin työpaikkaan optimoitu
+  is_ats_optimized?: boolean;
+  job_posting?: string;
 }
 
-// Conversion function type for transforming ProfileData to UserFormData
 export type ProfileToUserFormDataConverter = (
   profileData: ProfileData
 ) => Partial<UserFormData>;
 
-// Step types for the profile form
 export type ProfileStep = "basic" | "experience" | "personality" | "skills";
 
 export interface ProfileStepData {
   id: ProfileStep;
   title: string;
-  icon: any; // Lucide React icon component
+  icon: any;
   description: string;
 }
 
-// Remaining interfaces (keeping existing ones that are still relevant)
 export interface PreviewData {
   name: string;
   email: string;
@@ -411,10 +402,9 @@ export interface Subscription {
   current_period_end: string;
   created_at: string;
   updated_at: string;
-tokens?: number;               // Olemassa oleva
-    is_active: boolean;  // ✅ LISÄÄ TÄMÄ
-  plan_type: string;   // ✅ LISÄÄ TÄMÄ JOS PUUTTUU
-  // ✅ LISÄÄ TÄMÄ:
+  tokens?: number;
+  is_active: boolean;
+  plan_type: string;
 }
 
 export interface DefaultImages {
@@ -432,7 +422,6 @@ export interface DefaultImage {
 
 export type ImageField = "profileImage" | "backgroundImage";
 
-// Utility function to convert ProfileData to UserFormData for CV generation
 export const profileToUserFormData = (
   profileData: ProfileData
 ): Partial<UserFormData> => {
@@ -448,7 +437,6 @@ export const profileToUserFormData = (
     skills: profileData.skills,
     languages: apiFormat.languages,
 
-    // Personality traits for AI
     workingStyle: profileData.workingStyle,
     problemSolving: profileData.problemSolving,
     energySources: profileData.energySources,
@@ -457,10 +445,14 @@ export const profileToUserFormData = (
     teamRole: profileData.teamRole,
     valuesExample: profileData.valuesExample,
     superpower: profileData.superpower,
+    
+    careerGoals: profileData.careerGoals,
+    bestProjectExample: profileData.bestProjectExample,
+    failureLesson: profileData.failureLesson,
+    
     personalityTraits: apiFormat.personalityTraits,
 
-    // Optional fields
     title: profileData.jobTitle,
-    language: "finnish", // default
+    language: "finnish",
   };
 };

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { SignOutButton, useUser } from '@clerk/nextjs';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/context/LanguageContext';
 import {
@@ -169,18 +170,22 @@ export default function SmartHeader({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           
-          {/* ===================================
-              LOGO
-              =================================== */}
-          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-            <div className="h-8 w-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-              <FileText className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent hidden sm:inline">
-              HappyApplaid
-            </span>
-          </Link>
-
+         {/* ===================================
+    LOGO
+    =================================== */}
+<Link href="/" className="flex items-center gap-2 flex-shrink-0">
+    {/* Varsinainen LOGO (kuva) */}
+    {/* Poista "bg-gradient-to-r... text-transparent" -luokat, sillä ne koskevat tekstiä */}
+    <span className="text-xl font-bold hidden sm:inline relative h-20 w-60">
+        <Image 
+            src="/logo.jpg" // KORJAA POLKU: Olettaen, että kuva on public-kansiossa
+            alt="Yrityksen logo" 
+            fill // Käytä "fill" täyttämään vanhempi span-elementti
+            style={{ objectFit: "contain"}} // Varmistaa, että kuva skaalautuu oikein
+            priority // Usein logot ladataan nopeasti (vain jos tarpeellinen)
+        />
+    </span>
+</Link>
           {/* ===================================
               DESKTOP NAVIGATION
               =================================== */}

@@ -1,770 +1,323 @@
-// lib/langchain/coverLetterGenerator.ts - KORJATTU VERSIO
-// Tiedoston alkuun:
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// lib/langchain/coverLetterGenerator.ts - JOB-FIRST APPROACH
+
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { StructuredOutputParser } from "langchain/output_parsers";
-import { z } from "zod";
-import { BaseMessage } from "@langchain/core/messages";
-import type { 
-  CoverLetterInput, 
-  CoverLetterOutput,
-  AIQuestion,
-  DataQuality, 
-  PersonalityInput
-} from "@/types/coverLetter";
 
-import {
-  extractPersonalityTraits,
-  convertToLegacyFormat,
-  getPersonalityConfidenceScore,
-  getBusinessValueSummary,
-} from "./personalityExtractor";
-
-// ✅ KORJATTU: PersonalityInput on nyt PersonalityExtractionInput
-import type { PersonalityExtractionInput } from "@/types/coverLetter";
-
-// Enhanced styling options with more nuanced choices
-const styleDescriptions = {
-  formal: "formal and professional with traditional business language",
-  casual: "friendly yet professional, conversational but appropriate",
-  confident: "assertive and self-assured while remaining respectful",
-  story: "narrative-driven with personal examples and experiences",
-};
-function cleanJsonResponse(text: string): string {
-  // Poista kaikki markdown koodilohkot: ```json...``` tai ```...```
-  let cleaned = text
-    .replace(/```json\s*/gi, '')
-    .replace(/```\s*/g, '')
-    .trim();
-
-  // Poista mahdolliset ylimääräiset lainausmerkit alusta/lopusta, jos malli ne lisää
-  if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
-    cleaned = cleaned.slice(1, -1);
-  }
-  return cleaned;
-}
-// Helper function to extract content from different message types
-function getMessageContent(message: BaseMessage | string): string {
-  if (typeof message === "string") return message;
-  if ("content" in message) {
-    const content = message.content;
-    if (typeof content === "string") return content;
-    if (Array.isArray(content)) {
-      return content
-        .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
-        .join(" ");
-    }
-  }
-  return JSON.stringify(message);
-}
-
-// Enhanced output schema with deeper personality integration
-const coverLetterOutputSchema = z.object({
-  content: z
-    .string()
-    .describe("The full cover letter content with proper paragraph spacing"),
-  title: z.string().describe("The title of the cover letter without markdown"),
-  signature: z.string().describe("The signature block"),
-  personality_hooks: z
-    .array(z.string())
-    .optional()
-    .describe("Specific personality traits used as differentiators"),
-  job_match_score: z
-    .number()
-    .min(1)
-    .max(10)
-    .optional()
-    .describe("How well personality aligns with job requirements"),
-  key_differentiators: z
-    .array(z.string())
-    .optional()
-    .describe("Main points that make this candidate stand out"),
-  personality_to_value_connections: z
-    .array(
-      z.object({
-        trait: z.string(),
-        business_value: z.string(),
-        example: z.string().optional(),
-      })
-    )
-    .optional()
-    .describe("How personality traits translate to business value"),
-  questions: z
-    .array(
-      z.object({
-        id: z.string(),
-        question: z.string(),
-        context: z.string(),
-        personality_focus: z.string().optional(),
-        priority: z.enum(["high", "medium", "low"]).optional(),
-      })
-    )
-    .optional()
-    .describe("Questions to improve the cover letter"),
-});
-
-const outputParser = StructuredOutputParser.fromZodSchema(
-  coverLetterOutputSchema
-);
-
-// Enhanced job analysis with deeper personality matching
-function analyzeJobPersonalityFit(
-  jobDescription: string,
-  personalityData: any
-): {
-  matches: Array<{
-    trait: string;
-    jobAspect: string;
-    strength: number;
-    explanation: string;
-  }>;
-  alignmentScore: number;
-  missingOpportunities: string[];
-  strongestConnections: string[];
-} {
-  const jobLower = jobDescription.toLowerCase();
-  let score = 3; // Base score
-  const matches: Array<{
-    trait: string;
-    jobAspect: string;
-    strength: number;
-    explanation: string;
-  }> = [];
-  const missingOpportunities: string[] = [];
-
-  // More sophisticated matching logic
-  const personalityMappings = [
-    {
-      trait: "problemSolving",
-      jobKeywords: [
-        "problem",
-        "ongelma",
-        "ratkaisu",
-        "solve",
-        "challenge",
-        "haaste",
-        "trouble",
-      ],
-      businessValue: "Tehokас ongelmanratkaisu säästää aikaa ja resursseja",
-      weight: 3,
-    },
-    {
-      trait: "teamRole",
-      jobKeywords: [
-        "team",
-        "tiimi",
-        "ryhmä",
-        "collaborate",
-        "yhteistyö",
-        "työryhmä",
-        "kollektiv",
-      ],
-      businessValue:
-        "Hyvä tiimidynamiikka parantaa tuottavuutta ja työilmapiiriä",
-      weight: 2,
-    },
-    {
-      trait: "uniqueStrength",
-      jobKeywords: [
-        "strength",
-        "vahvuus",
-        "skill",
-        "taito",
-        "expert",
-        "asiantunt",
-        "specia",
-      ],
-      businessValue: "Erikoisosaaminen tuo lisäarvoa ja erottaa kilpailijoista",
-      weight: 2,
-    },
-    {
-      trait: "workingStyle",
-      jobKeywords: [
-        "independent",
-        "itsenäinen",
-        "autonomous",
-        "self",
-        "oma-aloit",
-        "proactive",
-      ],
-      businessValue: "Itsenäinen työskentely vähentää valvonnan tarvetta",
-      weight: 2,
-    },
-    {
-      trait: "energySources",
-      jobKeywords: [
-        "energy",
-        "energia",
-        "motivat",
-        "passion",
-        "intohimo",
-        "drive",
-        "enthusiasm",
-      ],
-      businessValue: "Sisäinen motivaatio takaa kestävän suorituskyvyn",
-      weight: 2,
-    },
-    {
-      trait: "learningStyle",
-      jobKeywords: [
-        "learn",
-        "oppim",
-        "develop",
-        "kehit",
-        "grow",
-        "kasv",
-        "training",
-        "koulut",
-      ],
-      businessValue: "Nopea oppiminen vähentää koulutuskustannuksia",
-      weight: 1,
-    },
-  ];
-
-  personalityMappings.forEach((mapping) => {
-    const hasPersonalityData =
-      personalityData[mapping.trait] &&
-      personalityData[mapping.trait].trim() !== "";
-    const jobMentionsTrait = mapping.jobKeywords.some((keyword) =>
-      jobLower.includes(keyword.toLowerCase())
-    );
-
-    if (hasPersonalityData && jobMentionsTrait) {
-      const strength = mapping.weight;
-      score += strength;
-      matches.push({
-        trait: mapping.trait,
-        jobAspect:
-          mapping.jobKeywords.find((k) => jobLower.includes(k)) ||
-          mapping.jobKeywords[0],
-        strength,
-        explanation: mapping.businessValue,
-      });
-    } else if (jobMentionsTrait && !hasPersonalityData) {
-      missingOpportunities.push(
-        `Työpaikkailmoitus korostaa "${mapping.trait}" -aspektia, mutta sinulta puuttuu tämä tieto`
-      );
-    }
-  });
-
-  const strongestConnections = matches
-    .filter((match) => match.strength >= 2)
-    .map((match) => `${match.trait}: ${match.explanation}`)
-    .slice(0, 3);
-
-  return {
-    matches,
-    alignmentScore: Math.min(10, score),
-    missingOpportunities,
-    strongestConnections,
-  };
-}
-
-// Enhanced question generation with prioritization
-function generatePersonalityQuestions(
-  personalityData: any,
-  jobDescription: string,
-  personalityFit: any
-): Array<{
-  id: string;
-  question: string;
-  context: string;
-  personality_focus?: string;
-  priority: "high" | "medium" | "low";
-}> {
-  const questions: Array<{
-    id: string;
-    question: string;
-    context: string;
-    personality_focus?: string;
-    priority: "high" | "medium" | "low";
-  }> = [];
-
-  // High priority questions based on job alignment
-  personalityFit.missingOpportunities.forEach(
-    (opportunity: string, index: number) => {
-      if (index < 2) {
-        // Only top 2 missing opportunities
-        questions.push({
-          id: `missing_opportunity_${index}`,
-          question: `Kerro esimerkki tilanteesta, joka liittyy tähän: ${opportunity}`,
-          context: "Tämä vahvistaisi hakemustasi merkittävästi",
-          priority: "high" as const,
-        });
-      }
-    }
-  );
-
-  // Standard personality questions
-  if (
-    !personalityData.uniqueStrength ||
-    personalityData.uniqueStrength.trim() === ""
-  ) {
-    questions.push({
-      id: "unique_strength",
-      question:
-        "Mikä on sellainen asia, jota ihmiset tulevat pyytämään juuri sinulta apua?",
-      context: "Tämä auttaa erottamaan sinut muista hakijoista",
-      personality_focus: "uniqueStrength",
-      priority: "high" as const,
-    });
-  }
-
-  if (
-    !personalityData.problemSolving ||
-    personalityData.problemSolving.trim() === ""
-  ) {
-    const jobMentionsProblems =
-      jobDescription.toLowerCase().includes("problem") ||
-      jobDescription.toLowerCase().includes("haaste") ||
-      jobDescription.toLowerCase().includes("ratkaisu");
-
-    questions.push({
-      id: "problem_solving",
-      question: "Anna esimerkki haastavasta tilanteesta ja miten ratkaisit sen",
-      context: jobMentionsProblems
-        ? "Työpaikkailmoitus korostaa ongelmanratkaisukykyä"
-        : "Ongelmanratkaisukyky on aina arvostettua",
-      personality_focus: "problemSolving",
-      priority: jobMentionsProblems ? ("high" as const) : ("medium" as const),
-    });
-  }
-
-  if (!personalityData.superpower || personalityData.superpower.trim() === "") {
-    questions.push({
-      id: "superpower",
-      question:
-        "Jos työkaverit kuvailisivat sinua kolmella sanalla, mitä ne olisivat?",
-      context: "Tämä auttaa luomaan vahvan ammatillisen identiteetin",
-      personality_focus: "superpower",
-      priority: "medium" as const,
-    });
-  }
-
-  // Sort by priority and limit
-  return questions
-    .sort((a, b) => {
-      const priorityOrder = { high: 3, medium: 2, low: 1 };
-      return priorityOrder[b.priority] - priorityOrder[a.priority];
-    })
-    .slice(0, 3);
-}
-
-// Enhanced personality strengths analysis
-function getPersonalityStrengths(personalityData: any): Array<{
-  strength: string;
-  businessValue: string;
-  evidence?: string;
-}> {
-  const strengthMappings = [
-    {
-      field: "workingStyle",
-      businessValue: "Työskentelyn tehokkuus ja itsenäisyys",
-    },
-    {
-      field: "uniqueStrength",
-      businessValue: "Ainutlaatuinen lisäarvo organisaatiolle",
-    },
-    {
-      field: "problemSolving",
-      businessValue: "Haasteiden ratkaiseminen ja innovointi",
-    },
-    {
-      field: "superpower",
-      businessValue: "Tunnistettava ammatillinen vahvuus",
-    },
-    {
-      field: "teamRole",
-      businessValue: "Tiimidynamiikan ja yhteistyön parantaminen",
-    },
-  ];
-
-  return strengthMappings
-    .filter(
-      (mapping) =>
-        personalityData[mapping.field] &&
-        personalityData[mapping.field].trim() !== ""
-    )
-    .map((mapping) => ({
-      strength: personalityData[mapping.field],
-      businessValue: mapping.businessValue,
-      evidence: personalityData.valuesExample || undefined,
-    }))
-    .slice(0, 3);
-}
-
-// Data quality assessment similar to CV generator
-export async function assessCoverLetterDataQuality(
-  userData: CoverLetterInput
-): Promise<{
-  quality: "rich" | "moderate" | "minimal";
-  score: number;
-  reasoning: string;
-  personalityCompleteness: number;
-  suggestions: string[];
-}> {
-  let score = 0;
-  const suggestions = [];
-
-  // Basic profile completeness (40 points max)
-  if (userData.name?.length > 2) score += 5;
-  if (userData.workExperience && userData.workExperience.length > 50)
-    score += 15;
-  if (userData.skills && userData.skills.length > 30) score += 10;
-  if (userData.education && userData.education.length > 20) score += 10;
-
-  // Personality completeness (60 points max) - more weight than CV
-  const personalityFields = [
-    userData.workingStyle,
-    userData.problemSolving,
-    userData.energySources,
-    userData.uniqueStrength,
-    userData.learningStyle,
-    userData.teamRole,
-    userData.valuesExample,
-    userData.superpower,
-  ];
-
-  const filledPersonality = personalityFields.filter(
-    (field) => field && field.length > 10
-  ).length;
-
-  const personalityCompleteness =
-    (filledPersonality / personalityFields.length) * 100;
-  score += filledPersonality * 7.5; // 7.5 points per personality field
-
-  // Quality assessment
-  let quality: "rich" | "moderate" | "minimal";
-  if (score >= 80) {
-    quality = "rich";
-  } else if (score >= 50) {
-    quality = "moderate";
-    if (personalityCompleteness < 50) {
-      suggestions.push(
-        "Täydennä persoonallisuusprofiilia vahvempaa hakukirjettä varten"
-      );
-    }
-  } else {
-    quality = "minimal";
-    suggestions.push("Lisää työkokemustietoja tai persoonallisuuden kuvauksia");
-  }
-
-  return {
-    quality,
-    score: Math.min(score, 100),
-    reasoning: `Persoonallisuus: ${Math.round(
-      personalityCompleteness
-    )}%, Ammatilliset tiedot: ${Math.round(
-      ((score - filledPersonality * 7.5) / 40) * 100
-    )}%`,
-    personalityCompleteness: Math.round(personalityCompleteness),
-    suggestions,
-  };
-}
-
-// PÄIVITETTY COVER LETTER -FUNKTIO
-export async function generateCoverLetterWithPersonalityExtraction(
-  userData: CoverLetterInput
-): Promise<any> {
-  try {
-    // 1. EKSTRAKTOI PERSOONALLISUUS
-    console.log("🔍 Analysoidaan hakukirjeen persoonallisuusdataa...");
-
-    // Muunna CoverLetterInput PersonalityInputiksi
-    const personalityInput: PersonalityInput = {
-      userProfile: userData.personalNotes || "",
-      workingStyleText: userData.workingStyle || "",
-      problemSolvingText: userData.problemSolving || "",
-      energySourcesText: userData.energySources || "",
-      strengthsText: userData.uniqueStrength || "",
-      learningText: userData.learningStyle || "",
-      teamworkText: userData.teamRole || "",
-      valuesText: userData.valuesExample || "",
-      additionalInfo: userData.superpower || "",
-    };
-
-    const personalityExtraction = await extractPersonalityTraits(
-      personalityInput
-    );
-
-    // 2. ARVIOI TYÖPAIKKAMATCHAUSTA parannetulla datalla
-    const extractedPersonalityData = convertToLegacyFormat(
-      personalityExtraction
-    );
-    const confidenceScore = getPersonalityConfidenceScore(
-      personalityExtraction
-    );
-
-    // 3. PARANNETTU HAKUKIRJEDATA
-    const enhancedCoverLetterData = {
-      ...userData,
-      // Ekstraktoitu persoonallisuusdata
-      ...extractedPersonalityData,
-
-      // Metadata päätöksentekoa varten
-      personalityMetadata: {
-        confidenceScore: confidenceScore.averageConfidence,
-        strongTraits: confidenceScore.strongTraits,
-        businessValues: getBusinessValueSummary(personalityExtraction),
-        extractionSummary: personalityExtraction.overallPersonality.summary,
-      },
-    };
-
-    console.log(
-      `📊 Hakukirjeen persoonallisuusdatan vahvuus: ${Math.round(
-        confidenceScore.averageConfidence * 100
-      )}%`
-    );
-
-    // 4. GENEROI HAKUKIRJE parannetulla datalla
-    return await generateCoverLetterWithLangChain(enhancedCoverLetterData);
-  } catch (error) {
-    console.error(
-      "❌ Hakukirjeen persoonallisuusekstraktointi epäonnistui:",
-      error
-    );
-
-    // Fallback alkuperäiseen menetelmään
-    return await generateCoverLetterWithLangChain(userData);
-  }
-}
-
-export async function generateCoverLetterWithLangChain(
-  userData: CoverLetterInput
-): Promise<{
+export interface CoverLetterV1Output {
   content: string;
   title: string;
   signature: string;
   personality_hooks?: string[];
   job_match_score?: number;
   key_differentiators?: string[];
-  questions?: Array<{
-    id: string;
-    question: string;
-    context: string;
-    personality_focus?: string;
-    priority?: "high" | "medium" | "low";
-  }>;
-  data_quality?: any;
-}> {
+  questions?: AIQuestion[];
+  data_quality?: DataQuality;
+}
+
+export interface AIQuestion {
+  id: string;
+  question: string;
+  context: string;
+  personality_focus?: string;
+  priority?: 'high' | 'medium' | 'low';
+}
+
+export interface DataQuality {
+  quality: 'rich' | 'moderate' | 'minimal';
+  score: number;
+  reasoning: string;
+  personalityCompleteness: number;
+  suggestions: string[];
+}
+
+export interface CoverLetterV1Input {
+  jobDescription: string;
+  name: string;
+  email: string;
+  phone: string;
+  
+  jobTitle?: string;
+  education?: string;
+  workExperience?: string;
+  skills?: string;
+  personalNotes?: string;
+  
+  language?: string;
+  style?: 'formal' | 'casual';
+  
+  workingStyle?: string;
+  problemSolving?: string;
+  energySources?: string;
+  uniqueStrength?: string;
+  learningStyle?: string;
+  teamRole?: string;
+  valuesExample?: string;
+  superpower?: string;
+  
+  careerGoals?: string;
+  bestProjectExample?: string;
+  failureLesson?: string;
+  
+  groundTruthWarning?: string;
+}
+
+/**
+ * ✅ STEP 1: ANALYSOI TYÖILMOITUS ENSIN
+ * Tunnista ALA, kulttuuri, mitä haetaan - älä oleta mitään
+ */
+async function analyzeJobForPersonalityFit(jobDescription: string) {
+  const model = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY!,
+    modelName: "gpt-4o-mini",
+    temperature: 0.1,
+  });
+
+  const prompt = ChatPromptTemplate.fromMessages([
+    ["system", `You are a job posting analyzer. Each job posting is UNIQUE from a DIFFERENT industry.
+
+**YOUR MISSION:**
+Analyze THIS SPECIFIC job posting. DO NOT assume anything based on industry stereotypes.
+
+**STEP 1: DETECT INDUSTRY**
+Read the job text. What industry is this? (tech, healthcare, retail, manufacturing, education, hospitality, creative, legal, finance, construction, logistics, etc.)
+
+**STEP 2: UNDERSTAND THIS SPECIFIC ROLE**
+What does THIS employer value? What personality traits would excel HERE?
+- Read between the lines
+- Look at language/tone used
+- Identify explicit and implicit requirements
+
+**STEP 3: IDENTIFY CULTURE**
+- Formal or casual?
+- Fast-paced or methodical?
+- Independent or team-oriented?
+- Hierarchical or flat?
+
+**CRITICAL:**
+- DO NOT use industry templates
+- DO NOT assume "tech = analytical" or "sales = extroverted"
+- INFER from THIS job text ONLY
+
+**OUTPUT:**
+{
+  "detected_industry": "industry name",
+  "role_type": "entry|mid|senior|specialist",
+  "personality_traits": ["trait1 THIS job needs", "trait2"],
+  "work_environment": "description from THIS posting",
+  "company_culture": "inferred from THIS text",
+  "key_requirements": ["requirement1", "requirement2"],
+  "red_flags": ["don't claim X if you lack Y"],
+  "green_flags": ["emphasize Z if you have it"]
+}
+
+Return JSON only.`],
+    ["human", `Analyze THIS job posting. Treat it as completely unique.
+
+{jobDescription}
+
+Return JSON.`]
+  ]);
+
   try {
-    const language = userData.language || "finnish";
-    const style = userData.style || "formal";
-    const styleDescription = styleDescriptions[style];
+    const formatted = await prompt.formatMessages({ jobDescription });
+    const result = await model.invoke(formatted);
+    const content = typeof result.content === 'string' 
+      ? result.content 
+      : JSON.stringify(result.content);
 
-    // Assess data quality first
-    const dataQuality = await assessCoverLetterDataQuality(userData);
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON');
 
-    // Collect personality data
-    const personalityData = {
-      workingStyle: userData.workingStyle,
-      problemSolving: userData.problemSolving,
-      energySources: userData.energySources,
-      uniqueStrength: userData.uniqueStrength,
-      learningStyle: userData.learningStyle,
-      teamRole: userData.teamRole,
-      valuesExample: userData.valuesExample,
-      superpower: userData.superpower,
+    return JSON.parse(jsonMatch[0]);
+  } catch (error) {
+    console.error('Job analysis failed:', error);
+    return {
+      detected_industry: "unknown",
+      role_type: "unknown",
+      personality_traits: [],
+      work_environment: "",
+      company_culture: "",
+      key_requirements: [],
+      red_flags: [],
+      green_flags: []
     };
+  }
+}
 
-    // Enhanced personality-job fit analysis
-    const personalityFit = analyzeJobPersonalityFit(
-      userData.jobDescription,
-      personalityData
-    );
-    const personalityQuestions = generatePersonalityQuestions(
-      personalityData,
-      userData.jobDescription,
-      personalityFit
-    );
+/**
+ * ✅ STEP 2: GENEROI HAKUKIRJE TÄLLE TYÖLLE
+ */
+export async function generateCoverLetterV1(input: CoverLetterV1Input): Promise<CoverLetterV1Output> {
+  try {
+    console.log("🚀 V1: Analyzing job posting first...");
 
-    // Return questions if data quality is too low or personality fit is weak
-    if (
-      dataQuality.quality === "minimal" ||
-      (personalityQuestions.length > 0 && personalityFit.alignmentScore < 6)
-    ) {
-      return {
-        questions: personalityQuestions,
-        title: `Hakukirje: ${userData.jobTitle || "Työpaikka"}`,
-        content: "",
-        signature: userData.name,
-        personality_hooks: [],
-        job_match_score: personalityFit.alignmentScore,
-        data_quality: dataQuality,
-      };
-    }
+    // STEP 1: Analysoi TÄMÄ työ ensin
+    const jobAnalysis = await analyzeJobForPersonalityFit(input.jobDescription);
+    console.log(`📊 Detected: ${jobAnalysis.detected_industry} industry, ${jobAnalysis.role_type} level`);
 
-    const personalityStrengths = getPersonalityStrengths(personalityData);
-
-    // Create model
     const model = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: "gpt-4o-mini", // Same as CV generator
-      temperature: 0.7, // Match CV generator
+      openAIApiKey: process.env.OPENAI_API_KEY!,
+      modelName: "gpt-4o-mini",
+      temperature: 0.7,
     });
 
-    // Enhanced system prompt
-    const systemPrompt = `
-      You are an expert cover letter writer specializing in personality-driven applications that create authentic connections with employers.
-      
-      CORE PHILOSOPHY:
-      - Personality is the primary differentiator in today's competitive job market
-      - Every personality trait must translate to concrete business value
-      - Authenticity trumps generic professional language
-      - Show, don't just tell - use specific examples and scenarios
-      
-      WRITING STRATEGY:
-      - Lead with strongest personality-job alignment
-      - Use narrative structure to make traits memorable
-      - Connect personality to solving employer's specific challenges
-      - End with compelling call to action based on unique value
-      
-      LANGUAGE RULES:
-      - Write in ${language} language
-      - Use ${styleDescription} tone
-      - 350-400 words total
-      - NO markdown formatting
-      - Paragraph separation with empty lines
-      
-      AUTHENTICITY REQUIREMENTS:
-      - NEVER invent experience or qualifications
-      - Use ONLY provided information
-      - Transform personality data into professional value propositions
-      - If data is limited, focus on potential and learning mindset
-    `;
+    // STEP 2: Luo hakukirje TÄLLE alalle, TÄLLE työlle
+    const systemPrompt = `You are writing a cover letter for THIS SPECIFIC job posting.
 
-    const humanTemplate = `
-      Create a personality-driven cover letter:
-      
-      JOB POSTING:
-      {jobDescription}
-      
-      CANDIDATE PROFILE:
-      Name: {name}
-      Contact: {email} | {phone} | {location}
-      Current Role/Goal: {jobTitle}
-      Education: {education}
-      Experience: {workExperience}
-      Skills: {skills}
-      
-      PERSONALITY CORE (PRIMARY DIFFERENTIATORS):
-      Working Style: {workingStyle}
-      Problem-Solving Approach: {problemSolving}
-      Energy Sources: {energySources}
-      Unique Strength: {uniqueStrength}
-      Learning Method: {learningStyle}
-      Team Contribution: {teamRole}
-      Values in Action: {valuesExample}
-      Professional Identity: {superpower}
-      
-      STRATEGIC ANALYSIS:
-      Personality-Job Match Score: {matchScore}/10
-      Strongest Alignments: {strongestConnections}
-      Key Differentiators: {keyDifferentiators}
-      Data Quality: {dataQuality} ({personalityCompleteness}% personality complete)
-      
-      ADDITIONAL CONTEXT:
-      Personal Notes: {personalNotes}
-      Interests/Hobbies: {hobbies}
-      
-      COVER LETTER REQUIREMENTS:
-      1. Opening: Hook with strongest personality-job connection
-      2. Body Paragraph 1: Personality trait solving employer's challenge
-      3. Body Paragraph 2: Second trait with concrete business value
-      4. Closing: Unique value proposition and enthusiastic call to action
-      
-      Focus on making the employer think: "This person would fit perfectly in our culture and solve our specific challenges."
-      
-      {format_instructions}
-    `;
+**DETECTED CONTEXT:**
+Industry: {detectedIndustry}
+Role Level: {roleType}
+Work Environment: {workEnvironment}
+Company Culture: {companyCulture}
 
-    // Create and format prompt
-    const promptTemplate = ChatPromptTemplate.fromMessages([
+**YOUR MISSION:**
+Write a cover letter that fits THIS SPECIFIC context. Do NOT use generic templates.
+
+**ADAPT TO THIS INDUSTRY:**
+- Use terminology natural to THIS field
+- Match tone to THIS company's culture
+- Address requirements specific to THIS role
+- Show understanding of THIS industry's challenges
+
+**ADAPT TO THIS CANDIDATE:**
+- Use THEIR authentic experiences
+- Connect THEIR traits to THIS job's needs
+- Show fit for THIS specific opportunity
+
+**WRITING PRINCIPLES:**
+1. Opening: Hook specific to THIS role + candidate's fit
+2. Body 1: Authentic story showing trait THIS job needs
+3. Body 2: Experience/skills matching THIS role's requirements
+4. Closing: Enthusiasm for THIS specific opportunity
+
+**TECHNICAL RULES:**
+- 280-350 words total
+- Natural, conversational for THIS industry
+- NO generic phrases
+- ONLY factual claims from candidate data
+- Tone: {style}
+- Language: {language}
+
+**FORBIDDEN:**
+- Industry stereotypes
+- Generic templates
+- "I am a hard worker" phrases
+- Skills candidate lacks
+
+{groundTruthWarning}
+
+Return JSON only.`
+
+    const humanTemplate = `Write cover letter for THIS candidate applying to THIS job.
+
+**THIS JOB POSTING:**
+{jobDescription}
+
+**WHAT THIS JOB NEEDS (from analysis):**
+Industry: {detectedIndustry}
+Personality Traits: {personalityTraits}
+Environment: {workEnvironment}
+Culture: {companyCulture}
+Requirements: {keyRequirements}
+Red Flags: {redFlags}
+Green Flags: {greenFlags}
+
+**THIS CANDIDATE:**
+Name: {name}
+Goal: {jobTitle}
+Education: {education}
+Experience: {workExperience}
+Skills: {skills}
+
+**CANDIDATE'S PERSONALITY:**
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Energy: {energySources}
+Strength: {uniqueStrength}
+Learning: {learningStyle}
+Team Role: {teamRole}
+Values: {valuesExample}
+Identity: {superpower}
+
+**CANDIDATE'S STORIES:**
+Career Goals: {careerGoals}
+Best Project: {bestProjectExample}
+Challenge Learned: {failureLesson}
+
+**ADDITIONAL NOTES:**
+{personalNotes}
+
+**TASK:**
+1. Match candidate's traits to THIS job's needs
+2. Use authentic stories as evidence
+3. Show fit for THIS specific role in THIS industry
+4. 280-350 words, natural tone for THIS field
+
+**OUTPUT:**
+{
+  "content": "full letter text",
+  "title": "Job Title from posting",
+  "signature": "Candidate Name",
+  "personality_hooks": ["trait1 highlighted", "trait2"],
+  "job_match_score": 1-10,
+  "key_differentiators": ["what makes them unique for THIS role"]
+}
+
+Return JSON only.`
+
+    const prompt = ChatPromptTemplate.fromMessages([
       ["system", systemPrompt],
       ["human", humanTemplate],
     ]);
 
-    const formattedPrompt = await promptTemplate.formatMessages({
-      jobDescription: userData.jobDescription,
-      name: userData.name,
-      email: userData.email,
-      phone: userData.phone,
-      location: userData.location || "",
-      jobTitle: userData.jobTitle || "Hakija",
-      education: userData.education || "Koulutustaustan mukaan",
-      workExperience: userData.workExperience || "Kokemuksen mukaan",
-      skills: userData.skills || "Monipuolinen osaaminen",
-      workingStyle: personalityData.workingStyle || "Määrittelemätön",
-      problemSolving: personalityData.problemSolving || "Määrittelemätön",
-      energySources: personalityData.energySources || "Määrittelemätön",
-      uniqueStrength: personalityData.uniqueStrength || "Määrittelemätön",
-      learningStyle: personalityData.learningStyle || "Määrittelemätön",
-      teamRole: personalityData.teamRole || "Määrittelemätön",
-      valuesExample: personalityData.valuesExample || "Määrittelemätön",
-      superpower: personalityData.superpower || "Määrittelemätön",
-      matchScore: personalityFit.alignmentScore,
-      strongestConnections:
-        personalityFit.strongestConnections.join("; ") || "Perusalignaatio",
-      keyDifferentiators:
-        personalityStrengths.map((s) => s.strength).join(", ") ||
-        "Määrittelemätön",
-      dataQuality: dataQuality.quality,
-      personalityCompleteness: dataQuality.personalityCompleteness,
-      personalNotes: userData.personalNotes || "",
-      hobbies: userData.hobbies || "",
-      format_instructions: outputParser.getFormatInstructions(),
+    const formatted = await prompt.formatMessages({
+      detectedIndustry: jobAnalysis.detected_industry,
+      roleType: jobAnalysis.role_type,
+      workEnvironment: jobAnalysis.work_environment,
+      companyCulture: jobAnalysis.company_culture,
+      style: input.style || "professional",
+      language: input.language || "detect from job posting",
+      groundTruthWarning: input.groundTruthWarning || "Maintain factual accuracy",
+      jobDescription: input.jobDescription,
+      personalityTraits: jobAnalysis.personality_traits.join(", ") || "Not specified",
+      keyRequirements: jobAnalysis.key_requirements.join(", ") || "Not specified",
+      redFlags: jobAnalysis.red_flags.join(", ") || "None",
+      greenFlags: jobAnalysis.green_flags.join(", ") || "None",
+      name: input.name,
+      jobTitle: input.jobTitle || "Not specified",
+      education: input.education || "Not specified",
+      workExperience: input.workExperience || "Not specified",
+      skills: input.skills || "Not specified",
+      workingStyle: input.workingStyle || "Not specified",
+      problemSolving: input.problemSolving || "Not specified",
+      energySources: input.energySources || "Not specified",
+      uniqueStrength: input.uniqueStrength || "Not specified",
+      learningStyle: input.learningStyle || "Not specified",
+      teamRole: input.teamRole || "Not specified",
+      valuesExample: input.valuesExample || "Not specified",
+      superpower: input.superpower || "Not specified",
+      careerGoals: input.careerGoals || "Not specified",
+      bestProjectExample: input.bestProjectExample || "Not specified",
+      failureLesson: input.failureLesson || "Not specified",
+      personalNotes: input.personalNotes || "None",
     });
 
-    // Generate cover letter
-    const result = await model.invoke(formattedPrompt);
+    const result = await model.invoke(formatted);
+    const content = typeof result.content === 'string' 
+      ? result.content 
+      : JSON.stringify(result.content);
 
-    // Parse with enhanced error handling
-    let parsedOutput;
-    try {
-      const cleanResult = cleanJsonResponse(getMessageContent(result));
-      parsedOutput = await outputParser.parse(cleanResult);
-    } catch (parseError) {
-      // Fallback logic      // Fallback logic
-      const rawContent = getMessageContent(result);
-      // UUSI: Puhdista sisällöstä mahdolliset JSON-koodilohkot
-      const content = cleanJsonResponse(rawContent);
+    const cleanContent = content
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
 
-      const titleMatch = content.match(/(?:title|otsikko):\s*(.+?)(?:\n|$)/i);
-      const title = titleMatch
-        ? titleMatch[1].trim().replace(/["'*]/g, "")
-        : `Hakukirje: ${userData.jobTitle || "Työpaikka"}`;
+    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON in response');
 
-      const signatureMatch = content.match(
-        /(?:signature|allekirjoitus):\s*(.+?)(?:\n|$)/i
-      );
+    const parsed = JSON.parse(jsonMatch[0]);
 
-      let mainContent = content
-        .replace(/```json[\s\S]*?```/g, "")
-        .replace(/\*\*(?:title|otsikko):\*\*.*?\n/gi, "")
-        .replace(/\*\*(?:signature|allekirjoitus):\*\*.*?\n/gi, "")
-        .replace(/\*\*/g, "")
-        .trim();
-
-      mainContent = mainContent
-        .replace(/([^\n])\n([^\n])/g, "$1\n\n$2")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-
-      return {
-        content: mainContent,
-        title: title,
-        signature: signatureMatch ? signatureMatch[1].trim() : userData.name,
-        personality_hooks: personalityStrengths.map((s) => s.strength),
-        job_match_score: personalityFit.alignmentScore,
-        key_differentiators: personalityStrengths.map((s) => s.businessValue),
-        data_quality: dataQuality,
-      };
-    }
-
-    // Clean parsed output
-    const cleanTitle = parsedOutput.title.replace(/["'*]/g, "").trim();
-    const formattedContent = parsedOutput.content
+    const formattedContent = parsed.content
       .replace(/\*\*/g, "")
       .replace(/([^\n])\n([^\n])/g, "$1\n\n$2")
       .replace(/\n{3,}/g, "\n\n")
@@ -772,25 +325,14 @@ export async function generateCoverLetterWithLangChain(
 
     return {
       content: formattedContent,
-      title: cleanTitle,
-      signature: parsedOutput.signature || userData.name,
-      personality_hooks:
-        parsedOutput.personality_hooks ||
-        personalityStrengths.map((s) => s.strength),
-      job_match_score:
-        parsedOutput.job_match_score || personalityFit.alignmentScore,
-      key_differentiators:
-        parsedOutput.key_differentiators ||
-        personalityStrengths.map((s) => s.businessValue),
-      questions: parsedOutput.questions || [],
-      data_quality: dataQuality,
+      title: parsed.title || "Cover Letter",
+      signature: parsed.signature || input.name,
+      personality_hooks: parsed.personality_hooks || [],
+      job_match_score: parsed.job_match_score || 7,
+      key_differentiators: parsed.key_differentiators || [],
     };
   } catch (error) {
-    console.error(
-      `Error generating cover letter: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
-    );
+    console.error("V1 Generation failed:", error);
     throw error;
   }
 }

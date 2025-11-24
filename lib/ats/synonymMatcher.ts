@@ -1,249 +1,216 @@
-// lib/ats/synonymMatcher.ts - MONIKIELINEN SYNONYYMIEN MATCHING
+// lib/ats/synonymMatcher.ts - UNIVERSAALI SYNONYM MATCHING
 
-/**
- * ✅ ATS-järjestelmät ymmärtävät usein synonyymejä
- * Tämä auttaa käyttäjää ymmärtämään mitä avainsanoja hakukirjeessä JO ON
- */
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
 
 export interface KeywordMatch {
   keyword: string;
   found: boolean;
-  exactMatch?: string;        // "React" löytyi sellaisenaan
-  synonymMatch?: string;      // "ongelmanratkaisu" → "problem-solving"
-  partialMatch?: string;      // "tiimityö" sisältää "tiimi"
-  confidence: number;         // 0-1
+  matchType: 'exact' | 'synonym' | 'related' | 'partial' | 'none';
+  foundAs?: string;
+  confidence: number;
+  reasoning: string;
 }
 
 /**
- * SYNONYYMISANAKIRJA (monikielinen)
+ * ✅ UNIVERSAALI AVAINSANAN LÖYTÄMINEN
  */
-const SYNONYM_DATABASE: Record<string, string[]> = {
-  // Problem solving
-  'problem-solving': [
-    'ongelmanratkaisu', 'ongelmanratkaisutaidot', 'ratkaise ongelmia',
-    'problemlösning', 'lösa problem',
-    'ratkaista haasteita', 'haasteiden ratkaisu'
-  ],
-  'problem solving': [
-    'ongelmanratkaisu', 'ongelmien ratkaisu',
-    'problemlösning'
-  ],
-  
-  // Teamwork
-  'teamwork': [
-    'tiimityö', 'tiimityötaidot', 'ryhmätyö', 'yhteistyö',
-    'lagarbete', 'samarbete',
-    'tiimin jäsen', 'tiimissä toimiminen'
-  ],
-  'team collaboration': [
-    'tiimityö', 'yhteistyö tiimissä',
-    'lagsamarbete'
-  ],
-  
-  // Leadership
-  'leadership': [
-    'johtaminen', 'johtamistaidot', 'johtajuus',
-    'ledarskap', 'ledning'
-  ],
-  'lead': [
-    'johtaa', 'vetää', 'vastuussa',
-    'leda', 'ansvara'
-  ],
-  
-  // Communication
-  'communication': [
-    'viestintä', 'kommunikaatio', 'viestintätaidot',
-    'kommunikation', 'kommunicera'
-  ],
-  'customer service': [
-    'asiakaspalvelu', 'asiakaspalvelutaidot',
-    'kundservice', 'kundtjänst'
-  ],
-  
-  // Technical
-  'React': ['React.js', 'ReactJS', 'React-kehitys'],
-  'Python': ['Python-ohjelmointi', 'Python-kieli'],
-  'Excel': ['Excel-ohjelma', 'Microsoft Excel', 'Excelin käyttö'],
-  'CRM': ['CRM-järjestelmä', 'CRM-järjestelmät', 'asiakkuudenhallinta'],
-  
-  // Experience levels
-  'experience': [
-    'kokemus', 'kokemusta', 'työkokemus',
-    'erfarenhet', 'erfaring'
-  ],
-  '3+ years': [
-    '3 vuotta', 'kolmen vuoden', 'yli 3 vuotta',
-    '3 år', 'över 3 år'
-  ],
-  
-  // Education
-  "Bachelor's degree": [
-    'kandidaatin tutkinto', 'AMK-tutkinto', 'alempi korkeakoulututkinto',
-    'kandidatexamen'
-  ],
-  "Master's degree": [
-    'maisterin tutkinto', 'ylempi korkeakoulututkinto',
-    'magisterexamen', 'masterexamen'
-  ],
-};
-
-/**
- * ✅ ETSI AVAINSANA TEKSTISTÄ (mukaan lukien synonyymit)
- */
-export function findKeywordInText(
+export async function findKeywordUniversal(
   keyword: string,
-  text: string,
-  language: 'english' | 'finnish' | 'swedish' = 'english'
-): KeywordMatch {
-  const lowerKeyword = keyword.toLowerCase();
-  const lowerText = text.toLowerCase();
-  
-  // 1. TÄSMÄLLINEN MATCH
-  if (lowerText.includes(lowerKeyword)) {
+  coverLetterText: string,
+  jobDescription?: string,
+  language?: string
+): Promise<KeywordMatch> {
+  const model = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY!,
+    modelName: 'gpt-4o-mini',
+    temperature: 0.0,
+  });
+
+  const prompt = ChatPromptTemplate.fromMessages([
+    ['system', `You are a semantic matching expert across ALL languages and industries.
+
+**YOUR MISSION:**
+Determine if a keyword (from job description) is present in cover letter text using semantic understanding.
+
+**MATCHING TYPES:**
+1. **EXACT**: Word-for-word match (confidence: 1.0)
+2. **SYNONYM**: Different word, same meaning (confidence: 0.9)
+3. **RELATED**: Closely related concept (confidence: 0.7)
+4. **PARTIAL**: Part of keyword found (confidence: 0.5)
+5. **NONE**: Not found (confidence: 0.0)
+
+**CRITICAL RULES - ZERO HARDCODING:**
+- Use SEMANTIC understanding, not string matching
+- Consider context (job industry, language, professional level)
+- Understand technical terms across ALL fields
+- Recognize professional paraphrasing in ANY language
+- NO predefined synonym lists
+
+**EXAMPLES (adaptive to any field):**
+- Job: "problem-solving" → Cover: "I solve challenges" → SYNONYM (0.9)
+- Job: "teamwork" → Cover: "collaborative approach" → SYNONYM (0.85)
+- Job: "customer service" → Cover: "helping clients" → SYNONYM (0.9)
+
+**OUTPUT:**
+{
+  "keyword": "original keyword",
+  "found": true/false,
+  "matchType": "exact|synonym|related|partial|none",
+  "foundAs": "actual text in cover letter",
+  "confidence": 0.9,
+  "reasoning": "Brief explanation"
+}
+
+Return JSON only.`],
+
+    ['human', `Find this keyword using semantic AI understanding.
+
+**KEYWORD TO FIND:**
+{keyword}
+
+**COVER LETTER TEXT:**
+{coverLetterText}
+
+**JOB CONTEXT (optional):**
+{jobContext}
+
+**LANGUAGE HINT:**
+{languageHint}
+
+Return JSON.`]
+  ]);
+
+  try {
+    const formatted = await prompt.formatMessages({
+      keyword,
+      coverLetterText: coverLetterText.substring(0, 2000),
+      jobContext: jobDescription?.substring(0, 500) || 'Not provided',
+      languageHint: language || 'Auto-detect'
+    });
+
+    const result = await model.invoke(formatted);
+    const content = typeof result.content === 'string' 
+      ? result.content 
+      : JSON.stringify(result.content);
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON');
+
+    const match: KeywordMatch = JSON.parse(jsonMatch[0]);
+    
+    return match;
+  } catch (error) {
+    console.error('AI matching failed:', error);
+    
+    const lowerKeyword = keyword.toLowerCase();
+    const lowerText = coverLetterText.toLowerCase();
+    
+    if (lowerText.includes(lowerKeyword)) {
+      return {
+        keyword,
+        found: true,
+        matchType: 'exact',
+        foundAs: keyword,
+        confidence: 1.0,
+        reasoning: 'Fallback: Simple string match'
+      };
+    }
+    
     return {
       keyword,
-      found: true,
-      exactMatch: keyword,
-      confidence: 1.0
+      found: false,
+      matchType: 'none',
+      confidence: 0.0,
+      reasoning: 'Fallback: Not found'
     };
   }
-  
-  // 2. SYNONYYMI MATCH
-  const synonyms = SYNONYM_DATABASE[lowerKeyword] || [];
-  for (const synonym of synonyms) {
-    if (lowerText.includes(synonym.toLowerCase())) {
-      return {
-        keyword,
-        found: true,
-        synonymMatch: synonym,
-        confidence: 0.85
-      };
-    }
-  }
-  
-  // 3. OSITTAINEN MATCH (esim. "team" löytyy "teamwork"-sanasta)
-  const keywordWords = lowerKeyword.split(/[\s-]+/);
-  for (const word of keywordWords) {
-    if (word.length >= 4 && lowerText.includes(word)) {
-      return {
-        keyword,
-        found: true,
-        partialMatch: word,
-        confidence: 0.5
-      };
-    }
-  }
-  
-  // 4. EI LÖYDY
-  return {
-    keyword,
-    found: false,
-    confidence: 0
-  };
 }
 
 /**
- * ✅ ANALYSOI KAIKKI AVAINSANAT
+ * ✅ ANALYSOI USEITA AVAINSANOJA
  */
-export function analyzeKeywords(
+export async function analyzeKeywordsUniversal(
   keywords: string[],
   coverLetterText: string,
-  language: 'english' | 'finnish' | 'swedish' = 'english'
-): {
+  jobDescription?: string,
+  language?: string
+): Promise<{
   exactMatches: KeywordMatch[];
   synonymMatches: KeywordMatch[];
+  relatedMatches: KeywordMatch[];
   partialMatches: KeywordMatch[];
   missing: KeywordMatch[];
   overallScore: number;
-} {
-  const results = keywords.map(kw => findKeywordInText(kw, coverLetterText, language));
+  scoreBreakdown: {
+    exact: number;
+    synonyms: number;
+    related: number;
+    partial: number;
+    missing: number;
+  };
+}> {
+  console.log(`🔍 Analyzing ${keywords.length} keywords with AI...`);
   
-  const exactMatches = results.filter(r => r.exactMatch);
-  const synonymMatches = results.filter(r => r.synonymMatch);
-  const partialMatches = results.filter(r => r.partialMatch);
-  const missing = results.filter(r => !r.found);
+  const matches = await Promise.all(
+    keywords.map(keyword => 
+      findKeywordUniversal(keyword, coverLetterText, jobDescription, language)
+    )
+  );
   
-  // Laske kokonaispisteet (painotettu)
-  const totalConfidence = results.reduce((sum, r) => sum + r.confidence, 0);
-  const overallScore = results.length > 0 
-    ? Math.round((totalConfidence / results.length) * 100)
+  const exactMatches = matches.filter(m => m.matchType === 'exact');
+  const synonymMatches = matches.filter(m => m.matchType === 'synonym');
+  const relatedMatches = matches.filter(m => m.matchType === 'related');
+  const partialMatches = matches.filter(m => m.matchType === 'partial');
+  const missing = matches.filter(m => m.matchType === 'none');
+  
+  const totalConfidence = matches.reduce((sum, m) => sum + m.confidence, 0);
+  const overallScore = matches.length > 0 
+    ? Math.round((totalConfidence / matches.length) * 100)
     : 0;
+  
+  console.log(`✅ Analysis complete: ${overallScore}% match`);
   
   return {
     exactMatches,
     synonymMatches,
+    relatedMatches,
     partialMatches,
     missing,
-    overallScore
+    overallScore,
+    scoreBreakdown: {
+      exact: exactMatches.length,
+      synonyms: synonymMatches.length,
+      related: relatedMatches.length,
+      partial: partialMatches.length,
+      missing: missing.length
+    }
   };
 }
 
 /**
- * ✅ KÄYTTÄJÄYSTÄVÄLLINEN SELITYS
+ * ✅ USER-FRIENDLY SELITYS
  */
-export function explainMatch(match: KeywordMatch, language: 'finnish' | 'english' = 'finnish'): string {
-  if (match.exactMatch) {
-    return language === 'finnish' 
-      ? `✅ Löytyy täsmälleen: "${match.exactMatch}"`
-      : `✅ Exact match: "${match.exactMatch}"`;
-  }
+export function explainMatch(
+  match: KeywordMatch, 
+  language: 'finnish' | 'english' = 'finnish'
+): string {
+  const templates = {
+    finnish: {
+      exact: `✅ Täsmällinen: "${match.foundAs}"`,
+      synonym: `✓ Synonyymi: "${match.foundAs}" (vastaa "${match.keyword}")`,
+      related: `≈ Liittyvä: "${match.foundAs}" (liittyy: "${match.keyword}")`,
+      partial: `⚠️ Osittainen: "${match.foundAs}" (lisää: "${match.keyword}")`,
+      none: `❌ Ei löydy: "${match.keyword}"`
+    },
+    english: {
+      exact: `✅ Exact match: "${match.foundAs}"`,
+      synonym: `✓ Synonym: "${match.foundAs}" (matches "${match.keyword}")`,
+      related: `≈ Related: "${match.foundAs}" (relates to "${match.keyword}")`,
+      partial: `⚠️ Partial: "${match.foundAs}" (add full "${match.keyword}")`,
+      none: `❌ Not found: "${match.keyword}"`
+    }
+  };
   
-  if (match.synonymMatch) {
-    return language === 'finnish'
-      ? `✓ Synonyymi löytyy: "${match.synonymMatch}" (vastaa "${match.keyword}")`
-      : `✓ Synonym found: "${match.synonymMatch}" (matches "${match.keyword}")`;
-  }
-  
-  if (match.partialMatch) {
-    return language === 'finnish'
-      ? `⚠️ Osittainen: "${match.partialMatch}" (lisää koko termi "${match.keyword}")`
-      : `⚠️ Partial: "${match.partialMatch}" (add full term "${match.keyword}")`;
-  }
-  
-  return language === 'finnish'
-    ? `❌ Ei löydy: "${match.keyword}"`
-    : `❌ Not found: "${match.keyword}"`;
+  return templates[language][match.matchType];
 }
-
-/**
- * ✅ TESTIFUNKTIO
- */
-export function testSynonymMatching() {
-  const coverLetter = `
-    Olen kokenut asiakaspalvelija jolla on vahvat ongelmanratkaisutaidot.
-    Työskentelen mielellään tiimissä ja osaan käyttää CRM-järjestelmiä.
-    Minulla on 3 vuoden työkokemus ja kandidaatin tutkinto.
-  `;
-  
-  const keywords = [
-    'customer service',
-    'problem-solving',
-    'teamwork',
-    'CRM',
-    '3+ years',
-    "Bachelor's degree",
-    'React',  // Ei löydy
-  ];
-  
-  console.log('🧪 Testing synonym matching:\n');
-  
-  const results = analyzeKeywords(keywords, coverLetter, 'finnish');
-  
-  console.log(`📊 Overall Score: ${results.overallScore}%\n`);
-  
-  console.log('✅ Exact matches:', results.exactMatches.length);
-  results.exactMatches.forEach(m => console.log(`  - ${explainMatch(m)}`));
-  
-  console.log('\n✓ Synonym matches:', results.synonymMatches.length);
-  results.synonymMatches.forEach(m => console.log(`  - ${explainMatch(m)}`));
-  
-  console.log('\n⚠️ Partial matches:', results.partialMatches.length);
-  results.partialMatches.forEach(m => console.log(`  - ${explainMatch(m)}`));
-  
-  console.log('\n❌ Missing:', results.missing.length);
-  results.missing.forEach(m => console.log(`  - ${explainMatch(m)}`));
-  
-  return results;
-}
-
-// testSynonymMatching();

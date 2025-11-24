@@ -433,9 +433,9 @@ export default function MyCoverLettersPage() {
   return (
   <>
     <SmartHeader />
-    <div className="container mx-auto mb-4 md:inline-block md:ml-64 pt-4">
-      <div className="flex justify-between items-center mb-6 mt-20">
-        <h1 className="text-2xl font-bold">Omat hakukirjeet</h1>
+<div className="w-full lg:w-3/5 mx-auto mb-4 md:inline-block md:ml-64 pt-4">
+<div className="flex justify-between items-center mb-6 mt-10 w-full">
+          <h1 className="text-2xl font-bold">Omat hakukirjeet</h1>
         <Link
           href="/create-cover-letter"
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
@@ -475,7 +475,7 @@ export default function MyCoverLettersPage() {
                       <div className="flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-full">
                         <Sparkles className="w-3 h-3 text-gray-600" />
                         <span className="text-xs font-semibold text-gray-700">
-                          Tavallinen
+                          Ei Ats optimoitu
                         </span>
                       </div>
                     )}

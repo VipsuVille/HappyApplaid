@@ -464,7 +464,7 @@ export default function CreateCoverLetter() {
                     onChange={(e) => setStyle(e.target.value as Style)}
                     className="w-full p-3 border border-gray-300 rounded-lg"
                   >
-                    <option value="formal">Muodollinen</option>
+                    <option value="formal">Asiallinen</option>
                     <option value="casual">Rennompi</option>
                   </select>
                 </div>

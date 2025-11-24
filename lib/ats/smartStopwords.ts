@@ -1,62 +1,98 @@
-// lib/ats/smartStopwords.ts - ÄLYKÄS STOP WORDS (3 menetelmää)
+// lib/ats/smartStopwords.ts - UNIVERSAALI STOPWORD SUODATUS
+
+import { ChatOpenAI } from '@langchain/openai';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
 
 /**
- * ✅ RATKAISU 1: AI PÄÄTTÄÄ (Paras mutta hitain)
+ * ✅ UNIVERSAALI AVAINSANOJEN SUODATUS - JOB-FIRST
  */
-export async function filterKeywordsWithAI(
+export async function filterKeywordsUniversal(
   keywords: string[],
-  jobDescription: string
+  jobDescription: string,
+  language?: string
 ): Promise<{
   meaningful: string[];
   filtered: string[];
+  reasoning: Record<string, string>;
+  detectedLanguage: string;
+  detectedIndustry: string;
 }> {
-  const { ChatOpenAI } = await import('@langchain/openai');
-  const { ChatPromptTemplate } = await import('@langchain/core/prompts');
-  
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: 'gpt-4o-mini',
-    temperature: 0.0, // Zero creativity
+    temperature: 0.0,
   });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are an ATS keyword validator.
+    ['system', `You are a universal ATS keyword validator. Each job posting is UNIQUE from a DIFFERENT industry.
 
-Your task: Filter out MEANINGLESS keywords that ATS systems would NEVER scan for.
+**YOUR MISSION:**
+Filter keywords to find ONLY those that ATS systems would scan for THIS SPECIFIC JOB.
 
-KEEP (meaningful):
-- Technical skills: "React", "Python", "Excel", "Photoshop"
-- Certifications: "AWS Certified", "PMP", "BLS"
-- Domain expertise: "customer service", "project management"
-- Specific qualifications: "3+ years", "Bachelor's degree"
-- Action skills: "problem-solving", "leadership", "communication"
+**STEP 1: ANALYZE THIS JOB**
+What industry is this? What role level? What matters in THIS field?
 
-REMOVE (meaningless):
-- Articles: "the", "a", "an"
-- Conjunctions: "and", "or", "but"
-- Pronouns: "you", "we", "they"
-- Generic verbs: "is", "are", "will", "should", "can"
-- Filler words: "maybe", "perhaps", "just", "very"
-- One-letter words or numbers alone: "a", "1", "2"
+**STEP 2: FILTER FOR THIS CONTEXT**
+Keep only keywords relevant to THIS job's ATS system.
 
-Return JSON:
+**CRITICAL RULES - ZERO HARDCODING:**
+- DO NOT use predefined stopword lists
+- DO NOT assume industry patterns (tech ≠ always coding)
+- DO NOT assume language patterns
+- USE semantic understanding of what matters for THIS role
+
+**KEEP (ATS-relevant for THIS job):**
+- Technical/professional terms THIS field values
+- Certifications/licenses THIS industry needs
+- Skills/expertise THIS role requires
+- Qualifications THIS job mentions
+- Industry-specific jargon for THIS field
+
+**REMOVE (ATS-irrelevant universally):**
+- Articles/pronouns/conjunctions (ANY language)
+- Generic verbs without professional context
+- Filler words
+- Single characters or meaningless strings
+- Common words with no value for THIS job
+
+**NO PATTERN MATCHING:**
+- Use semantic AI understanding
+- Understand context of THIS job
+- Recognize professional terminology through knowledge
+
+**OUTPUT:**
 {
-  "meaningful": ["keyword1", "keyword2", ...],
-  "filtered": ["and", "the", ...]
-}`],
-    ['human', `Job description context:
+  "meaningful": ["keyword1 relevant to THIS job", "keyword2"],
+  "filtered": ["and", "the"],
+  "reasoning": {
+    "keyword1": "Why kept for THIS job",
+    "the": "Generic article, no ATS value"
+  },
+  "detectedLanguage": "language",
+  "detectedIndustry": "industry from THIS job"
+}
+
+Return JSON only.`],
+
+    ['human', `Filter keywords for THIS SPECIFIC JOB using AI understanding.
+
+**THIS JOB:**
 {jobDescription}
 
-Keywords to validate:
+**KEYWORDS TO VALIDATE:**
 {keywords}
 
-Which are meaningful for ATS? Return JSON only.`]
+**LANGUAGE HINT:**
+{languageHint}
+
+Return JSON.`]
   ]);
 
   try {
     const formatted = await prompt.formatMessages({
-      jobDescription: jobDescription.substring(0, 500), // Context only
-      keywords: keywords.join(', ')
+      jobDescription: jobDescription.substring(0, 1500),
+      keywords: keywords.join(', '),
+      languageHint: language || 'Auto-detect'
     });
 
     const result = await model.invoke(formatted);
@@ -65,270 +101,62 @@ Which are meaningful for ATS? Return JSON only.`]
       : JSON.stringify(result.content);
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON');
+    if (!jsonMatch) throw new Error('No JSON found');
 
-    return JSON.parse(jsonMatch[0]);
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    console.log(`✅ AI filtered for ${parsed.detectedIndustry}:`);
+    console.log(`   Language: ${parsed.detectedLanguage}`);
+    console.log(`   Meaningful: ${parsed.meaningful.length}`);
+    console.log(`   Filtered: ${parsed.filtered.length}`);
+    
+    return parsed;
   } catch (error) {
-    console.error('AI filter failed, using fallback:', error);
-    // Fallback to heuristic
-    return filterKeywordsHeuristic(keywords);
+    console.error('AI filtering failed:', error);
+    
+    return {
+      meaningful: keywords.filter(k => k.length >= 3),
+      filtered: keywords.filter(k => k.length < 3),
+      reasoning: {},
+      detectedLanguage: 'unknown',
+      detectedIndustry: 'unknown'
+    };
   }
 }
 
 /**
- * ✅ RATKAISU 2: HEURISTINEN + POS TAGGING (Nopea ja hyvä)
+ * ✅ CACHED VERSION
  */
-export function filterKeywordsHeuristic(keywords: string[]): {
-  meaningful: string[];
-  filtered: string[];
-} {
-  const meaningful: string[] = [];
-  const filtered: string[] = [];
+const filterCache = new Map<string, any>();
 
-  // Baseline stop words (vain kaikkein yleisin 50 sanaa)
-  const basicStopWords = new Set([
-    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-    'of', 'with', 'by', 'from', 'up', 'about', 'is', 'are', 'was', 'were',
-    'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
-    'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can',
-    'shall', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'them', 'their',
-    'this', 'that', 'these', 'those'
-  ]);
-
-  keywords.forEach(keyword => {
-    const lower = keyword.toLowerCase().trim();
-    
-    // 1. Liian lyhyt (< 2 merkkiä)
-    if (lower.length < 2) {
-      filtered.push(keyword);
-      return;
-    }
-    
-    // 2. Pelkkä numero
-    if (/^\d+$/.test(lower)) {
-      filtered.push(keyword);
-      return;
-    }
-    
-    // 3. Basic stop word
-    if (basicStopWords.has(lower)) {
-      filtered.push(keyword);
-      return;
-    }
-    
-    // 4. ✅ TEKNINEN TERMI → AINA PIDÄ
-    if (isTechnicalTerm(keyword)) {
-      meaningful.push(keyword);
-      return;
-    }
-    
-    // 5. ✅ SISÄLTÄÄ ISOJA KIRJAIMIA KESKELLÄ → TODENNÄKÖISESTI TÄRKEÄ
-    // Esim: "PowerPoint", "JavaScript", "LinkedIn"
-    if (/[a-z][A-Z]/.test(keyword)) {
-      meaningful.push(keyword);
-      return;
-    }
-    
-    // 6. ✅ SISÄLTÄÄ PISTEITÄ/VIIVOJA → TEKNINEN
-    // Esim: "Node.js", "C++", "MS-Office"
-    if (/[.\-+#]/.test(keyword)) {
-      meaningful.push(keyword);
-      return;
-    }
-    
-    // 7. ✅ FRAASI (2+ sanaa) → TODENNÄKÖISESTI TÄRKEÄ
-    // Esim: "customer service", "problem solving"
-    if (keyword.split(/\s+/).length >= 2) {
-      // Tarkista ettei OLE pelkkiä stop words
-      const words = keyword.toLowerCase().split(/\s+/);
-      const meaningfulWords = words.filter(w => !basicStopWords.has(w));
-      
-      if (meaningfulWords.length > 0) {
-        meaningful.push(keyword);
-      } else {
-        filtered.push(keyword);
-      }
-      return;
-    }
-    
-    // 8. ✅ PITUUS 3+ MERKKIÄ JA EI STOP WORD → PIDÄ
-    if (lower.length >= 3) {
-      meaningful.push(keyword);
-      return;
-    }
-    
-    // 9. Muuten suodata
-    filtered.push(keyword);
-  });
-
-  return { meaningful, filtered };
-}
-
-function isTechnicalTerm(word: string): boolean {
-  const technicalPatterns = [
-    // Ohjelmointi
-    /^(React|Vue|Angular|Python|Java|JavaScript|TypeScript|C\+\+|C#|PHP|Ruby|Swift|Kotlin|Go|Rust|Scala)$/i,
-    // Teknologiat
-    /^(Node\.?js|Docker|Kubernetes|AWS|Azure|GCP|SQL|MongoDB|PostgreSQL|Redis|GraphQL|REST|API|Git|CI\/CD|DevOps)$/i,
-    // Design
-    /^(Photoshop|Illustrator|Figma|Sketch|InDesign|XD|Blender|Maya|AutoCAD|SolidWorks|Premiere|After Effects)$/i,
-    // Business
-    /^(Excel|PowerPoint|Word|Outlook|Salesforce|SAP|Oracle|HubSpot|Zendesk|Jira|Confluence|Slack|Teams)$/i,
-    // Sertifikaatit
-    /^(AWS|Azure|Google|CCNA|CISSP|PMP|ITIL|Six Sigma|CPA|CFA|SHRM|PHR|Certified)$/i,
-  ];
-
-  return technicalPatterns.some(pattern => pattern.test(word));
-}
-
-/**
- * ✅ RATKAISU 3: TF-IDF SCORING (Tilastollinen, paras tarkkuus)
- * Avainsana on tärkeä JOS se esiintyy usein JOB DESCRIPTION:ssa
- * MUTTA harvoin yleisessä kielessä
- */
-export function filterKeywordsWithTFIDF(
-  keywords: string[],
-  jobDescription: string
-): {
-  meaningful: string[];
-  filtered: string[];
-  scores: Map<string, number>;
-} {
-  const meaningful: string[] = [];
-  const filtered: string[] = [];
-  const scores = new Map<string, number>();
-
-  // Laske TF (Term Frequency) job description:sta
-  const jobWords = jobDescription.toLowerCase().split(/\s+/);
-  const jobWordCount = jobWords.length;
-  
-  const termFrequency = new Map<string, number>();
-  jobWords.forEach(word => {
-    termFrequency.set(word, (termFrequency.get(word) || 0) + 1);
-  });
-
-  // IDF (Inverse Document Frequency) arvot yleiselle kielelle
-  // Mitä KORKEAMPI luku, sitä harvinaisempi sana → todennäköisesti tärkeä
-  const idfScores: Record<string, number> = {
-    // Hyvin yleiset (matala IDF)
-    'the': 0.1, 'and': 0.1, 'is': 0.1, 'to': 0.1, 'a': 0.1,
-    'in': 0.2, 'for': 0.2, 'with': 0.2, 'on': 0.2,
-    
-    // Kohtalaiset (keskitaso IDF)
-    'work': 0.5, 'experience': 0.5, 'skills': 0.6, 'team': 0.6,
-    
-    // Spesifit termit (korkea IDF) - oletusarvo kaikille tuntemattomille
-    // "Excel", "React", jne. saavat 1.0 (maksimi)
-  };
-
-  keywords.forEach(keyword => {
-    const lower = keyword.toLowerCase();
-    
-    // TF: Kuinka usein esiintyy job description:ssa
-    const tf = (termFrequency.get(lower) || 0) / jobWordCount;
-    
-    // IDF: Kuinka harvinainen yleisessä kielessä
-    const idf = idfScores[lower] || 1.0; // Tuntematon = tärkeä
-    
-    // TF-IDF score
-    const tfidf = tf * idf;
-    scores.set(keyword, tfidf);
-    
-    // Jos TF-IDF > 0.001 → Tärkeä
-    if (tfidf > 0.001 || isTechnicalTerm(keyword)) {
-      meaningful.push(keyword);
-    } else {
-      filtered.push(keyword);
-    }
-  });
-
-  return { meaningful, filtered, scores };
-}
-
-/**
- * ✅ PÄÄMENETELMÄ: YHDISTÄ KAIKKI (HYBRID)
- */
-export async function smartFilterKeywords(
+export async function filterKeywordsCached(
   keywords: string[],
   jobDescription: string,
-  mode: 'fast' | 'balanced' | 'accurate' = 'balanced'
-): Promise<{
-  meaningful: string[];
-  filtered: string[];
-  method: string;
-}> {
-  switch (mode) {
-    case 'fast':
-      // Pelkkä heuristiikka (< 10ms)
-      const fast = filterKeywordsHeuristic(keywords);
-      return { ...fast, method: 'heuristic' };
-    
-    case 'accurate':
-      // AI-pohjainen (500-1000ms)
-      const accurate = await filterKeywordsWithAI(keywords, jobDescription);
-      return { ...accurate, method: 'ai' };
-    
-    case 'balanced':
-    default:
-      // Hybrid: TF-IDF + heuristiikka (50-100ms)
-      const tfidf = filterKeywordsWithTFIDF(keywords, jobDescription);
-      const heuristic = filterKeywordsHeuristic(tfidf.meaningful);
-      
-      return {
-        meaningful: heuristic.meaningful,
-        filtered: [...tfidf.filtered, ...heuristic.filtered],
-        method: 'tfidf+heuristic'
-      };
+  language?: string
+): Promise<ReturnType<typeof filterKeywordsUniversal>> {
+  const cacheKey = `${jobDescription.substring(0, 100)}_${keywords.join('_')}`;
+  
+  if (filterCache.has(cacheKey)) {
+    console.log('💾 Using cached filter result');
+    return filterCache.get(cacheKey);
   }
+  
+  const result = await filterKeywordsUniversal(keywords, jobDescription, language);
+  filterCache.set(cacheKey, result);
+  
+  return result;
 }
 
 /**
- * ✅ TESTIFUNKTIO
+ * ✅ BATCH PROCESSING
  */
-export async function testSmartFiltering() {
-  const keywords = [
-    "React",              // ✅ Tekninen
-    "and",                // ❌ Stop word
-    "customer service",   // ✅ Fraasi
-    "the",                // ❌ Stop word
-    "problem-solving",    // ✅ Tärkeä taito
-    "is",                 // ❌ Stop word
-    "3+ years",           // ✅ Kvalifikaatio
-    "maybe",              // ❌ Filler
-    "Excel",              // ✅ Tekninen
-    "Node.js",            // ✅ Tekninen (piste mukana)
-  ];
-
-  const jobDescription = `
-    We are looking for a React developer with 3+ years of experience.
-    You should have excellent customer service and problem-solving skills.
-    Experience with Excel and Node.js is a plus.
-  `;
-
-  console.log('🧪 Testing Smart Filtering:\n');
-
-  // Test 1: Fast (Heuristic)
-  console.log('1. FAST (Heuristic):');
-  const fast = await smartFilterKeywords(keywords, jobDescription, 'fast');
-  console.log('✅ Meaningful:', fast.meaningful);
-  console.log('❌ Filtered:', fast.filtered);
-  console.log(`Time: ~10ms\n`);
-
-  // Test 2: Balanced (TF-IDF + Heuristic)
-  console.log('2. BALANCED (TF-IDF + Heuristic):');
-  const balanced = await smartFilterKeywords(keywords, jobDescription, 'balanced');
-  console.log('✅ Meaningful:', balanced.meaningful);
-  console.log('❌ Filtered:', balanced.filtered);
-  console.log(`Time: ~50ms\n`);
-
-  // Test 3: Accurate (AI)
-  console.log('3. ACCURATE (AI):');
-  const accurate = await smartFilterKeywords(keywords, jobDescription, 'accurate');
-  console.log('✅ Meaningful:', accurate.meaningful);
-  console.log('❌ Filtered:', accurate.filtered);
-  console.log(`Time: ~800ms\n`);
-
-  return { fast, balanced, accurate };
+export async function filterKeywordsBatch(
+  batches: Array<{ keywords: string[]; jobDescription: string }>,
+  language?: string
+): Promise<Array<Awaited<ReturnType<typeof filterKeywordsUniversal>>>> {
+  return Promise.all(
+    batches.map(batch => 
+      filterKeywordsUniversal(batch.keywords, batch.jobDescription, language)
+    )
+  );
 }
-
-// testSmartFiltering();

@@ -1,7 +1,5 @@
+// app/api/improve-ats/route.ts - TÄYSIN KORJATTU
 
-// ============================================
-// app/api/improve-ats/route.ts
-// ============================================
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { ChatOpenAI } from '@langchain/openai';
@@ -14,80 +12,187 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { currentContent, missingKeywords, jobDescription } = await req.json();
+    const { currentContent, missingKeywords, jobDescription, language } = await req.json();
 
-    if (!currentContent || !missingKeywords || missingKeywords.length === 0) {
+    console.log('📝 Improve ATS request:', {
+      contentLength: currentContent?.length,
+      keywordsCount: missingKeywords?.length,
+      keywords: missingKeywords?.slice(0, 5),
+      language: language || 'auto-detect'
+    });
+
+    // ✅ VALIDOINTI
+    if (!currentContent) {
       return NextResponse.json(
-        { error: 'Current content and missing keywords required' },
+        { error: 'Current content required' },
         { status: 400 }
       );
     }
 
+    if (!missingKeywords || missingKeywords.length === 0) {
+      return NextResponse.json(
+        { 
+          error: 'NO_MISSING_KEYWORDS',
+          message: 'Ei puuttuvia avainsanoja - ATS-pisteet ovat jo hyvät!',
+          suggestion: 'Hakukirjeesi sisältää jo kaikki tärkeät avainsanat.'
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ TUNNISTA KIELI
+    const detectedLanguage = language || detectLanguageSimple(currentContent);
+    console.log(`🌍 Detected language: ${detectedLanguage}`);
+
     const model = new ChatOpenAI({
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      openAIApiKey: process.env.OPENAI_API_KEY!,
       modelName: 'gpt-4o-mini',
       temperature: 0.4,
     });
 
     const improvePrompt = ChatPromptTemplate.fromMessages([
-      ['system', `You are an ATS optimization expert specializing in cover letters.
+      ['system', `You are an ATS optimization expert working in ANY language.
 
-Your task: Add missing keywords naturally into the existing cover letter WITHOUT:
-- Changing the core message or tone
-- Making it sound robotic or keyword-stuffed
-- Removing any existing content
-- Creating fake experiences
+**YOUR MISSION:**
+Add missing keywords naturally into the cover letter while MAINTAINING TEXT FLOW.
 
-RULES:
-1. Add keywords in relevant context where they fit naturally
-2. Maintain professional Finnish language
-3. Keep the same paragraph structure
-4. Don't force keywords - if they don't fit naturally, skip them
-5. Preserve the applicant's voice and personality
+**CRITICAL RULES:**
+1. **MAINTAIN COHERENCE**: Keep text flowing naturally
+2. **NO NEW PARAGRAPHS**: Integrate into existing paragraphs
+3. **NATURAL PHRASING**: Sound like the user wrote it
+4. **PRESERVE FACTS**: Don't change companies, dates, or experiences
+5. **SAME LANGUAGE**: Keep original language
+6. **MAX 5 KEYWORDS**: Don't overload
 
-Return ONLY the improved content, no explanations or markdown.`],
+**BAD EXAMPLE (DON'T DO THIS):**
+
+BEFORE:
+"Olen ohjelmistokehittäjä joka tykkää koodaamisesta."
+
+AFTER (adding "React, tiimityö"):
+"Olen ohjelmistokehittäjä joka tykkää koodaamisesta.
+
+React.
+
+Tiimityö."
+
+**GOOD EXAMPLE (DO THIS):**
+
+BEFORE:
+"Olen ohjelmistokehittäjä joka tykkää koodaamisesta."
+
+AFTER (adding "React, tiimityö"):
+"Olen ohjelmistokehittäjä joka tykkää koodaamisesta React-teknologialla 
+ja nauttii tiimityöskentelystä."
+
+**INTEGRATION TIPS:**
+- Technical terms: "Osaan React:n ja Node.js:n"
+- Soft skills: "työskentelen tiimissä" (not just "tiimityö")
+- Experience: "hallinnoin projekteja" (not just "projektinhallinta")
+
+Return ONLY the improved text.`],
       
-      ['human', `Improve this cover letter by adding these missing keywords naturally:
-
-CURRENT CONTENT:
+      ['human', `**CURRENT TEXT:**
 {currentContent}
 
-MISSING KEYWORDS TO ADD (priority order):
+**KEYWORDS TO ADD (max 5):**
 {missingKeywords}
 
-JOB DESCRIPTION CONTEXT:
+**JOB CONTEXT:**
 {jobDescription}
 
-Add the keywords naturally where they make sense. Return the improved content.`]
+Add keywords naturally. Return improved text only.`]
     ]);
+
+    // ✅ KÄYTÄ MAX 5 AVAINSANAA KERRALLA
+    const keywordsToAdd = missingKeywords.slice(0, 5);
+    console.log(`🎯 Adding keywords: ${keywordsToAdd.join(', ')}`);
 
     const formatted = await improvePrompt.formatMessages({
       currentContent,
-      missingKeywords: missingKeywords.join(', '),
+      missingKeywords: keywordsToAdd.join(', '),
       jobDescription: jobDescription || 'No context available'
     });
 
     const result = await model.invoke(formatted);
-    const improvedContent = typeof result.content === 'string' 
+    let improvedContent = typeof result.content === 'string' 
       ? result.content 
       : JSON.stringify(result.content);
 
-    // Clean up any markdown artifacts
-    const cleanedContent = improvedContent
+    // ✅ PUHDISTA MARKDOWN
+    improvedContent = improvedContent
       .replace(/```html/g, '')
       .replace(/```/g, '')
       .trim();
 
+    // ✅ TARKISTA että sisältö muuttui
+    if (improvedContent === currentContent) {
+      console.warn('⚠️ Content unchanged');
+      return NextResponse.json({
+        error: 'CANNOT_IMPROVE',
+        message: 'AI ei pystynyt lisäämään avainsanoja luonnollisesti.',
+        suggestion: 'Avainsanat eivät sovi hakukirjeen kontekstiin. Kokeile manuaalista muokkausta.',
+        attemptedKeywords: keywordsToAdd
+      }, { status: 400 });
+    }
+
+    // ✅ TARKISTA että avainsanoja lisättiin
+    const addedKeywords = keywordsToAdd.filter((kw: string) => 
+      !currentContent.toLowerCase().includes(kw.toLowerCase()) &&
+      improvedContent.toLowerCase().includes(kw.toLowerCase())
+    );
+
+    console.log(`✅ Successfully added ${addedKeywords.length}/${keywordsToAdd.length} keywords`);
+
+    if (addedKeywords.length === 0) {
+      console.warn('⚠️ No keywords were actually added');
+      return NextResponse.json({
+        error: 'NO_KEYWORDS_ADDED',
+        message: 'AI ei pystynyt lisäämään yhtään avainsanaa luonnollisesti.',
+        suggestion: 'Kokeile lisätä avainsanat manuaalisesti klikkaamalla.',
+        attemptedKeywords: keywordsToAdd
+      }, { status: 400 });
+    }
+
     return NextResponse.json({
-      improvedContent: cleanedContent,
-      addedKeywords: missingKeywords.slice(0, 5), // Return which ones were attempted
+      success: true,
+      improvedContent,
+      addedKeywords,
+      attemptedKeywords: keywordsToAdd,
+      language: detectedLanguage,
+      message: `Lisättiin ${addedKeywords.length} avainsanaa: ${addedKeywords.join(', ')}`
     });
+
   } catch (error) {
-    console.error('ATS improvement error:', error);
+    console.error('❌ ATS improvement error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
     return NextResponse.json(
-      { error: 'ATS improvement failed' },
+      { 
+        error: 'ATS_IMPROVEMENT_FAILED',
+        message: 'ATS-parannuksen luonti epäonnistui',
+        details: errorMessage,
+        suggestion: 'Yritä uudelleen tai muokkaa manuaalisesti. Jos ongelma toistuu, ota yhteyttä tukeen.'
+      },
       { status: 500 }
     );
   }
 }
 
+/**
+ * ✅ YKSINKERTAINEN KIELENTUNNISTUS
+ */
+function detectLanguageSimple(text: string): string {
+  const lower = text.toLowerCase();
+  
+  if (lower.match(/\b(olen|minä|että|joka|kun|mutta|työssä)\b/)) {
+    return 'finnish';
+  }
+  
+  if (lower.match(/\b(jag|är|att|som|när|med)\b/)) {
+    return 'swedish';
+  }
+  
+  return 'english';
+}

@@ -1,4 +1,4 @@
-// app/edit-cover-letter/[id]/page.tsx - YHTENÄINEN VERSIO (V1 & V2)
+// app/edit-cover-letter/[id]/page.tsx - TÄYSI MUOKKAUSTUKI
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -6,23 +6,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, TrendingUp, AlertTriangle, 
-  CheckCircle2, Loader2, RefreshCw, XCircle, Info, Copy, Eye, Sparkles
+  Loader2, RefreshCw, Sparkles, Edit3, Type, Palette, Layout,
+  AlignLeft, AlignCenter, AlignRight, Bold, Italic, Plus
 } from 'lucide-react';
 import SmartHeader from '@/components/ui/smartHeader';
-import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
-import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
-import TransparentErrorModal, { parseAPIError, ErrorExplanation } from '@/components/TransparentErrorModal';
 import { fetchCoverLetterById, updateCoverLetter, deleteCoverLetter } from '@/services/coverLetterService-client';
-
-import type { ATSAnalysis } from '@/types/ats';
-import type { CoverLetterData } from '@/types/ats';
-
-interface ValidationWarning {
-  show: boolean;
-  message: string;
-  issues: Record<string, string[]>;
-  pendingContent: string;
-}
 
 export default function EditCoverLetterPage() {
   const params = useParams();
@@ -30,30 +18,36 @@ export default function EditCoverLetterPage() {
   const { getToken } = useAuth();
   const id = params?.id as string;
 
-  const [coverLetter, setCoverLetter] = useState<CoverLetterData | null>(null);
-  const [atsAnalysis, setATSAnalysis] = useState<ATSAnalysis | null>(null);
-  
-  // ✅ UUSI: Tunnista cover letter tyyppi
+  const [coverLetter, setCoverLetter] = useState<any>(null);
+  const [atsAnalysis, setATSAnalysis] = useState<any>(null);
   const [isATSOptimized, setIsATSOptimized] = useState<boolean>(false);
+  
+  // ✅ MUOKKAUSTILA
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+  
+  // ✅ ULKONÄKÖMUOKKAUS
+  const [fontSize, setFontSize] = useState(16);
+  const [lineHeight, setLineHeight] = useState(1.7);
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right' | 'justify'>('justify');
+  const [fontFamily, setFontFamily] = useState('serif');
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
   const [insertingKeyword, setInsertingKeyword] = useState<string | null>(null);
-  const [isImproving, setIsImproving] = useState(false); // ✅ UUSI
   
-  const [showMissingKeywords, setShowMissingKeywords] = useState(true);
-  const [showFoundKeywords, setShowFoundKeywords] = useState(false);
-  const [showSynonymMatches, setShowSynonymMatches] = useState(false);
-  const [copiedKeyword, setCopiedKeyword] = useState<string | null>(null);
-  
-  const [errorModal, setErrorModal] = useState<ErrorExplanation | null>(null);
-  const [validationWarning, setValidationWarning] = useState<ValidationWarning | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // ✅ AVAINSANAEHDOTUKSET
+  const [showKeywordSuggestions, setShowKeywordSuggestions] = useState(true);
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   
   const letterRef = useRef<HTMLDivElement>(null);
 
-  // ✅ LATAA COVER LETTER + TUNNISTA TYYPPI
+  // LATAA COVER LETTER
   useEffect(() => {
     const loadCoverLetter = async () => {
       try {
@@ -65,17 +59,24 @@ export default function EditCoverLetterPage() {
         if (error) throw error;
         if (!data) throw new Error('Hakukirjettä ei löytynyt');
         
-        setCoverLetter(data as CoverLetterData);
+        setCoverLetter(data);
+        
+        const content = data.content?.body || data.ai_data?.html?.content || '';
+        setEditedContent(content);
 
-        // ✅ TUNNISTA TYYPPI
         const hasATSData = !!data.ai_data?.ats_optimization;
         setIsATSOptimized(hasATSData);
 
-        console.log(`📄 Cover Letter tyyppi: ${hasATSData ? 'V2 (ATS)' : 'V1 (Tavallinen)'}`);
+        // Lataa tallennettua ulkonäköä
+        if (data.ai_data?.styling) {
+          setFontSize(data.ai_data.styling.fontSize || 16);
+          setLineHeight(data.ai_data.styling.lineHeight || 1.7);
+          setTextAlign(data.ai_data.styling.textAlign || 'justify');
+          setFontFamily(data.ai_data.styling.fontFamily || 'serif');
+        }
 
-        // ✅ ANALYSOI VAIN JOS V2
         if (hasATSData && data.content?.job_description) {
-          analyzeATS(data.content.body || data.ai_data?.html?.content, data.content.job_description);
+          analyzeATS(content, data.content.job_description);
         }
       } catch (error) {
         console.error('Error loading cover letter:', error);
@@ -87,9 +88,9 @@ export default function EditCoverLetterPage() {
     if (id) loadCoverLetter();
   }, [id, getToken, router]);
 
-  // ✅ ATS-ANALYYSI (vain V2:lle)
+  // ATS-ANALYYSI
   const analyzeATS = async (content: string, jobDesc?: string) => {
-    if (!isATSOptimized) return; // Skip jos V1
+    if (!isATSOptimized) return;
     if (!jobDesc && !coverLetter?.content?.job_description) return;
 
     setIsAnalyzing(true);
@@ -104,7 +105,7 @@ export default function EditCoverLetterPage() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          jobDescription: jobDesc || (coverLetter?.content?.job_description || ''),
+          jobDescription: jobDesc || coverLetter?.content?.job_description || '',
           coverLetterContent: content
         })
       });
@@ -120,14 +121,29 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // Copy keyword
-  const copyKeyword = (keyword: string) => {
-    navigator.clipboard.writeText(keyword);
-    setCopiedKeyword(keyword);
-    setTimeout(() => setCopiedKeyword(null), 2000);
+  // ✅ LISÄÄ AVAINSANA TEKSTIIN
+  const insertKeywordAtCursor = (keyword: string) => {
+    const textarea = document.getElementById('contentEditor') as HTMLTextAreaElement;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const textBefore = editedContent.substring(0, start);
+    const textAfter = editedContent.substring(end);
+    
+    const newContent = `${textBefore} ${keyword} ${textAfter}`;
+    setEditedContent(newContent);
+    
+    // Aseta kursori avainsanan jälkeen
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + keyword.length + 1, start + keyword.length + 1);
+    }, 0);
+    
+    setSelectedKeywords([...selectedKeywords, keyword]);
   };
 
-  // ✅ SMART INSERT (vain V2:lle)
+  // SMART INSERT KEYWORD
   const handleSmartInsertKeyword = async (keyword: string) => {
     if (!isATSOptimized) {
       alert('Avainsanojen lisäys on käytettävissä vain ATS-optimoiduille hakukirjeille.');
@@ -135,7 +151,6 @@ export default function EditCoverLetterPage() {
     }
 
     setInsertingKeyword(keyword);
-    setErrorModal(null);
     
     try {
       const response = await fetch('/api/insert-keyword-smart', {
@@ -143,7 +158,7 @@ export default function EditCoverLetterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           keyword,
-          currentContent: coverLetter?.content.body || coverLetter?.ai_data?.html?.content,
+          currentContent: editedContent,
           jobDescription: coverLetter?.content?.job_description,
           coverLetterId: id
         })
@@ -152,93 +167,39 @@ export default function EditCoverLetterPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        const explanation = parseAPIError(data);
-        setErrorModal(explanation);
-        return;
-      }
-
-      if (data.warning?.requiresConfirmation) {
-        setValidationWarning({
-          show: true,
-          message: data.warning.message,
-          issues: data.warning.violations,
-          pendingContent: data.improvedContent
-        });
-        return;
+        throw new Error(data.error || 'Insertion failed');
       }
 
       if (data.improvedContent) {
-        setCoverLetter((prev) => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            content: {
-              ...prev.content,
-              body: data.improvedContent
-            }
-          };
-        });
-
+        setEditedContent(data.improvedContent);
         await analyzeATS(data.improvedContent);
         
-        setSuccessMessage(`✅ Avainsana "${keyword}" lisätty onnistuneesti!`);
+        setSuccessMessage(`✅ Avainsana "${keyword}" lisätty!`);
         setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch (error) {
       console.error('Smart insertion error:', error);
-      setErrorModal({
-        type: 'cannot_insert',
-        title: '❌ Verkkovirhe',
-        message: 'Yhteys palvelimeen epäonnistui',
-        whyThisHappened: 'Tämä voi johtua verkko-ongelmista tai palvelimen ylikuormituksesta.',
-        howToFix: [
-          'Tarkista internet-yhteytesi',
-          'Yritä uudelleen hetken päästä',
-          'Lisää avainsana manuaalisesti'
-        ],
-        canRetry: true
-      });
+      setErrorMessage('Avainsanan lisäys epäonnistui: ' + (error instanceof Error ? error.message : 'Unknown'));
+      setTimeout(() => setErrorMessage(null), 5000);
     } finally {
       setInsertingKeyword(null);
     }
   };
 
-  const handleAcceptWarning = async () => {
-    if (!validationWarning) return;
-    
-    setCoverLetter((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        content: {
-          ...prev.content,
-          body: validationWarning.pendingContent
-        }
-      };
-    });
-
-    if (isATSOptimized) {
-      await analyzeATS(validationWarning.pendingContent);
-    }
-    
-    setValidationWarning(null);
-    setSuccessMessage('✅ Muutos hyväksytty');
-    setTimeout(() => setSuccessMessage(null), 3000);
-  };
-
-  const handleRejectWarning = () => {
-    setValidationWarning(null);
-  };
-
-  // ✅ IMPROVE ATS AUTOMAATTISESTI
+  // ✅ IMPROVE ATS - KORJATTU VIRHEENKÄSITTELY
   const handleImproveATS = async () => {
     if (!atsAnalysis || !coverLetter) return;
 
+    const missingCount = atsAnalysis.missingCritical?.length || 0;
+    if (missingCount === 0) {
+      alert('Ei puuttuvia avainsanoja - ATS-pisteet ovat jo hyvät!');
+      return;
+    }
+
     if (!confirm(
       `Nykyiset ATS-pisteet: ${atsAnalysis.score}%\n\n` +
-      `Puuttuvia avainsanoja: ${atsAnalysis.missingCritical.length} kpl\n\n` +
-      'Haluatko että AI lisää ne automaattisesti?\n\n' +
-      '⚠️ HUOM: Tämä muokkaa hakukirjettäsi. Tarkista tulokset huolellisesti.'
+      `Puuttuvia avainsanoja: ${missingCount} kpl\n\n` +
+      'Haluatko että AI lisää ne automaattisesti?'
     )) return;
 
     setIsImproving(true);
@@ -253,9 +214,10 @@ export default function EditCoverLetterPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          currentContent: coverLetter.content?.body || coverLetter.ai_data?.html?.content,
-          missingKeywords: atsAnalysis.missingCritical.slice(0, 5), // Top 5
+          currentContent: editedContent,
+          missingKeywords: atsAnalysis.missingCritical.slice(0, 5),
           jobDescription: coverLetter.content?.job_description,
+          language: coverLetter.language || 'finnish'
         }),
       });
 
@@ -266,35 +228,29 @@ export default function EditCoverLetterPage() {
 
       const data = await response.json();
 
-      // Päivitä sisältö
-      setCoverLetter((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          content: {
-            ...prev.content,
-            body: data.improvedContent
-          }
-        };
-      });
+      if (!data.improvedContent) {
+        throw new Error('No improved content returned');
+      }
 
-      // Analysoi uudelleen
+      setEditedContent(data.improvedContent);
       await analyzeATS(data.improvedContent);
 
       setSuccessMessage(
-        `✅ ATS-pisteet parannettu! Lisättiin avainsanat: ${data.addedKeywords?.join(', ') || 'useita'}`
+        `✅ ATS-pisteet parannettu! Lisättiin: ${data.addedKeywords?.join(', ') || 'useita avainsanoja'}`
       );
       setTimeout(() => setSuccessMessage(null), 5000);
 
     } catch (error) {
       console.error('Improve ATS error:', error);
-      alert('ATS-parannuksen luonti epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
+      const message = error instanceof Error ? error.message : 'Tuntematon virhe';
+      setErrorMessage(`ATS-parannuksen luonti epäonnistui: ${message}`);
+      setTimeout(() => setErrorMessage(null), 8000);
     } finally {
       setIsImproving(false);
     }
   };
 
-  // Save
+  // ✅ TALLENNA (mukana ulkonäkö)
   const handleSave = async () => {
     if (!coverLetter) return;
 
@@ -304,9 +260,22 @@ export default function EditCoverLetterPage() {
       if (!token) throw new Error('No token');
 
       const updatedData = {
-        content: coverLetter.content,
+        content: {
+          ...coverLetter.content,
+          body: editedContent
+        },
         ai_data: {
           ...coverLetter.ai_data,
+          html: {
+            ...coverLetter.ai_data?.html,
+            content: editedContent
+          },
+          styling: {
+            fontSize,
+            lineHeight,
+            textAlign,
+            fontFamily
+          },
           ...(isATSOptimized && atsAnalysis && {
             ats_optimization: {
               ...coverLetter.ai_data?.ats_optimization,
@@ -320,17 +289,21 @@ export default function EditCoverLetterPage() {
       const { error } = await updateCoverLetter(id, updatedData, token);
       if (error) throw error;
       
+      setCoverLetter((prev: any) => prev ? { ...prev, content: { ...prev.content, body: editedContent } } : null);
+      setIsEditing(false);
+      
       setSuccessMessage('✅ Hakukirje tallennettu!');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
       console.error('Save error:', error);
-      alert('Tallennus epäonnistui');
+      setErrorMessage('Tallennus epäonnistui');
+      setTimeout(() => setErrorMessage(null), 5000);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Delete
+  // POISTA
   const handleDelete = async () => {
     if (!confirm('Haluatko varmasti poistaa tämän hakukirjeen?')) return;
 
@@ -349,7 +322,7 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // Download PDF
+  // LATAA PDF
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
@@ -357,8 +330,9 @@ export default function EditCoverLetterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          htmlContent: coverLetter?.ai_data?.html?.content || coverLetter?.content?.body,
-          letterId: id
+          htmlContent: editedContent,
+          letterId: id,
+          styling: { fontSize, lineHeight, textAlign, fontFamily }
         }),
       });
 
@@ -411,7 +385,7 @@ export default function EditCoverLetterPage() {
           <div className="flex items-center gap-2 md:gap-4">
             <button 
               onClick={() => router.push('/my-cover-letters')}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -420,63 +394,78 @@ export default function EditCoverLetterPage() {
                 <h1 className="text-lg md:text-xl font-bold truncate max-w-[200px] md:max-w-none">
                   {coverLetter.title}
                 </h1>
-                {/* ✅ NÄYTÄ MERKKI */}
                 {isATSOptimized ? (
                   <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
                     ATS-optimoitu
                   </span>
                 ) : (
-                  <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
+                  <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-semibold rounded-full">
                     Tavallinen
                   </span>
                 )}
               </div>
-              <p className="text-xs md:text-sm text-gray-500">
-                Luotu: {new Date(coverLetter.created_at).toLocaleDateString('fi-FI')}
-              </p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
+            {!isEditing ? (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="p-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span className="hidden md:inline">Muokkaa</span>
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditedContent(coverLetter.content?.body || coverLetter.ai_data?.html?.content || '');
+                  }}
+                  className="p-2 md:px-4 md:py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                >
+                  Peruuta
+                </button>
+                <button 
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="p-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  <span className="hidden md:inline">Tallenna</span>
+                </button>
+              </>
+            )}
+            
             <button 
               onClick={handleDownloadPDF}
               disabled={isDownloading}
-              className="p-2 md:px-4 md:py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+              className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
             >
-              {isDownloading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              <span className="hidden md:inline">Lataa PDF</span>
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             </button>
-            <button 
-              onClick={handleSave}
-              disabled={isSaving}
-              className="p-2 md:px-4 md:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50"
-            >
-              {isSaving ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              <span className="hidden md:inline">Tallenna</span>
-            </button>
-            <button 
-              onClick={handleDelete}
-              className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
-            >
+            
+            <button onClick={handleDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
               <Trash2 className="w-5 h-5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Success Message */}
+      {/* Messages */}
       {successMessage && (
-        <div className="fixed top-20 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-slide-in">
+        <div className="fixed top-20 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
           {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="fixed top-20 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+          {errorMessage}
         </div>
       )}
 
@@ -484,10 +473,10 @@ export default function EditCoverLetterPage() {
       <div className="max-w-[1800px] mx-auto p-3 md:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
         
-          {/* ✅ LEFT: ATS Panel (vain jos V2) */}
+          {/* LEFT: ATS + Styling Panel */}
           {isATSOptimized && atsAnalysis && (
             <div className="lg:col-span-3 space-y-4">
-              {/* ✅ IMPROVE ATS BUTTON (jos pisteet alle 75%) */}
+              {/* IMPROVE ATS BUTTON */}
               {atsAnalysis.score < 75 && atsAnalysis.missingCritical.length > 0 && (
                 <button
                   onClick={handleImproveATS}
@@ -502,202 +491,194 @@ export default function EditCoverLetterPage() {
                   ) : (
                     <>
                       <Sparkles className="w-5 h-5" />
-                      Paranna ATS automaattisesti
+                      Paranna ATS
                     </>
                   )}
                 </button>
               )}
               
-              {/* ATS Score Card */}
+              {/* ATS Score */}
               <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                <div className={`p-4 md:p-6 ${getScoreBg(atsAnalysis.score)}`}>
+                <div className={`p-4 ${getScoreBg(atsAnalysis.score)}`}>
                   <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      {isAnalyzing ? (
-                        <Loader2 className="w-5 md:w-6 h-5 md:h-6 animate-spin text-gray-600" />
-                      ) : (
-                        <TrendingUp className={`w-5 md:w-6 h-5 md:h-6 ${getScoreColor(atsAnalysis.score)}`} />
-                      )}
-                    </div>
-                    <div className={`text-4xl md:text-5xl font-bold mb-2 ${getScoreColor(atsAnalysis.score)}`}>
+                    <div className={`text-4xl font-bold mb-2 ${getScoreColor(atsAnalysis.score)}`}>
                       {atsAnalysis.score}%
                     </div>
                     <p className="text-sm font-semibold text-gray-700">ATS-yhteensopivuus</p>
                     <button
-                      onClick={() => analyzeATS(coverLetter.content.body || coverLetter.ai_data?.html?.content)}
+                      onClick={() => analyzeATS(editedContent)}
                       disabled={isAnalyzing}
-                      className="mt-3 text-xs text-blue-600 hover:underline flex items-center gap-1 mx-auto disabled:opacity-50"
+                      className="mt-3 text-xs text-blue-600 hover:underline flex items-center gap-1 mx-auto"
                     >
                       <RefreshCw className="w-3 h-3" />
-                      {isAnalyzing ? 'Analysoidaan...' : 'Päivitä pisteet'}
+                      {isAnalyzing ? 'Analysoidaan...' : 'Päivitä'}
                     </button>
-                  </div>
-                </div>
-
-                <div className="p-4 space-y-3">
-                  {/* Warning */}
-                  <div className={`p-3 border rounded-lg ${
-                    atsAnalysis.warningType === 'critical' ? 'bg-red-50 border-red-300' :
-                    atsAnalysis.warningType === 'warning' ? 'bg-yellow-50 border-yellow-300' :
-                    atsAnalysis.warningType === 'success' ? 'bg-green-50 border-green-300' :
-                    'bg-blue-50 border-blue-300'
-                  }`}>
-                    <p className="text-xs">{atsAnalysis.warningMessage}</p>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="p-2 bg-green-50 border border-green-200 rounded">
-                      <div className="text-lg font-bold text-green-600">{atsAnalysis.analysis.exact}</div>
-                      <div className="text-xs text-gray-600">Täsmä</div>
-                    </div>
-                    <div className="p-2 bg-blue-50 border border-blue-200 rounded">
-                      <div className="text-lg font-bold text-blue-600">{atsAnalysis.analysis.synonyms || 0}</div>
-                      <div className="text-xs text-gray-600">Syno</div>
-                    </div>
-                    <div className="p-2 bg-red-50 border border-red-200 rounded">
-                      <div className="text-lg font-bold text-red-600">{atsAnalysis.analysis.missing}</div>
-                      <div className="text-xs text-gray-600">Puuttuu</div>
-                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Missing Keywords */}
-              {atsAnalysis.missingCritical.length > 0 && (
+              {/* ✅ AVAINSANAEHDOTUKSET */}
+              {showKeywordSuggestions && atsAnalysis.missingCritical.length > 0 && (
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                      Puuttuvat ({atsAnalysis.missingCritical.length})
+                    </h3>
+                  </div>
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {atsAnalysis.missingCritical.map((keyword: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <button
+                          onClick={() => insertKeywordAtCursor(keyword)}
+                          className="flex-1 p-2 text-left text-sm bg-yellow-50 hover:bg-yellow-100 border border-yellow-300 rounded transition"
+                        >
+                          {keyword}
+                        </button>
+                        <button
+                          onClick={() => handleSmartInsertKeyword(keyword)}
+                          disabled={insertingKeyword === keyword}
+                          className="px-3 py-2 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 disabled:opacity-50"
+                          title="AI lisää automaattisesti"
+                        >
+                          {insertingKeyword === keyword ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ✅ ULKONÄKÖASETUKSET */}
+              {isEditing && (
                 <div className="bg-white rounded-lg shadow-sm border p-4">
                   <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                    Puuttuvat ({atsAnalysis.missingCritical.length})
+                    <Palette className="w-4 h-4" />
+                    Ulkonäkö
                   </h3>
-                  <div className="space-y-2 max-h-80 overflow-y-auto">
-                    {atsAnalysis.missingCritical.map((keyword, idx) => (
+                  
+                  {/* Font Size */}
+                  <div className="mb-3">
+                    <label className="text-xs text-gray-600 mb-1 block">Fonttikoko: {fontSize}px</label>
+                    <input
+                      type="range"
+                      min="12"
+                      max="20"
+                      value={fontSize}
+                      onChange={(e) => setFontSize(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Line Height */}
+                  <div className="mb-3">
+                    <label className="text-xs text-gray-600 mb-1 block">Riviväli: {lineHeight}</label>
+                    <input
+                      type="range"
+                      min="1.2"
+                      max="2.0"
+                      step="0.1"
+                      value={lineHeight}
+                      onChange={(e) => setLineHeight(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Font Family */}
+                  <div className="mb-3">
+                    <label className="text-xs text-gray-600 mb-1 block">Fontti</label>
+                    <select
+                      value={fontFamily}
+                      onChange={(e) => setFontFamily(e.target.value)}
+                      className="w-full p-2 border rounded text-sm"
+                    >
+                      <option value="serif">Serif (Merriweather)</option>
+                      <option value="sans-serif">Sans-serif (Arial)</option>
+                      <option value="monospace">Monospace (Courier)</option>
+                    </select>
+                  </div>
+
+                  {/* Text Align */}
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">Tasaus</label>
+                    <div className="flex gap-2">
                       <button
-                        key={idx}
-                        onClick={() => handleSmartInsertKeyword(keyword)}
-                        disabled={insertingKeyword === keyword}
-                        className={`w-full p-3 text-left rounded-lg transition-all group ${
-                          insertingKeyword === keyword
-                            ? 'bg-blue-100 border-blue-300 cursor-wait'
-                            : 'bg-yellow-50 hover:bg-yellow-100 border-yellow-300'
-                        } border`}
+                        onClick={() => setTextAlign('left')}
+                        className={`p-2 border rounded ${textAlign === 'left' ? 'bg-blue-100 border-blue-500' : ''}`}
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-800 text-sm">{keyword}</span>
-                          {insertingKeyword === keyword ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                          ) : (
-                            <Copy className="w-4 h-4 text-yellow-600 opacity-0 group-hover:opacity-100" />
-                          )}
-                        </div>
+                        <AlignLeft className="w-4 h-4" />
                       </button>
-                    ))}
+                      <button
+                        onClick={() => setTextAlign('center')}
+                        className={`p-2 border rounded ${textAlign === 'center' ? 'bg-blue-100 border-blue-500' : ''}`}
+                      >
+                        <AlignCenter className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setTextAlign('right')}
+                        className={`p-2 border rounded ${textAlign === 'right' ? 'bg-blue-100 border-blue-500' : ''}`}
+                      >
+                        <AlignRight className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setTextAlign('justify')}
+                        className={`p-2 border rounded ${textAlign === 'justify' ? 'bg-blue-100 border-blue-500' : ''}`}
+                      >
+                        <Layout className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* ✅ CENTER: Cover Letter (kaikille) */}
-          <div className={isATSOptimized ? "lg:col-span-6" : "lg:col-span-12"}>
-            {/* ✅ INFO BOX jos V1 */}
+          {/* CENTER: Cover Letter */}
+          <div className={isATSOptimized ? "lg:col-span-9" : "lg:col-span-12"}>
             {!isATSOptimized && (
               <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>💡 Vinkki:</strong> Tämä on tavallinen hakukirje ilman ATS-optimointia. 
-                  Jos haluat lisätä avainsanoja ja analysoida ATS-pisteitä, luo uusi ATS-optimoitu hakukirje.
+                  <strong>💡 Vinkki:</strong> Tämä on tavallinen hakukirje ilman ATS-optimointia.
                 </p>
               </div>
             )}
 
-            <CoverLetterContainer ref={letterRef}>
-              <CoverLetterTemplate 
-                data={coverLetter}
-                ai_data={coverLetter.ai_data}
-                isPdfPreview={false}
-              />
-            </CoverLetterContainer>
-          </div>
-
-          {/* ✅ RIGHT: Synonym Matches (vain jos V2) */}
-          {isATSOptimized && atsAnalysis && atsAnalysis.synonymMatches && atsAnalysis.synonymMatches.length > 0 && (
-            <div className="lg:col-span-3 space-y-4">
-              <div className="bg-white rounded-lg shadow-sm border p-4">
-                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                  <Info className="w-4 h-4 text-blue-600" />
-                  Synonyymit ({atsAnalysis.synonymMatches.length})
-                </h3>
-                <div className="space-y-2">
-                  {atsAnalysis.synonymMatches.map((match, idx) => (
-                    <div key={idx} className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                      <div className="font-medium text-gray-800">{match.keyword}</div>
-                      <div className="text-gray-600">→ "{match.foundAs}" ({Math.round(match.confidence * 100)}%)</div>
-                    </div>
-                  ))}
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              {isEditing ? (
+                <textarea
+                  id="contentEditor"
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  className="w-full min-h-[600px] p-4 border border-gray-300 rounded leading-relaxed"
+                  style={{
+                    fontSize: `${fontSize}px`,
+                    lineHeight: lineHeight,
+                    textAlign: textAlign,
+                    fontFamily: fontFamily === 'serif' ? 'Merriweather, serif' : fontFamily
+                  }}
+                  placeholder="Muokkaa hakukirjettä..."
+                />
+              ) : (
+                <div 
+                  className="whitespace-pre-wrap"
+                  style={{
+                    fontSize: `${fontSize}px`,
+                    lineHeight: lineHeight,
+                    textAlign: textAlign,
+                    fontFamily: fontFamily === 'serif' ? 'Merriweather, serif' : fontFamily
+                  }}
+                >
+                  {editedContent}
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
-
-      {/* Modals */}
-      <TransparentErrorModal
-        error={errorModal}
-        onClose={() => setErrorModal(null)}
-        onRetry={errorModal?.canRetry ? () => setErrorModal(null) : undefined}
-      />
-
-      {validationWarning?.show && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertTriangle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-1" />
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-gray-900 mb-2">
-                  ⚠️ Epäjohdonmukaisuus havaittu
-                </h3>
-                <p className="text-sm text-gray-700 mb-4">
-                  {validationWarning.message}
-                </p>
-
-                {Object.entries(validationWarning.issues).map(([category, issues]) => {
-                  const issueList = issues as string[];
-                  if (issueList.length === 0) return null;
-                  
-                  return (
-                    <div key={category} className="mb-3">
-                      <p className="text-sm font-semibold text-gray-800 mb-1">
-                        {category}:
-                      </p>
-                      <ul className="text-sm text-gray-600 space-y-1 ml-4">
-                        {issueList.map((issue, idx) => (
-                          <li key={idx} className="list-disc">• {issue}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={handleRejectWarning}
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
-              >
-                Hylkää
-              </button>
-              <button
-                onClick={handleAcceptWarning}
-                className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-              >
-                Hyväksyn riskin
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
