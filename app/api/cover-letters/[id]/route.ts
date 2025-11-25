@@ -19,7 +19,6 @@ export async function GET(
   try {
     console.log("🔍 API: Fetching cover letter:", letterId);
 
-    // ✅ EI AUTENTIKAATIOTA - kuten CV:ssä
     const { data, error } = await supabaseAdmin
       .from('cover_letters')
       .select('*')
@@ -43,7 +42,8 @@ export async function GET(
 
     console.log("✅ Cover letter fetched successfully");
 
-    return NextResponse.json(data, { status: 200 });
+    // ✅ PALAUTA SAMALLA TAVALLA KUIN CV: { coverLetter: data }
+    return NextResponse.json({ coverLetter: data }, { status: 200 });
 
   } catch (error) {
     console.error("❌ API Error:", error);
@@ -54,7 +54,6 @@ export async function GET(
   }
 }
 
-// ✅ PATCH method jos tarvitset (voit jättää pois jos et käytä)
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -62,7 +61,6 @@ export async function PATCH(
   const params = await context.params;
   const letterId = params.id;
   
-  // Tämä voi vaatia autentikaation jos haluat
   const body = await request.json();
   
   const { data, error } = await supabaseAdmin

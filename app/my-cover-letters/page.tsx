@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - PÄIVITETTY ATS-PAINIKKEELLA
+// app/my-cover-letters/page.tsx - KORJATTU handleDownloadPDF
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -105,7 +105,6 @@ export default function MyCoverLettersPage() {
     }
   };
 
-  // ✅ UUSI: Paranna ATS-pisteitä automaattisesti
   const handleImproveATS = async (letterId: string) => {
     const letter = coverLetters.find(l => l.id === letterId);
     if (!letter) return;
@@ -140,7 +139,6 @@ export default function MyCoverLettersPage() {
 
       const data = await response.json();
 
-      // Päivitä hakukirje tietokannassa
       const updateResponse = await fetch(`/api/cover-letters/${letterId}`, {
         method: 'PATCH',
         headers: {
@@ -168,7 +166,6 @@ export default function MyCoverLettersPage() {
 
       if (!updateResponse.ok) throw new Error('Failed to save improved version');
 
-      // Päivitä state
       const updatedLetter = await updateResponse.json();
       setCoverLetters(prev => 
         prev.map(l => l.id === letterId ? updatedLetter : l)
@@ -223,51 +220,41 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-// Korvaa handleDownloadPDF funktio page.tsx:ssä tällä YKSINKERTAISELLA versiolla
+  // ✅ KORJATTU handleDownloadPDF (kuten CV:ssä)
+  const handleDownloadPDF = async (letterId: string, letterName: string) => {
+    setIsDownloading(letterId);
+    try {
+      const response = await fetch('/api/generate-cover-letter-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ letterId }), // ← Pelkkä ID!
+      });
 
-const handleDownloadPDF = async (letter: any) => {
-  setIsDownloading(letter.id);
-  try {
-    // ✅ LÄHETÄ VAIN LETTER ID (kuten CV:ssä)
-    const response = await fetch('/api/generate-cover-letter-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        letterId: letter.id,  // ← Pelkkä ID!
-      }),
-    });
+      if (!response.ok) {
+        const errorBody = await response.json();
+        alert('PDF:n luonti epäonnistui! Virhe: ' + (errorBody.error || 'Tuntematon palvelinvirhe'));
+        throw new Error(errorBody.error || 'PDF generation failed on server.');
+      }
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('PDF error:', errorData);
-      throw new Error(errorData.error || 'PDF generation failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hakukirje_${letterName.replace(/[^\w-]/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+
+      console.log('PDF download completed successfully');
+    } catch (error) {
+      console.error('PDF download failed:', error);
+      alert('PDF:n lataus epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
+    } finally {
+      setIsDownloading(null);
     }
-    
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    
-    // Käytä letterin titlea tiedostonimessä
-    const fileName = `hakukirje_${letter.title || 'hakemus'}.pdf`
-      .replace(/[^\w\s-]/g, '_')
-      .replace(/\s+/g, '_');
-    
-    a.download = fileName;
-    
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    a.remove();
-    
-    console.log('✅ PDF downloaded successfully');
-  } catch (error) {
-    console.error('PDF generation failed:', error);
-    alert('PDF:n luonti epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
-  } finally {
-    setIsDownloading(null);
-  }
-};
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -318,116 +305,110 @@ const handleDownloadPDF = async (letter: any) => {
   }
 
   return (
-  <>
-    <SmartHeader />
-<div className="w-full lg:w-3/5 mx-auto mb-4 md:inline-block md:ml-64 pt-4">
-<div className="flex justify-between items-center mb-6 mt-10 w-full">
+    <>
+      <SmartHeader />
+      <div className="w-full lg:w-3/5 mx-auto mb-4 md:inline-block md:ml-64 pt-4">
+        <div className="flex justify-between items-center mb-6 mt-10 w-full">
           <h1 className="text-2xl font-bold">Omat hakukirjeet</h1>
-        <Link
-          href="/create-cover-letter"
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          + Luo uusi hakukirje
-        </Link>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-        {coverLetters.map((letter) => {
-          const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
-          const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
-          const isEditingTitle = editingTitleId === letter.id;
-          
-          // ✅ TARKISTA ONKO ATS-OPTIMOITU
-          const isATSOptimized = !!letter.ai_data?.ats_optimization;
-          const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
-          const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
+          <Link
+            href="/create-cover-letter"
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            + Luo uusi hakukirje
+          </Link>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+          {coverLetters.map((letter) => {
+            const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
+            const displayTitle = editedTitles[letter.id] || letter.title || smartTitle;
+            const isEditingTitle = editingTitleId === letter.id;
+            
+            const isATSOptimized = !!letter.ai_data?.ats_optimization;
+            const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
+            const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
 
-          return (
-            <div key={letter.id} className="m-4 rounded-lg p-4 shadow-lg relative group">
-              {/* Title Section */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-xl font-semibold">{displayTitle}</h2>
-                  
-                  <div className="flex items-center gap-2">
-                    {/* ✅ ATS-OPTIMOITU MERKKI */}
-                    {isATSOptimized ? (
-                      <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-300 rounded-full">
-                        <Zap className="w-3 h-3 text-purple-600" />
-                        <span className="text-xs font-semibold text-purple-700">
-                          ATS-optimoitu
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-full">
-                        <Sparkles className="w-3 h-3 text-gray-600" />
-                        <span className="text-xs font-semibold text-gray-700">
-                          Ei Ats optimoitu
-                        </span>
-                      </div>
-                    )}
-
-                    {/* ✅ ATS-PISTEET (jos optimoitu) */}
-                    {isATSOptimized && atsScore > 0 && (
-                      <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                        atsScore >= 75 
-                          ? 'bg-green-100 text-green-700' 
-                          : atsScore >= 50 
-                            ? 'bg-yellow-100 text-yellow-700' 
-                            : 'bg-red-100 text-red-700'
-                      }`}>
-                        <TrendingUp className="w-3 h-3" />
-                        {atsScore}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                <p className="text-gray-600 text-sm">
-                  Luotu: {new Date(letter.created_at).toLocaleDateString('fi-FI')}
-                </p>
-              </div>
-
-              {/* ✅ ATS-PARANNUS NAPPI (vain ATS-optimoiduille) */}
-              {needsATSImprovement && (
-                <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-500 rounded">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-800 mb-1">
-                        💡 ATS-pisteet voidaan parantaa
-                      </p>
-                      <p className="text-xs text-gray-600 mb-2">
-                        Nykyiset pisteet: {atsScore}%. Tavoite: 75%+
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleImproveATS(letter.id)}
-                      disabled={improvingATSId === letter.id}
-                      className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm disabled:opacity-50"
-                    >
-                      {improvingATSId === letter.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Parannetaan...
-                        </>
+            return (
+              <div key={letter.id} className="m-4 rounded-lg p-4 shadow-lg relative group">
+                <div className="mb-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-xl font-semibold">{displayTitle}</h2>
+                    
+                    <div className="flex items-center gap-2">
+                      {isATSOptimized ? (
+                        <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-300 rounded-full">
+                          <Zap className="w-3 h-3 text-purple-600" />
+                          <span className="text-xs font-semibold text-purple-700">
+                            ATS-optimoitu
+                          </span>
+                        </div>
                       ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" />
-                          Paranna ATS
-                        </>
+                        <div className="flex items-center gap-1 px-3 py-1 bg-gray-100 border border-gray-300 rounded-full">
+                          <Sparkles className="w-3 h-3 text-gray-600" />
+                          <span className="text-xs font-semibold text-gray-700">
+                            Ei Ats optimoitu
+                          </span>
+                        </div>
                       )}
-                    </button>
+
+                      {isATSOptimized && atsScore > 0 && (
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                          atsScore >= 75 
+                            ? 'bg-green-100 text-green-700' 
+                            : atsScore >= 50 
+                              ? 'bg-yellow-100 text-yellow-700' 
+                              : 'bg-red-100 text-red-700'
+                        }`}>
+                          <TrendingUp className="w-3 h-3" />
+                          {atsScore}%
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  
+                  <p className="text-gray-600 text-sm">
+                    Luotu: {new Date(letter.created_at).toLocaleDateString('fi-FI')}
+                  </p>
                 </div>
-              )}
-                {/* ATS Report */}
+
+                {needsATSImprovement && (
+                  <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border-l-4 border-yellow-500 rounded">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-800 mb-1">
+                          💡 ATS-pisteet voidaan parantaa
+                        </p>
+                        <p className="text-xs text-gray-600 mb-2">
+                          Nykyiset pisteet: {atsScore}%. Tavoite: 75%+
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleImproveATS(letter.id)}
+                        disabled={improvingATSId === letter.id}
+                        className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm disabled:opacity-50"
+                      >
+                        {improvingATSId === letter.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Parannetaan...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            Paranna ATS
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
                 {letter.ai_data?.ats_optimization?.report && (
                   <div className="mb-4">
                     <ATSReport report={letter.ai_data.ats_optimization.report} />
                   </div>
                 )}
                 
-                {/* Preview Container */}
                 <div
                   className="relative md:h-[306mm] h-[130mm] w-auto md:w-full ml-4 mr-4 md:ml-0 md:mr-0 overflow-hidden rounded-lg shadow-inner"
                   style={{
@@ -452,10 +433,9 @@ const handleDownloadPDF = async (letter: any) => {
                   </div>
                 </div>
                 
-                {/* Action Buttons */}
                 <div className="space-y-2 flex justify-between items-center mt-4">
                   <button
-                    onClick={() => handleDownloadPDF(letter)}
+                    onClick={() => handleDownloadPDF(letter.id, displayTitle)}
                     disabled={isDownloading === letter.id}
                     className="flex items-center text-blue-500 hover:text-blue-600"
                   >
