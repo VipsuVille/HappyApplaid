@@ -38,7 +38,7 @@ const isProtectedApiRoute = createRouteMatcher([
   '/api/generate-cover-letter-pdf',
   '/api/user-profile(.*)',
   '/api/save-profile',
-  '/api/cover-letters(.*)',
+  // ❌ POISTETTU: '/api/cover-letters(.*)', - käsitellään erikseen
 ]);
 
 const isPublicApiRoute = createRouteMatcher([
@@ -53,6 +53,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/extract-keywords-ai',
   '/api/analyze-ats-realistic',
   '/api/insert-keyword-smart',
+  '/api/cv/(.*)',  // ✅ CV GET on julkinen (Puppeteer)
 ]);
 
 const isPdfGenerationRoute = (req: NextRequest) => {
@@ -100,17 +101,11 @@ export default clerkMiddleware(async (auth, req) => {
   // ✅ TURVALLISUUSHEADERIT (XSS, Clickjacking, etc.)
   const response = NextResponse.next();
   
-  // Prevent clickjacking
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
-  
-  // XSS Protection
   response.headers.set('X-XSS-Protection', '1; mode=block');
-  
-  // Referrer Policy
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   
-  // ✅ Content Security Policy (KORJATTU - sisältää clerk.happyapplaid.com)
   const csp = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com",
@@ -138,13 +133,32 @@ export default clerkMiddleware(async (auth, req) => {
     return response;
   }
 
-  // ✅ 4. RATE LIMITING kaikille API-reiteille
+  // ✅ 4. COVER LETTER API - GET on julkinen, muut vaativat auth
+  if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
+    if (req.method === 'GET') {
+      console.log(`✅ Public GET request to cover letter API: ${url.pathname}`);
+      return response; // ← Salli GET ilman authia (Puppeteer)
+    }
+    
+    // PATCH/DELETE/POST vaativat autentikaation
+    const authState = await auth();
+    const { userId } = authState;
+    
+    if (!userId) {
+      console.error(`❌ Unauthorized ${req.method} to cover letter API: ${url.pathname}`);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    console.log(`✅ Authorized ${req.method} to cover letter API: ${url.pathname}`);
+    return response;
+  }
+
+  // ✅ 5. RATE LIMITING kaikille API-reiteille
   if (url.pathname.startsWith('/api/')) {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 
                req.headers.get('x-real-ip') || 
                'unknown';
     
-    // Kovempi rate limit suojattomille reiteille
     const limit = isPublicApiRoute(req) ? 50 : 100;
     
     if (!checkRateLimit(ip, limit)) {
@@ -240,7 +254,6 @@ export default clerkMiddleware(async (auth, req) => {
       'https://localhost:3000',
     ].filter(Boolean) as string[];
 
-    // Tarkista että origin on sallittu TAI että pyyntö tulee samasta domainista
     const isSameOrigin = origin && host && new URL(origin).host === host;
     const isAllowedOrigin = origin && validOrigins.some(allowed => origin.startsWith(allowed));
 

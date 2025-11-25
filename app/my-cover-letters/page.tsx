@@ -417,7 +417,7 @@ export default function MyCoverLettersPage() {
                   }}
                 >
                   <div className="absolute top-4 right-2 bottom-4 left-2 md:top-4 md:right-4 md:bottom-4 md:left-4 flex items-center justify-center">
-                    <div className="h-full flex items-center justify-center">
+                    <div className="w-full h-full flex items-center justify-center">
                       <CoverLetterContainer 
                         ref={setLetterRef(letter.id)} 
                         data-template-type="standard"
@@ -427,6 +427,7 @@ export default function MyCoverLettersPage() {
                           data={letter}
                           ai_data={letter.ai_data}
                           isPdfPreview={false}
+                          isEditing={false}
                         />
                       </CoverLetterContainer>
                     </div>
