@@ -1,4 +1,4 @@
-// components/cover-letter/CoverLetterTemplate.tsx - KORJATTU PADDING
+// components/cover-letter/CoverLetterTemplate.tsx
 import React from 'react';
 import DOMPurify from 'dompurify';
 
@@ -43,24 +43,24 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
   isPdfPreview = false,
   onContentChange
 }) => {
-  // ✅ KORJATTU: Poistettu padding, lisätty vain overflow
   const pageStyle: React.CSSProperties = {
     width: '210mm',
-    height: '297mm', // ✅ Kiinteä korkeus kuten CVContainer
+    height: '297mm',
     boxSizing: 'border-box',
     fontFamily: '"Merriweather", serif',
     lineHeight: 1.5,
     backgroundColor: 'white',
     color: '#333',
     overflow: 'hidden',
-    position: 'relative', // ✅ Lisätty positioning
+    position: 'relative',
   };
 
   const contentStyle = ai_data?.styles?.main_style || '';
 
   const renderSignature = () => {
     const name = data.content?.applicant_info?.name || 'Hakija';
-    const closing = '';
+    const email = data.content?.applicant_info?.email || '';
+    const closing = 'Ystävällisin terveisin';
 
     if (isEditing) {
       return (
@@ -78,26 +78,46 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
     }
 
     return (
-      <div className="signature-section mt-10">
-        <div className="closing-text mb-2" style={{ 
-          fontSize: '1rem',
-          color: '#555'
+      <div className="signature-section" style={{ marginTop: '40px' }}>
+        {/* Ystävällisin terveisin */}
+        <div className="closing-text" style={{ 
+          fontSize: '11pt',
+          color: '#555',
+          marginBottom: '20px', // ✅ Isompi väli ennen viivaa
+          lineHeight: '1.2'
         }}>
           {closing}
         </div>
-        <div className="signature-line mb-3" style={{ 
+        
+        {/* Allekirjoitusviiva */}
+        <div className="signature-line" style={{ 
           borderBottom: '2px solid #3498db', 
           width: '230px', 
-          marginBottom: '12px' 
+          marginBottom: '8px' // ✅ Pienempi väli viivan ja nimen välissä
         }}></div>
+        
+        {/* Allekirjoitus (kauniilla fontilla) */}
         <div className="signature-text" style={{ 
           fontFamily: '"Dancing Script", cursive', 
-          fontSize: '1.5rem',
+          fontSize: '22pt', // ✅ Hieman isompi
           color: '#2c3e50',
-          marginBottom: '5px'
+          marginBottom: '4px', // ✅ Pieni väli
+          lineHeight: '1.2'
         }}>
           {name}
         </div>
+        
+        {/* Sähköposti (pienellä) */}
+        {email && (
+          <div style={{
+            fontSize: '10pt',
+            color: '#666',
+            marginTop: '2px', // ✅ Hyvin pieni väli
+            lineHeight: '1.2'
+          }}>
+            {email}
+          </div>
+        )}
       </div>
     );
   };
@@ -122,7 +142,20 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         />
       );
     } else {
-      const cleanHtml = DOMPurify.sanitize(data.content.body || '');
+      const bodyContent = data.content.body || '';
+      
+      // ✅ PDF-TILASSA: EI SANITOIDA (luotetaan tietokantaan)
+      if (isPdfPreview || typeof window === 'undefined') {
+        return (
+          <div 
+            className="cover-letter-content" 
+            dangerouslySetInnerHTML={{ __html: bodyContent }} 
+          />
+        );
+      }
+      
+      // ✅ SELAIMESSA: SANITOIDAAN
+      const cleanHtml = DOMPurify.sanitize(bodyContent);
       return (
         <div 
           className="cover-letter-content" 
@@ -202,7 +235,6 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         `}
       </style>
 
-      {/* ✅ KORJATTU: Padding lisätty wrapperin sisään */}
       <div style={{ padding: '20mm', height: '100%', boxSizing: 'border-box' }}>
         {isEditing ? (
           <div>
