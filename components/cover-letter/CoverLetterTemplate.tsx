@@ -79,40 +79,36 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
 
     return (
       <div className="signature-section" style={{ marginTop: '40px' }}>
-        {/* Ystävällisin terveisin */}
         <div className="closing-text" style={{ 
           fontSize: '11pt',
           color: '#555',
-          marginBottom: '20px', // ✅ Isompi väli ennen viivaa
+          marginBottom: '20px',
           lineHeight: '1.2'
         }}>
           {closing}
         </div>
         
-        {/* Allekirjoitusviiva */}
         <div className="signature-line" style={{ 
           borderBottom: '2px solid #3498db', 
           width: '230px', 
-          marginBottom: '8px' // ✅ Pienempi väli viivan ja nimen välissä
+          marginBottom: '8px'
         }}></div>
         
-        {/* Allekirjoitus (kauniilla fontilla) */}
         <div className="signature-text" style={{ 
           fontFamily: '"Dancing Script", cursive', 
-          fontSize: '22pt', // ✅ Hieman isompi
+          fontSize: '22pt',
           color: '#2c3e50',
-          marginBottom: '4px', // ✅ Pieni väli
+          marginBottom: '4px',
           lineHeight: '1.2'
         }}>
           {name}
         </div>
         
-        {/* Sähköposti (pienellä) */}
         {email && (
           <div style={{
             fontSize: '10pt',
             color: '#666',
-            marginTop: '2px', // ✅ Hyvin pieni väli
+            marginTop: '2px',
             lineHeight: '1.2'
           }}>
             {email}
@@ -144,7 +140,6 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
     } else {
       const bodyContent = data.content.body || '';
       
-      // ✅ PDF-TILASSA: EI SANITOIDA (luotetaan tietokantaan)
       if (isPdfPreview || typeof window === 'undefined') {
         return (
           <div 
@@ -154,7 +149,6 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         );
       }
       
-      // ✅ SELAIMESSA: SANITOIDAAN
       const cleanHtml = DOMPurify.sanitize(bodyContent);
       return (
         <div 
@@ -188,10 +182,11 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
             white-space: pre-wrap;
           }
 
+          /* ✅ POISTETTU SININEN GRADIENT - vain PDF:ssä valkoinen tausta */
           .cover-letter-template {
             position: relative;
             color: #333;
-            background-image: linear-gradient(to bottom right, rgba(236, 240, 241, 0.1), rgba(255, 255, 255, 0.8));
+            ${isPdfPreview ? 'background-color: white;' : 'background-image: linear-gradient(to bottom right, rgba(236, 240, 241, 0.1), rgba(255, 255, 255, 0.8));'}
           }
 
           .cover-letter-content h1 {

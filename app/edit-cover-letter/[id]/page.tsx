@@ -46,7 +46,62 @@
     const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
     
     const letterRef = useRef<HTMLDivElement>(null);
+// Lisää nämä staten perään (rivin ~14 jälkeen):
 
+// ✅ SIVUN OVERFLOW TARKISTUS
+const [pageOverflow, setPageOverflow] = useState(false);
+const [contentHeight, setContentHeight] = useState(0);
+const previewRef = useRef<HTMLDivElement>(null);
+
+// ✅ TARKISTA SIVUN KORKEUS
+useEffect(() => {
+  if (!isEditing && previewRef.current) {
+    const checkHeight = () => {
+      const height = previewRef.current?.scrollHeight || 0;
+      const A4_HEIGHT = 1123; // A4 korkeus pikseleinä (297mm)
+      
+      setContentHeight(height);
+      setPageOverflow(height > A4_HEIGHT);
+    };
+    
+    // Tarkista heti ja fonttien latauduttua
+    checkHeight();
+    setTimeout(checkHeight, 500);
+    setTimeout(checkHeight, 1000);
+  }
+}, [editedContent, fontSize, lineHeight, textAlign, fontFamily, isEditing]);
+
+// ✅ AUTOMAATTINEN TIIVISTYS
+const handleAutoCompact = () => {
+  if (!pageOverflow) return;
+  
+  // Laske kuinka paljon pienennys tarvitaan
+  const A4_HEIGHT = 1123;
+  const overflow = contentHeight - A4_HEIGHT;
+  const overflowPercent = (overflow / A4_HEIGHT) * 100;
+  
+  let newFontSize = fontSize;
+  let newLineHeight = lineHeight;
+  
+  if (overflowPercent > 10) {
+    // Yli 10% overflow: pienennä paljon
+    newFontSize = Math.max(11, fontSize - 2);
+    newLineHeight = Math.max(1.3, lineHeight - 0.3);
+  } else if (overflowPercent > 5) {
+    // 5-10% overflow: pienennä kohtuullisesti
+    newFontSize = Math.max(12, fontSize - 1);
+    newLineHeight = Math.max(1.4, lineHeight - 0.2);
+  } else {
+    // Alle 5% overflow: pieni muutos
+    newLineHeight = Math.max(1.5, lineHeight - 0.1);
+  }
+  
+  setFontSize(newFontSize);
+  setLineHeight(newLineHeight);
+  
+  setSuccessMessage('✅ Ulkonäköä tiivistetty automaattisesti!');
+  setTimeout(() => setSuccessMessage(null), 3000);
+};
     // LATAA COVER LETTER
     useEffect(() => {
       const loadCoverLetter = async () => {
