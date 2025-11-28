@@ -1,7 +1,8 @@
-// lib/langchain/coverLetterGenerator.ts - JOB-FIRST APPROACH
+// lib/langchain/coverLetterGenerator.ts - ALKUPERÄINEN + FLEXIBLE QUESTIONS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { analyzeJobAndProfile, type SmartQuestion } from "./smartQuestionAnalyzer";
 
 export interface CoverLetterV1Output {
   content: string;
@@ -10,7 +11,7 @@ export interface CoverLetterV1Output {
   personality_hooks?: string[];
   job_match_score?: number;
   key_differentiators?: string[];
-  questions?: AIQuestion[];
+  questions?: SmartQuestion[];
   data_quality?: DataQuality;
 }
 
@@ -19,7 +20,7 @@ export interface AIQuestion {
   question: string;
   context: string;
   personality_focus?: string;
-  priority?: 'high' | 'medium' | 'low';
+  priority: 'high' | 'medium' | 'low';
 }
 
 export interface DataQuality {
@@ -62,8 +63,7 @@ export interface CoverLetterV1Input {
 }
 
 /**
- * ✅ STEP 1: ANALYSOI TYÖILMOITUS ENSIN
- * Tunnista ALA, kulttuuri, mitä haetaan - älä oleta mitään
+ * ✅ STEP 1: ANALYSOI TYÖILMOITUS ENSIN (NO HARDCODING)
  */
 async function analyzeJobForPersonalityFit(jobDescription: string) {
   const model = new ChatOpenAI({
@@ -108,7 +108,7 @@ What does THIS employer value? What personality traits would excel HERE?
   "key_requirements": ["requirement1", "requirement2"],
   "red_flags": ["don't claim X if you lack Y"],
   "green_flags": ["emphasize Z if you have it"]
-    }}
+}}
 
 Return JSON only.`],
     ["human", `Analyze THIS job posting. Treat it as completely unique.
@@ -149,7 +149,50 @@ Return JSON.`]
  */
 export async function generateCoverLetterV1(input: CoverLetterV1Input): Promise<CoverLetterV1Output> {
   try {
-    console.log("🚀 V1: Analyzing job posting first...");
+    console.log("🔍 V1: Flexible job-profile analysis...");
+
+    // ✅ STEP 0: Älykäs TYÖ vs PROFIILI analyysi (NO HARDCODING)
+    const smartAnalysis = await analyzeJobAndProfile({
+      jobDescription: input.jobDescription,
+      userProfile: {
+        name: input.name,
+        workExperience: input.workExperience,
+        education: input.education,
+        skills: input.skills,
+        workingStyle: input.workingStyle,
+        problemSolving: input.problemSolving,
+        uniqueStrength: input.uniqueStrength,
+        careerGoals: input.careerGoals,
+        bestProjectExample: input.bestProjectExample,
+        failureLesson: input.failureLesson,
+        personalNotes: input.personalNotes
+      },
+      language: input.language || 'finnish'
+    });
+
+    // 🤔 JOS PITÄÄ KYSYÄ KYSYMYKSIÄ
+    if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
+      console.log(`❓ Generated ${smartAnalysis.questions.length} contextual questions`);
+      console.log(`   Confidence: ${smartAnalysis.confidence}%`);
+      console.log(`   Can generate anyway: ${smartAnalysis.canGenerateWithoutQuestions}`);
+      
+      return {
+        content: "",
+        title: "Lisätietoja tarvitaan",
+        signature: input.name,
+        questions: smartAnalysis.questions,
+        data_quality: {
+          quality: smartAnalysis.confidence > 70 ? 'moderate' : 'minimal',
+          score: smartAnalysis.confidence,
+          reasoning: smartAnalysis.reasoning,
+          personalityCompleteness: smartAnalysis.confidence,
+          suggestions: smartAnalysis.questions.map(q => q.question)
+        }
+      };
+    }
+
+    console.log("✅ Profile sufficient, proceeding with generation...");
+    console.log("🚀 V1: Analyzing job posting...");
 
     // STEP 1: Analysoi TÄMÄ työ ensin
     const jobAnalysis = await analyzeJobForPersonalityFit(input.jobDescription);
@@ -173,6 +216,13 @@ Company Culture: {companyCulture}
 **YOUR MISSION:**
 Write a cover letter that fits THIS SPECIFIC context. Do NOT use generic templates.
 
+**🎯 CRITICAL: PERSONAL NOTES = TOP PRIORITY**
+If candidate provided Personal Notes, you MUST:
+1. Read them CAREFULLY - these are candidate's top priorities
+2. INTEGRATE them naturally into the letter (not as a separate section)
+3. Use them to enhance personality, motivation, or skills sections
+4. Treat them as KEY DIFFERENTIATORS
+
 **ADAPT TO THIS INDUSTRY:**
 - Use terminology natural to THIS field
 - Match tone to THIS company's culture
@@ -186,9 +236,13 @@ Write a cover letter that fits THIS SPECIFIC context. Do NOT use generic templat
 
 **WRITING PRINCIPLES:**
 1. Opening: Hook specific to THIS role + candidate's fit
+   - **WEAVE IN personal notes if they relate to passion/goals**
 2. Body 1: Authentic story showing trait THIS job needs
+   - **WEAVE IN personal notes if they relate to experience**
 3. Body 2: Experience/skills matching THIS role's requirements
+   - **WEAVE IN personal notes if they relate to skills/motivation**
 4. Closing: Enthusiasm for THIS specific opportunity
+   - **WEAVE IN personal notes if they relate to future vision**
 
 **TECHNICAL RULES:**
 - 280-350 words total
@@ -203,6 +257,7 @@ Write a cover letter that fits THIS SPECIFIC context. Do NOT use generic templat
 - Generic templates
 - "I am a hard worker" phrases
 - Skills candidate lacks
+- Separate "personal notes" section
 
 {groundTruthWarning}
 
@@ -244,18 +299,31 @@ Career Goals: {careerGoals}
 Best Project: {bestProjectExample}
 Challenge Learned: {failureLesson}
 
-**ADDITIONAL NOTES:**
+**🎯🎯🎯 CRITICAL: CANDIDATE'S PERSONAL EMPHASIS POINTS 🎯🎯🎯**
+These are the MOST IMPORTANT things the candidate wants to highlight:
 {personalNotes}
+
+**INTEGRATION INSTRUCTIONS:**
+If Personal Notes contain:
+- Specific achievements → Weave into experience section
+- Passion/motivation → Integrate into opening or closing
+- Unique skills → Blend into skills paragraph
+- Personal story → Use as supporting evidence
+- Values/culture fit → Enhance personality hooks
+
+DO NOT create a separate "personal notes" section.
+DO make personal notes feel like core parts of the narrative.
 
 **TASK:**
 1. Match candidate's traits to THIS job's needs
 2. Use authentic stories as evidence
-3. Show fit for THIS specific role in THIS industry
-4. 280-350 words, natural tone for THIS field
+3. **NATURALLY INTEGRATE personal notes throughout**
+4. Show fit for THIS specific role in THIS industry
+5. 280-350 words, natural tone for THIS field
 
 **OUTPUT:**
 {{
-  "content": "full letter text",
+  "content": "full letter text with personal notes integrated",
   "title": "Job Title from posting",
   "signature": "Candidate Name",
   "personality_hooks": ["trait1 highlighted", "trait2"],
@@ -299,7 +367,7 @@ Return JSON only.`
       careerGoals: input.careerGoals || "Not specified",
       bestProjectExample: input.bestProjectExample || "Not specified",
       failureLesson: input.failureLesson || "Not specified",
-      personalNotes: input.personalNotes || "None",
+      personalNotes: input.personalNotes || "Not specified",
     });
 
     const result = await model.invoke(formatted);
@@ -330,6 +398,13 @@ Return JSON only.`
       personality_hooks: parsed.personality_hooks || [],
       job_match_score: parsed.job_match_score || 7,
       key_differentiators: parsed.key_differentiators || [],
+      data_quality: {
+        quality: smartAnalysis.confidence >= 80 ? 'rich' : smartAnalysis.confidence >= 50 ? 'moderate' : 'minimal',
+        score: smartAnalysis.confidence,
+        reasoning: smartAnalysis.reasoning,
+        personalityCompleteness: smartAnalysis.confidence,
+        suggestions: []
+      }
     };
   } catch (error) {
     console.error("V1 Generation failed:", error);

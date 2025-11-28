@@ -1,9 +1,10 @@
-// lib/langchain/coverLetterGeneratorV2.ts - JOB-FIRST ATS APPROACH
+// lib/langchain/coverLetterGeneratorV2.ts - ALKUPERÄINEN + FLEXIBLE QUESTIONS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
+import { analyzeJobAndProfile, type SmartQuestion } from "./smartQuestionAnalyzer";
 
 const coherentCoverLetterSchema = z.object({
   fullText: z.string().describe("Yhtenäinen hakukirjeen teksti (MAX 350 sanaa)"),
@@ -27,7 +28,7 @@ type CoherentCoverLetter = z.infer<typeof coherentCoverLetterSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(coherentCoverLetterSchema);
 
 /**
- * ✅ STEP 1: ANALYSOI TÄMÄ TYÖ JA SEN ATS-VAATIMUKSET
+ * ✅ STEP 1: ANALYSOI TYÖ + ATS (NO HARDCODING)
  */
 async function analyzeJobPosting(jobDescription: string) {
   const model = new ChatOpenAI({
@@ -129,6 +130,59 @@ export async function generateCoherentCoverLetter(input: {
   language?: string;
   style?: "formal" | "casual";
 }) {
+  console.log('🔍 V2: Flexible job-profile analysis (ATS)...');
+  
+  // ✅ STEP 0: Älykäs TYÖ vs PROFIILI analyysi (NO HARDCODING)
+  const smartAnalysis = await analyzeJobAndProfile({
+    jobDescription: input.jobDescription,
+    userProfile: {
+      name: input.name,
+      workExperience: input.workExperience,
+      education: input.education,
+      skills: input.skills,
+      workingStyle: input.workingStyle,
+      problemSolving: input.problemSolving,
+      uniqueStrength: input.uniqueStrength,
+      careerGoals: input.careerGoals,
+      bestProjectExample: input.bestProjectExample,
+      failureLesson: input.failureLesson,
+      personalNotes: input.personalNotes
+    },
+    language: input.language || 'finnish'
+  });
+
+  // 🤔 KYSYTÄÄNKÖ KYSYMYKSIÄ? (Priorisoi kriittiset)
+  if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
+    const criticalQuestions = smartAnalysis.questions.filter(
+      q => q.priority === 'critical'
+    );
+    
+    if (criticalQuestions.length > 0) {
+      console.log(`❓ Found ${criticalQuestions.length} ATS-critical questions`);
+      
+      return {
+        fullText: "",
+        content: "",
+        title: "ATS-tietoja tarvitaan",
+        signature: input.name,
+        questions: criticalQuestions,
+        keyPoints: {
+          personalityHook: "",
+          experienceHighlight: "",
+          skillsMatch: "",
+          motivation: ""
+        },
+        atsData: {
+          matchedKeywords: [],
+          missingExperience: true,
+          readabilityScore: 0
+        },
+        hasWorkExperience: false
+      };
+    }
+  }
+
+  console.log('✅ Profile sufficient for ATS');
   console.log('🔍 V2: Analyzing THIS job posting first...');
   
   // STEP 1: Analysoi TÄMÄ työ
@@ -166,11 +220,19 @@ Create cover letter that:
 2. Remains readable for humans in THIS industry
 3. Matches THIS company's culture/size
 
+**🎯 CRITICAL: PERSONAL NOTES = TOP PRIORITY**
+If Personal Notes exist:
+1. These are candidate's MOST IMPORTANT points
+2. Integrate them NATURALLY (not as separate section)
+3. Use them to ENHANCE ATS keywords
+4. Blend them with personality/experience/motivation
+
 **ATS OPTIMIZATION FOR THIS JOB:**
 - Use keywords from THIS posting naturally
 - Integrate terms as they appear in THIS job text
 - Match terminology of THIS industry
 - Don't force keywords - only if relevant
+- **Weave personal notes into keyword-rich sections**
 
 **ADAPT TO THIS CONTEXT:**
 - Startup vs Enterprise tone
@@ -179,9 +241,12 @@ Create cover letter that:
 - Role level appropriateness
 
 **STRUCTURE (MAX 350 words):**
-1. Introduction (80-100 words): Identity + motivation for THIS role
-2. Experience/Skills (150-180 words): Match to THIS job's needs
-3. Closing (50-70 words): Enthusiasm for THIS opportunity
+1. Introduction (80-100 words): Identity + motivation for THIS role + ATS keywords
+   - **Integrate personal notes if they relate to passion/goals**
+2. Experience/Skills (150-180 words): Match to THIS job's needs + ATS keywords
+   - **Integrate personal notes if they relate to experience/skills**
+3. Closing (50-70 words): Enthusiasm for THIS opportunity + ATS keywords
+   - **Integrate personal notes if they relate to motivation**
 
 **FORBIDDEN:**
 - Generic templates
@@ -189,6 +254,7 @@ Create cover letter that:
 - Industry stereotypes
 - False claims
 - Section headers (---)
+- Separate "personal notes" section
 
 **LANGUAGE:** {language}
 **STYLE:** {styleInstructions}
@@ -231,13 +297,21 @@ Goals: {careerGoals}
 Best Moment: {bestProjectExample}
 Learning: {failureLesson}
 
-**NOTES:** {personalNotes}
+**🎯🎯🎯 CANDIDATE'S TOP EMPHASIS POINTS (INTEGRATE!) 🎯🎯🎯**
+{personalNotes}
+
+**INTEGRATION STRATEGY:**
+- If notes mention achievement → Blend into experience section with ATS keywords
+- If notes mention passion → Weave into opening/closing with motivation
+- If notes mention skills → Integrate into skills paragraph with technical terms
+- If notes mention culture fit → Enhance personality hooks
 
 **TASK:**
 1. Match candidate to THIS job's ATS keywords
 2. Show fit for THIS industry/company
-3. Natural integration (no stuffing)
-4. MAX 350 words, readable + ATS-optimized
+3. **NATURALLY integrate personal notes throughout**
+4. Natural integration (no stuffing)
+5. MAX 350 words, readable + ATS-optimized
 
 {ageInstruction}
 
@@ -272,7 +346,7 @@ Return JSON only.`]
       careerGoals: input.careerGoals || "Not specified",
       bestProjectExample: input.bestProjectExample || "Not specified",
       failureLesson: input.failureLesson || "Not specified",
-      personalNotes: input.personalNotes || "None",
+      personalNotes: input.personalNotes || "Not specified",
       ageInstruction,
       format_instructions: outputParser.getFormatInstructions(),
     });

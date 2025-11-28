@@ -1,4 +1,4 @@
-// app/profile/page.tsx - TÄYDELLINEN VERSIO
+// app/profile/page.tsx - LIQUID GLASS STYLE
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 "use client";
@@ -20,11 +20,39 @@ import {
   Briefcase,
   Languages,
   GraduationCap,
+  Loader2,
+  Shield
 } from "lucide-react";
 import { toast } from "sonner";
-import type { ProfileData} from "@/types";
+import type { ProfileData } from "@/types";
 import SmartHeader from "@/components/ui/smartHeader";
 
+// --- DESIGN SYSTEM STYLES ---
+const styles = {
+  // Layout & Cards
+  wrapper: "min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden",
+  glassCard: "backdrop-blur-xl bg-white/70 border border-white/60 shadow-2xl shadow-indigo-500/10 rounded-3xl",
+  glassPanel: "bg-white/40 backdrop-blur-md border border-indigo-200/50 rounded-2xl",
+  
+  // Inputs
+  glassInput: "bg-white/60 backdrop-blur-sm border-2 border-indigo-200/60 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-300/30 shadow-inner transition-all outline-none rounded-xl text-gray-800 font-medium placeholder:text-gray-400",
+  
+  // Typography
+  gradientHeading: "bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent font-extrabold",
+  label: "block text-sm font-bold text-gray-700 mb-2 uppercase tracking-wide",
+  
+  // Buttons
+  buttonPrimary: "bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 text-white border-white/20 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all rounded-xl font-bold",
+  buttonSecondary: "bg-white/50 text-indigo-900 border-2 border-white/60 hover:bg-white/80 hover:border-indigo-200 shadow-sm transition-all rounded-xl font-bold backdrop-blur-sm",
+  buttonDelete: "bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 transition-all rounded-xl font-semibold text-sm",
+  
+  // Elements
+  stepBubbleActive: "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/40 scale-110 ring-4 ring-white/50",
+  stepBubbleCompleted: "bg-green-500 text-white shadow-md shadow-green-500/30",
+  stepBubbleInactive: "bg-white/50 text-gray-400 border border-white/60",
+};
+
+// --- TYPES ---
 type ArrayFieldName = "education" | "workExperience" | "languages";
 type ProfileFieldName = keyof ProfileData;
 
@@ -35,7 +63,8 @@ interface StepData {
   description: string;
 }
 
-// Helper components (OUTSIDE main component to prevent re-render issues)
+// --- HELPER COMPONENTS ---
+
 const QuestionCard: React.FC<{
   title: string;
   isRequired: boolean;
@@ -54,37 +83,38 @@ const QuestionCard: React.FC<{
   children,
 }) => (
   <div
-    className={`border-2 rounded-lg p-6 transition-all ${
+    className={`p-6 md:p-8 transition-all duration-300 mb-6 ${styles.glassPanel} ${
       isCompleted
-        ? "border-green-200 bg-green-50"
+        ? "border-green-400/30 bg-green-50/30"
         : isRequired
-        ? "border-orange-200 bg-orange-50"
-        : "border-gray-200 bg-white"
-    }`}
+        ? "border-indigo-200/50" // Neutraalimpi oletustila
+        : "border-white/50"
+    } hover:shadow-lg hover:shadow-indigo-500/5`}
   >
-    <div className="flex items-start justify-between mb-3">
+    <div className="flex items-start justify-between mb-4">
       <div className="flex-1">
-        <h3 className="text-lg font-medium text-gray-800 flex items-center">
+        <h3 className="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
           {title}
-          {isRequired && <span className="text-red-500 ml-1">*</span>}
+          {isRequired && !isCompleted && <span className="text-pink-500 text-xs align-top">*</span>}
           {isCompleted && (
-            <CheckCircle className="w-5 h-5 text-green-500 ml-2" />
-          )}
-          {isRequired && !isCompleted && (
-            <AlertCircle className="w-5 h-5 text-orange-500 ml-2" />
+            <div className="bg-green-100 text-green-600 rounded-full p-1">
+              <CheckCircle className="w-4 h-4" />
+            </div>
           )}
         </h3>
-        <p className="text-sm text-gray-600 mt-1">{helpText}</p>
+        <p className="text-sm text-gray-500 mt-1 font-medium">{helpText}</p>
       </div>
     </div>
 
     {children}
 
     {minChars > 0 && (
-      <div className="mt-2 flex justify-between items-center text-xs">
+      <div className="mt-3 flex justify-between items-center text-xs font-semibold">
         <span
-          className={`${
-            charCount >= minChars ? "text-green-600" : "text-orange-600"
+          className={`px-2 py-1 rounded-md ${
+            charCount >= minChars 
+              ? "bg-green-100 text-green-700" 
+              : "bg-orange-100 text-orange-700"
           }`}
         >
           {charCount}/{minChars} merkkiä{" "}
@@ -96,26 +126,31 @@ const QuestionCard: React.FC<{
 );
 
 const ExampleHint: React.FC<{ examples: string[] }> = ({ examples }) => (
-  <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-    <p className="text-xs text-blue-700 font-medium mb-1">💡 Ideoita:</p>
-    <ul className="text-xs text-blue-600 space-y-1">
+  <div className="mt-3 p-4 bg-indigo-50/50 backdrop-blur-sm border border-indigo-100/50 rounded-xl">
+    <p className="text-xs text-indigo-800 font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
+      <Sparkles className="w-3 h-3" /> Ideoita:
+    </p>
+    <ul className="text-sm text-indigo-700/80 space-y-1.5 ml-1">
       {examples.map((example, index) => (
-        <li key={index}>• {example}</li>
+        <li key={index} className="flex items-start gap-2">
+          <span className="opacity-50">•</span> {example}
+        </li>
       ))}
     </ul>
   </div>
 );
 
-// MAIN COMPONENT
+// --- MAIN COMPONENT ---
 const SimplifiedProfilePage: React.FC = () => {
   const { userId } = useAuth();
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null); // Uusi tila hiljaiselle tallennukselle
   const fileInputRef = useRef<HTMLInputElement>(null);
 
- const [profileData, setProfileData] = useState<ProfileData>({
+  const [profileData, setProfileData] = useState<ProfileData>({
     name: "",
     email: "",
     phone: "",
@@ -134,36 +169,35 @@ const SimplifiedProfilePage: React.FC = () => {
     superpower: "",
     languages: [],
     skills: "",
-    
-    // ✅ LISÄÄ NÄMÄ UUDET KENTÄT (puuttuivat!)
     careerGoals: "",
     bestProjectExample: "",
     failureLesson: "",
   });
+
   const steps: StepData[] = [
     {
       id: "essential",
-      title: "Tärkeimmät tiedot",
+      title: "Persoonallisuus",
       icon: Heart,
-      description: "Simple CV:n ydin - persoonallisuutesi",
+      description: "Simple CV:n ydin",
     },
     {
       id: "basic",
       title: "Perustiedot",
       icon: User,
-      description: "Yhteystiedot ja profiilikuva",
+      description: "Yhteystiedot & kuva",
     },
     {
       id: "experience",
       title: "Kokemus",
       icon: Briefcase,
-      description: "Työkokemus ja koulutus (Technical/Creative CV:lle)",
+      description: "Työ & Koulutus",
     },
     {
       id: "bonus",
       title: "Lisätiedot",
       icon: Sparkles,
-      description: "Vapaaehtoisia täydennyksiä",
+      description: "Ekstrat",
     },
   ];
 
@@ -186,15 +220,13 @@ const SimplifiedProfilePage: React.FC = () => {
             ...prevData,
             ...data.profile,
           }));
-          toast.success("Profiili ladattu");
+          // POISTETTU: toast.success("Profiili ladattu"); -> Tämä on turha käyttäjälle
         }
       } else if (response.status !== 404) {
         console.error("Failed to load profile");
-        toast.error("Profiilin lataaminen epäonnistui");
       }
     } catch (error) {
       console.error("Error loading profile:", error);
-      toast.error("Profiilin lataaminen epäonnistui");
     } finally {
       setIsLoading(false);
     }
@@ -202,7 +234,7 @@ const SimplifiedProfilePage: React.FC = () => {
 
   const saveProfileData = async (showToast = true) => {
     if (!userId) {
-      toast.error("Kirjaudu sisään tallentaaksesi profiilin");
+      if (showToast) toast.error("Kirjaudu sisään tallentaaksesi profiilin");
       return false;
     }
 
@@ -215,11 +247,17 @@ const SimplifiedProfilePage: React.FC = () => {
       });
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`);
-      if (showToast) toast.success("Profiili tallennettu!");
+      
+      // UI feedback updates
+      setLastSaved(new Date());
+      
+      if (showToast) {
+        toast.success("Profiili tallennettu onnistuneesti!");
+      }
       return true;
     } catch (error) {
       console.error("Error saving profile:", error);
-      toast.error("Profiilin tallentaminen epäonnistui");
+      if (showToast) toast.error("Profiilin tallentaminen epäonnistui");
       return false;
     } finally {
       setIsSaving(false);
@@ -230,6 +268,7 @@ const SimplifiedProfilePage: React.FC = () => {
   useEffect(() => {
     if (isLoading) return;
     const debounceTimer = setTimeout(() => {
+      // Pass false to suppress toast on auto-save
       saveProfileData(false);
     }, 2000);
     return () => clearTimeout(debounceTimer);
@@ -285,11 +324,14 @@ const SimplifiedProfilePage: React.FC = () => {
   const handleFinalSave = async () => {
     const success = await saveProfileData(true);
     if (success) {
-      toast.success("Profiili valmis! Ohjataan CV-luontiin...");
-      router.push("/create-cv");
+      // Pieni viive ennen ohjausta, jotta käyttäjä näkee success-tilan
+      setTimeout(() => {
+         router.push("/create-cv");
+      }, 1000);
     }
   };
 
+  // ... (Sama logiikka kuin ennen: getEssentialProgress, addArrayItem, removeArrayItem, handleArrayItemChange) ...
   const getEssentialProgress = () => {
     const essentialFields = [
       { field: profileData.workingStyle, min: 50 },
@@ -354,69 +396,53 @@ const SimplifiedProfilePage: React.FC = () => {
     }));
   };
 
-  // RENDER FUNCTIONS
+  // --- RENDER SECTIONS ---
+
   const renderEssentials = () => {
-  const progress = getEssentialProgress();
+    const progress = getEssentialProgress();
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="text-center mb-8">
+          <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>
+            Persoonallisuus
+          </h2>
+          <p className="text-gray-600 mb-6 font-medium">
+            Tämä on Simple CV:n ydin. Vastaa rehellisesti.
+          </p>
 
-  return (
-    <div className="space-y-8">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">
-          Persoonallisuutesi - Simple CV:n ydin
-        </h2>
-        <p className="text-gray-600 mb-4">
-          <span className="text-green-600 font-medium">
-            Ei vaadi työkokemusta!
-          </span>{" "}
-          Vastaa omien kokemustesi pohjalta.
-        </p>
-
-        <div className="bg-gray-100 rounded-full p-1 max-w-md mx-auto">
-          <div className="flex justify-between text-sm mb-2">
-            <span>Simple CV valmius</span>
-            <span className="font-medium">
-              {progress.completed}/{progress.total}
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div
-              className="bg-green-500 h-3 rounded-full transition-all"
-              style={{ width: `${progress.percentage}%` }}
-            />
+          <div className="bg-white/50 backdrop-blur-sm rounded-full p-2 max-w-md mx-auto border border-white/60 shadow-inner">
+            <div className="flex justify-between text-xs font-bold text-gray-500 mb-2 px-2 uppercase tracking-wide">
+              <span>Valmiusaste</span>
+              <span>{progress.percentage}%</span>
+            </div>
+            <div className="w-full bg-gray-200/50 rounded-full h-3 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-indigo-500 to-pink-500 h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+                style={{ width: `${progress.percentage}%` }}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="space-y-6">
-        {/* 1. MITEN TYÖSKENTELET */}
-        <QuestionCard
-          title="Miten tykkäät työskennellä?"
-          isRequired={true}
-          isCompleted={profileData.workingStyle.length >= 50}
-          charCount={profileData.workingStyle.length}
-          minChars={50}
-          helpText="Kerro työskentelytapasi ja olosuhteet"
-        >
-          <textarea
-            value={profileData.workingStyle}
-            onChange={(e) =>
-              handleInputChange("workingStyle", e.target.value)
-            }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={3}
-            placeholder="Esim: 'Tykkään selvistä ohjeista ja rauhallisesta ympäristöstä...'"
-          />
-          <ExampleHint
-            examples={[
-              "Olen järjestelmällinen, pidän aikatauluista",
-              "Tykkään tiimityöstä ja ideointipalaverista",
-              "Työskentelen parhaiten rauhassa keskittyen",
-            ]}
-          />
-        </QuestionCard>
+        <div className="space-y-6">
+          <QuestionCard
+            title="Miten tykkäät työskennellä?"
+            isRequired={true}
+            isCompleted={profileData.workingStyle.length >= 50}
+            charCount={profileData.workingStyle.length}
+            minChars={50}
+            helpText="Kerro työskentelytapasi ja olosuhteet"
+          >
+            <textarea
+              value={profileData.workingStyle}
+              onChange={(e) => handleInputChange("workingStyle", e.target.value)}
+              className={`w-full p-4 ${styles.glassInput} min-h-[100px]`}
+              placeholder="Esim: 'Tykkään selvistä ohjeista ja rauhallisesta ympäristöstä...'"
+            />
+            <ExampleHint examples={["Olen järjestelmällinen", "Tykkään tiimityöstä", "Työskentelen parhaiten rauhassa"]} />
+          </QuestionCard>
 
-        {/* 2. ✅ UUSI: MILLAISISSA TILANTEISSA OLLUT PARHAIMMILLAAN */}
-        <QuestionCard
+           <QuestionCard
           title="Millaisissa tilanteissa olet ollut parhaimmillaan?"
           isRequired={true}
           isCompleted={profileData.bestProjectExample.length >= 60}
@@ -429,20 +455,18 @@ const SimplifiedProfilePage: React.FC = () => {
             onChange={(e) =>
               handleInputChange("bestProjectExample", e.target.value)
             }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={4}
-            placeholder="Esim: 'Rakensimme uuden prosessin ja minulla oli päärooli...', 'Johdin projektin joka vaati koordinointia', 'Olin vastuussa asiakassuhteesta joka kasvoi 20%...'"
+             className={`w-full p-4 ${styles.glassInput} min-h-[120px]`}
+            placeholder="Esim: 'Rakensimme uuden prosessin...'"
           />
           <ExampleHint
             examples={[
-              "Rakensin sovelluksen varastoon - se säästää 5h/viikko",
-              "Organisoin tapahtuman 200 hengelle onnistuneesti",
-              "Mentoroin uutta työntekijää - nyt menestyy hyvin",
+              "Rakensin sovelluksen varastoon",
+              "Organisoin tapahtuman",
+              "Mentoroin uutta työntekijää",
             ]}
           />
         </QuestionCard>
 
-        {/* 3. ✅ UUSI: SUURIN HAASTE JA MITÄ OPIT */}
         <QuestionCard
           title="Kerro suurimmasta haasteesta ja mitä siitä opit"
           isRequired={true}
@@ -456,154 +480,92 @@ const SimplifiedProfilePage: React.FC = () => {
             onChange={(e) =>
               handleInputChange("failureLesson", e.target.value)
             }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={4}
+             className={`w-full p-4 ${styles.glassInput} min-h-[120px]`}
             placeholder="Esim: 'Projektissa kului budjetti, opin aikataulutuksesta...'"
           />
-          <ExampleHint
-            examples={[
-              "Ensimmäinen asiakaspalvelu ei menny hyvin - opin kuuntelemaan",
-              "Koodi hajosi tuotannossa - nyt teen testejä paremmin",
-              "Ryhmätyössa oli konflikteja - opin kommunikaatiosta",
-            ]}
-          />
         </QuestionCard>
 
-        {/* 4. ONGELMANRATKAISU */}
-        <QuestionCard
-          title="Anna esimerkki kun ratkaisit haastavan tilanteen"
-          isRequired={true}
-          isCompleted={profileData.problemSolving.length >= 80}
-          charCount={profileData.problemSolving.length}
-          minChars={80}
-          helpText="Voi olla koulusta, harrastuksista tai vapaa-ajalta"
-        >
-          <textarea
-            value={profileData.problemSolving}
-            onChange={(e) =>
-              handleInputChange("problemSolving", e.target.value)
-            }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={4}
-            placeholder="Kerro tilanne, mitä teit, lopputulos..."
-          />
-          <ExampleHint
-            examples={[
-              "Ryhmätyön konflikti → listasimme tehtävät",
-              "Tekninen ongelma → googlailin ja kysyin apua",
-              "Autoin ystävää kuuntelemalla ja ehdottamalla",
-            ]}
-          />
-        </QuestionCard>
+          <QuestionCard
+            title="Anna esimerkki kun ratkaisit haastavan tilanteen"
+            isRequired={true}
+            isCompleted={profileData.problemSolving.length >= 80}
+            charCount={profileData.problemSolving.length}
+            minChars={80}
+            helpText="Voi olla koulusta, harrastuksista tai vapaa-ajalta"
+          >
+            <textarea
+              value={profileData.problemSolving}
+              onChange={(e) => handleInputChange("problemSolving", e.target.value)}
+              className={`w-full p-4 ${styles.glassInput} min-h-[120px]`}
+              placeholder="Kerro tilanne, mitä teit, lopputulos..."
+            />
+          </QuestionCard>
 
-        {/* 5. ENERGIANLÄHTEET */}
-        <QuestionCard
-          title="Mistä saat energiaa ja motivaatiota?"
-          isRequired={true}
-          isCompleted={profileData.energySources.length >= 40}
-          charCount={profileData.energySources.length}
-          minChars={40}
-          helpText="Mikä saa sinut innostumaan?"
-        >
-          <textarea
-            value={profileData.energySources}
-            onChange={(e) =>
-              handleInputChange("energySources", e.target.value)
-            }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={3}
-            placeholder="Esim: 'Saan energiaa auttamisesta ja oppimisesta...'"
-          />
-          <ExampleHint
-            examples={[
-              "Ihmisten auttaminen",
-              "Ongelmanratkaisu ja kokeilu",
-              "Uuden oppiminen ja haasteet",
-            ]}
-          />
-        </QuestionCard>
+          <QuestionCard
+            title="Mistä saat energiaa ja motivaatiota?"
+            isRequired={true}
+            isCompleted={profileData.energySources.length >= 40}
+            charCount={profileData.energySources.length}
+            minChars={40}
+            helpText="Mikä saa sinut innostumaan?"
+          >
+            <textarea
+              value={profileData.energySources}
+              onChange={(e) => handleInputChange("energySources", e.target.value)}
+              className={`w-full p-4 ${styles.glassInput} min-h-[100px]`}
+              placeholder="Esim: 'Saan energiaa auttamisesta...'"
+            />
+          </QuestionCard>
 
-        {/* 6. AINUTLAATUINEN VAHVUUS */}
-        <QuestionCard
-          title="Mikä tekee sinusta erityisen?"
-          isRequired={true}
-          isCompleted={profileData.uniqueStrength.length >= 60}
-          charCount={profileData.uniqueStrength.length}
-          minChars={60}
-          helpText="Mitä ihmiset pyytävät juuri sinulta?"
-        >
-          <textarea
-            value={profileData.uniqueStrength}
-            onChange={(e) =>
-              handleInputChange("uniqueStrength", e.target.value)
-            }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={3}
-            placeholder="Esim: 'Olen hyvä selittämään asioita yksinkertaisesti...'"
-          />
-          <ExampleHint
-            examples={[
-              "Hyvä kuuntelija, rauhoitan tilanteita",
-              "Huomaan yksityiskohdat ja virheet",
-              "Motivoin ryhmän yhteen",
-            ]}
-          />
-        </QuestionCard>
+          <QuestionCard
+            title="Mikä tekee sinusta erityisen?"
+            isRequired={true}
+            isCompleted={profileData.uniqueStrength.length >= 60}
+            charCount={profileData.uniqueStrength.length}
+            minChars={60}
+            helpText="Mitä ihmiset pyytävät juuri sinulta?"
+          >
+            <textarea
+              value={profileData.uniqueStrength}
+              onChange={(e) => handleInputChange("uniqueStrength", e.target.value)}
+              className={`w-full p-4 ${styles.glassInput} min-h-[100px]`}
+              placeholder="Esim: 'Olen hyvä selittämään asioita...'"
+            />
+          </QuestionCard>
 
-        {/* 7. OPPIMISTYYLI */}
-        <QuestionCard
-          title="Miten opit parhaiten?"
-          isRequired={true}
-          isCompleted={profileData.learningStyle.length >= 40}
-          charCount={profileData.learningStyle.length}
-          minChars={40}
-          helpText="Sopeutumiskykysi todistus"
-        >
-          <textarea
-            value={profileData.learningStyle}
-            onChange={(e) =>
-              handleInputChange("learningStyle", e.target.value)
-            }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={3}
-            placeholder="Esim: 'Opin tekemällä ja kokeilemalla...'"
-          />
-          <ExampleHint
-            examples={[
-              "Tekemällä käytännössä",
-              "Videoista ja ohjeista",
-              "Kysymällä ja keskustelemalla",
-            ]}
-          />
-        </QuestionCard>
+          <QuestionCard
+            title="Miten opit parhaiten?"
+            isRequired={true}
+            isCompleted={profileData.learningStyle.length >= 40}
+            charCount={profileData.learningStyle.length}
+            minChars={40}
+            helpText="Sopeutumiskykysi todistus"
+          >
+            <textarea
+              value={profileData.learningStyle}
+              onChange={(e) => handleInputChange("learningStyle", e.target.value)}
+              className={`w-full p-4 ${styles.glassInput} min-h-[100px]`}
+              placeholder="Esim: 'Opin tekemällä ja kokeilemalla...'"
+            />
+          </QuestionCard>
 
-        {/* 8. TIIMIROOLI */}
-        <QuestionCard
-          title="Millainen rooli sinulla on ryhmässä?"
-          isRequired={true}
-          isCompleted={profileData.teamRole.length >= 40}
-          charCount={profileData.teamRole.length}
-          minChars={40}
-          helpText="Johtaja, tukija vai ideankeksijä?"
-        >
-          <textarea
-            value={profileData.teamRole}
-            onChange={(e) => handleInputChange("teamRole", e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none"
-            rows={3}
-            placeholder="Esim: 'Huolehdin että hommat tulee tehtyä...'"
-          />
-          <ExampleHint
-            examples={[
-              "Organisoin ja pidän aikataulut",
-              "Keksin ideoita ja inspiroin",
-              "Kuuntelen ja tuen",
-            ]}
-          />
-        </QuestionCard>
+          <QuestionCard
+            title="Millainen rooli sinulla on ryhmässä?"
+            isRequired={true}
+            isCompleted={profileData.teamRole.length >= 40}
+            charCount={profileData.teamRole.length}
+            minChars={40}
+            helpText="Johtaja, tukija vai ideankeksijä?"
+          >
+            <textarea
+              value={profileData.teamRole}
+              onChange={(e) => handleInputChange("teamRole", e.target.value)}
+              className={`w-full p-4 ${styles.glassInput} min-h-[100px]`}
+              placeholder="Esim: 'Huolehdin että hommat tulee tehtyä...'"
+            />
+          </QuestionCard>
 
-        {/* 9. ✅ UUSI: URATAVOITTEET */}
-        <QuestionCard
+           <QuestionCard
           title="Mitä haluat saavuttaa uralla seuraavassa 3 vuodessa?"
           isRequired={false}
           isCompleted={profileData.careerGoals.length >= 40}
@@ -616,57 +578,42 @@ const SimplifiedProfilePage: React.FC = () => {
             onChange={(e) =>
               handleInputChange("careerGoals", e.target.value)
             }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-            rows={3}
+             className={`w-full p-4 ${styles.glassInput} min-h-[100px]`}
             placeholder="Esim: 'Haluan oppia projektinhallintaa ja johtaa omaa timiä...'"
           />
-          <ExampleHint
-            examples={[
-              "Haluan oppia [tekniikka] ja erikoistua siihen",
-              "Kasvaa johtajiksi ja johtaa timiä",
-              "Perustaa oman yrityksen [alalla]",
-            ]}
-          />
-        </QuestionCard>
+          </QuestionCard>
 
-        {/* 10. SUPERPOWER */}
-        <QuestionCard
-          title="Kuvaa itsesi kolmella sanalla"
-          isRequired={true}
-          isCompleted={profileData.superpower.length >= 10}
-          charCount={profileData.superpower.length}
-          minChars={10}
-          helpText="Valitse sanat jotka todella kuvaavat sinua"
-        >
-          <input
-            type="text"
-            value={profileData.superpower}
-            onChange={(e) => handleInputChange("superpower", e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            placeholder="Esim: Luotettava, Oppimishaluinen, Järjestelmällinen"
-          />
-          <ExampleHint
-            examples={[
-              "Luotettava, Innostunut, Järjestelmällinen",
-              "Kärsivällinen, Tarkka, Yhteistyökykyinen",
-            ]}
-          />
-        </QuestionCard>
+          <QuestionCard
+            title="Kuvaa itsesi kolmella sanalla"
+            isRequired={true}
+            isCompleted={profileData.superpower.length >= 10}
+            charCount={profileData.superpower.length}
+            minChars={10}
+            helpText="Valitse sanat jotka todella kuvaavat sinua"
+          >
+            <input
+              type="text"
+              value={profileData.superpower}
+              onChange={(e) => handleInputChange("superpower", e.target.value)}
+              className={`w-full p-4 ${styles.glassInput}`}
+              placeholder="Esim: Luotettava, Oppimishaluinen, Järjestelmällinen"
+            />
+          </QuestionCard>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   const renderBasicInfo = () => (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Yhteystiedot</h2>
-        <p className="text-gray-600">Pakolliset kaikille CV-tyypeille</p>
+        <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>Yhteystiedot</h2>
+        <p className="text-gray-600 font-medium">Pakolliset tiedot</p>
       </div>
 
-      <div className="flex justify-center mb-8">
-        <div className="relative">
-          <div className="w-32 h-32 rounded-full border-4 border-gray-200 overflow-hidden bg-gray-100 flex items-center justify-center">
+      <div className="flex justify-center mb-10">
+        <div className="relative group">
+          <div className="w-40 h-40 rounded-3xl border-4 border-white shadow-2xl overflow-hidden bg-indigo-50 flex items-center justify-center relative">
             {profileData.profileImage ? (
               <img
                 src={profileData.profileImage}
@@ -674,24 +621,29 @@ const SimplifiedProfilePage: React.FC = () => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <User className="w-16 h-16 text-gray-400" />
+              <User className="w-16 h-16 text-indigo-200" />
             )}
+             {/* Hover Overlay */}
+             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}>
+                 <Camera className="w-8 h-8 text-white" />
+             </div>
           </div>
 
-          <div className="absolute bottom-0 right-0 flex gap-2">
+          <div className="absolute -bottom-4 right-[-10px] flex gap-2">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full shadow-lg"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-2xl shadow-lg hover:scale-110 transition-transform"
             >
-              <Camera className="w-4 h-4" />
+              <Camera className="w-5 h-5" />
             </button>
 
             {profileData.profileImage && (
               <button
                 onClick={removeProfileImage}
-                className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-full shadow-lg"
+                className="bg-red-500 hover:bg-red-600 text-white p-3 rounded-2xl shadow-lg hover:scale-110 transition-transform"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             )}
           </div>
@@ -708,66 +660,56 @@ const SimplifiedProfilePage: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Koko nimi *
-          </label>
+          <label className={styles.label}>Koko nimi *</label>
           <input
             type="text"
             value={profileData.name}
             onChange={(e) => handleInputChange("name", e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className={`w-full p-4 ${styles.glassInput}`}
             placeholder="Etunimi Sukunimi"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Sähköposti *
-          </label>
+          <label className={styles.label}>Sähköposti *</label>
           <input
             type="email"
             value={profileData.email}
             onChange={(e) => handleInputChange("email", e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className={`w-full p-4 ${styles.glassInput}`}
             placeholder="email@example.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Puhelinnumero
-          </label>
+          <label className={styles.label}>Puhelinnumero</label>
           <input
             type="tel"
             value={profileData.phone}
             onChange={(e) => handleInputChange("phone", e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className={`w-full p-4 ${styles.glassInput}`}
             placeholder="040 1234567"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Paikkakunta
-          </label>
+          <label className={styles.label}>Paikkakunta</label>
           <input
             type="text"
             value={profileData.location}
             onChange={(e) => handleInputChange("location", e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className={`w-full p-4 ${styles.glassInput}`}
             placeholder="Helsinki"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Millaista työtä haet?
-          </label>
+          <label className={styles.label}>Millaista työtä haet?</label>
           <input
             type="text"
             value={profileData.jobTitle}
             onChange={(e) => handleInputChange("jobTitle", e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className={`w-full p-4 ${styles.glassInput}`}
             placeholder="Esim. Asiakaspalvelu, IT-tuki..."
           />
         </div>
@@ -775,582 +717,231 @@ const SimplifiedProfilePage: React.FC = () => {
     </div>
   );
 
- // KORVAA renderExperience() funktio profile/page.tsx:ssä tällä
-
-const renderExperience = () => (
-  <div className="space-y-8">
-    <div className="text-center mb-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">
-        Työkokemus & Koulutus
-      </h2>
-      <p className="text-gray-600">
-        <span className="text-red-600 font-bold">
-          PAKOLLINEN Professional CV:lle!
-        </span>
-        <br />
-        <span className="text-green-600 font-medium">
-          Vapaaehtoinen Rento CV:lle
-        </span>
-      </p>
-      <div className="mt-4 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800 font-medium">
-          💼 Professional CV vaatii:
-        </p>
-        <ul className="text-sm text-blue-700 mt-2 space-y-1">
-          <li>✓ Vähintään 1 työkokemus kuvauksineen</li>
-          <li>✓ Vähintään 1 koulutus</li>
-          <li>✓ Taidot/osaaminen listattuna</li>
-          <li>✓ Kielitaito</li>
-        </ul>
-      </div>
-    </div>
-
-    {/* 📋 TYÖKOKEMUS */}
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="text-xl font-bold text-gray-800">Työkokemus</h3>
-          <p className="text-sm text-gray-600">
-            Listaa työpaikat uusimmasta vanhimpaan
-          </p>
+  const renderExperience = () => (
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="text-center mb-8">
+        <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>Työkokemus & Koulutus</h2>
+        <div className="inline-block px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-100 mt-2">
+            <p className="text-indigo-800 text-sm font-semibold">
+                Professional CV vaatii kokemuksen, Rento CV:lle vapaaehtoinen.
+            </p>
         </div>
-        <button
-          onClick={() => addArrayItem("workExperience")}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Briefcase className="w-4 h-4" />+ Lisää työpaikka
-        </button>
       </div>
 
-      {profileData.workExperience.length === 0 ? (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
-          <Briefcase className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600 mb-2 font-medium">
-            Ei vielä työkokemusta lisätty
-          </p>
-          <p className="text-sm text-gray-500 mb-4">
-            Lisää kaikki työpaikat, harjoittelut ja kesätyöt
-          </p>
+      {/* TYÖKOKEMUS */}
+      <div>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+             <div className="bg-indigo-100 p-2 rounded-lg"><Briefcase className="w-5 h-5 text-indigo-600" /></div>
+             Työkokemus
+          </h3>
           <button
             onClick={() => addArrayItem("workExperience")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+            className={styles.buttonSecondary + " px-4 py-2 text-sm"}
           >
-            Lisää ensimmäinen työpaikka
+            + Lisää työpaikka
           </button>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {profileData.workExperience.map((work, index) => (
-            <div
-              key={work.id}
-              className="border-2 border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow"
+
+        {profileData.workExperience.length === 0 ? (
+          <div className={`${styles.glassPanel} p-8 text-center border-dashed border-2 border-indigo-200/50`}>
+            <p className="text-gray-500 mb-4">Ei vielä työkokemusta lisätty.</p>
+            <button
+              onClick={() => addArrayItem("workExperience")}
+              className={styles.buttonPrimary + " px-6 py-3"}
             >
-              <div className="flex justify-between items-start mb-4">
-                <h4 className="text-lg font-semibold text-gray-800">
-                  Työpaikka {index + 1}
-                </h4>
-                <button
-                  onClick={() => removeArrayItem("workExperience", work.id)}
-                  className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
-                >
-                  <X className="w-4 h-4 inline mr-1" />
-                  Poista
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Yrityksen nimi */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Yritys / Organisaatio *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Esim: ABC Oy, Kaupan Kassa"
-                    value={work.company}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "workExperience",
-                        work.id,
-                        "company",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+              Lisää ensimmäinen
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {profileData.workExperience.map((work, index) => (
+              <div key={work.id} className={`${styles.glassPanel} p-6 md:p-8 relative group`}>
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <button
+                    onClick={() => removeArrayItem("workExperience", work.id)}
+                    className={styles.buttonDelete + " px-3 py-1"}
+                  >
+                    Poista
+                  </button>
                 </div>
+                
+                <h4 className="text-lg font-bold text-gray-800 mb-6 border-b border-gray-200/50 pb-2">Työpaikka {index + 1}</h4>
 
-                {/* Tehtävänimike */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tehtävänimike / Rooli *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Esim: Myyjä, IT-tukihenkilö, Harjoittelija"
-                    value={work.position}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "workExperience",
-                        work.id,
-                        "position",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Ajankohta */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Ajankohta *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Esim: 01/2022 - 12/2023, Kesä 2023, 2020-2022"
-                    value={work.duration}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "workExperience",
-                        work.id,
-                        "duration",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    💡 Vinkki: Kirjoita muodossa "Kuukausi/Vuosi - Kuukausi/Vuosi"
-                  </p>
-                </div>
-
-                {/* Työtehtävien kuvaus */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Työtehtävät ja vastuut *
-                  </label>
-                  <textarea
-                    placeholder="Kerro mitä teit työssäsi. Esim: Asiakaspalvelu, kassakäsittely, tuotteiden esittely, varastonhallinta..."
-                    value={work.description}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "workExperience",
-                        work.id,
-                        "description",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                    rows={4}
-                  />
-                  <div className="flex justify-between items-center mt-2">
-                    <p className="text-xs text-gray-500">
-                      💡 Listaa 3-5 pääasiallista tehtävää
-                    </p>
-                    <span
-                      className={`text-xs font-medium ${
-                        work.description && work.description.length >= 50
-                          ? "text-green-600"
-                          : "text-orange-600"
-                      }`}
-                    >
-                      {work.description?.length || 0}/50 merkkiä
-                    </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className={styles.label}>Yritys *</label>
+                    <input
+                      type="text"
+                      value={work.company}
+                      onChange={(e) => handleArrayItemChange("workExperience", work.id, "company", e.target.value)}
+                      className={`w-full p-3 ${styles.glassInput}`}
+                    />
+                  </div>
+                   <div>
+                    <label className={styles.label}>Tehtävänimike *</label>
+                    <input
+                      type="text"
+                      value={work.position}
+                      onChange={(e) => handleArrayItemChange("workExperience", work.id, "position", e.target.value)}
+                      className={`w-full p-3 ${styles.glassInput}`}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className={styles.label}>Ajankohta (kk/vvvv) *</label>
+                    <input
+                      type="text"
+                      placeholder="Esim. 01/2020 - 12/2022"
+                      value={work.duration}
+                      onChange={(e) => handleArrayItemChange("workExperience", work.id, "duration", e.target.value)}
+                      className={`w-full p-3 ${styles.glassInput}`}
+                    />
+                  </div>
+                   <div className="md:col-span-2">
+                    <label className={styles.label}>Tehtävät & Vastuut *</label>
+                    <textarea
+                      rows={3}
+                      value={work.description}
+                      onChange={(e) => handleArrayItemChange("workExperience", work.id, "description", e.target.value)}
+                      className={`w-full p-3 ${styles.glassInput}`}
+                    />
+                  </div>
+                   <div className="md:col-span-2 p-4 bg-green-50/50 border border-green-100 rounded-xl">
+                    <label className="text-sm font-bold text-green-700 uppercase mb-2 block">Saavutukset (Vapaaehtoinen)</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Mitä saavutit? Numerot toimivat hyvin!"
+                      value={work.achievements || ""}
+                      onChange={(e) => handleArrayItemChange("workExperience", work.id, "achievements", e.target.value)}
+                      className={`w-full p-3 bg-white border border-green-200 rounded-lg focus:outline-none focus:border-green-400`}
+                    />
                   </div>
                 </div>
               </div>
-
-              {/* Saavutukset (vapaaehtoinen) */}
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <label className="block text-sm font-medium text-green-800 mb-2">
-                  🏆 Saavutukset (vapaaehtoinen, mutta suositeltava)
-                </label>
-                <textarea
-                  placeholder="Mitä erityistä saavutit? Esim: Myynnin kasvu 20%, Asiakaspalautteen parantaminen, Uusien järjestelmien käyttöönotto..."
-                  value={work.achievements || ""}
-  onChange={(e) =>
-    handleArrayItemChange(
-      "workExperience",
-      work.id,
-      "achievements", // Tähän kenttään tallennetaan, joten value pitää lukea samasta
-      e.target.value
-    )
-  }
-                  className="w-full px-4 py-3 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 resize-none bg-white"
-                  rows={2}
-                />
-                <p className="text-xs text-green-700 mt-2">
-                  💡 Numerot ja prosentit ovat tehokkaita! (Esim. "Käsittelin
-                  50+ asiakasta päivässä")
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-
-    {/* 🎓 KOULUTUS */}
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="text-xl font-bold text-gray-800">Koulutus</h3>
-          <p className="text-sm text-gray-600">
-            Listaa koulutus uusimmasta vanhimpaan
-          </p>
-        </div>
-        <button
-          onClick={() => addArrayItem("education")}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <GraduationCap className="w-4 h-4" />+ Lisää koulutus
-        </button>
-      </div>
-
-      {profileData.education.length === 0 ? (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
-          <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-          <p className="text-gray-600 mb-2 font-medium">
-            Ei vielä koulutusta lisätty
-          </p>
-          <p className="text-sm text-gray-500 mb-4">
-            Lisää lukio, ammattikoulu, korkeakoulu tai muut tutkinnot
-          </p>
-          <button
-            onClick={() => addArrayItem("education")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-          >
-            Lisää ensimmäinen koulutus
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {profileData.education.map((edu, index) => (
-            <div
-              key={edu.id}
-              className="border-2 border-gray-200 rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <h4 className="text-lg font-semibold text-gray-800">
-                  Koulutus {index + 1}
-                </h4>
-                <button
-                  onClick={() => removeArrayItem("education", edu.id)}
-                  className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
-                >
-                  <X className="w-4 h-4 inline mr-1" />
-                  Poista
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Oppilaitos */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Oppilaitos *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Esim: Helsingin Yliopisto, Stadin ammattiopisto, Ressun lukio"
-                    value={edu.school}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "education",
-                        edu.id,
-                        "school",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Tutkinto */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tutkinto / Koulutusohjelma *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Esim: Ylioppilas, Datanomi, Tradenomi, Kandidaatti (tietotekniikka)"
-                    value={edu.degree}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "education",
-                        edu.id,
-                        "degree",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Vuosi */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Valmistumisvuosi / Ajankohta *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Esim: 2023, 2020-2024"
-                    value={edu.year}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "education",
-                        edu.id,
-                        "year",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Kesken checkbox */}
-                <div className="flex items-center gap-4 pt-8">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={edu.isOngoing}
-                      onChange={(e) =>
-                        handleArrayItemChange(
-                          "education",
-                          edu.id,
-                          "isOngoing",
-                          e.target.checked
-                        )
-                      }
-                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      Opiskelen tällä hetkellä
-                    </span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-
-    {/* 💼 TAIDOT JA OSAAMINEN */}
-    <div>
-      <h3 className="text-xl font-bold text-gray-800 mb-2">
-        Taidot ja Osaaminen
-      </h3>
-      <p className="text-sm text-gray-600 mb-4">
-        <span className="text-red-600 font-bold">
-          PAKOLLINEN Professional CV:lle!
-        </span>
-        <br />
-        Listaa kaikki osaamisesi: tekninen osaaminen, ohjelmistot, työkalut,
-        kielitaito, ajokortti jne.
-      </p>
-<div className={`border-2 ${
-              profileData.skills.length >= 50
-                ? "border-green-200 bg-green-50"
-                : "border-orange-200 bg-orange-50"
-            } rounded-lg p-6`}
-          >
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Osaaminen (vähintään 5-10 taitoa) *
-        </label>
-        <textarea
-          value={profileData.skills}
-          onChange={(e) => handleInputChange("skills", e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-          rows={6}
-          placeholder="Listaa taitosi kategorioittain. Esimerkki:&#10;&#10;TIETOTEKNISET TAIDOT:&#10;- Microsoft Office (Excel, Word, PowerPoint)&#10;- Google Workspace&#10;- Sähköpostin ja kalenterin hallinta&#10;&#10;AMMATILLISET TAIDOT:&#10;- Asiakaspalvelu&#10;- Projektinhallinta&#10;- Sosiaalinen media (Instagram, Facebook, LinkedIn)&#10;&#10;HENKILÖKOHTAISET TAIDOT:&#10;- Tiimityö&#10;- Ongelmanratkaisu&#10;- Joustavuus&#10;&#10;MUUT:&#10;- B-ajokortti&#10;- Hygieniapassi"
-        />
-        <div className="flex justify-between items-center mt-2">
-          <p className="text-xs text-gray-600">
-            💡 Vinkki: Jaa taidot kategorioihin (Tekniset, Ammatilliset,
-            Henkilökohtaiset)
-          </p>
-          <span
-            className={`text-xs font-medium ${
-              profileData.skills.length >= 50
-                ? "text-green-600"
-                : "text-orange-600"
-            }`}
-          >
-            {profileData.skills.length}/50 merkkiä
-            {profileData.skills.length >= 50 ? " ✓" : ""}
-          </span>
-        </div>
-
-        {/* Esimerkkitaidot */}
-        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-xs font-medium text-blue-800 mb-2">
-            📝 Esimerkkejä taidoista:
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-blue-700">
-            <div>
-              <strong>IT:</strong>
-              <br />
-              Excel, Word, PowerPoint
-              <br />
-              Canva, Photoshop
-              <br />
-              Google Analytics
-            </div>
-            <div>
-              <strong>Ammatilliset:</strong>
-              <br />
-              Asiakaspalvelu
-              <br />
-              Myynti
-              <br />
-              Projektinhallinta
-            </div>
-            <div>
-              <strong>Muut:</strong>
-              <br />
-              B-ajokortti
-              <br />
-              Hygieniapassi
-              <br />
-              Ensiapukurssi
-            </div>
+            ))}
           </div>
-        </div>
-      </div>
-    </div>
-
-    {/* 🌍 KIELET */}
-    <div>
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="text-xl font-bold text-gray-800">Kielitaito</h3>
-          <p className="text-sm text-gray-600">
-            <span className="text-red-600 font-bold">
-              PAKOLLINEN Professional CV:lle!
-            </span>
-            <br />
-            Listaa kaikki kielet joita osaat
-          </p>
-        </div>
-        <button
-          onClick={() => addArrayItem("languages")}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Languages className="w-4 h-4" />+ Lisää kieli
-        </button>
+        )}
       </div>
 
-      {profileData.languages.length === 0 ? (
-        <div className="border-2 border-dashed border-orange-300 rounded-lg p-8 text-center bg-orange-50">
-          <Languages className="w-12 h-12 text-orange-500 mx-auto mb-3" />
-          <p className="text-gray-600 mb-2 font-medium">
-            Ei vielä kieliä lisätty
-          </p>
-          <p className="text-sm text-gray-500 mb-4">
-            Professional CV vaatii vähintään yhden kielen (esim. Suomi)
-          </p>
-          <button
-            onClick={() => addArrayItem("languages")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-          >
-            Lisää ensimmäinen kieli
+      {/* KOULUTUS */}
+      <div>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <div className="bg-purple-100 p-2 rounded-lg"><GraduationCap className="w-5 h-5 text-purple-600" /></div>
+            Koulutus
+          </h3>
+          <button onClick={() => addArrayItem("education")} className={styles.buttonSecondary + " px-4 py-2 text-sm"}>
+            + Lisää koulutus
           </button>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {profileData.languages.map((lang, index) => (
-            <div
-              key={lang.id}
-              className="border-2 border-gray-200 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h4 className="text-base font-semibold text-gray-800">
-                  Kieli {index + 1}
-                </h4>
-                <button
-                  onClick={() => removeArrayItem("languages", lang.id)}
-                  className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
-                >
-                  <X className="w-4 h-4 inline mr-1" />
-                  Poista
-                </button>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Kieli */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Kieli *
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Esim: Suomi, Englanti, Ruotsi"
-                    value={lang.language}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "languages",
-                        lang.id,
-                        "language",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* Taitotaso */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Taitotaso *
-                  </label>
-                  <select
-                    value={lang.level}
-                    onChange={(e) =>
-                      handleArrayItemChange(
-                        "languages",
-                        lang.id,
-                        "level",
-                        e.target.value
-                      )
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+        {profileData.education.length === 0 ? (
+          <div className={`${styles.glassPanel} p-8 text-center border-dashed border-2 border-purple-200/50`}>
+             <p className="text-gray-500 mb-4">Ei vielä koulutusta lisätty.</p>
+             <button onClick={() => addArrayItem("education")} className={styles.buttonPrimary + " px-6 py-3"}>
+              Lisää ensimmäinen
+            </button>
+          </div>
+        ) : (
+             <div className="space-y-6">
+            {profileData.education.map((edu, index) => (
+              <div key={edu.id} className={`${styles.glassPanel} p-6 md:p-8 relative group`}>
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                    onClick={() => removeArrayItem("education", edu.id)}
+                    className={styles.buttonDelete + " px-3 py-1"}
                   >
-                    <option value="Äidinkieli">Äidinkieli</option>
-                    <option value="Erinomainen">Erinomainen (C2)</option>
-                    <option value="Erittäin hyvä">Erittäin hyvä (C1)</option>
-                    <option value="Hyvä">Hyvä (B2)</option>
-                    <option value="Tyydyttävä">Tyydyttävä (B1)</option>
-                    <option value="Perustaso">Perustaso (A1-A2)</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    💡 Valitse realistinen taso
-                  </p>
+                    Poista
+                  </button>
                 </div>
+                 <h4 className="text-lg font-bold text-gray-800 mb-6 border-b border-gray-200/50 pb-2">Koulutus {index + 1}</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="md:col-span-2">
+                        <label className={styles.label}>Oppilaitos *</label>
+                        <input type="text" value={edu.school} onChange={(e) => handleArrayItemChange("education", edu.id, "school", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} />
+                    </div>
+                     <div className="md:col-span-2">
+                        <label className={styles.label}>Tutkinto *</label>
+                        <input type="text" value={edu.degree} onChange={(e) => handleArrayItemChange("education", edu.id, "degree", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} />
+                    </div>
+                     <div>
+                        <label className={styles.label}>Vuosi *</label>
+                        <input type="text" value={edu.year} onChange={(e) => handleArrayItemChange("education", edu.id, "year", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} />
+                    </div>
+                     <div className="flex items-end pb-3">
+                         <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input type="checkbox" checked={edu.isOngoing} onChange={(e) => handleArrayItemChange("education", edu.id, "isOngoing", e.target.checked)} className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500" />
+                            <span className="text-sm font-medium text-gray-700">Opiskelen tällä hetkellä</span>
+                         </label>
+                    </div>
+                 </div>
               </div>
+            ))}
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Vinkki */}
-      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <p className="text-sm text-blue-800">
-          <strong>💡 Vinkki:</strong> Suomi, Ruotsi ja Englanti ovat yleisimmät
-          kielet Suomessa. Listaa kaikki kielet joita osaat edes perustasolla!
-        </p>
+        )}
       </div>
+
+      {/* TAIDOT */}
+      <div>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Taidot ja Osaaminen</h3>
+        <div className={`${styles.glassPanel} p-6`}>
+             <label className={styles.label}>Osaaminen (vähintään 5-10 taitoa) *</label>
+             <textarea
+                value={profileData.skills}
+                onChange={(e) => handleInputChange("skills", e.target.value)}
+                className={`w-full p-4 ${styles.glassInput} min-h-[150px]`}
+                placeholder="Listaa taitosi..."
+             />
+             <div className="flex justify-end mt-2">
+                 <span className={`text-xs font-bold px-2 py-1 rounded ${profileData.skills.length >= 50 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {profileData.skills.length}/50 merkkiä
+                 </span>
+             </div>
+        </div>
+      </div>
+
+       {/* KIELET */}
+       <div>
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-800">Kielitaito</h3>
+          <button onClick={() => addArrayItem("languages")} className={styles.buttonSecondary + " px-4 py-2 text-sm"}>
+            + Lisää kieli
+          </button>
+        </div>
+        
+        {profileData.languages.length > 0 && (
+             <div className="space-y-4">
+                 {profileData.languages.map((lang, index) => (
+                     <div key={lang.id} className={`${styles.glassPanel} p-4 flex flex-col md:flex-row gap-4 items-end`}>
+                        <div className="flex-1 w-full">
+                            <label className={styles.label}>Kieli</label>
+                            <input type="text" value={lang.language} onChange={(e) => handleArrayItemChange("languages", lang.id, "language", e.target.value)} className={`w-full p-2 ${styles.glassInput}`} />
+                        </div>
+                        <div className="flex-1 w-full">
+                             <label className={styles.label}>Taso</label>
+                              <select value={lang.level} onChange={(e) => handleArrayItemChange("languages", lang.id, "level", e.target.value)} className={`w-full p-2 ${styles.glassInput}`}>
+                                <option>Äidinkieli</option>
+                                <option>Erinomainen</option>
+                                <option>Hyvä</option>
+                                <option>Perustaso</option>
+                              </select>
+                        </div>
+                        <button onClick={() => removeArrayItem("languages", lang.id)} className={styles.buttonDelete + " px-4 py-2"}>
+                            Poista
+                        </button>
+                     </div>
+                 ))}
+             </div>
+        )}
+       </div>
     </div>
-  </div>
-)
+  );
 
   const renderBonus = () => (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Lisätiedot</h2>
-        <p className="text-gray-600">
-          Vapaaehtoisia, mutta tekevät CV:stä paremman
-        </p>
+        <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>Lisätiedot</h2>
+        <p className="text-gray-600 font-medium">Viimeistele profiilisi</p>
       </div>
 
       <QuestionCard
@@ -1362,97 +953,10 @@ const renderExperience = () => (
         <textarea
           value={profileData.valuesExample}
           onChange={(e) => handleInputChange("valuesExample", e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-          rows={3}
-          placeholder="Esim: 'Kassalla asiakas unohti vaihtorahan. Juoksin perään...'"
+          className={`w-full p-4 ${styles.glassInput} min-h-[100px]`}
+          placeholder="Esim: 'Kassalla asiakas unohti vaihtorahan...'"
         />
       </QuestionCard>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-3">
-          Taidot ja osaaminen{" "}
-          <span className="text-gray-500">(vapaaehtoinen)</span>
-        </label>
-        <textarea
-          value={profileData.skills}
-          onChange={(e) => handleInputChange("skills", e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          rows={4}
-          placeholder="Listaa taitojasi. Esim: Excel, asiakaspalvelu, sosiaalinen media, ajokortti..."
-        />
-      </div>
-
-      {/* Kielet */}
-      <div>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Kielitaito</h3>
-          <button
-            onClick={() => addArrayItem("languages")}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            + Lisää
-          </button>
-        </div>
-
-        {profileData.languages.length === 0 ? (
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-            <p className="text-gray-500">Ei vielä kieliä lisätty</p>
-            <button
-              onClick={() => addArrayItem("languages")}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Lisää ensimmäinen
-            </button>
-          </div>
-        ) : (
-          profileData.languages.map((lang) => (
-            <div
-              key={lang.id}
-              className="border-2 border-gray-200 rounded-lg p-4 mb-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input
-                  type="text"
-                  placeholder="Kieli"
-                  value={lang.language}
-                  onChange={(e) =>
-                    handleArrayItemChange(
-                      "languages",
-                      lang.id,
-                      "language",
-                      e.target.value
-                    )
-                  }
-                  className="px-4 py-2 border rounded-lg"
-                />
-                <select
-                  value={lang.level}
-                  onChange={(e) =>
-                    handleArrayItemChange(
-                      "languages",
-                      lang.id,
-                      "level",
-                      e.target.value
-                    )
-                  }
-                  className="px-4 py-2 border rounded-lg"
-                >
-                  <option>Perustaso</option>
-                  <option>Hyvä</option>
-                  <option>Erinomainen</option>
-                  <option>Äidinkieli</option>
-                </select>
-                <button
-                  onClick={() => removeArrayItem("languages", lang.id)}
-                  className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                >
-                  Poista
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
     </div>
   );
 
@@ -1463,10 +967,6 @@ const renderExperience = () => (
         return essentials.completed === essentials.total;
       case 1: // Basic
         return profileData.name && profileData.email;
-      case 2: // Experience
-        return true; // Vapaaehtoinen
-      case 3: // Bonus
-        return true; // Vapaaehtoinen
       default:
         return true;
     }
@@ -1475,12 +975,11 @@ const renderExperience = () => (
   const getOverallProgress = () => {
     const essential = getEssentialProgress();
     const hasBasic = profileData.name && profileData.email;
-    const hasExperience =
-      profileData.workExperience.length > 0 || profileData.education.length > 0;
-    const hasBonus = profileData.skills || profileData.languages.length > 0;
+    const hasExperience = profileData.workExperience.length > 0 || profileData.education.length > 0;
+    const hasBonus = profileData.skills.length > 10;
 
     const scores = [
-      essential.percentage, // 0-100
+      essential.percentage,
       hasBasic ? 100 : 0,
       hasExperience ? 100 : 0,
       hasBonus ? 100 : 0,
@@ -1491,10 +990,10 @@ const renderExperience = () => (
 
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto p-6 min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Ladataan profiilia...</p>
+      <div className={styles.wrapper + " flex items-center justify-center"}>
+        <div className="text-center bg-white/50 backdrop-blur-xl p-8 rounded-3xl border border-white/50 shadow-xl">
+          <Loader2 className="h-12 w-12 text-indigo-600 animate-spin mx-auto mb-4" />
+          <p className="text-indigo-900 font-bold animate-pulse">Ladataan profiilia...</p>
         </div>
       </div>
     );
@@ -1502,158 +1001,168 @@ const renderExperience = () => (
 
   const overallProgress = getOverallProgress();
 
-  return ( 
-  <>
-<SmartHeader />
-<div className="min-h-screen container max-w-5xl mx-auto">
- 
-
-      <div className="text-center mb-8 space-y-8  py-8 px-4 from-gray-0 to-indigo-00">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Luo Profiilisi
-        </h1>
-        <p className="text-gray-600">
-          Täytä tiedot omaan tahtiisi - kaikki tallentuu automaattisesti
-        </p>
-
-        {/* Overall Progress */}
-        <div className="mt-6 max-w-md mx-auto">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="font-medium">Kokonaisvalmius</span>
-            <span className="text-gray-600">{overallProgress}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div
-              className="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all"
-              style={{ width: `${overallProgress}%` }}
-            />
-          </div>
-          {overallProgress >= 70 && (
-            <p className="text-sm text-green-600 mt-2 font-medium">
-              ✓ Valmis luomaan Simple CV:n!
-            </p>
-          )}
+  return (
+    <>
+      <SmartHeader />
+      <div className={styles.wrapper + " pb-20 pt-8"}>
+        
+        {/* Animated Blobs Background */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/20 to-purple-400/20 rounded-full blur-3xl animate-pulse"></div>
+            <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
-      </div>
 
-      {/* Step Progress */}
-      <div className="flex justify-center mb-8">
-        <div className="flex items-center space-x-4">
-          {steps.map((step, index) => (
-            <div key={step.id} className="flex items-center">
+        <div className="container max-w-5xl mx-auto relative z-10 px-4">
+          
+          {/* Header Section */}
+          <div className="text-center mb-10 space-y-4">
+             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/60 backdrop-blur-md border border-white/50 shadow-sm mb-2">
+                <Shield className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-extrabold text-indigo-900 uppercase tracking-widest">Käyttäjäprofiili</span>
+             </div>
+
+            <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 drop-shadow-sm tracking-tight">
+              Luo <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-pink-600">Profiilisi</span>
+            </h1>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              Täytä tiedot omaan tahtiisi - kaikki tallentuu automaattisesti taustalla.
+            </p>
+
+            {/* Overall Progress Bar */}
+            <div className="mt-8 max-w-lg mx-auto bg-white/40 backdrop-blur-md p-4 rounded-2xl border border-white/50 shadow-sm">
+              <div className="flex justify-between text-sm mb-2 font-bold text-gray-700">
+                <span>Kokonaisvalmius</span>
+                <span className="text-indigo-600">{overallProgress}%</span>
+              </div>
+              <div className="w-full bg-white/50 rounded-full h-4 overflow-hidden border border-white/60">
+                <div
+                  className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 h-full rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(168,85,247,0.4)] relative"
+                  style={{ width: `${overallProgress}%` }}
+                >
+                     {/* Shine effect */}
+                     <div className="absolute top-0 left-0 right-0 bottom-0 bg-gradient-to-b from-white/30 to-transparent"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stepper Navigation */}
+          <div className="flex justify-center mb-12">
+            <div className="flex items-center gap-4 md:gap-8 bg-white/40 backdrop-blur-md px-6 py-4 rounded-full border border-white/60 shadow-lg">
+              {steps.map((step, index) => (
+                <div key={step.id} className="flex items-center relative group">
+                  <button
+                    onClick={() => setCurrentStep(index)}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 transform ${
+                      index === currentStep
+                        ? styles.stepBubbleActive
+                        : index < currentStep
+                        ? styles.stepBubbleCompleted
+                        : styles.stepBubbleInactive
+                    }`}
+                  >
+                    {index < currentStep ? (
+                      <CheckCircle className="w-6 h-6" />
+                    ) : (
+                      <step.icon className="w-6 h-6" />
+                    )}
+                  </button>
+                  {/* Tooltip */}
+                  <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xs font-bold text-gray-600 whitespace-nowrap bg-white/80 px-2 py-1 rounded-md shadow-sm pointer-events-none">
+                      {step.title}
+                  </div>
+                  
+                  {index < steps.length - 1 && (
+                    <div className="hidden md:block w-12 h-0.5 ml-8 bg-gray-300/50 absolute left-4 z-[-1]" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className={`${styles.glassCard} p-6 md:p-10 mb-8 min-h-[500px] relative`}>
+            {/* Header for Step */}
+             <div className="absolute top-0 right-0 p-6 pointer-events-none">
+                 <div className="text-[100px] font-black text-indigo-900/5 leading-none select-none z-0">
+                     {currentStep + 1}
+                 </div>
+             </div>
+             
+             <div className="relative z-10">
+                {currentStep === 0 && renderEssentials()}
+                {currentStep === 1 && renderBasicInfo()}
+                {currentStep === 2 && renderExperience()}
+                {currentStep === 3 && renderBonus()}
+             </div>
+          </div>
+
+          {/* Footer Navigation */}
+          <div className="flex justify-between items-center bg-white/30 backdrop-blur-md p-4 rounded-2xl border border-white/40 shadow-sm">
+            <button
+              onClick={prevStep}
+              disabled={currentStep === 0}
+              className={`flex items-center px-6 py-4 rounded-xl font-bold transition-all ${
+                currentStep === 0
+                  ? "text-gray-400 cursor-not-allowed"
+                  : "bg-white text-gray-700 hover:bg-gray-50 shadow-sm border border-gray-200"
+              }`}
+            >
+              <ChevronLeft className="w-5 h-5 mr-2" />
+              Edellinen
+            </button>
+            
+            {/* Auto-save indicator */}
+            <div className="hidden md:flex flex-col items-center">
+                {isSaving ? (
+                     <div className="flex items-center gap-2 text-indigo-600 text-sm font-bold animate-pulse">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Tallennetaan...
+                     </div>
+                ) : lastSaved ? (
+                     <div className="flex items-center gap-2 text-gray-500 text-xs font-medium opacity-70">
+                        <CheckCircle className="w-3 h-3" /> Tallennettu {lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                     </div>
+                ) : null}
+            </div>
+
+            {currentStep === steps.length - 1 ? (
               <button
-                onClick={() => setCurrentStep(index)}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
-                  index === currentStep
-                    ? "bg-blue-600 text-white scale-110"
-                    : index < currentStep
-                    ? "bg-green-500 text-white hover:scale-105"
-                    : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                onClick={handleFinalSave}
+                disabled={isSaving}
+                className={`flex items-center px-8 py-4 rounded-xl font-bold transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 ${
+                    styles.buttonPrimary
                 }`}
               >
-                {index < currentStep ? (
-                  <CheckCircle className="w-5 h-5" />
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Viimeistellään...
+                  </>
                 ) : (
-                  <step.icon className="w-5 h-5" />
+                  <>
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Valmis - Luo CV
+                  </>
                 )}
               </button>
-              {index < steps.length - 1 && (
-                <div
-                  className={`w-8 h-px transition-colors ${
-                    index < currentStep ? "bg-green-500" : "bg-gray-200"
-                  }`}
-                />
-              )}
-            </div>
-          ))}
+            ) : (
+              <button
+                onClick={nextStep}
+                disabled={!isStepValid()}
+                className={`flex items-center px-8 py-4 rounded-xl font-bold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 ${
+                  isStepValid()
+                    ? "bg-gray-900 text-white hover:bg-black"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                Seuraava
+                <ChevronRight className="w-5 h-5 ml-2" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">
-          {steps[currentStep].title}
-        </h2>
-        <p className="text-sm text-gray-600">
-          {steps[currentStep].description}
-        </p>
-      </div>
-
-      {/* Step Content */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-        {currentStep === 0 && renderEssentials()}
-        {currentStep === 1 && renderBasicInfo()}
-        {currentStep === 2 && renderExperience()}
-        {currentStep === 3 && renderBonus()}
-      </div>
-
-      {/* Navigation */}
-      <div className="flex justify-between items-center">
-        <button
-          onClick={prevStep}
-          disabled={currentStep === 0}
-          className={`flex items-center px-6 py-3 rounded-lg font-medium transition-colors ${
-            currentStep === 0
-              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-          }`}
-        >
-          <ChevronLeft className="w-5 h-5 mr-2" />
-          Edellinen
-        </button>
-
-        {currentStep === steps.length - 1 ? (
-          <button
-            onClick={handleFinalSave}
-            disabled={isSaving}
-            className={`flex items-center px-8 py-3 rounded-lg font-medium transition-colors ${
-              !isSaving
-                ? "bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 shadow-lg"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            {isSaving ? (
-              <>
-                <Save className="w-5 h-5 mr-2 animate-spin" />
-                Tallennetaan...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-5 h-5 mr-2" />
-                Valmis - Luo CV
-              </>
-            )}
-          </button>
-        ) : (
-          <button
-            onClick={nextStep}
-            disabled={!isStepValid()}
-            className={`flex items-center px-6 py-3 rounded-lg font-medium transition-colors ${
-              isStepValid()
-                ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            Seuraava
-            <ChevronRight className="w-5 h-5 ml-2" />
-          </button>
-        )}
-      </div>
-
-      {/* Hint */}
-      <p className="text-center text-sm text-gray-500 mt-4">
-        {!isStepValid() && currentStep === 0 &&
-          "Täytä kaikki pakolliset persoonallisuuskysymykset"}
-        {!isStepValid() && currentStep === 1 && "Täytä nimi ja sähköposti"}
-        {isStepValid() && currentStep < steps.length - 1 &&
-          "Voit jatkaa seuraavaan vaiheeseen"}
-        {currentStep === steps.length - 1 && "Voit tallentaa ja siirtyä CV-luontiin"}
-      </p>
-
-      <p className="text-center text-xs text-gray-400 mt-2">
-        {isSaving ? "Tallennetaan..." : "Tiedot tallentuvat automaattisesti"}
-      </p>
-    </div>
-      </>
+    </>
   );
 };
 
