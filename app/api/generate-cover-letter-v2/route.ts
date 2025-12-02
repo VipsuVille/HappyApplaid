@@ -1,11 +1,24 @@
-// app/api/generate-cover-letter-v2/route.ts - KORJATTU
+// app/api/generate-cover-letter-v2/route.ts - TIER-POHJAINEN V2 ATS + RAG
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { generateCoherentCoverLetter, generateATSReport } from "@/lib/langchain/coverLetterGeneratorV2";
-import { validateUniversally } from "@/lib/langchain/universalValidator";
+import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGeneratorV2";
 import { supabaseAdmin } from "@/lib/supabase";
+import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
+import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate";
+import { getTierFeatures } from "@/lib/stripe/subscriptions";
+import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
+
+function extractJobTitleFromDescription(jobDescription: string): string {
+  if (!jobDescription) return "Työhakemus";
+  const firstLine = jobDescription.split('\n')[0].trim();
+  if (firstLine.length < 10) {
+    const firstTwoLines = jobDescription.split('\n').slice(0, 2).join(' ').trim();
+    return firstTwoLines.substring(0, 80).trim() || "Työhakemus";
+  }
+  return firstLine.substring(0, 80).trim();
+}
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -15,42 +28,42 @@ export async function POST(req: Request) {
   }
 
   try {
+    const requestData = await req.json();
+
+    const {
+      profileData,
+      jobDescription: jobDesc,
+      personalNotes: notes,
+      language,
+      style,
+      answeredQuestions,
+    } = requestData;
+
     const {
       jobDescription,
       personalNotes,
       name,
       email,
       phone,
-      age,
       jobTitle,
       education,
       workExperience,
       skills,
-      language,
-      style,
-      workingStyle,
-      problemSolving,
-      energySources,
-      uniqueStrength,
-      learningStyle,
-      teamRole,
-      valuesExample,
-      superpower,
-      careerGoals,           // ✅ LISÄTTY
-      bestProjectExample,    // ✅ LISÄTTY
-      failureLesson,         // ✅ LISÄTTY
-      skipValidation,
-      answeredQuestions,
-    } = await req.json();
+    } = requestData;
 
-    if (!jobDescription) {
+    const finalJobDescription = jobDescription || jobDesc;
+    const finalPersonalNotes = personalNotes || notes;
+
+    if (!finalJobDescription) {
       return NextResponse.json(
         { error: "Job description is required" },
         { status: 400 }
       );
     }
 
-    // Tarkista tilaus
+    const extractedJobTitle = extractJobTitleFromDescription(finalJobDescription);
+
+    // ✅ 1. TARKISTA TILAUS & TIER
     const { data: subscription, error: subscriptionError } = await supabaseAdmin
       .from("subscriptions")
       .select("*")
@@ -60,204 +73,250 @@ export async function POST(req: Request) {
 
     if (subscriptionError || !subscription) {
       return NextResponse.json(
-        { error: "Subscription required" },
+        { error: "SUBSCRIPTION_REQUIRED", message: "Tilaus vaaditaan" },
         { status: 403 }
       );
     }
 
-    if (subscription.plan_type !== "premium") {
+    // ✅ 2. HAE TIER-OMINAISUUDET
+    const tier = getTierFeatures(subscription.plan_type);
+
+    // V2 vaatii Semi-Pro tai Pro
+    if (!tier.canUseV2) {
       return NextResponse.json(
-        { error: "PREMIUM_REQUIRED", message: "ATS-optimoitu hakukirje vaatii Premium-tilauksen" },
+        { 
+          error: "UPGRADE_REQUIRED", 
+          message: "V2 ATS Generator vaatii Semi-Pro tai Pro -tason",
+          currentTier: tier.name,
+          requiredTier: "Semi-Pro"
+        },
         { status: 403 }
       );
     }
 
-    // ✅ 1. HANKKI GROUND TRUTH (AWAIT LISÄTTY!)
-    console.log('🛡️ Extracting ground truth from profile...');
-    const userProfile = await supabaseAdmin
+    console.log(`🎫 User tier: ${tier.name}`);
+    console.log(`   - V2/ATS: ✅`);
+    console.log(`   - RAG: ${tier.canUseRAG ? '✅' : '❌'}`);
+    console.log(`   - Cost: $${tier.costPerLetter}/letter`);
+
+    // ✅ 3. HAE GROUND TRUTH (kaikille tiereille)
+    const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    // ✅ KORJATTU: Lisää await
-    const groundTruth = await extractGroundTruthAI(userProfile.data || {});
-    console.log('✅ Ground truth established');
+    const groundTruth = await extractGroundTruthAI(userProfile || {});
+    
+    console.log(`🛡️ Ground Truth extracted:`);
+    console.log(`   - Skills: ${groundTruth.technicalSkills.length}`);
+    console.log(`   - Experience: ${groundTruth.yearsOfExperience || 0} years`);
 
-    // ✅ 2. VALIDOINTI (jos ei ohitettu)
-    if (!skipValidation) {
-      console.log('🔍 Running validation...');
-      
-      const validation = await validateUniversally({
-        jobDescription,
-        language: language || 'finnish',
-        userProfile: {
-          name,
-          email,
-          phone,
-          skills,
-          workExperience,
-          education,
-          problemSolving,
-          uniqueStrength,
-          workingStyle,
-          learningStyle,
-          teamRole,
-          superpower,
-          valuesExample,
-          energySources,
-          careerGoals,           // ✅ LISÄTTY
-          bestProjectExample,    // ✅ LISÄTTY
-          failureLesson,         // ✅ LISÄTTY
-        },
-        personalNotes
-      });
+    // ✅ 4. TARKISTA ATS-KÄYTTÖ
+    console.log('🔍 Detecting ATS usage...');
+    const atsDetection = await detectATSUsageAI(finalJobDescription);
+    
+    console.log(`   - Uses ATS: ${atsDetection.usesATS ? '✅' : '❌'}`);
+    console.log(`   - Confidence: ${atsDetection.confidence}`);
+    console.log(`   - Reasoning: ${atsDetection.reasoning}`);
 
-      if (validation.score < 60 && validation.questions.length > 0) {
-        console.log(`❓ Validation score too low: ${validation.score}/100`);
-        return NextResponse.json({
-          needsMoreInfo: true,
-          questions: validation.questions,
-          score: validation.score,
-          reason: validation.reason,
-          warnings: validation.warnings
-        });
-      }
-      
-      console.log(`✅ Validation passed: ${validation.score}/100`);
-    }
-
-    // ✅ 3. YHDISTÄ VASTAUKSET personalNotes:iin
-    let enhancedPersonalNotes = personalNotes || '';
+    // ✅ 5. MERGE VASTAUKSET personalNotesiin
+    let enhancedPersonalNotes = finalPersonalNotes || '';
     
     if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
-      console.log(`📝 Integrating ${Object.keys(answeredQuestions).length} answered questions`);
+      console.log(`📝 Integrating ${Object.keys(answeredQuestions).length} answers`);
       
       const answersText = Object.entries(answeredQuestions)
-        .map(([questionId, answer]) => `${questionId}: ${answer}`)
+        .map(([questionId, answer]) => `Q: ${questionId}\nA: ${answer}`)
         .join('\n\n');
       
-      enhancedPersonalNotes = personalNotes 
-        ? `${personalNotes}\n\nLISÄTIEDOT:\n${answersText}`
-        : `LISÄTIEDOT:\n${answersText}`;
+      enhancedPersonalNotes = finalPersonalNotes 
+        ? `${finalPersonalNotes}\n\n--- VASTAUKSET ---\n${answersText}`
+        : answersText;
     }
 
-    // ✅ 4. LUO HAKUKIRJE
-    console.log(`📝 Generating ATS-optimized cover letter (${style || 'formal'} style)...`);
-    
-    const coverLetterData = await generateCoherentCoverLetter({
-      jobDescription,
-      name,
-      email,
-      phone,
-      age,
-      workExperience,
-      education,
-      skills,
-      language,
-      style,
-      workingStyle,
-      problemSolving,
-      energySources,
-      uniqueStrength,
-      learningStyle,
-      teamRole,
-      superpower,
-      valuesExample,
-      careerGoals,              // ✅ LISÄTTY
-      bestProjectExample,       // ✅ LISÄTTY
-      failureLesson,            // ✅ LISÄTTY
-      personalNotes: enhancedPersonalNotes,
-    });
+    // ✅ 6. PREPARE INPUT
+    let coverLetterInput;
+    if (profileData) {
+      const apiFormat = convertProfileToApiFormat(profileData);
+      coverLetterInput = {
+        jobDescription: finalJobDescription,
+        personalNotes: enhancedPersonalNotes,
+        name: profileData.name,
+        email: profileData.email,
+        phone: profileData.phone,
+        education: apiFormat.education,
+        workExperience: apiFormat.workExperience,
+        skills: profileData.skills,
+        language: language || "finnish",
+        style: style || "formal",
+        workingStyle: profileData.workingStyle,
+        problemSolving: profileData.problemSolving,
+        energySources: profileData.energySources,
+        uniqueStrength: profileData.uniqueStrength,
+        learningStyle: profileData.learningStyle,
+        teamRole: profileData.teamRole,
+        valuesExample: profileData.valuesExample,
+        superpower: profileData.superpower,
+        careerGoals: profileData.careerGoals,
+        bestProjectExample: profileData.bestProjectExample,
+        failureLesson: profileData.failureLesson,
+        
+        // ✅ TIER-POHJAINEN RAG
+        enableRAG: tier.canUseRAG,
+        allowedSkills: groundTruth.technicalSkills,
+        forbiddenClaims: groundTruth.cannotClaim
+      };
+    } else {
+      coverLetterInput = {
+        jobDescription: finalJobDescription,
+        personalNotes: enhancedPersonalNotes,
+        name,
+        email,
+        phone,
+        education,
+        workExperience,
+        skills,
+        language: language || "finnish",
+        style: style || "formal",
+        
+        enableRAG: tier.canUseRAG,
+        allowedSkills: groundTruth.technicalSkills,
+        forbiddenClaims: groundTruth.cannotClaim,
+        
+      };
+    }
 
-    // ✅ 5. MASTER GUARDIAN TARKISTUS - KORJATTU fullText + context
-    console.log('🛡️ Running Master Guardian validation...');
+    // ✅ 7. GENEROI V2 ATS
+    console.log(`📝 Generating V2 ATS cover letter (RAG: ${tier.canUseRAG})...`);
     
-    // ✅ KORJATTU: Käytä fullText tai content
-    const coverLetterContent = coverLetterData.content || '';
+    const coverLetterData = await generateCoherentCoverLetter(coverLetterInput);
+
+    // ✅ 8. JOS KYSYMYKSIÄ
+    if (coverLetterData.questions && coverLetterData.questions.length > 0) {
+      console.log(`❓ AI needs clarification: ${coverLetterData.questions.length} questions`);
+      
+      return NextResponse.json({
+        success: true,
+        needsMoreInfo: true,
+        questions: coverLetterData.questions,
+        title: coverLetterData.title,
+        reason: 'AI tarvitsee vahvistusta varmistaakseen totuudenmukaisuuden'
+      });
+    }
+
+    // ✅ 9. MASTER GUARDIAN
+    console.log('🛡️ Running Master Guardian...');
     
-    if (!coverLetterContent) {
-      throw new Error('Cover letter content is empty');
+    // Varmista että content on määritelty
+    if (!coverLetterData.content) {
+      throw new Error('Cover letter content is undefined');
     }
     
-    // ✅ KORJATTU: Lisää 'ats_generation' masterGuardian.ts:ään
     const guardianCheck = await masterConsistencyCheckAI(
-      coverLetterContent,
+      coverLetterData.content,
       groundTruth,
-      'generation' // ✅ KORJATTU: Käytä 'generation' koska 'ats_generation' ei ole määritelty
+      'generation'
     );
 
     if (guardianCheck.riskLevel === 'danger') {
-      console.warn('⚠️ Guardian detected issues (ATS-mode: logging only)');
-      console.warn('Violations:', guardianCheck.violations);
+      console.error('🚨 GUARDIAN REJECTED');
+      
+      return NextResponse.json({
+        error: 'CONSISTENCY_VIOLATION',
+        message: 'Sisältö ei täytä laatuvaatimuksia',
+        violations: guardianCheck.violations,
+        recommendation: guardianCheck.recommendation
+      }, { status: 400 });
     }
 
-    console.log(`✅ Guardian check: ${guardianCheck.riskLevel}`);
+    console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
 
-    const atsReport = generateATSReport({ atsData: coverLetterData.atsData });
+    // ✅ 10. ATS ANALYYSI (jos ATS havaittu)
+    let atsAnalysis = null;
+    if (atsDetection.usesATS) {
+      console.log('📊 Running ATS analysis...');
+      atsAnalysis = await analyzeRealisticATSUniversal(
+        coverLetterData.content,
+        finalJobDescription
+      );
+      console.log(`   - ATS Score: ${atsAnalysis.score}/100`);
+    }
 
-    // ✅ 6. TALLENNA
-    const { data: savedLetter, error: insertError } = await supabaseAdmin
+    // ✅ 11. TALLENNA
+    const { data: coverLetter, error: insertError } = await supabaseAdmin
       .from("cover_letters")
       .insert({
         user_id: userId,
-        title: coverLetterData.title || "Työhakemus",
-        language: language || "finnish",
+        title: extractedJobTitle,
+        language: coverLetterInput.language,
         content: {
-          job_description: jobDescription,
-          body: coverLetterContent, // ✅ KORJATTU
+          job_description: finalJobDescription,
+          cover_letter_content: coverLetterData.content,
+          signature: coverLetterData.signature,
+          body: coverLetterData.content,
           applicant_info: {
-            name,
-            email,
-            phone,
-            jobTitle,
-            education,
-            workExperience,
-            skills,
-            age,
-            personality_profile: {
-              workingStyle,
-              problemSolving,
-              energySources,
-              uniqueStrength,
-              learningStyle,
-              teamRole,
-              valuesExample,
-              superpower,
-              careerGoals,           // ✅ LISÄTTY
-              bestProjectExample,    // ✅ LISÄTTY
-              failureLesson,         // ✅ LISÄTTY
-            },
+            name: coverLetterInput.name,
+            email: coverLetterInput.email,
+            phone: coverLetterInput.phone,
+            education: coverLetterInput.education,
+            workExperience: coverLetterInput.workExperience,
+            skills: coverLetterInput.skills,
+
+            ...(profileData && {
+              personalityTraits: {
+                workingStyle: profileData.workingStyle,
+                uniqueStrength: profileData.uniqueStrength,
+                energySources: profileData.energySources,
+                teamRole: profileData.teamRole,
+                superpower: profileData.superpower,
+                problemSolving: profileData.problemSolving,
+                learningStyle: profileData.learningStyle,
+                valuesExample: profileData.valuesExample,
+                careerGoals: profileData.careerGoals,
+                bestProjectExample: profileData.bestProjectExample,
+                failureLesson: profileData.failureLesson,
+              },
+            }),
           },
         },
         ai_data: {
-          html: {
-            content: coverLetterContent, // ✅ KORJATTU
-          },
+          html: { content: coverLetterData.content },
           styles: {
             main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
           
+          // Tier info
+          tier: tier.name,
+          cost_per_letter: tier.costPerLetter,
+          
           ground_truth: groundTruth,
           
           guardian_check: {
-            approved: guardianCheck.riskLevel !== 'danger',
+            approved: guardianCheck.approved,
             riskLevel: guardianCheck.riskLevel,
             violations: guardianCheck.violations,
-            timestamp: new Date().toISOString(),
-            mode: 'ats_warning_only'
+            timestamp: new Date().toISOString()
           },
           
-          ats_optimization: {
-            report: atsReport,
-            generated_at: new Date().toISOString(),
-            job_analysis: coverLetterData.jobAnalysis,
-            key_points: coverLetterData.keyPoints,
+          rag_enabled: tier.canUseRAG,
+          
+          // ATS Data
+          ats_detection: atsDetection,
+          ats_analysis: atsAnalysis,
+          
+          personality_analysis: {
+            key_points: coverLetterData.keyPoints || null,
+            has_work_experience: coverLetterData.hasWorkExperience || false,
+            job_analysis: coverLetterData.jobAnalysis || null,
           },
+          
           generation_params: {
-            style: style || 'formal',
-            language: language || 'finnish',
+            style: coverLetterInput.style,
+            language: coverLetterInput.language,
+            tier: tier.name,
             answered_questions: answeredQuestions || {},
+            generator_version: 'v2-ats'
           }
         },
       })
@@ -265,24 +324,44 @@ export async function POST(req: Request) {
       .single();
 
     if (insertError) {
-      console.error("Insert error:", insertError);
       throw insertError;
     }
 
-    console.log(`✅ Cover letter saved: ${savedLetter.id}`);
+    console.log(`✅ Cover letter saved: ${coverLetter.id}`);
 
     return NextResponse.json({
       success: true,
-      coverLetterId: savedLetter.id,
-      title: coverLetterData.title || "Työhakemus",
-      ats_score: atsReport.keyword_match_score,
-      guardianWarnings: guardianCheck.riskLevel === 'warning' ? guardianCheck.violations : null,
+      coverLetterId: coverLetter.id,
+      title: extractedJobTitle,
+      tier: tier.name,
+      features: {
+        v1: tier.canUseV1,
+        v2: tier.canUseV2,
+        rag: tier.canUseRAG,
+        ats: tier.canUseATS
+      },
+      guardianCheck: {
+        approved: guardianCheck.approved,
+        riskLevel: guardianCheck.riskLevel,
+        hasWarnings: guardianCheck.riskLevel === 'warning'
+      },
+      atsResults: atsDetection.usesATS ? {
+        detected: true,
+        score: atsAnalysis?.score || 0,
+        confidence: atsDetection.confidence
+      } : {
+        detected: false
+      },
+      coverLetterInsights: {
+        key_points: coverLetterData.keyPoints,
+        has_work_experience: coverLetterData.hasWorkExperience,
+      },
     });
   } catch (error) {
-    console.error("Error generating cover letter:", error);
+    console.error("Error generating cover letter V2:", error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "An unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );

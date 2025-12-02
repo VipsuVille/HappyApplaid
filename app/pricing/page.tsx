@@ -1,11 +1,11 @@
-//app/pricing/page.tsx
+// app/pricing/page.tsx
 import PromoCodeRedeem from '@/components/promoCode';
 import { Button } from '@/components/ui/button';
 import SmartHeader from '@/components/ui/smartHeader';
 import { PRICING } from '@/lib/pricing';
 import { createCheckoutSession, Tier } from '@/lib/stripe/subscriptions';
 import { currentUser } from '@clerk/nextjs/server';
-import { Check, Crown, Sparkles, Zap, Target, FileText, ArrowLeft } from 'lucide-react';
+import { Check, Crown, Sparkles, Zap, Target, FileText, ArrowLeft, Loader2 } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
@@ -13,108 +13,139 @@ export default async function PricingPage() {
   const user = await currentUser();
  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
+      
+      {/* Animated background blobs - sama kuin my-cvs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-400/20 to-yellow-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      </div>
+
       <SmartHeader />
 
       {/* Hero Section */}
-      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 text-white py-12 sm:py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3 sm:mb-4 animate-fade-in">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl shadow-indigo-500/10 p-8 md:p-12 backdrop-saturate-150 mb-8">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl"></div>
+          
+          <div className="text-center relative z-10">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-100/80 to-purple-100/80 backdrop-blur-sm border border-white/40 shadow-lg shadow-indigo-500/10 mb-4">
+              <Crown className="w-4 h-4 sm:h-5 sm:w-5 text-indigo-700" />
+              <span className="text-xs sm:text-sm font-extrabold text-indigo-800 uppercase tracking-wider">
+                Pricing Plans
+              </span>
+            </div>
+            
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
               Valitse Sopiva Tilaus
             </h1>
-            <p className="text-base sm:text-xl text-indigo-100 max-w-2xl mx-auto px-4">
+            <p className="text-base sm:text-xl text-gray-700 max-w-2xl mx-auto">
               Aloita ilmaiseksi tai päivitä Premium-tiliin saadaksesi kaikki ominaisuudet
             </p>
           </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 -mt-8">
-        
         {/* Promo Code Section */}
-        <div className="mb-8 sm:mb-12 bg-white rounded-2xl shadow-lg border-2 border-indigo-200 p-4 sm:p-6 md:p-8">
-          <div className="text-center mb-4 sm:mb-6">
-            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-100 to-purple-100 px-4 py-2 rounded-full mb-3">
+        <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl shadow-indigo-500/10 p-6 md:p-8 backdrop-saturate-150">
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-100/80 to-purple-100/80 px-4 py-2 rounded-full mb-3 border border-white/40 shadow-lg">
               <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
               <span className="text-sm sm:text-base font-semibold text-indigo-900">
                 Onko sinulla etukoodi?
               </span>
             </div>
-            <p className="text-xs sm:text-sm text-gray-600 px-2">
+            <p className="text-xs sm:text-sm text-gray-600">
               Syötä etukoodisi alle saadaksesi alennuksen
             </p>
           </div>
           <PromoCodeRedeem />
         </div>
 
-        {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 mb-8 sm:mb-12">
+        {/* Pricing Cards - 3 cards grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {Object.entries(PRICING).map(([tier, details]) => {
             const isPremium = tier === 'Premium';
+            const isBasic = tier === 'Basic';
             
             return (
               <div 
                 key={tier} 
-                className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-300 transform hover:-translate-y-2 hover:shadow-xl ${
-                  isPremium 
-                    ? 'border-yellow-300 bg-gradient-to-br from-yellow-50 to-amber-50' 
-                    : 'border-blue-300 bg-gradient-to-br from-blue-50 to-indigo-50'
+                className={`group backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl shadow-indigo-500/10 hover:shadow-2xl hover:shadow-indigo-500/20 transition-all overflow-hidden backdrop-saturate-150 relative ${
+                  isPremium ? 'md:scale-105 md:-mt-4 md:mb-4' : ''
                 }`}
               >
-                {/* Premium Badge */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+
+                {/* Popular Badge */}
                 {isPremium && (
-                  <div className="absolute -top-3 -right-3 sm:-top-4 sm:-right-4">
-                    <div className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-full shadow-lg flex items-center gap-1 sm:gap-2">
-                      <Crown className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span className="text-xs sm:text-sm font-bold">Suosituin</span>
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-20">
+                    <div className="bg-gradient-to-br from-yellow-400 to-orange-500 text-white px-4 py-1.5 rounded-full shadow-lg flex items-center gap-2">
+                      <Crown className="h-4 w-4" />
+                      <span className="text-sm font-bold">Suosituin</span>
                     </div>
                   </div>
                 )}
 
-                <div className="p-6 sm:p-8">
-                  {/* Header */}
-                  <div className="text-center mb-6 sm:mb-8">
-                    <div className={`h-16 w-16 sm:h-20 sm:w-20 mx-auto mb-4 rounded-2xl flex items-center justify-center shadow-lg ${
+                <div className="p-6 relative z-10">
+                  {/* Icon & Title */}
+                  <div className="text-center mb-6">
+                    <div className={`h-16 w-16 mx-auto mb-4 rounded-2xl flex items-center justify-center shadow-lg ${
                       isPremium 
-                        ? 'bg-gradient-to-br from-yellow-500 to-orange-500' 
-                        : 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                        ? 'bg-gradient-to-br from-yellow-500 to-orange-500 shadow-yellow-500/30' 
+                        : isBasic
+                        ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/30'
+                        : 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-purple-500/30'
                     }`}>
                       {isPremium ? (
-                        <Crown className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+                        <Crown className="h-8 w-8 text-white" />
+                      ) : isBasic ? (
+                        <FileText className="h-8 w-8 text-white" />
                       ) : (
-                        <Sparkles className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
+                        <Zap className="h-8 w-8 text-white" />
                       )}
                     </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+                    
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
                       {tier}
                     </h2>
+                    
                     <div className="flex items-baseline justify-center gap-1 mb-2">
-                      <span className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900">
+                      <span className="text-4xl font-bold text-gray-900">
                         {details.monthly}€
                       </span>
-                      <span className="text-lg sm:text-xl text-gray-600">/kk</span>
+                      <span className="text-lg text-gray-600">/kk</span>
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-600">
-                      {isPremium ? 'Kaikki ominaisuudet käytössäsi' : 'Perusominaisuudet'}
+                    
+                    <p className="text-sm text-gray-600">
+                      {isPremium 
+                        ? 'Kaikki ominaisuudet käytössäsi' 
+                        : isBasic
+                        ? 'Perusominaisuudet'
+                        : 'Laajennetut ominaisuudet'}
                     </p>
                   </div>
 
                   {/* Features */}
-                  <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+                  <div className="space-y-3 mb-6">
                     {details.features.map((feature, index) => (
                       <div key={index} className="flex items-start gap-3">
-                        <div className={`flex-shrink-0 h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center mt-0.5 ${
+                        <div className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center mt-0.5 ${
                           isPremium 
                             ? 'bg-yellow-100' 
-                            : 'bg-blue-100'
+                            : isBasic
+                            ? 'bg-blue-100'
+                            : 'bg-purple-100'
                         }`}>
-                          <Check className={`h-3 w-3 sm:h-4 sm:w-4 ${
-                            isPremium ? 'text-yellow-600' : 'text-blue-600'
+                          <Check className={`h-4 w-4 ${
+                            isPremium 
+                              ? 'text-yellow-600' 
+                              : isBasic
+                              ? 'text-blue-600'
+                              : 'text-purple-600'
                           }`} />
                         </div>
-                        <span className="text-sm sm:text-base text-gray-700 leading-relaxed">
+                        <span className="text-sm text-gray-700 leading-relaxed">
                           {feature}
                         </span>
                       </div>
@@ -132,19 +163,26 @@ export default async function PricingPage() {
                   }}>
                     <Button 
                       type="submit" 
-                      className={`w-full py-4 sm:py-6 text-base sm:text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all ${
+                      className={`w-full py-5 text-base font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all ${
                         isPremium
                           ? 'bg-gradient-to-br from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600'
-                          : 'bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+                          : isBasic
+                          ? 'bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700'
+                          : 'bg-gradient-to-br from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700'
                       }`}
                     >
                       {isPremium ? (
                         <span className="flex items-center justify-center gap-2">
                           <Crown className="h-5 w-5" />
-                          Päivitä Premium-tiliin
+                          Valitse Premium
                         </span>
-                      ) : (
+                      ) : isBasic ? (
                         'Aloita Ilmaiseksi'
+                      ) : (
+                        <span className="flex items-center justify-center gap-2">
+                          <Zap className="h-5 w-5" />
+                          Valitse Professional
+                        </span>
                       )}
                     </Button>
                   </form>
@@ -155,58 +193,66 @@ export default async function PricingPage() {
         </div>
 
         {/* Feature Comparison Section */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 sm:p-8 mb-8 sm:mb-12">
+        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl shadow-indigo-500/10 p-6 md:p-8 mb-8 backdrop-saturate-150">
           <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 text-center">
             Ominaisuuksien Vertailu
           </h3>
           
-          <div className="grid gap-4 sm:gap-6">
+          <div className="grid gap-4">
             {[
               {
                 icon: FileText,
                 title: 'CV:iden Määrä',
-                free: '1 yksinkertainen CV',
+                basic: '3 CV:tä',
                 premium: 'Rajattomat CV:t',
+                professional: 'Rajattomat CV:t',
               },
               {
                 icon: Target,
                 title: 'ATS-optimointi',
-                free: 'Ei käytössä',
-                premium: 'Käytössä',
+                basic: 'Perustaso',
+                premium: 'Täysi optimointi',
+                professional: 'Edistynyt + Personal AI',
               },
               {
                 icon: Zap,
                 title: 'Hakukirjeet',
-                free: 'Ei käytössä',
-                premium: 'Rajattomat hakukirjeet',
+                basic: 'Ei käytössä',
+                premium: 'Rajattomat',
+                professional: 'Rajattomat + AI-personointi',
               },
               {
                 icon: Sparkles,
                 title: 'CV-mallit',
-                free: 'Perusmalli',
-                premium: 'Kaikki mallit (Technical, Creative, Executive)',
+                basic: 'Perusmalli',
+                premium: 'Kaikki mallit',
+                professional: 'Kaikki + Custom-mallit',
               },
             ].map((item, index) => {
               const IconComponent = item.icon;
               return (
-                <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 p-4 rounded-xl bg-gradient-to-br from-gray-50 to-indigo-50 border border-gray-200">
-                  <div className="flex items-center gap-3 sm:col-span-1">
-                    <div className="h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 rounded-xl bg-gradient-to-br from-gray-50/80 to-indigo-50/80 border border-white/40 backdrop-blur-sm">
+                  <div className="flex items-center gap-3 md:col-span-1">
+                    <div className="h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg">
                       <IconComponent className="h-5 w-5 text-indigo-600" />
                     </div>
-                    <span className="font-semibold text-gray-900 text-sm sm:text-base">
+                    <span className="font-semibold text-gray-900 text-sm">
                       {item.title}
                     </span>
                   </div>
                   
-                  <div className="sm:col-span-2 grid grid-cols-2 gap-3 sm:gap-4">
-                    <div className="bg-white p-3 rounded-lg border border-gray-200">
-                      <p className="text-xs font-semibold text-gray-500 mb-1">Ilmainen</p>
-                      <p className="text-xs sm:text-sm text-gray-700">{item.free}</p>
+                  <div className="md:col-span-3 grid grid-cols-3 gap-3">
+                    <div className="bg-white/90 p-3 rounded-lg border border-gray-200 backdrop-blur-sm">
+                      <p className="text-xs font-semibold text-gray-500 mb-1">Basic</p>
+                      <p className="text-xs text-gray-700">{item.basic}</p>
                     </div>
-                    <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                    <div className="bg-yellow-50/90 p-3 rounded-lg border border-yellow-200 backdrop-blur-sm">
                       <p className="text-xs font-semibold text-yellow-700 mb-1">Premium</p>
-                      <p className="text-xs sm:text-sm text-gray-900 font-medium">{item.premium}</p>
+                      <p className="text-xs text-gray-900 font-medium">{item.premium}</p>
+                    </div>
+                    <div className="bg-purple-50/90 p-3 rounded-lg border border-purple-200 backdrop-blur-sm">
+                      <p className="text-xs font-semibold text-purple-700 mb-1">Professional</p>
+                      <p className="text-xs text-gray-900 font-medium">{item.professional}</p>
                     </div>
                   </div>
                 </div>
@@ -215,24 +261,53 @@ export default async function PricingPage() {
           </div>
         </div>
 
-        {/* Back to Home Button */}
+        {/* Stats Section - sama tyyli kuin my-cvs */}
+        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl shadow-indigo-500/10 p-6 backdrop-saturate-150 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-indigo-500/30">
+                <FileText className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-2xl font-extrabold text-indigo-900">3 Tasoa</div>
+              <div className="text-sm text-gray-600">Jokaiselle tarpeeseen</div>
+            </div>
+
+            <div className="text-center">
+              <div className="h-12 w-12 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-green-500/30">
+                <Check className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-2xl font-extrabold text-green-900">Ilmainen kokeilu</div>
+              <div className="text-sm text-gray-600">Aloita riskittömästi</div>
+            </div>
+
+            <div className="text-center">
+              <div className="h-12 w-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-amber-500/30">
+                <Sparkles className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-2xl font-extrabold text-amber-900">24/7 Tuki</div>
+              <div className="text-sm text-gray-600">Aina käytettävissä</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Back Button */}
         <div className="text-center">
           <Link href="/">
             <Button
               variant="outline"
               size="lg"
-              className="px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg border-2 hover:bg-indigo-50 hover:border-indigo-300 transition-all"
+              className="px-8 py-4 text-lg border-2 bg-white/70 backdrop-blur-xl hover:bg-white hover:border-indigo-300 transition-all shadow-lg"
             >
-              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+              <ArrowLeft className="h-5 w-5 mr-2" />
               Takaisin Etusivulle
             </Button>
           </Link>
         </div>
-      </main>
+      </div>
 
       {/* Footer */}
-      <footer className="py-6 sm:py-8 px-4 sm:px-6 border-t border-indigo-100 bg-white/90 backdrop-blur-md">
-        <div className="max-w-6xl mx-auto text-center text-sm sm:text-base text-gray-500">
+      <footer className="relative z-10 py-8 px-4 sm:px-6 border-t-2 border-white/40 backdrop-blur-xl bg-white/70 mt-12">
+        <div className="max-w-6xl mx-auto text-center text-sm sm:text-base text-gray-600">
           © {new Date().getFullYear()} HappyApplaid. Kaikki oikeudet pidätetään.
         </div>
       </footer>

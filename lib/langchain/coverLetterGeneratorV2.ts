@@ -1,34 +1,45 @@
-// lib/langchain/coverLetterGeneratorV2.ts - ALKUPERÄINEN + FLEXIBLE QUESTIONS
+// lib/langchain/coverLetterGeneratorV2.ts - TÄYDELLINEN RAG-INTEGRAATIO
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { analyzeJobAndProfile, type SmartQuestion } from "./smartQuestionAnalyzer";
+import type { GroundTruth } from "@/lib/ats/masterGuardian";
+import { buildAIContext } from "@/lib/knowledge"; // ✅ RAG
 
+// ✅ PÄIVITETTY SCHEMA: Questions support
 const coherentCoverLetterSchema = z.object({
-  fullText: z.string().describe("Yhtenäinen hakukirjeen teksti (MAX 350 sanaa)"),
+  fullText: z.string().optional().describe("Hakukirje (JOS ei kysymyksiä)"),
+  
+  questions: z.array(z.object({
+    id: z.string(),
+    question: z.string(),
+    why: z.string(),
+    context: z.string(),
+    priority: z.enum(['critical', 'important', 'helpful'])
+  })).optional().describe("Kysymykset JOS tietoa puuttuu"),
   
   keyPoints: z.object({
     personalityHook: z.string(),
     experienceHighlight: z.string(),
     skillsMatch: z.string(),
     motivation: z.string(),
-  }),
+  }).optional(),
   
   atsData: z.object({
     matchedKeywords: z.array(z.string()),
     missingExperience: z.boolean(),
     compensationUsed: z.string().optional(),
     readabilityScore: z.number().min(1).max(10),
-  }),
+  }).optional(),
 });
 
 type CoherentCoverLetter = z.infer<typeof coherentCoverLetterSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(coherentCoverLetterSchema);
 
 /**
- * ✅ STEP 1: ANALYSOI TYÖ + ATS (NO HARDCODING)
+ * ✅ ANALYZE JOB (NO HARDCODING)
  */
 async function analyzeJobPosting(jobDescription: string) {
   const model = new ChatOpenAI({
@@ -37,39 +48,28 @@ async function analyzeJobPosting(jobDescription: string) {
     temperature: 0.1,
   });
 
-  const prompt = `You are analyzing a UNIQUE job posting. Each posting is from a DIFFERENT industry.
+  const prompt = `You are analyzing a UNIQUE job posting. NO predefined assumptions.
 
-**STEP 1: DETECT CONTEXT**
-What industry is this? What's the role level? What's the company size/culture?
-
-**STEP 2: EXTRACT ATS KEYWORDS**
-What terms would THIS company's ATS scan for?
-- Technical terms specific to THIS field
-- Qualifications THIS role requires
-- Skills THIS industry values
-- Certifications THIS field needs
-
-**STEP 3: UNDERSTAND REQUIREMENTS**
-What does THIS specific role need?
-
-**CRITICAL:**
-- DO NOT use predefined keyword lists
-- INFER from THIS job text ONLY
-- Each industry has DIFFERENT keywords
+**DETECT:**
+- Industry (infer from text)
+- Company size (infer from text)
+- Keywords (extract semantically)
+- Required skills (extract from text)
+- Experience level (infer from text)
 
 Job Posting:
 ${jobDescription}
 
 Return JSON:
-{{
+{
   "detected_industry": "industry name",
   "company_size": "startup|small|medium|large|enterprise",
-  "keywords": ["keyword1 from THIS job", "keyword2"],
-  "required_skills": ["skill1 THIS role needs", "skill2"],
+  "keywords": ["keyword1", "keyword2"],
+  "required_skills": ["skill1", "skill2"],
   "required_experience": "X years" or "Entry level",
-  "company_name": "Company Name" or "Not specified",
-  "job_title": "Exact title from posting"
-}}`;
+  "company_name": "Company Name",
+  "job_title": "Job Title"
+}`;
 
   try {
     const response = await model.invoke(prompt);
@@ -104,7 +104,7 @@ Return JSON:
 }
 
 /**
- * ✅ STEP 2: GENEROI ATS-OPTIMOITU HAKUKIRJE TÄLLE TYÖLLE
+ * ✅ MAIN GENERATOR (RAG + Questions)
  */
 export async function generateCoherentCoverLetter(input: {
   jobDescription: string;
@@ -129,10 +129,15 @@ export async function generateCoherentCoverLetter(input: {
   failureLesson?: string;
   language?: string;
   style?: "formal" | "casual";
-}) {
-  console.log('🔍 V2: Flexible job-profile analysis (ATS)...');
   
-  // ✅ STEP 0: Älykäs TYÖ vs PROFIILI analyysi (NO HARDCODING)
+  // ✅ RAG + Ground Truth
+  enableRAG?: boolean;
+  allowedSkills?: string[];
+  forbiddenClaims?: string[];
+}) {
+  console.log('🔍 V2: Flexible job-profile analysis (ATS + RAG)...');
+  
+  // ✅ STEP 0: Smart analysis
   const smartAnalysis = await analyzeJobAndProfile({
     jobDescription: input.jobDescription,
     userProfile: {
@@ -151,19 +156,19 @@ export async function generateCoherentCoverLetter(input: {
     language: input.language || 'finnish'
   });
 
-  // 🤔 KYSYTÄÄNKÖ KYSYMYKSIÄ? (Priorisoi kriittiset)
+  // KYSYTÄÄNKÖ?
   if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
     const criticalQuestions = smartAnalysis.questions.filter(
       q => q.priority === 'critical'
     );
     
     if (criticalQuestions.length > 0) {
-      console.log(`❓ Found ${criticalQuestions.length} ATS-critical questions`);
+      console.log(`❓ Found ${criticalQuestions.length} critical questions`);
       
       return {
         fullText: "",
         content: "",
-        title: "ATS-tietoja tarvitaan",
+        title: "Lisätietoja tarvitaan",
         signature: input.name,
         questions: criticalQuestions,
         keyPoints: {
@@ -177,19 +182,54 @@ export async function generateCoherentCoverLetter(input: {
           missingExperience: true,
           readabilityScore: 0
         },
-        hasWorkExperience: false
+        hasWorkExperience: false,
+        needsMoreInfo: true
       };
     }
   }
 
-  console.log('✅ Profile sufficient for ATS');
-  console.log('🔍 V2: Analyzing THIS job posting first...');
+  console.log('✅ Profile sufficient');
+  console.log('🔍 Analyzing job...');
   
-  // STEP 1: Analysoi TÄMÄ työ
+  // STEP 1: Analyze job
   const jobAnalysis = await analyzeJobPosting(input.jobDescription);
-  console.log(`📊 Detected: ${jobAnalysis.detected_industry}, ${jobAnalysis.company_size} company`);
+  console.log(`📊 Detected: ${jobAnalysis.detected_industry}, ${jobAnalysis.company_size}`);
 
   const hasWorkExperience = input.workExperience && input.workExperience.length > 100;
+
+  // ✅ STEP 2: LOAD RAG CONTEXT (if enabled)
+  let knowledgeContext = '';
+  
+  if (input.enableRAG) {
+    try {
+      knowledgeContext = await buildAIContext({
+        jobDescription: input.jobDescription,
+        userProfile: {
+          // Full profile for semantic inference
+          workExperience: input.workExperience,
+          education: input.education,
+          skills: input.skills,
+          workingStyle: input.workingStyle,
+          problemSolving: input.problemSolving,
+          uniqueStrength: input.uniqueStrength,
+          learningStyle: input.learningStyle,
+          teamRole: input.teamRole,
+          superpower: input.superpower,
+          careerGoals: input.careerGoals,
+          bestProjectExample: input.bestProjectExample,
+          failureLesson: input.failureLesson,
+        },
+        enableRAG: true,
+        contentType: 'cover_letter' // ✅ FILTER TO COVER LETTERS
+      });
+      console.log('✅ RAG context loaded (cover_letter type)');
+    } catch (error) {
+      console.warn('⚠️ RAG failed, continuing without:', error);
+      knowledgeContext = '';
+    }
+  } else {
+    console.log('📋 RAG disabled (Basic/Semi-Pro tier)');
+  }
 
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -198,89 +238,110 @@ export async function generateCoherentCoverLetter(input: {
   });
 
   const styleInstructions = input.style === 'casual' 
-    ? `TONE: Match THIS company's casual culture. Conversational yet professional.`
-    : `TONE: Match THIS company's formal culture. Professional and structured.`;
+    ? `TONE: Conversational yet professional.`
+    : `TONE: Professional and structured.`;
 
   const ageInstruction = input.age 
-    ? `OPENING: Start with age and professional identity suitable for THIS industry.`
-    : `OPENING: Start with professional identity suitable for THIS field.`;
+    ? `OPENING: Start with age and professional identity.`
+    : `OPENING: Start with professional identity.`;
 
+  // ✅ STEP 3: BUILD PROMPT WITH RAG + GROUND TRUTH
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", `You are writing an ATS-optimized cover letter for THIS SPECIFIC job.
 
 **DETECTED JOB CONTEXT:**
 Industry: {detectedIndustry}
 Company Size: {companySize}
-ATS Keywords for THIS field: {keywords}
-Requirements for THIS role: {requiredSkills}
+ATS Keywords: {keywords}
+Requirements: {requiredSkills}
+
+${knowledgeContext ? `
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# EXPERT KNOWLEDGE BASE (PRO Feature - Cover Letter Specific)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${knowledgeContext}
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+` : ''}
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# GROUND TRUTH - CANDIDATE'S ACTUAL SKILLS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**ALLOWED SKILLS (candidate has):**
+{allowedSkills}
+
+**FORBIDDEN CLAIMS (candidate does NOT have):**
+{forbiddenClaims}
+
+**VERIFICATION PROTOCOL:**
+BEFORE writing ANY skill claim:
+1. Check: Is it in allowedSkills?
+2. If NO → GENERATE QUESTION
+3. NEVER fabricate
+
+**QUESTION GENERATION:**
+If job requires skill NOT in allowedSkills:
+{{
+  "questions": [
+    {{
+      "id": "skill_verify_X",
+      "question": "Job mentions '[skill]'. Do you have experience?",
+      "why": "Job requires this but not in profile",
+      "context": "Quote from job",
+      "priority": "critical"
+    }}
+  ],
+  "fullText": null
+}}
 
 **YOUR MISSION:**
-Create cover letter that:
-1. Passes THIS company's ATS with THESE keywords
-2. Remains readable for humans in THIS industry
-3. Matches THIS company's culture/size
+1. Match candidate to THIS job
+2. Use ONLY allowedSkills
+3. If missing skill → ASK QUESTION
+4. Natural ATS keyword integration
+5. MAX 350 words
 
-**🎯 CRITICAL: PERSONAL NOTES = TOP PRIORITY**
-If Personal Notes exist:
-1. These are candidate's MOST IMPORTANT points
-2. Integrate them NATURALLY (not as separate section)
-3. Use them to ENHANCE ATS keywords
-4. Blend them with personality/experience/motivation
-
-**ATS OPTIMIZATION FOR THIS JOB:**
-- Use keywords from THIS posting naturally
-- Integrate terms as they appear in THIS job text
-- Match terminology of THIS industry
-- Don't force keywords - only if relevant
-- **Weave personal notes into keyword-rich sections**
-
-**ADAPT TO THIS CONTEXT:**
-- Startup vs Enterprise tone
-- Industry-specific language
-- Cultural fit signals
-- Role level appropriateness
-
-**STRUCTURE (MAX 350 words):**
-1. Introduction (80-100 words): Identity + motivation for THIS role + ATS keywords
-   - **Integrate personal notes if they relate to passion/goals**
-2. Experience/Skills (150-180 words): Match to THIS job's needs + ATS keywords
-   - **Integrate personal notes if they relate to experience/skills**
-3. Closing (50-70 words): Enthusiasm for THIS opportunity + ATS keywords
-   - **Integrate personal notes if they relate to motivation**
+**STRUCTURE (if generating):**
+1. Opening (80-100 words): Identity + motivation + keywords
+2. Body (150-180 words): Skills match + experience
+3. Closing (50-70 words): Enthusiasm + CTA
 
 **FORBIDDEN:**
+- Skills not in allowedSkills
 - Generic templates
 - Keyword stuffing
-- Industry stereotypes
 - False claims
-- Section headers (---)
-- Separate "personal notes" section
 
 **LANGUAGE:** {language}
 **STYLE:** {styleInstructions}
 
 {format_instructions}`],
 
-    ["human", `Generate ATS cover letter for THIS candidate to THIS job.
+    ["human", `Generate cover letter OR questions if uncertain.
 
-**THIS JOB:**
+**JOB:**
 {jobDescription}
 
-**THIS JOB'S REQUIREMENTS (analyzed):**
+**JOB ANALYSIS:**
 Industry: {detectedIndustry}
-Company: {companySize} size
-ATS Keywords: {keywords}
+Keywords: {keywords}
 Skills Needed: {requiredSkills}
 Experience: {experienceLevel}
-Company Name: {companyName}
+Company: {companyName}
 Role: {jobTitle}
 
-**THIS CANDIDATE:**
+**CANDIDATE:**
 Name: {name}
 Age: {age}
 Education: {education}
 Experience: {workExperience}
 Skills: {skills}
+
+**GROUND TRUTH:**
+ALLOWED: {allowedSkills}
+FORBIDDEN: {forbiddenClaims}
 
 **PERSONALITY:**
 Style: {workingStyle}
@@ -294,28 +355,20 @@ Values: {valuesExample}
 
 **STORIES:**
 Goals: {careerGoals}
-Best Moment: {bestProjectExample}
+Best Project: {bestProjectExample}
 Learning: {failureLesson}
 
-**🎯🎯🎯 CANDIDATE'S TOP EMPHASIS POINTS (INTEGRATE!) 🎯🎯🎯**
+**PERSONAL NOTES (TOP PRIORITY):**
 {personalNotes}
 
-**INTEGRATION STRATEGY:**
-- If notes mention achievement → Blend into experience section with ATS keywords
-- If notes mention passion → Weave into opening/closing with motivation
-- If notes mention skills → Integrate into skills paragraph with technical terms
-- If notes mention culture fit → Enhance personality hooks
-
-**TASK:**
-1. Match candidate to THIS job's ATS keywords
-2. Show fit for THIS industry/company
-3. **NATURALLY integrate personal notes throughout**
-4. Natural integration (no stuffing)
-5. MAX 350 words, readable + ATS-optimized
+**CRITICAL:**
+- If job needs skill NOT in ALLOWED → ASK QUESTION
+- NEVER claim skills from FORBIDDEN
+- If uncertain → ASK QUESTION
 
 {ageInstruction}
 
-Return JSON only.`]
+Return JSON (letter OR questions).`]
   ]);
 
   try {
@@ -328,13 +381,15 @@ Return JSON only.`]
       companyName: jobAnalysis.company_name,
       jobTitle: jobAnalysis.job_title,
       styleInstructions,
-      language: input.language || "Detect from job posting",
+      language: input.language || "Finnish",
       jobDescription: input.jobDescription,
       name: input.name,
       age: input.age ? `${input.age} years` : 'Not specified',
       workExperience: input.workExperience || "Limited formal experience",
       education: input.education || "Not specified",
       skills: input.skills || "Developing",
+      allowedSkills: input.allowedSkills?.join(", ") || "All skills from profile",
+      forbiddenClaims: input.forbiddenClaims?.join(", ") || "None",
       workingStyle: input.workingStyle || "Not specified",
       problemSolving: input.problemSolving || "Not specified",
       energySources: input.energySources || "Not specified",
@@ -366,13 +421,40 @@ Return JSON only.`]
 
     const parsed = await outputParser.parse(jsonMatch[0]);
 
+    // ✅ IF AI GENERATED QUESTIONS
+    if (parsed.questions && parsed.questions.length > 0) {
+      console.log(`❓ AI generated ${parsed.questions.length} questions`);
+      return {
+        fullText: "",
+        content: "",
+        title: jobAnalysis.job_title || "Cover Letter",
+        signature: input.name,
+        questions: parsed.questions,
+        keyPoints: parsed.keyPoints || {
+          personalityHook: "",
+          experienceHighlight: "",
+          skillsMatch: "",
+          motivation: ""
+        },
+        atsData: parsed.atsData || {
+          matchedKeywords: [],
+          missingExperience: true,
+          readabilityScore: 0
+        },
+        jobAnalysis,
+        hasWorkExperience,
+        needsMoreInfo: true
+      };
+    }
+
+    // ✅ NORMAL: No questions, return letter
     return {
       fullText: parsed.fullText,
       content: parsed.fullText,
       title: jobAnalysis.job_title || "Cover Letter",
       signature: input.name,
-      keyPoints: parsed.keyPoints,
-      atsData: parsed.atsData,
+      keyPoints: parsed.keyPoints!,
+      atsData: parsed.atsData!,
       jobAnalysis,
       hasWorkExperience,
     };
@@ -384,19 +466,19 @@ Return JSON only.`]
 
 export function generateATSReport(data: { atsData: CoherentCoverLetter['atsData'] }) {
   return {
-    keywords_used: data.atsData.matchedKeywords.length,
-    total_keywords: data.atsData.matchedKeywords.length,
-    keyword_match_score: Math.round((data.atsData.matchedKeywords.length / 15) * 100),
-    ats_compatibility_score: data.atsData.readabilityScore * 10,
-    critical_keywords_used: data.atsData.matchedKeywords,
+    keywords_used: data.atsData?.matchedKeywords.length || 0,
+    total_keywords: data.atsData?.matchedKeywords.length || 0,
+    keyword_match_score: Math.round(((data.atsData?.matchedKeywords.length || 0) / 15) * 100),
+    ats_compatibility_score: (data.atsData?.readabilityScore || 5) * 10,
+    critical_keywords_used: data.atsData?.matchedKeywords || [],
     missing_keywords: [],
     improvement_suggestions: [
-      data.atsData.matchedKeywords.length < 8
-        ? "Consider adding more relevant terms from job posting"
+      (data.atsData?.matchedKeywords.length || 0) < 8
+        ? "Consider adding more relevant terms"
         : "Good keyword coverage",
-      data.atsData.readabilityScore < 6
-        ? "Simplify language for better readability"
-        : "Good readability score",
+      (data.atsData?.readabilityScore || 5) < 6
+        ? "Simplify language"
+        : "Good readability",
     ],
   };
 }

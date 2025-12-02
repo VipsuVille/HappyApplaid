@@ -1,12 +1,13 @@
-// app/api/generate-cover-letter/route.ts - KORJATTU
+// app/api/generate-cover-letter/route.ts - TIER-POHJAINEN V1 + RAG
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { generateCoverLetterV1 } from "@/lib/langchain/coverLetterGenerator"; // ✅ KORJATTU IMPORT
+import { generateCoverLetterV1 } from "@/lib/langchain/coverLetterGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
 import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate";
+import { getTierFeatures } from "@/lib/stripe/subscriptions";
 
 function extractJobTitleFromDescription(jobDescription: string): string {
   if (!jobDescription) return "Työhakemus";
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
       personalNotes: notes,
       language,
       style,
+      answeredQuestions,
     } = requestData;
 
     const {
@@ -60,30 +62,72 @@ export async function POST(req: Request) {
 
     const extractedJobTitle = extractJobTitleFromDescription(finalJobDescription);
 
-    // ✅ 1. HAE GROUND TRUTH (AWAIT!)
+    // ✅ 1. TARKISTA TILAUS & TIER
+    const { data: subscription, error: subscriptionError } = await supabaseAdmin
+      .from("subscriptions")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (subscriptionError || !subscription) {
+      return NextResponse.json(
+        { error: "SUBSCRIPTION_REQUIRED", message: "Tilaus vaaditaan" },
+        { status: 403 }
+      );
+    }
+
+    // ✅ 2. HAE TIER-OMINAISUUDET
+    const tier = getTierFeatures(subscription.plan_type);
+
+    if (!tier.canUseV1) {
+      return NextResponse.json(
+        { error: "SUBSCRIPTION_REQUIRED", message: "V1 Generator ei käytettävissä" },
+        { status: 403 }
+      );
+    }
+
+    console.log(`🎫 User tier: ${tier.name}`);
+    console.log(`   - V1: ${tier.canUseV1 ? '✅' : '❌'}`);
+    console.log(`   - V2/ATS: ${tier.canUseV2 ? '✅' : '❌'}`);
+    console.log(`   - RAG: ${tier.canUseRAG ? '✅' : '❌'}`);
+    console.log(`   - Cost: $${tier.costPerLetter}/letter`);
+
+    // ✅ 3. HAE GROUND TRUTH (kaikille tiereille)
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    // ✅ KORJATTU: Lisää await
     const groundTruth = await extractGroundTruthAI(userProfile || {});
     
-    console.log('🛡️ Ground Truth established:', {
-      name: groundTruth.name,
-      yearsOfExperience: groundTruth.yearsOfExperience,
-      corePersonality: groundTruth.corePersonality.primary,
-      cannotClaim: groundTruth.cannotClaim.length
-    });
+    console.log(`🛡️ Ground Truth extracted:`);
+    console.log(`   - Skills: ${groundTruth.technicalSkills.length}`);
+    console.log(`   - Experience: ${groundTruth.yearsOfExperience || 0} years`);
 
-    // Prepare cover letter input
+    // ✅ 4. MERGE VASTAUKSET personalNotesiin
+    let enhancedPersonalNotes = finalPersonalNotes || '';
+    
+    if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
+      console.log(`📝 Integrating ${Object.keys(answeredQuestions).length} answers`);
+      
+      const answersText = Object.entries(answeredQuestions)
+        .map(([questionId, answer]) => `Q: ${questionId}\nA: ${answer}`)
+        .join('\n\n');
+      
+      enhancedPersonalNotes = finalPersonalNotes 
+        ? `${finalPersonalNotes}\n\n--- VASTAUKSET ---\n${answersText}`
+        : answersText;
+    }
+
+    // ✅ 5. PREPARE INPUT
     let coverLetterInput;
     if (profileData) {
       const apiFormat = convertProfileToApiFormat(profileData);
       coverLetterInput = {
         jobDescription: finalJobDescription,
-        personalNotes: finalPersonalNotes,
+        personalNotes: enhancedPersonalNotes,
         name: profileData.name,
         email: profileData.email,
         phone: profileData.phone,
@@ -101,18 +145,21 @@ export async function POST(req: Request) {
         teamRole: profileData.teamRole,
         valuesExample: profileData.valuesExample,
         superpower: profileData.superpower,
-        
-        // ✅ LISÄÄ UUDET KENTÄT
         careerGoals: profileData.careerGoals,
         bestProjectExample: profileData.bestProjectExample,
         failureLesson: profileData.failureLesson,
+        
+        // ✅ TIER-POHJAINEN RAG
+        enableRAG: tier.canUseRAG,
+        allowedSkills: groundTruth.technicalSkills,
+        forbiddenClaims: groundTruth.cannotClaim,
         
         groundTruthWarning: sanitizeGroundTruthForPrompt(groundTruth)
       };
     } else {
       coverLetterInput = {
         jobDescription: finalJobDescription,
-        personalNotes: finalPersonalNotes,
+        personalNotes: enhancedPersonalNotes,
         name,
         email,
         phone,
@@ -123,73 +170,60 @@ export async function POST(req: Request) {
         language: language || "finnish",
         style: style || "formal",
         
+        enableRAG: tier.canUseRAG,
+        allowedSkills: groundTruth.technicalSkills,
+        forbiddenClaims: groundTruth.cannotClaim,
+        
         groundTruthWarning: sanitizeGroundTruthForPrompt(groundTruth)
       };
     }
 
-    // Check subscription
-    const { data: subscription, error: subscriptionError } = await supabaseAdmin
-      .from("subscriptions")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("status", "active")
-      .maybeSingle();
-
-    if (subscriptionError || !subscription) {
-      return NextResponse.json(
-        { error: "Subscription required" },
-        { status: 403 }
-      );
-    }
-
-    console.log("🚀 Generating V1 cover letter (human-focused)...");
+    // ✅ 6. GENEROI V1
+    console.log(`📝 Generating V1 cover letter (RAG: ${tier.canUseRAG})...`);
     
-    // ✅ KORJATTU: Käytä oikeaa funktiota
     const coverLetterData = await generateCoverLetterV1(coverLetterInput);
 
-    // ✅ JOS KYSYMYKSIÄ, PALAUTA NE
+    // ✅ 7. JOS KYSYMYKSIÄ (kaikki tierit)
     if (coverLetterData.questions && coverLetterData.questions.length > 0) {
+      console.log(`❓ AI needs clarification: ${coverLetterData.questions.length} questions`);
+      
       return NextResponse.json({
         success: true,
         needsMoreInfo: true,
         questions: coverLetterData.questions,
         title: coverLetterData.title,
-        tempContent: coverLetterData.content,
-        signature: coverLetterData.signature,
-        job_match_score: coverLetterData.job_match_score,
-        personality_hooks: coverLetterData.personality_hooks,
+        reason: 'AI tarvitsee vahvistusta varmistaakseen totuudenmukaisuuden'
       });
     }
 
-    // ✅ MASTER GUARDIAN VALIDATION
-    console.log('🛡️ Running Master Guardian validation...');
+    // ✅ 8. MASTER GUARDIAN (kaikki tierit)
+    console.log('🛡️ Running Master Guardian...');
+    
+    // Varmista että content on määritelty
+    if (!coverLetterData.content) {
+      throw new Error('Cover letter content is undefined');
+    }
+    
     const guardianCheck = await masterConsistencyCheckAI(
       coverLetterData.content,
       groundTruth,
       'generation'
     );
 
-    // 🚨 HYLKÄÄ JOS DANGER
     if (guardianCheck.riskLevel === 'danger') {
-      console.error('🚨 MASTER GUARDIAN BLOCKED GENERATION!');
+      console.error('🚨 GUARDIAN REJECTED');
       
       return NextResponse.json({
         error: 'CONSISTENCY_VIOLATION',
-        message: 'AI generoi epäjohdonmukaisen hakukirjeen.',
+        message: 'Sisältö ei täytä laatuvaatimuksia',
         violations: guardianCheck.violations,
-        recommendation: guardianCheck.recommendation,
-        fixSuggestions: guardianCheck.fixSuggestions
+        recommendation: guardianCheck.recommendation
       }, { status: 400 });
     }
 
-    // ⚠️ LOGITA WARNING
-    if (guardianCheck.riskLevel === 'warning') {
-      console.warn('⚠️ Guardian warning:', guardianCheck.violations);
-    }
+    console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
 
-    console.log('✅ Guardian approved:', guardianCheck.riskLevel);
-
-    // ✅ TALLENNA
+    // ✅ 9. TALLENNA
     const { data: coverLetter, error: insertError } = await supabaseAdmin
       .from("cover_letters")
       .insert({
@@ -220,8 +254,6 @@ export async function POST(req: Request) {
                 problemSolving: profileData.problemSolving,
                 learningStyle: profileData.learningStyle,
                 valuesExample: profileData.valuesExample,
-                
-                // ✅ UUDET
                 careerGoals: profileData.careerGoals,
                 bestProjectExample: profileData.bestProjectExample,
                 failureLesson: profileData.failureLesson,
@@ -230,13 +262,14 @@ export async function POST(req: Request) {
           },
         },
         ai_data: {
-          html: {
-            content: coverLetterData.content,
-          },
+          html: { content: coverLetterData.content },
           styles: {
-            main_style:
-              'font-family: "Merriweather", serif; line-height: 1.7;',
+            main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
+          
+          // Tier info
+          tier: tier.name,
+          cost_per_letter: tier.costPerLetter,
           
           ground_truth: groundTruth,
           
@@ -247,12 +280,22 @@ export async function POST(req: Request) {
             timestamp: new Date().toISOString()
           },
           
+          rag_enabled: tier.canUseRAG,
+          
           personality_analysis: {
             job_match_score: coverLetterData.job_match_score || 7,
             personality_hooks: coverLetterData.personality_hooks || [],
             key_differentiators: coverLetterData.key_differentiators || [],
             data_quality: coverLetterData.data_quality || null,
           },
+          
+          generation_params: {
+            style: coverLetterInput.style,
+            language: coverLetterInput.language,
+            tier: tier.name,
+            answered_questions: answeredQuestions || {},
+            generator_version: 'v1'
+          }
         },
       })
       .select()
@@ -262,10 +305,19 @@ export async function POST(req: Request) {
       throw insertError;
     }
 
+    console.log(`✅ Cover letter saved: ${coverLetter.id}`);
+
     return NextResponse.json({
       success: true,
       coverLetterId: coverLetter.id,
       title: extractedJobTitle,
+      tier: tier.name,
+      features: {
+        v1: tier.canUseV1,
+        v2: tier.canUseV2,
+        rag: tier.canUseRAG,
+        ats: tier.canUseATS
+      },
       guardianCheck: {
         approved: guardianCheck.approved,
         riskLevel: guardianCheck.riskLevel,
@@ -281,8 +333,7 @@ export async function POST(req: Request) {
     console.error("Error generating cover letter:", error);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error ? error.message : "An unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );
