@@ -79,7 +79,8 @@ export async function POST(req: Request) {
     }
 
     // ✅ 2. HAE TIER-OMINAISUUDET
-    const tier = getTierFeatures(subscription.plan_type);
+    // HUOM: Lisätty await, koska getTierFeatures on nyt async
+    const tier = await getTierFeatures(subscription.plan_type);
 
     // V2 vaatii Semi-Pro tai Pro
     if (!tier.canUseV2) {

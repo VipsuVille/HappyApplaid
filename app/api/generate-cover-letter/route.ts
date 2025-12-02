@@ -78,7 +78,8 @@ export async function POST(req: Request) {
     }
 
     // ✅ 2. HAE TIER-OMINAISUUDET
-    const tier = getTierFeatures(subscription.plan_type);
+const tier = await getTierFeatures(subscription.plan_type);
+console.log(tier.canUseV1); // ✅ Toimii
 
     if (!tier.canUseV1) {
       return NextResponse.json(

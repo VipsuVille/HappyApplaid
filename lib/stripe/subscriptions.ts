@@ -92,7 +92,7 @@ export async function getSubscription(userId: string) {
 /**
  * Tarkistaa tier-kohtaiset ominaisuudet
  */
-export function getTierFeatures(planType: string) {
+export async function getTierFeatures(planType: string) {
   // Normalisoi tier-nimi
   const normalizedTier = planType.toLowerCase().replace('_', '-');
   
@@ -117,7 +117,6 @@ export function getTierFeatures(planType: string) {
       };
   }
 }
-
 export async function checkSubscriptionAccess(userId: string, feature: string) {
   const supabaseAdmin = await getSupabaseAdmin();
   
@@ -139,17 +138,17 @@ export async function checkSubscriptionAccess(userId: string, feature: string) {
   // Feature-specific restrictions based on tier
   switch (feature) {
     case 'v1_generator':
-      return tierFeatures.canUseV1;
+      return (await tierFeatures).canUseV1;
       
     case 'v2_generator':
     case 'ats_optimization':
-      return tierFeatures.canUseV2;
+      return (await tierFeatures).canUseV2;
       
     case 'rag_knowledge':
-      return tierFeatures.canUseRAG;
+      return (await tierFeatures).canUseRAG;
       
     case 'ats_analysis':
-      return tierFeatures.canUseATS;
+      return (await tierFeatures).canUseATS;
       
     case 'question_generation':
     case 'master_guardian':
