@@ -1,4 +1,4 @@
-// app/api/check-subscription/route.ts
+// app/api/check-subscription/route.ts - KORJATTU
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase";
@@ -34,7 +34,7 @@ export async function GET() {
     // MÄÄRITÄ TIER (priorisoi plan_type, sitten plan)
     const userPlan = (subscription?.plan_type || subscription?.plan || "free").toLowerCase();
     
-    console.log("📊 Subscription check:", {
+    console.log("📊 Check-subscription response:", {
       userId: currentUserId,
       subscriptionExists: !!subscription,
       plan_type: subscription?.plan_type,
@@ -84,7 +84,9 @@ export async function GET() {
       message = "Tilaus päättynyt tai ei aktiivinen.";
     }
 
+    // ✅ PALAUTA YHDENMUKAINEN RAKENNE
     return NextResponse.json({
+      // Vanhat kentät (backward compatibility)
       plan: userPlan,
       is_paid: isPaid,
       is_active: isActive,
@@ -94,13 +96,34 @@ export async function GET() {
       cv_count: cvCount || 0,
       can_create_cv: canCreate,
       features: currentFeatures,
-      message: message
+      message: message,
+      
+      // ✅ LISÄÄ UUDET KENTÄT (yhdenmukaistaa /api/subscription kanssa)
+      plan_type: userPlan,           // ✅ TÄRKEÄ!
+      is_premium: isPaid && isActive, // ✅ TÄRKEÄ!
+      
+      // ✅ Lisää koko subscription-objekti jos haluat
+      subscription: subscription ? {
+        ...subscription,
+        plan: userPlan,
+        plan_type: userPlan
+      } : null
     });
 
   } catch (error) {
     console.error("❌ Subscription check failed:", error);
     return NextResponse.json(
-      { error: "Failed to check subscription status" },
+      { 
+        error: "Failed to check subscription status",
+        // ✅ Palauta safe defaults myös errorissa
+        plan: "free",
+        plan_type: "free",
+        is_paid: false,
+        is_active: false,
+        is_premium: false,
+        tokens: 0,
+        can_create_cv: false
+      },
       { status: 500 }
     );
   }

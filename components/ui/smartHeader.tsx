@@ -8,6 +8,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/context/LanguageContext';
+import { useSubscription } from '@/components/SubscriptionStatus'; // ✅ LISÄÄ TÄMÄ
 import {
   FileText,
   Menu,
@@ -23,21 +24,11 @@ import {
 } from 'lucide-react';
 
 // ===================================
-// TYPES
+// TYPES - Yksinkertaistettu
 // ===================================
-interface FreemiumStatus {
-  is_premium: boolean;
-  tokens: number;
-  has_used_free_cv: false;
-  can_create_cv: boolean;
-  plan_type: 'free' | 'premium';
-  cv_count: number;
-}
-
 interface SmartHeaderProps {
   isLoading?: boolean;
   showAuthButtons?: boolean;
-  serverFreemiumStatus?: FreemiumStatus | null;
 }
 
 // ===================================
@@ -46,7 +37,6 @@ interface SmartHeaderProps {
 export default function SmartHeader({ 
   isLoading = false,
   showAuthButtons = true,
-  serverFreemiumStatus = null,
 }: SmartHeaderProps) {
   const { user, isSignedIn, isLoaded } = useUser();
   const { language, toggleLanguage } = useLanguage();
@@ -54,55 +44,27 @@ export default function SmartHeader({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  const [clientStatus, setClientStatus] = useState<FreemiumStatus>({
-    is_premium: false,
-    tokens: 0,
-    has_used_free_cv: false,
-    can_create_cv: true,
-    plan_type: 'free',
-    cv_count: 0,
-  });
-  const [statusLoading, setStatusLoading] = useState(true);
+  // ✅ KÄYTÄ useSubscription HOOKKIA
+  const { subscription, isActive, isLoading: subscriptionLoading } = useSubscription();
 
   const isDevelopmentMode = process.env.NEXT_PUBLIC_DEVELOPMENT_MODE === 'true';
 
-  const freemiumStatus = serverFreemiumStatus || clientStatus;
-  const isPremium = freemiumStatus.is_premium;
-  const tokens = freemiumStatus.tokens;
-  const hasUsedFreeCv = freemiumStatus.has_used_free_cv;
+  // ✅ PUHDAS DATA
+  const isPremium = isActive && subscription?.plan !== 'free';
+  const tokens = subscription?.tokens || 0;
+  const plan = subscription?.plan || 'free';
 
-  // ===================================
-  // FETCH STATUS
-  // ===================================
+  // Debug-lokit (poista tuotannossa)
   useEffect(() => {
-    if (serverFreemiumStatus) {
-      setStatusLoading(false);
-      return;
-    }
-
-    if (!isSignedIn || !user?.id) {
-      setStatusLoading(false);
-      return;
-    }
-
-    const fetchStatus = async () => {
-      try {
-        setStatusLoading(true);
-        const response = await fetch('/api/check-subscription');
-        
-        if (response.ok) {
-          const data: FreemiumStatus = await response.json();
-          setClientStatus(data);
-        }
-      } catch (error) {
-        console.error('Error fetching freemium status:', error);
-      } finally {
-        setStatusLoading(false);
-      }
-    };
-
-    fetchStatus();
-  }, [isSignedIn, user?.id, serverFreemiumStatus]);
+    console.log("📱 SmartHeader State:", {
+      isSignedIn,
+      subscriptionLoading,
+      isPremium,
+      plan,
+      tokens,
+      subscription
+    });
+  }, [isSignedIn, subscriptionLoading, isPremium, plan, tokens, subscription]);
 
   // ===================================
   // NAVIGATION LINKS
@@ -140,13 +102,13 @@ export default function SmartHeader({
     },
   ];
 
-  const isActive = (href: string) => pathname === href;
+  const isActive_route = (href: string) => pathname === href;
   const handleLinkClick = () => setMobileMenuOpen(false);
 
   // ===================================
   // LOADING SKELETON
   // ===================================
-  if (!isLoaded || (isSignedIn && statusLoading && !serverFreemiumStatus)) {
+  if (!isLoaded || (isSignedIn && subscriptionLoading)) {
     return (
       <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -170,25 +132,20 @@ export default function SmartHeader({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           
-         {/* ===================================
-    LOGO
-    =================================== */}
-<Link href="/" className="flex items-center gap-2 flex-shrink-0">
-    {/* Varsinainen LOGO (kuva) */}
-    {/* Poista "bg-gradient-to-r... text-transparent" -luokat, sillä ne koskevat tekstiä */}
-    <span className="text-xl font-bold hidden sm:inline relative h-20 w-60">
-        <Image 
-            src="/logo.png" // KORJAA POLKU: Olettaen, että kuva on public-kansiossa
-            alt="Yrityksen logo" 
-            fill // Käytä "fill" täyttämään vanhempi span-elementti
-            style={{ objectFit: "contain"}} // Varmistaa, että kuva skaalautuu oikein
-            priority // Usein logot ladataan nopeasti (vain jos tarpeellinen)
-        />
-    </span>
-</Link>
-          {/* ===================================
-              DESKTOP NAVIGATION
-              =================================== */}
+          {/* LOGO */}
+          <Link href="/" className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-xl font-bold hidden sm:inline relative h-20 w-60">
+              <Image 
+                src="/logo.png"
+                alt="Yrityksen logo" 
+                fill
+                style={{ objectFit: "contain"}}
+                priority
+              />
+            </span>
+          </Link>
+
+          {/* DESKTOP NAVIGATION */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks
               .filter((link) => link.show)
@@ -200,7 +157,7 @@ export default function SmartHeader({
                       variant="ghost"
                       size="sm"
                       className={`flex items-center gap-2 ${
-                        isActive(link.href)
+                        isActive_route(link.href)
                           ? 'text-indigo-600 bg-indigo-50'
                           : 'text-gray-600 hover:text-indigo-600'
                       }`}
@@ -213,9 +170,7 @@ export default function SmartHeader({
               })}
           </nav>
 
-          {/* ===================================
-              RIGHT SIDE: USER INFO & ACTIONS
-              =================================== */}
+          {/* RIGHT SIDE: USER INFO & ACTIONS */}
           <div className="flex items-center gap-2 sm:gap-3">
             
             {/* Language Toggle (Desktop) */}
@@ -230,54 +185,57 @@ export default function SmartHeader({
               <span className="text-xs">{language === 'en' ? 'FI' : 'EN'}</span>
             </Button>
 
-            {/* Premium/Free Badge (Desktop) */}
-            {isSignedIn && !statusLoading && (
+            {/* ✅ PREMIUM/FREE BADGE (Desktop) */}
+            {isSignedIn && !subscriptionLoading && (
               <>
                 {isPremium ? (
-                  <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-300 px-3 py-1.5 rounded-full shadow-sm">
-                    <Crown className="h-4 w-4 text-yellow-600" />
-                    <span className="text-xs sm:text-sm font-semibold text-yellow-800">
-                      Premium ({tokens})
-                    </span>
-                  </div>
+                  <Link href="/pricing">
+                    <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-300 px-3 py-1.5 rounded-full shadow-sm hover:shadow-md transition-all cursor-pointer">
+                      <Crown className="h-4 w-4 text-yellow-600" />
+                      <span className="text-xs sm:text-sm font-semibold text-yellow-800">
+                        {plan.charAt(0).toUpperCase() + plan.slice(1)} ({tokens})
+                      </span>
+                    </div>
+                  </Link>
                 ) : (
-                  <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-300 px-2 sm:px-3 py-1.5 rounded-full shadow-sm">
-                    <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                      {hasUsedFreeCv
-                        ? language === 'en' ? 'Free Used' : 'Käytetty'
-                        : language === 'en' ? '1 Free CV' : '1 Ilmainen'}
-                    </span>
-                  </div>
+                  <Link href="/pricing">
+                    <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-300 px-2 sm:px-3 py-1.5 rounded-full shadow-sm hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer">
+                      <span className="text-xs sm:text-sm font-semibold text-gray-700">
+                        {language === 'en' ? '🔒 Free Plan' : '🔒 Ilmainen'}
+                      </span>
+                    </div>
+                  </Link>
                 )}
               </>
             )}
 
-        {isSignedIn && (
-  <div className="hidden sm:block relative">
-    <button
-      onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-      className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
-    >
-      <UserIcon className="h-4 w-4 text-gray-600" />
-      <span className="text-sm font-medium text-gray-700">
-        {user?.firstName}
-      </span>
-      <ChevronDown className="h-3 w-3 text-gray-500" />
-    </button>
+            {/* User Menu (Desktop) */}
+            {isSignedIn && (
+              <div className="hidden sm:block relative">
+                <button
+                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+                >
+                  <UserIcon className="h-4 w-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">
+                    {user?.firstName}
+                  </span>
+                  <ChevronDown className="h-3 w-3 text-gray-500" />
+                </button>
 
-    {profileMenuOpen && (
-      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-        <div className="border-t border-gray-100 my-1" />
-        <SignOutButton>
-          <button className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-            <LogOut className="h-4 w-4" />
-            {language === 'en' ? 'Sign Out' : 'Kirjaudu ulos'}
-          </button>
-        </SignOutButton>
-      </div>
-    )}
-  </div>
-)}
+                {profileMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    <div className="border-t border-gray-100 my-1" />
+                    <SignOutButton>
+                      <button className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                        <LogOut className="h-4 w-4" />
+                        {language === 'en' ? 'Sign Out' : 'Kirjaudu ulos'}
+                      </button>
+                    </SignOutButton>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Auth Buttons (Desktop) */}
             {showAuthButtons && isDevelopmentMode && !isSignedIn && (
@@ -305,9 +263,7 @@ export default function SmartHeader({
           </div>
         </div>
 
-        {/* ===================================
-            MOBILE MENU
-            =================================== */}
+        {/* MOBILE MENU */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200 py-4 space-y-2 animate-in slide-in-from-top duration-200">
             
@@ -324,19 +280,14 @@ export default function SmartHeader({
                   <p className="text-xs text-gray-600 mt-0.5">
                     {isPremium ? (
                       <span className="text-yellow-600 font-semibold">
-                        ⭐ Premium • {tokens} tokens
+                        ⭐ {plan.charAt(0).toUpperCase() + plan.slice(1)} • {tokens} tokens
                       </span>
                     ) : (
-                     // ✅ TEE TÄSTÄ KLIKKAUTUVA:
-  <Link href={hasUsedFreeCv ? "/pricing" : "/create-cv"}>
-    <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-300 px-2 sm:px-3 py-1.5 rounded-full shadow-sm hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer">
-      <span className="text-xs sm:text-sm font-semibold text-gray-700">
-        {hasUsedFreeCv
-          ? language === 'en' ? '🔒 Upgrade' : '🔒 Päivitä'
-          : language === 'en' ? '1 Free CV' : '1 Ilmainen CV'}
-      </span>
-    </div>
-  </Link>
+                      <Link href="/pricing">
+                        <span className="text-indigo-600 font-semibold cursor-pointer hover:underline">
+                          🔒 {language === 'en' ? 'Upgrade' : 'Päivitä'}
+                        </span>
+                      </Link>
                     )}
                   </p>
                 </div>
@@ -369,7 +320,7 @@ export default function SmartHeader({
                       href={link.href}
                       onClick={handleLinkClick}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                        isActive(link.href)
+                        isActive_route(link.href)
                           ? 'bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 font-semibold border border-indigo-200'
                           : 'text-gray-700 hover:bg-gray-50 border border-transparent'
                       }`}
@@ -382,16 +333,16 @@ export default function SmartHeader({
             </div>
 
             {/* Sign Out Button (Mobile) */}
-{showAuthButtons && isDevelopmentMode && isSignedIn && (
-  <div className="pt-4 border-t border-gray-200 mt-4">
-    <SignOutButton>
-      <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-xl hover:from-red-100 hover:to-pink-100 transition-all font-semibold border border-red-200">
-        <LogOut className="h-5 w-5" />
-        {language === 'en' ? 'Sign Out' : 'Kirjaudu ulos'}
-      </button>
-    </SignOutButton>
-  </div>
-)}
+            {showAuthButtons && isDevelopmentMode && isSignedIn && (
+              <div className="pt-4 border-t border-gray-200 mt-4">
+                <SignOutButton>
+                  <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-xl hover:from-red-100 hover:to-pink-100 transition-all font-semibold border border-red-200">
+                    <LogOut className="h-5 w-5" />
+                    {language === 'en' ? 'Sign Out' : 'Kirjaudu ulos'}
+                  </button>
+                </SignOutButton>
+              </div>
+            )}
 
             {/* Sign In Button (Mobile) */}
             {showAuthButtons && isDevelopmentMode && !isSignedIn && (
@@ -406,9 +357,7 @@ export default function SmartHeader({
           </div>
         )}
 
-        {/* ===================================
-            LOADING INDICATOR
-            =================================== */}
+        {/* LOADING INDICATOR */}
         {isLoading && (
           <div className="absolute bottom-0 left-0 w-full h-1">
             <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse" />

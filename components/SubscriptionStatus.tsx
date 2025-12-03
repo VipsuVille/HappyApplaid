@@ -1,5 +1,4 @@
-//components/SubscriptionStatus.tsx
-
+// components/SubscriptionStatus.tsx - KORJATTU
 "use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
@@ -16,7 +15,7 @@ interface SubscriptionData {
   plan: string;
   tokens: number;
   is_active: boolean;
-  plan_type: string;
+  plan_type?: string;
 }
 
 export function useSubscription() {
@@ -28,6 +27,7 @@ export function useSubscription() {
   useEffect(() => {
     const fetchSubscription = async () => {
       if (!userId) {
+        console.log("⚠️ No userId, skipping fetch");
         setIsLoading(false);
         return;
       }
@@ -35,25 +35,45 @@ export function useSubscription() {
       try {
         console.log("🔍 Fetching subscription via API...");
         
-        const response = await fetch("/api/subscription");
+        const response = await fetch("/api/subscription", {
+          cache: 'no-store', // 👈 Estä caching
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
         const data = await response.json();
 
-        console.log("📊 API Response:", data);
+        console.log("📊 Full API Response:", data);
 
         if (data.subscription) {
-          setSubscription(data.subscription);
-          setIsActive(data.isActive);
+          const sub = data.subscription;
+          
+          // Varmista että plan on oikein
+          const plan = sub.plan_type || sub.plan || 'free';
+          
+          setSubscription({
+            ...sub,
+            plan: plan
+          });
+          
+          setIsActive(data.isActive === true);
+          
           console.log("✅ Subscription loaded:", {
-            is_active: data.subscription.is_active,
-            status: data.subscription.status,
-            isActive: data.isActive
+            plan: plan,
+            is_active_field: sub.is_active,
+            status: sub.status,
+            isActive: data.isActive,
+            tokens: sub.tokens
           });
         } else {
-          console.log("❌ No subscription found");
+          console.log("❌ No subscription in response");
+          setSubscription(null);
           setIsActive(false);
         }
       } catch (error) {
-        console.error("Error fetching subscription:", error);
+        console.error("💥 Error fetching subscription:", error);
+        setSubscription(null);
         setIsActive(false);
       } finally {
         setIsLoading(false);
@@ -68,10 +88,11 @@ export function useSubscription() {
     return () => clearInterval(interval);
   }, [userId]);
 
-  console.log("🔍 Final subscription state:", {
+  console.log("🔍 Current hook state:", {
     hasSubscription: !!subscription,
+    plan: subscription?.plan,
     isActive,
-    status: subscription?.status
+    isLoading
   });
 
   return {
