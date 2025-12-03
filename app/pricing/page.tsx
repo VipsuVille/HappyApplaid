@@ -1,3 +1,4 @@
+import PromoCodeRedeem from '@/components/promoCode';
 import { Crown, Sparkles, Zap, Target, FileText, Check, Database, TrendingUp, Shield } from 'lucide-react';
 
 export default function PricingPage() {
@@ -10,6 +11,7 @@ export default function PricingPage() {
       </div>
 
       <div className="max-w-7xl mx-auto relative z-10">
+        <PromoCodeRedeem />
         {/* Hero */}
         <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl p-12 mb-8">
           <div className="text-center">
