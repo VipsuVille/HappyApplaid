@@ -1,9 +1,11 @@
-// app/api/create-checkout-session/route.ts
-// app/api/create-checkout-session/route.ts
+
+// ========================================
+// app/api/create-checkout-session/route.ts - KORJATTU
+// ========================================
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { currentUser } from '@clerk/nextjs/server';
-import { PRICING } from '@/lib/pricing';
+import { PRICING, Tier } from '@/lib/pricing';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-02-24.acacia'
@@ -11,7 +13,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
-    // Tarkista käyttäjän autentikointi Clerk:n kautta
+    // 1. TARKISTA AUTENTIKOINTI
     const user = await currentUser();
     
     if (!user || !user.id) {
@@ -21,59 +23,148 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Lue pyynnön tiedot
-    const { tier = 'basic' } = await req.json();
+    // 2. HAE TIER
+    const { tier } = await req.json();
     
-    // Tarkista, että annettu tier on olemassa
-    if (!PRICING[tier as keyof typeof PRICING]) {
+    if (!tier || !PRICING[tier as Tier]) {
       return NextResponse.json(
         { error: 'Virheellinen tilaustyyppi' },
         { status: 400 }
       );
     }
     
-    // Haetaan tier-tason hinta PRICING-objektista
-    const price = PRICING[tier as keyof typeof PRICING].stripePriceId;
+    // 3. HAE STRIPE PRICE ID
+    const tierData = PRICING[tier as Tier];
     
-    // Luo checkout-istunto
+    if (!tierData.stripePriceId) {
+      console.error(`❌ Missing Stripe Price ID for tier: ${tier}`);
+      return NextResponse.json(
+        { error: 'Hinnoittelukonfiguraatio puuttuu. Ota yhteyttä tukeen.' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`🛒 Creating checkout for ${tier}:`, {
+      userId: user.id,
+      priceId: tierData.stripePriceId,
+      tokens: tierData.tokens
+    });
+    
+    // 4. LUO CHECKOUT-ISTUNTO
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [
         {
-          price,
+          price: tierData.stripePriceId,
           quantity: 1,
         },
       ],
-      // Anna front-endille tarvittava URL, kun maksu on suoritettu
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
-      // Tärkeää! Käytä tätä käyttäjän tunnistamisessa webhookeissa
       client_reference_id: user.id,
-      // Lisää metadata helpottamaan tunnistamista
       metadata: {
         userId: user.id,
-        tier: tier
+        tier: tier,
+        tokens: tierData.tokens.toString(),
       },
-      // Tallennetaan myös ostotilauksen yksityiskohtaista tietoa
       subscription_data: {
         metadata: {
           userId: user.id,
-          tier: tier
+          tier: tier,
+          tokens: tierData.tokens.toString(),
         }
       }
     });
     
-    // Palauta sekä istuntotunnus että URL vastausviestissä
+    console.log('✅ Checkout session created:', session.id);
+    
     return NextResponse.json({ 
       sessionId: session.id, 
       url: session.url 
     });
   } catch (error: any) {
-    console.error('Checkout error:', error);
+    console.error('❌ Checkout error:', error);
     return NextResponse.json(
       { error: error.message || 'Maksuprosessin aloittaminen epäonnistui' },
       { status: 500 }
     );
   }
 }
+
+// ========================================
+// PRICING PAGE - Päivitetty Button-logiikka
+// ========================================
+/*
+KORVAA pricing-sivun button-osuus tällä:
+
+{Object.entries(PRICING).map(([tier, details]) => (
+  <div key={tier}>
+    {/* ... card content ... *\/}
+    
+    <form action={async () => {
+      'use server';
+      
+      // Tarkista onko käyttäjä kirjautunut
+      const user = await currentUser();
+      if (!user?.id) {
+        redirect('/sign-in?redirect=/pricing');
+        return;
+      }
+      
+      // Kutsu API
+      const response = await fetch(`${process.env.NEXTAUTH_URL}/api/create-checkout-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier })
+      });
+      
+      const data = await response.json();
+      
+      if (data.url) {
+        redirect(data.url);
+      } else {
+        console.error('Checkout failed:', data.error);
+      }
+    }}>
+      <Button type="submit">
+        Valitse {details.name}
+      </Button>
+    </form>
+  </div>
+))}
+*/
+
+// TAI käytä client-side ratkaisua:
+/*
+'use client';
+
+function PricingCard({ tier, details }) {
+  const handleCheckout = async () => {
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier })
+      });
+      
+      const data = await response.json();
+      
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert('Virhe: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('Maksuprosessi epäonnistui');
+    }
+  };
+  
+  return (
+    <button onClick={handleCheckout}>
+      Valitse {details.name}
+    </button>
+  );
+}
+*/

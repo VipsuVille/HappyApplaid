@@ -1,40 +1,44 @@
-// lib/pricing.ts
+// lib/pricing.ts - Päivitetty hinnoittelu
 export const PRICING = {
   basic: {
-    monthly: 2.99,
-    stripePriceId: process.env.STRIPE_BASIC_PRICE_ID || 'price_basic123',
+    name: "Basic",
+    monthly: 4.99,
+    tokens: 1000,
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_BASIC_PRICE_ID!,
     features: [
-      'V1 Hakukirjegeneraattori',
-      'Kysymysgenerointi automaattisesti',
-      'Master Guardian -validointi',
-      'Rajaton määrä hakukirjeitä',
-      'Sähköpostituki'
-    ]
+      "Rajattomat CV:t (50 tokenia/kpl)",
+      "Rajattomat hakukirjeet (50 tokenia/kpl)",
+      "Kohdennetut työpaikkahakemukset",
+      "Profiilitiedot tallennetaan",
+    ],
   },
-  'semi-pro': {
-    monthly: 6.99,
-    stripePriceId: process.env.STRIPE_SEMI_PRO_PRICE_ID || 'price_semipro123',
+  "semi-pro": {
+    name: "Semi-Pro",
+    monthly: 9.99,
+    tokens: 2000,
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_SEMIPRO_PRICE_ID!,
     features: [
-      'Kaikki Basic-tason ominaisuudet',
-      'V2 ATS-optimoitu generaattori',
-      'ATS-analyysi ja pisteytys',
-      'Synonyymihaku avainsanoille',
-      'Prioriteettituki'
-    ]
+      "Kaikki Basic-ominaisuudet",
+      "ATS-optimoidut CV:t",
+      "ATS-optimoidut hakukirjeet",
+      "Läpäise isojen yhtiöiden tekoälysuodattimet",
+    ],
   },
   pro: {
-    monthly: 12.99,
-    stripePriceId: process.env.STRIPE_PRO_PRICE_ID || 'price_pro123',
+    name: "Pro",
+    monthly: 15.99,
+    tokens: 3000,
+    stripePriceId: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID!,
     features: [
-      'Kaikki Semi-Pro ominaisuudet',
-      'RAG Knowledge Base -tuki',
-      'Dynaamiset insights artikkeleista',
-      'V1 + V2 generaattorit RAG:lla',
-      'Priority-pohjainen sisältö',
-      'Ensisijainen tuki'
-    ]
-  }
-};
+      "Kaikki Semi-Pro -ominaisuudet",
+      "RAG-artikkelit (eksperttitietokanta)",
+      "AI 'boostaus' asiantuntijatiedolla",
+      "Jatkuvasti päivittyvä tietokanta",
+    ],
+  },
+} as const;
+
+export type Tier = keyof typeof PRICING;
 
 // Feature mapping per tier
 export const TIER_FEATURES = {

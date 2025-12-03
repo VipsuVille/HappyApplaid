@@ -1,45 +1,62 @@
-//app/layout.tsx
-
-import { ClerkProvider } from "@clerk/nextjs";
-import type { Appearance } from "@clerk/types";
+// app/layout.tsx
+import { LanguageProvider } from '@/context/LanguageContext';
+import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from "next/font/google";
+import { Toaster } from 'sonner';
 import "./globals.css";
-import { Toaster } from "sonner";
-import { LanguageProvider } from "@/context/LanguageContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
-const clerkAppearance: Appearance = {
-  elements: {
-    formButtonPrimary: 
-      "bg-blue-500 hover:bg-blue-600 text-sm normal-case",
-    card: 
-      "bg-white shadow-xl rounded-xl border-0",
-    headerTitle: 
-      "text-2xl font-bold text-gray-900",
-    headerSubtitle: 
-      "text-base text-gray-600",
-    socialButtonsBlockButton: 
-      "border border-gray-300 hover:bg-gray-50",
-    socialButtonsBlockButtonText: 
-      "text-gray-600 font-medium",
-    formFieldInput: 
-      "rounded-lg border-gray-300 focus:ring-blue-500 focus:border-blue-500",
-    footerActionLink: 
-      "text-blue-500 hover:text-blue-600 font-medium",
-    formFieldLabel: 
-      "text-gray-700 font-medium",
-    dividerLine: 
-      "bg-gray-200",
-    dividerText: 
-      "text-gray-500",
-  },
-  
+const clerkAppearance = {
   layout: {
-    socialButtonsPlacement: "bottom",
-    logoPlacement: "inside",
-   // logoImageUrl: "/your-logo.png",
+    socialButtonsPlacement: "bottom" as const,
+    socialButtonsVariant: "blockButton" as const,
   },
+  elements: {
+    // Card
+    card: "bg-white rounded-3xl shadow-2xl border-2 border-gray-100",
+    
+    // Header
+    headerTitle: "text-3xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent",
+    headerSubtitle: "text-gray-600",
+    
+    // Form elements
+    formButtonPrimary: 
+      "bg-gradient-to-r from-indigo-500 to-purple-600 hover:opacity-90 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all",
+    
+    formFieldInput: 
+      "rounded-xl border-2 border-gray-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 transition-all",
+    
+    formFieldLabel: "text-gray-700 font-medium",
+    
+    // Footer
+    footer: "hidden",
+    footerActionLink: "text-indigo-600 hover:text-indigo-700 font-semibold",
+    
+    // Social buttons
+    socialButtonsBlockButton: 
+      "border-2 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 rounded-xl transition-all",
+    
+    socialButtonsBlockButtonText: "font-medium text-gray-700",
+    
+    // Divider
+    dividerLine: "bg-gray-200",
+    dividerText: "text-gray-500",
+    
+    // Links
+    footerActionText: "text-gray-600",
+    formResendCodeLink: "text-indigo-600 hover:text-indigo-700 font-medium",
+    
+    // OTP input
+    otpCodeFieldInput: "border-2 border-gray-200 focus:border-indigo-400 rounded-xl",
+  },
+  variables: {
+    colorPrimary: "#6366f1",
+    colorDanger: "#ef4444",
+    colorSuccess: "#22c55e",
+    colorWarning: "#f59e0b",
+    borderRadius: "0.75rem",
+  }
 };
 
 export default function RootLayout({
@@ -48,14 +65,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider
-      appearance={clerkAppearance}
-    >
-      <html lang="fi">
-      <LanguageProvider>
-      
-      <body className={`${inter.className} bg-slate-200`}>{children}<Toaster position="top-center" /></body>
-      </LanguageProvider>
+    <ClerkProvider appearance={clerkAppearance}>
+      <html lang="en">
+        <LanguageProvider>
+          <body className={`${inter.className} bg-slate-200`}>
+            {children}
+            <Toaster position="top-center" />
+          </body>
+        </LanguageProvider>
       </html>
     </ClerkProvider>
   );
