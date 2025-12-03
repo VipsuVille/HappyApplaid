@@ -1,5 +1,16 @@
-// lib/pricing.ts - Päivitetty hinnoittelu
+// lib/pricing.ts - KORJATTU VERSIO
 export const PRICING = {
+  free: {
+    name: "Free",
+    monthly: 0,
+    tokens: 50, // Yksi ilmainen CV
+    stripePriceId: null,
+    features: [
+      "1 ilmainen CV",
+      "Profiilitiedot tallennetaan",
+      "Testaa palvelua",
+    ],
+  },
   basic: {
     name: "Basic",
     monthly: 4.99,
@@ -42,13 +53,25 @@ export type Tier = keyof typeof PRICING;
 
 // Feature mapping per tier
 export const TIER_FEATURES = {
+  free: {
+    canUseV1: true,
+    canUseV2: false,
+    canUseRAG: false,
+    canUseATS: false,
+    name: 'Free',
+    costPerLetter: 0,
+    maxCVs: 1,
+    maxCoverLetters: 0
+  },
   basic: {
     canUseV1: true,
     canUseV2: false,
     canUseRAG: false,
     canUseATS: false,
     name: 'Basic',
-    costPerLetter: 0.004
+    costPerLetter: 0.004,
+    maxCVs: 'unlimited',
+    maxCoverLetters: 'unlimited'
   },
   'semi-pro': {
     canUseV1: true,
@@ -56,7 +79,9 @@ export const TIER_FEATURES = {
     canUseRAG: false,
     canUseATS: true,
     name: 'Semi-Pro',
-    costPerLetter: 0.006
+    costPerLetter: 0.006,
+    maxCVs: 'unlimited',
+    maxCoverLetters: 'unlimited'
   },
   pro: {
     canUseV1: true,
@@ -64,6 +89,8 @@ export const TIER_FEATURES = {
     canUseRAG: true,
     canUseATS: true,
     name: 'Pro',
-    costPerLetter: 0.008
+    costPerLetter: 0.008,
+    maxCVs: 'unlimited',
+    maxCoverLetters: 'unlimited'
   }
-};
+} as const;

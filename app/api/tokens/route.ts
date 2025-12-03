@@ -1,91 +1,93 @@
-// app/api/tokens/route.ts
-import { currentUser } from '@clerk/nextjs/server';
-import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
-import { PRICING } from '@/lib/pricing';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { auth } from '@clerk/nextjs/server';
 
-// Existing POST method for creating checkout sessions
+// ========================================
+// app/api/create-checkout-session/route.ts - KORJATTU
+// ========================================
+import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { currentUser } from '@clerk/nextjs/server';
+import { PRICING, Tier } from '@/lib/pricing';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-02-24.acacia'
+});
+
 export async function POST(req: NextRequest) {
   try {
+    // 1. TARKISTA AUTENTIKOINTI
     const user = await currentUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Kirjaudu sisään ensin' }, { status: 401 });
+    
+    if (!user || !user.id) {
+      return NextResponse.json(
+        { error: 'Kirjaudu sisään ensin' },
+        { status: 401 }
+      );
     }
+    
+    // 2. HAE TIER
     const { tier } = await req.json();
-   
-    // Tarkista, että annettu tier on olemassa
-    if (!PRICING[tier as keyof typeof PRICING]) {
+    
+    if (!tier || !PRICING[tier as Tier]) {
       return NextResponse.json(
         { error: 'Virheellinen tilaustyyppi' },
         { status: 400 }
       );
     }
-    const price = PRICING[tier as keyof typeof PRICING].stripePriceId;
-   
-    // Luo checkout-sessio
+    
+    // 3. HAE STRIPE PRICE ID
+    const tierData = PRICING[tier as Tier];
+    
+    if (!tierData.stripePriceId) {
+      console.error(`❌ Missing Stripe Price ID for tier: ${tier}`);
+      return NextResponse.json(
+        { error: 'Hinnoittelukonfiguraatio puuttuu. Ota yhteyttä tukeen.' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`🛒 Creating checkout for ${tier}:`, {
+      userId: user.id,
+      priceId: tierData.stripePriceId,
+      tokens: tierData.tokens
+    });
+    
+    // 4. LUO CHECKOUT-ISTUNTO
     const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [
         {
-          price,
+          price: tierData.stripePriceId,
           quantity: 1,
         },
       ],
-      mode: 'subscription',
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+      client_reference_id: user.id,
       metadata: {
-        tier,
+        userId: user.id,
+        tier: tier,
+        tokens: tierData.tokens.toString(),
       },
-      client_reference_id: user.id, // Tärkeä - käytetään webhookissa yhdistämään käyttäjä tilaukseen
+      subscription_data: {
+        metadata: {
+          userId: user.id,
+          tier: tier,
+          tokens: tierData.tokens.toString(),
+        }
+      }
     });
-    return NextResponse.json({ sessionId: session.id, url: session.url });
-  } catch (error) {
-    console.error('Checkout error:', error);
+    
+    console.log('✅ Checkout session created:', session.id);
+    
+    return NextResponse.json({ 
+      sessionId: session.id, 
+      url: session.url 
+    });
+  } catch (error: any) {
+    console.error('❌ Checkout error:', error);
     return NextResponse.json(
-      { error: 'Maksuprosessin aloittaminen epäonnistui' },
+      { error: error.message || 'Maksuprosessin aloittaminen epäonnistui' },
       { status: 500 }
     );
-  }
-}
-
-// NEW GET method for retrieving token information
-export async function GET() {
-  try {
-    const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Kirjaudu sisään ensin' }, { status: 401 });
-    }
-    
-    const supabaseAdmin = await getSupabaseAdmin();
-    
-    // Get user's active subscription
-    const { data: subscription, error: subscriptionError } = await supabaseAdmin
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .in('status', ['active', 'trialing'])
-      .single();
-    
-    if (subscriptionError && subscriptionError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-      console.error('Error fetching subscription:', subscriptionError);
-      return NextResponse.json({ error: 'Failed to fetch subscription data' }, { status: 500 });
-    }
-    
-    // For debugging, log the found subscription data
-    console.log('User:', userId, 'Subscription data:', subscription);
-    
-    // Return token information
-    return NextResponse.json({
-      tokens: subscription?.tokens || 0,
-      isActive: subscription?.is_active || false,
-      plan: subscription?.plan || 'none'
-    });
-  } catch (error) {
-    console.error('Error in /api/tokens GET:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
