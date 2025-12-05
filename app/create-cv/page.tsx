@@ -1,5 +1,4 @@
-// app/create-cv/page.tsx - PARANNETTU VERSIO
-
+// app/create-cv/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -7,126 +6,41 @@ import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import {
-  FileText,
-  Sparkles,
-  Zap,
-  Target,
-  Info,
-  Crown,
-  AlertCircle,
-} from "lucide-react";
+import { FileText, Sparkles, Zap, Target, Info, Crown, AlertCircle } from "lucide-react";
 import SmartHeader from "@/components/ui/smartHeader";
+import { useTokens } from "@/hooks/useTokens";
 
 type CVTemplate = "technical" | "creative" | "simple";
-type CVMode = "generic" | "ats-optimized";
-
-interface SubscriptionStatus {
-  plan_type: "free" | "premium";
-  is_premium: boolean;
-  has_used_free_cv: boolean;
-  tokens: number;
-  cv_count: number;
-  can_create_cv: boolean;
-  message: string;
-}
 
 export default function CreateCVPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
-  const [cvMode, setCvMode] = useState<CVMode>("generic");
-  const [jobPosting, setJobPosting] = useState(""); 
+  const [jobPosting, setJobPosting] = useState("");
+  
+  // ✅ TOGGLET
+  const [useATS, setUseATS] = useState(false);
+  const [useRAG, setUseRAG] = useState(false);
+  
   const { user, isLoaded: userLoaded } = useUser();
   const { getToken } = useAuth();
   const router = useRouter();
+  const { canUseFeature, getTierInfo, isLoading: tierLoading } = useTokens();
 
-  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
-  const [subscriptionLoading, setSubscriptionLoading] = useState(true);
-  const [profileData, setProfileData] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  // ✅ TIER INFO
+  const tierInfo = getTierInfo();
+  const canUseATSFeature = canUseFeature('ats');
+  const canUseRAGFeature = canUseFeature('rag');
 
-  useEffect(() => {
-    loadProfile();
-    checkSubscription();
-  }, [user]);
-
-  // ✅ UUSI: Estä sivun sulkeminen generoinnin aikana
   useEffect(() => {
     if (isLoading) {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
         e.preventDefault();
         e.returnValue = '';
       };
-      
       window.addEventListener('beforeunload', handleBeforeUnload);
       return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }
   }, [isLoading]);
-
-  const checkSubscription = async () => {
-    if (!user) return;
-
-    try {
-      setSubscriptionLoading(true);
-      const response = await fetch("/api/check-subscription");
-      
-      if (response.ok) {
-        const data: SubscriptionStatus = await response.json();
-        setSubscription(data);
-        console.log("✅ Subscription status:", data);
-      } else {
-        console.error("Failed to check subscription");
-        setSubscription(null);
-      }
-    } catch (error) {
-      console.error("Error checking subscription:", error);
-      setSubscription(null);
-    } finally {
-      setSubscriptionLoading(false);
-    }
-  };
-
-  const loadProfile = async () => {
-    if (!user) {
-      console.log("⚠️ No user, skipping profile load");
-      return;
-    }
-
-    try {
-      setProfileLoading(true);
-      const token = await getToken({ template: "supabase" });
-      
-      if (!token) {
-        console.error("❌ No Supabase token available");
-        setProfileLoading(false);
-        return;
-      }
-      
-      const response = await fetch(`/api/user-profile/${user.id}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProfileData(data);
-      } else if (response.status === 404) {
-        console.warn("⚠️ No profile found");
-        setProfileData(null);
-      } else {
-        const errorData = await response.json();
-        console.error("❌ Error loading profile:", errorData);
-        setProfileData(null);
-      }
-    } catch (error) {
-      console.error("❌ Exception loading profile:", error);
-      setProfileData(null);
-    } finally {
-      setProfileLoading(false);
-    }
-  };
 
   const generateCVFromProfile = async () => {
     if (!user) {
@@ -134,29 +48,20 @@ export default function CreateCVPage() {
       return;
     }
 
-    if (!profileData) {
-      toast.error("Täytä ensin profiilisi!");
-      router.push("/profile");
+    // ✅ VALIDOI ATS/RAG KÄYTTÖ
+    if (useATS && !canUseATSFeature) {
+      toast.error("ATS-optimointi vaatii Semi-Pro tai Pro -tason");
       return;
     }
 
-    // ✅ FREE-käyttäjät: tarkista onko jo käytetty ilmainen CV
-    if (!subscription?.is_premium && subscription?.has_used_free_cv) {
-      toast.error("Olet jo käyttänyt ilmaisen CV:n! Päivitä Premium-tiliin luodaksesi lisää.", {
-        duration: 6000
-      });
-      router.push("/pricing");
+    if (useRAG && !canUseRAGFeature) {
+      toast.error("RAG-tietokanta vaatii Pro-tason");
       return;
     }
 
-    // ✅ PREMIUM: ATS-optimoitu CV vaatii job postingin
-    if (subscription?.is_premium && cvMode === "ats-optimized" && !jobPosting) {
-      const confirm = window.confirm(
-        "ATS-optimoitu CV hyötyy työpaikkailmoituksesta.\n\nLuodaanko silti generic CV?"
-      );
-      if (!confirm) return;
-      
-      setCvMode("generic");
+    if (useATS && !jobPosting.trim()) {
+      toast.error("Anna työpaikkailmoitus ATS-optimointia varten");
+      return;
     }
 
     setIsLoading(true);
@@ -170,68 +75,37 @@ export default function CreateCVPage() {
         body: JSON.stringify({
           cvType: selectedTemplate,
           forceGenerate: false,
-          jobPosting: cvMode === "ats-optimized" ? jobPosting : undefined,
+          
+          // ✅ LÄHETÄ ATS/RAG FLAGS
+          jobPosting: useATS ? jobPosting : undefined,
+          enableRAG: useRAG
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        
-        if (errorData.error === "free_limit_reached") {
-          toast.error(errorData.message, { duration: 8000 });
-          router.push("/pricing");
-          return;
-        }
-
-        if (errorData.error === "free_tier_simple_only") {
-          toast.error(errorData.message);
-          setSelectedTemplate("simple");
-          return;
-        }
-
-        if (errorData.error === "free_tier_no_ats") {
-          toast.error(errorData.message);
-          return;
-        }
-        
-        if (errorData.error === "data_validation_failed") {
-          toast.error(
-            `Profiilisi tarvitsee lisätietoja:\n\n${errorData.message}`,
-            { duration: 8000 }
-          );
-          router.push("/profile");
-          return;
-        }
-        
         throw new Error(errorData.error || "CV generation failed");
       }
 
       const result = await response.json();
       
       toast.success(
-        result.isPremium
-          ? result.isAtsOptimized
-            ? "🎯 ATS-optimoitu CV luotu!"
-            : "✅ Premium CV luotu!"
-          : "✅ Ilmainen CV luotu!"
+        useRAG ? "🎯 RAG-optimoitu CV luotu!" :
+        useATS ? "✅ ATS-optimoitu CV luotu!" :
+        "✅ CV luotu!"
       );
 
-      // ✅ Päivitä subscription status
-      await checkSubscription();
-      
       router.push(`/edit-cv/${result.id}`);
       
     } catch (error) {
       console.error("CV creation failed:", error);
-      toast.error(
-        error instanceof Error ? error.message : "CV:n luonti epäonnistui"
-      );
+      toast.error(error instanceof Error ? error.message : "CV:n luonti epäonnistui");
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!userLoaded || profileLoading || subscriptionLoading) {
+  if (!userLoaded || tierLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -242,14 +116,11 @@ export default function CreateCVPage() {
     );
   }
 
-  const isPremium = subscription?.is_premium || false;
-  const canCreateCV = subscription?.can_create_cv || false;
-
   return (
     <div>
       <SmartHeader />
       
-      {/* ✅ Floating notification generoinnin aikana */}
+      {/* ✅ GENEROINTI ILMOITUS */}
       {isLoading && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-lg animate-fade-in">
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-5 rounded-2xl shadow-2xl border-2 border-white/20">
@@ -263,18 +134,9 @@ export default function CreateCVPage() {
               <div className="flex-1">
                 <p className="font-bold text-lg mb-1">CV:tä luodaan...</p>
                 <p className="text-sm text-indigo-100 leading-relaxed">
-                  ⏱️ Kestää 30-60 sekuntia. Älä sulje sivua tai navigoi pois.
+                  ⏱️ Kestää 30-60 sekuntia. Älä sulje sivua.
                 </p>
               </div>
-              <button
-                onClick={() => setIsLoading(false)}
-                className="flex-shrink-0 text-white/60 hover:text-white transition-colors p-1"
-                aria-label="Sulje ilmoitus"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
           </div>
         </div>
@@ -282,159 +144,114 @@ export default function CreateCVPage() {
 
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
         <div className="max-w-5xl mx-auto">
+          
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
               Luo Ammattimainen CV
             </h1>
             <p className="text-lg text-gray-600">
-              {isPremium
-                ? "Valitse CV-tyyppi ja optimoi työpaikkailmoituksen mukaan"
-                : "Luo ilmainen persoonallisuusvetoinen CV"}
+              {tierInfo.name === 'pro'
+                ? "Pro-taso: Kaikki ominaisuudet käytössäsi"
+                : tierInfo.name === 'semi-pro'
+                ? "Semi-Pro: ATS-optimointi käytössä"
+                : "Aloita ilmaiseksi tai päivitä lisää ominaisuuksia varten"}
             </p>
           </div>
 
-          {/* CV MODE SELECTION */}
-          {isPremium && (
-            <div className="mb-12 bg-white rounded-3xl p-8 shadow-lg border-2 border-indigo-200">
+          {/* ✅ ATS/RAG TOGGLET (Semi-Pro+) */}
+          {(canUseATSFeature || canUseRAGFeature) && (
+            <div className="mb-12 bg-white rounded-3xl p-8 border-2 border-indigo-200 shadow-lg">
               <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
                 <Target className="h-7 w-7 text-indigo-600" />
-                Valitse CV-Tyyppi
+                Optimointiominaisuudet
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Generic CV */}
-                <button
-                  onClick={() => {
-                    setCvMode("generic");
-                    setJobPosting("");
-                  }}
-                  className={`p-6 border-3 rounded-2xl text-left transition-all ${
-                    cvMode === "generic"
-                      ? "border-indigo-500 bg-indigo-50 shadow-lg scale-105"
-                      : "border-gray-300 hover:border-indigo-300"
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                      <FileText className="h-6 w-6 text-indigo-600" />
-                    </div>
+              <div className="space-y-6">
+                
+                {/* ATS Toggle (Semi-Pro+) */}
+                {canUseATSFeature && (
+                  <div className="flex items-start gap-4 p-6 bg-purple-50 rounded-xl border-2 border-purple-200">
+                    <input
+                      type="checkbox"
+                      id="use-ats"
+                      checked={useATS}
+                      onChange={(e) => setUseATS(e.target.checked)}
+                      className="mt-1 h-5 w-5 text-purple-600"
+                    />
                     <div className="flex-1">
-                      <h4 className="text-xl font-bold text-gray-900 mb-2">
-                        Yleinen CV
-                      </h4>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Sopii kaikenlaisiin työhakemuksiin. Korostaa vahvuuksiasi ja persoonallisuuttasi.
+                      <label htmlFor="use-ats" className="font-bold text-gray-900 text-lg cursor-pointer">
+                        Käytä ATS-optimointia
+                      </label>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Optimoi CV työpaikkailmoituksen mukaan. Maksimoi läpäisyaste ATS-järjestelmissä (60% → 90%+).
                       </p>
-                      <div className="flex items-center gap-2 text-xs text-indigo-700">
-                        <Sparkles className="h-4 w-4" />
-                        <span>Nopea luonti, monipuolinen käyttö</span>
-                      </div>
+                      {useATS && (
+                        <div className="mt-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Liitä työpaikkailmoitus:
+                          </label>
+                          <textarea
+                            value={jobPosting}
+                            onChange={(e) => setJobPosting(e.target.value)}
+                            placeholder="Kopioi työpaikkailmoitus tähän..."
+                            rows={6}
+                            className="w-full p-3 border-2 border-purple-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
-                  {cvMode === "generic" && (
-                    <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-600">
-                      <div className="h-2 w-2 rounded-full bg-indigo-600"></div>
-                      Valittu
-                    </div>
-                  )}
-                </button>
+                )}
 
-                {/* ATS-Optimized CV */}
-                <button
-                  onClick={() => setCvMode("ats-optimized")}
-                  className={`p-6 border-3 rounded-2xl text-left transition-all ${
-                    cvMode === "ats-optimized"
-                      ? "border-purple-500 bg-purple-50 shadow-lg scale-105"
-                      : "border-gray-300 hover:border-purple-300"
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                      <Zap className="h-6 w-6 text-purple-600" />
-                    </div>
+                {/* RAG Toggle (Pro only) */}
+                {canUseRAGFeature && (
+                  <div className="flex items-start gap-4 p-6 bg-amber-50 rounded-xl border-2 border-amber-200">
+                    <input
+                      type="checkbox"
+                      id="use-rag"
+                      checked={useRAG}
+                      onChange={(e) => setUseRAG(e.target.checked)}
+                      className="mt-1 h-5 w-5 text-amber-600"
+                    />
                     <div className="flex-1">
-                      <h4 className="text-xl font-bold text-gray-900 mb-2">
-                        ATS-Optimoitu CV
-                      </h4>
-                      <p className="text-sm text-gray-600 mb-3">
-                        Räätälöity tietylle työpaikalle. Maksimoi läpäisyaste ATS-järjestelmissä (60% → 90%+).
+                      <label htmlFor="use-rag" className="font-bold text-gray-900 text-lg cursor-pointer flex items-center gap-2">
+                        Käytä RAG-tietokantaa
+                        <Crown className="w-5 h-5 text-amber-600" />
+                        <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full font-bold">PRO</span>
+                      </label>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Konsultoi asiantuntija-artikkeleitamme. AI hakee parhaat käytännöt ja optimoi CV:si laadun.
                       </p>
-                      <div className="flex items-center gap-2 text-xs text-purple-700">
-                        <Target className="h-4 w-4" />
-                        <span>Vaatii työpaikkailmoituksen</span>
+                      <div className="mt-3 p-3 bg-amber-100 border border-amber-200 rounded-lg">
+                        <div className="flex items-start gap-2 text-sm text-amber-800">
+                          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <p>
+                            <strong>RAG-teknologia:</strong> Hakee tietokannastamme 3-5 asiantuntija-artikkelia, 
+                            jotka liittyvät sinun profiiliisi ja työpaikkaasi. Näin CV:stäsi tulee laadukkaampi ja 
+                            ammattimaisempi.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  {cvMode === "ats-optimized" && (
-                    <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-purple-600">
-                      <div className="h-2 w-2 rounded-full bg-purple-600"></div>
-                      Valittu
-                    </div>
-                  )}
-                </button>
+                )}
               </div>
 
-              {/* Info Box */}
+              {/* Info-laatikko */}
               <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
                 <div className="flex items-start gap-3">
                   <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-blue-800">
                     <strong>Vinkki:</strong>{" "}
-                    {cvMode === "generic" 
-                      ? "Yleinen CV toimii hyvin kun haet useita eri paikkoja samanaikaisesti."
-                      : "ATS-optimoitu CV kasvattaa huomattavasti mahdollisuuksiasi päästä haastatteluun tiettyyn työpaikkaan."}
+                    {canUseRAGFeature 
+                      ? "Voit käyttää RAG:ia ja ATS:ää yhdessä saadaksesi parhaan mahdollisen CV:n!"
+                      : canUseATSFeature
+                      ? "ATS-optimointi kasvattaa huomattavasti mahdollisuuksiasi päästä haastatteluun."
+                      : "Päivitä Semi-Pro tai Pro -tasoon saadaksesi ATS-optimoinnin ja RAG-teknologian."}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* JOB POSTING TEXTAREA */}
-          {isPremium && cvMode === "ats-optimized" && (
-            <div className="mb-12 bg-gradient-to-br from-purple-50 to-pink-50 rounded-3xl p-8 border-2 border-purple-200 shadow-xl">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="h-12 w-12 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-                  <Target className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    🎯 Työpaikkailmoitus (ATS-Optimointi)
-                  </h3>
-                  <p className="text-gray-700">
-                    Liitä työpaikkailmoitus alle, niin optimoimme CV:si läpäisemään
-                    ATS-järjestelmät (Applicant Tracking Systems) ja nostamaan
-                    profiilin relevanssipisteet 60% → 90%+.
-                  </p>
-                </div>
-              </div>
-
-              <textarea
-                value={jobPosting}
-                onChange={(e) => setJobPosting(e.target.value)}
-                placeholder="Kopioi työpaikkailmoitus tähän...&#10;&#10;Esimerkki:&#10;'Haemme Full Stack -kehittäjää React/Node.js osaamisella. Tehtävässä työskentelet modernin teknologian parissa ja kehität yrityksen digitaalisia palveluita...'"
-                rows={12}
-                className="w-full p-4 border-2 border-purple-300 rounded-xl focus:border-purple-500 focus:outline-none resize-none font-mono text-sm bg-white"
-              />
-
-              <div className="mt-4 flex items-start gap-2 text-sm text-gray-600">
-                <AlertCircle className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
-                <p>
-                  <strong>Vinkki:</strong> Mitä tarkempi työpaikkailmoitus, sitä paremmin
-                  CV optimoituu. Sisällytä vaatimukset, toivottu osaaminen ja yrityksen arvot.
-                </p>
-              </div>
-
-              {jobPosting.length > 0 && (
-                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-sm text-green-700">
-                    <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                    <span className="font-semibold">
-                      Työpaikkailmoitus vastaanotettu ({jobPosting.length} merkkiä)
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -444,23 +261,17 @@ export default function CreateCVPage() {
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
                 Valitse CV-Malli
               </h2>
-              <p className="text-gray-600">
-                {isPremium
-                  ? "Kaikki mallit saatavilla Premium-tilauksen kanssa"
-                  : "Ilmainen käyttäjä: vain Rento-malli saatavilla"}
-              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Simple CV */}
               <button
                 onClick={() => setSelectedTemplate("simple")}
-                disabled={!canCreateCV && !isPremium}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
                   selectedTemplate === "simple"
                     ? "border-indigo-500 bg-indigo-50 shadow-xl scale-105"
                     : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-lg"
-                } ${!canCreateCV && !isPremium ? "opacity-50 cursor-not-allowed" : ""}`}
+                }`}
               >
                 <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-4">
                   <FileText className="h-8 w-8 text-white" />
@@ -469,22 +280,16 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600">
                   Persoonallinen ja lähestyttävä CV
                 </p>
-                {!isPremium && (
-                  <div className="mt-3 text-xs text-blue-600 font-semibold">
-                    Ilmainen (1x)
-                  </div>
-                )}
               </button>
 
               {/* Professional CV */}
               <button
-                onClick={() => isPremium && setSelectedTemplate("technical")}
-                disabled={!isPremium}
+                onClick={() => setSelectedTemplate("technical")}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                  selectedTemplate === "technical" && isPremium
+                  selectedTemplate === "technical"
                     ? "border-purple-500 bg-purple-50 shadow-xl scale-105"
-                    : "border-gray-200 bg-white"
-                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
+                    : "border-gray-200 bg-white hover:border-purple-300"
+                }`}
               >
                 <div className="h-16 w-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
                   <Sparkles className="h-8 w-8 text-white" />
@@ -493,23 +298,16 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600">
                   Tekninen ja strukturoitu ammattilaisille
                 </p>
-                {!isPremium && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
-                    <Crown className="h-4 w-4" />
-                    Premium
-                  </div>
-                )}
               </button>
 
               {/* Creative CV */}
               <button
-                onClick={() => isPremium && setSelectedTemplate("creative")}
-                disabled={!isPremium}
+                onClick={() => setSelectedTemplate("creative")}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                  selectedTemplate === "creative" && isPremium
+                  selectedTemplate === "creative"
                     ? "border-pink-500 bg-pink-50 shadow-xl scale-105"
-                    : "border-gray-200 bg-white"
-                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
+                    : "border-gray-200 bg-white hover:border-pink-300"
+                }`}
               >
                 <div className="h-16 w-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center mb-4">
                   <Zap className="h-8 w-8 text-white" />
@@ -518,12 +316,6 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600">
                   Luova ja visuaalinen portfolio-CV
                 </p>
-                {!isPremium && (
-                  <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 font-semibold">
-                    <Crown className="h-4 w-4" />
-                    Premium
-                  </div>
-                )}
               </button>
             </div>
           </div>
@@ -535,7 +327,6 @@ export default function CreateCVPage() {
                 Valmis Luomaan CV:si?
               </h3>
               
-              {/* ✅ PÄIVITETTY: Selkeämpi varoitus */}
               <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
                 <div className="flex items-center justify-center gap-2 text-amber-800">
                   <AlertCircle className="h-5 w-5" />
@@ -546,16 +337,18 @@ export default function CreateCVPage() {
               </div>
 
               <p className="text-lg text-gray-600 mb-8">
-                {isPremium
-                  ? cvMode === "ats-optimized" && jobPosting
-                    ? "Tekoäly optimoi CV:si annetun työpaikkailmoituksen mukaan"
-                    : "Tekoäly luo ammattimaisen CV:n profiilitietojesi pohjalta"
-                  : "Tekoäly luo persoonallisen ilmaisen CV:n profiilitietojesi pohjalta"}
+                {useRAG && useATS
+                  ? "Tekoäly luo RAG-optimoidun ATS-CV:n asiantuntija-artikkeleiden ja työpaikkailmoituksen avulla"
+                  : useRAG
+                  ? "Tekoäly konsultoi asiantuntija-artikkeleitamme luodessaan CV:si"
+                  : useATS
+                  ? "Tekoäly optimoi CV:si annetun työpaikkailmoituksen mukaan"
+                  : "Tekoäly luo ammattimaisen CV:n profiilitietojesi pohjalta"}
               </p>
 
               <Button
                 onClick={generateCVFromProfile}
-                disabled={isLoading || !user || !canCreateCV}
+                disabled={isLoading || !user}
                 size="lg"
                 className="px-12 py-6 text-lg bg-gradient-to-br from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-70 disabled:transform-none"
               >
@@ -567,44 +360,18 @@ export default function CreateCVPage() {
                 ) : (
                   <div className="flex items-center">
                     <Sparkles className="h-6 w-6 mr-3" />
-                    {isPremium 
-                      ? cvMode === "ats-optimized"
-                        ? "🎯 Luo ATS-Optimoitu CV"
-                        : "Luo Premium CV"
-                      : "Luo Ilmainen CV"}
+                    {useRAG ? "🎯 Luo RAG-CV" : useATS ? "Luo ATS-CV" : "Luo CV"}
                   </div>
                 )}
               </Button>
 
               <p className="text-sm text-gray-500 mt-4">
-                {isPremium
-                  ? cvMode === "ats-optimized" 
-                    ? "ATS-optimointi analysoi työpaikkailmoituksen ja räätälöi CV:n" 
-                    : `Tokenia jäljellä: ${subscription?.tokens || 0}`
-                  : subscription?.has_used_free_cv 
-                    ? "❌ Olet jo käyttänyt ilmaisen CV:n"
-                    : "✅ Ilmainen CV käytettävissä (1x)"}
+                {tierInfo.name === 'pro'
+                  ? `PRO-taso: ${tierInfo.tokens} tokenia jäljellä`
+                  : tierInfo.name === 'semi-pro'
+                  ? `Semi-Pro: ${tierInfo.tokens} tokenia jäljellä`
+                  : "Ilmainen CV (1x)"}
               </p>
-
-              {/* CTA Premium-päivitykseen (jos FREE) */}
-              {!isPremium && (
-                <div className="mt-8 p-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white">
-                  <h4 className="text-xl font-bold mb-2">
-                    Haluatko ATS-optimoinnin?
-                  </h4>
-                  <p className="mb-4 text-indigo-100">
-                    Päivitä Premium-tiliin ja saat rajattomasti ATS-optimoituja CV:itä + hakukirjeet
-                  </p>
-                  <Button
-                    onClick={() => router.push("/pricing")}
-                    variant="outline"
-                    className="bg-white text-indigo-600 hover:bg-indigo-50 border-0"
-                  >
-                    <Crown className="h-5 w-5 mr-2" />
-                    Katso Premium-hinnat
-                  </Button>
-                </div>
-              )}
             </div>
           </div>
         </div>

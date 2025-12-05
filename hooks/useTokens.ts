@@ -3,27 +3,30 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
-export type TokenAction = 'cv' | 'cover_letter';
+export type Tier = 'free' | 'basic' | 'semi-pro' | 'pro';
+export type Feature = 'v1' | 'v2' | 'ats' | 'rag';
 
-interface TokenData {
+interface SubscriptionData {
+  plan: Tier;
   tokens: number;
   isActive: boolean;
-  plan: string;
+  plan_type?: string;
 }
 
+const TIER_FEATURES: Record<Tier, Record<Feature, boolean>> = {
+  free: { v1: true, v2: false, ats: false, rag: false },
+  basic: { v1: true, v2: false, ats: false, rag: false },
+  'semi-pro': { v1: true, v2: true, ats: true, rag: false },
+  pro: { v1: true, v2: true, ats: true, rag: true },
+};
+
 export function useTokens() {
-  const [tokenData, setTokenData] = useState<TokenData | null>(null);
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { userId, getToken } = useAuth();
 
-  // Token costs for different actions
-  const TOKEN_COSTS: Record<TokenAction, number> = {
-    cv: 5,
-    cover_letter: 5
-  };
-
-  const fetchTokens = async () => {
+  const fetchSubscription = async () => {
     if (!userId) {
       setIsLoading(false);
       return;
@@ -31,8 +34,8 @@ export function useTokens() {
 
     try {
       const token = await getToken();
-      const response = await fetch('/api/tokens', {
-        method: 'GET', // Explicitly set method to GET
+      const response = await fetch('/api/subscription', {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -40,92 +43,63 @@ export function useTokens() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch tokens');
+        throw new Error('Failed to fetch subscription');
       }
 
       const data = await response.json();
-      setTokenData(data);
+      
+      setSubscriptionData({
+        plan: (data.plan_type || data.plan || 'free') as Tier,
+        tokens: data.tokens || 0,
+        isActive: data.isActive || false,
+        plan_type: data.plan_type
+      });
     } catch (err) {
-      console.error('Error fetching tokens:', err);
+      console.error('Error fetching subscription:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const consumeTokens = async (action: TokenAction): Promise<boolean> => {
-    if (!userId) {
-      return false;
-    }
-
-    try {
-      const tokensRequired = TOKEN_COSTS[action];
-      const token = await getToken();
-     
-      const response = await fetch('/api/tokens/consume', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          action,
-          tokens: tokensRequired
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to consume tokens');
-      }
-
-      const data = await response.json();
-     
-      // Update local token count
-      if (tokenData) {
-        setTokenData({
-          ...tokenData,
-          tokens: data.tokensRemaining
-        });
-      }
-     
-      return true;
-    } catch (err) {
-      console.error('Error consuming tokens:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      return false;
-    }
+  // Tarkista voiko käyttää ominaisuutta
+  const canUseFeature = (feature: Feature): boolean => {
+    if (!subscriptionData) return false;
+    if (!subscriptionData.isActive) return false;
+    
+    return TIER_FEATURES[subscriptionData.plan]?.[feature] || false;
   };
 
-  const canUseAction = (action: TokenAction): boolean => {
-    if (!tokenData) return false;
-   
-    // Check if subscription is active
-    if (!tokenData.isActive) return false;
-   
-    // Check if user has enough tokens
-    return tokenData.tokens >= TOKEN_COSTS[action];
+  // Palauta nykyinen tier
+  const getTier = (): Tier => {
+    return subscriptionData?.plan || 'free';
+  };
+
+  // Palauta tier-info
+  const getTierInfo = () => {
+    const tier = getTier();
+    return {
+      name: tier,
+      features: TIER_FEATURES[tier],
+      isActive: subscriptionData?.isActive || false,
+      tokens: subscriptionData?.tokens || 0
+    };
   };
 
   useEffect(() => {
-    fetchTokens();
-   
-    // Set up polling to refresh token count every minute
-    const intervalId = setInterval(fetchTokens, 60000);
-   
+    fetchSubscription();
+    const intervalId = setInterval(fetchSubscription, 60000);
     return () => clearInterval(intervalId);
   }, [userId]);
 
   return {
-    tokens: tokenData?.tokens || 0,
-    isActive: tokenData?.isActive || false,
-    plan: tokenData?.plan || 'none',
+    tokens: subscriptionData?.tokens || 0,
+    tier: getTier(),
+    isActive: subscriptionData?.isActive || false,
     isLoading,
     error,
-    consumeTokens,
-    fetchTokens,
-    canUseAction,
-    tokenCost: TOKEN_COSTS
+    canUseFeature,
+    getTierInfo,
+    refetch: fetchSubscription
   };
 }
