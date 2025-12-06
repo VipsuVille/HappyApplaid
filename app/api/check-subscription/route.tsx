@@ -1,7 +1,8 @@
-// app/api/check-subscription/route.ts - KORJATTU
+// app/api/check-subscription/route.ts - KORJATTU TYYPEILLÄ
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import type { SubscriptionData } from "@/lib/types/subscription.types"; // ✅ LISÄÄ TÄMÄ
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,23 @@ export async function GET() {
   }
 
   try {
-    // HAE SUBSCRIPTION
-    const { data: subscription } = await supabaseAdmin
+    // ✅ LISÄÄ TYYPITYS: Database subscription row
+    type SubscriptionRow = {
+      plan: string | null;
+      plan_type: string | null;
+      tokens: number | null;
+      status: string | null;
+      current_period_end: string | null;
+      is_active: boolean | null;
+      cancel_at_period_end: boolean | null; // ✅ LISÄÄ TÄMÄ
+    };
+
+    // HAE SUBSCRIPTION (✅ nyt tyypitetty)
+    const { data: subscription, error: subError } = await supabaseAdmin
       .from("subscriptions")
-      .select("plan, plan_type, tokens, status, current_period_end, is_active")
+      .select("plan, plan_type, tokens, status, current_period_end, is_active, cancel_at_period_end") // ✅ LISÄÄ kenttä
       .eq("user_id", currentUserId)
-      .single();
+      .single<SubscriptionRow>(); // ✅ TYYPITYS TÄHÄN
 
     // HAE PROFIILI
     const { data: profile } = await supabaseAdmin
@@ -42,13 +54,14 @@ export async function GET() {
       resolvedPlan: userPlan,
       tokens: subscription?.tokens || 0,
       is_active: subscription?.is_active,
-      status: subscription?.status
+      status: subscription?.status,
+      cancel_at_period_end: subscription?.cancel_at_period_end // ✅ NÄKYY NYT
     });
 
     const isPaid = ["basic", "semi-pro", "pro"].includes(userPlan);
     const isActive = subscription?.is_active === true && 
-                     ["active", "trialing"].includes(subscription?.status) &&
-                     new Date(subscription.current_period_end) > new Date();
+                     ["active", "trialing"].includes(subscription?.status || '') &&
+                     new Date(subscription?.current_period_end || 0) > new Date();
 
     const tokens = subscription?.tokens || 0;
     const hasUsedFreeCv = profile?.has_used_free_cv || false;
@@ -86,23 +99,27 @@ export async function GET() {
 
     // ✅ PALAUTA YHDENMUKAINEN RAKENNE
     return NextResponse.json({
-      // Vanhat kentät (backward compatibility)
+      // Core fields (käytetään kaikkialla)
+      plan_type: userPlan as 'free' | 'basic' | 'semi-pro' | 'pro',
+      is_premium: isPaid && isActive,
+      tokens: tokens,
+      has_used_free_cv: hasUsedFreeCv,
+      cv_count: cvCount || 0,
+      can_create_cv: canCreate,
+      message: message,
+      
+      // ✅ Peruutustiedot (SubscriptionCard varten)
+      cancel_at_period_end: subscription?.cancel_at_period_end || false,
+      current_period_end: subscription?.current_period_end || null,
+      status: subscription?.status || 'inactive',
+      
+      // Legacy/backward compatibility
       plan: userPlan,
       is_paid: isPaid,
       is_active: isActive,
-      has_used_free_cv: hasUsedFreeCv,
-      tokens: tokens,
-      status: subscription?.status || "inactive",
-      cv_count: cvCount || 0,
-      can_create_cv: canCreate,
       features: currentFeatures,
-      message: message,
       
-      // ✅ LISÄÄ UUDET KENTÄT (yhdenmukaistaa /api/subscription kanssa)
-      plan_type: userPlan,           // ✅ TÄRKEÄ!
-      is_premium: isPaid && isActive, // ✅ TÄRKEÄ!
-      
-      // ✅ Lisää koko subscription-objekti jos haluat
+      // Full subscription object
       subscription: subscription ? {
         ...subscription,
         plan: userPlan,
@@ -122,7 +139,10 @@ export async function GET() {
         is_active: false,
         is_premium: false,
         tokens: 0,
-        can_create_cv: false
+        can_create_cv: false,
+        cancel_at_period_end: false,
+        current_period_end: null,
+        status: 'inactive'
       },
       { status: 500 }
     );

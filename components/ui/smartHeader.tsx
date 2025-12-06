@@ -50,9 +50,9 @@ export default function SmartHeader({
   const isDevelopmentMode = process.env.NEXT_PUBLIC_DEVELOPMENT_MODE === 'true';
 
   // ✅ PUHDAS DATA
-  const isPremium = isActive && subscription?.plan !== 'free';
+  const isPremium = isActive && subscription?.plan_type !== 'free';
   const tokens = subscription?.tokens || 0;
-  const plan = subscription?.plan || 'free';
+  const plan = subscription?.plan_type || 'free';
 
   // Debug-lokit (poista tuotannossa)
   useEffect(() => {

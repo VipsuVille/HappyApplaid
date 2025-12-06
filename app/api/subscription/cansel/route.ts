@@ -1,5 +1,4 @@
-//app/api/subscription/cansel/route.ts
-
+// app/api/subscription/cancel/route.ts - KORJATTU
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
@@ -16,7 +15,7 @@ export async function POST() {
     const supabaseAdmin = await getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('subscriptions')
-      .select('stripe_subscription_id, status')
+      .select('stripe_subscription_id, status, current_period_end')
       .eq('user_id', userId)
       .single();
 
@@ -36,20 +35,37 @@ export async function POST() {
       );
     }
 
-    // Peruuta tilaus Stripessä
-    await stripe.subscriptions.cancel(data.stripe_subscription_id);
+    // ✅ TÄRKEÄ: Peruuta jakson lopussa, ei välittömästi
+    const canceledSubscription = await stripe.subscriptions.update(
+      data.stripe_subscription_id,
+      {
+        cancel_at_period_end: true, // ← Peruuttaa jakson lopussa
+        metadata: {
+          cancellation_requested_at: new Date().toISOString(),
+          canceled_by_user: userId
+        }
+      }
+    );
 
-    // Päivitä tietokanta (varmistus - webhook päivittää myös)
+    console.log('✅ Subscription will cancel at:', canceledSubscription.cancel_at);
+
+    // ✅ Päivitä status tietokantaan (säilytä is_active=true jakson loppuun)
     await supabaseAdmin
       .from('subscriptions')
       .update({
-        status: 'canceled',
-        is_active: false,
+        cancel_at_period_end: true, // ← Merkitse että peruutetaan
         updated_at: new Date().toISOString(),
+        // ❌ EI aseta status='canceled' tai is_active=false vielä
       })
       .eq('stripe_subscription_id', data.stripe_subscription_id);
 
-    return NextResponse.json({ success: true, redirectTo: '/account?canceled=true' });
+    return NextResponse.json({ 
+      success: true, 
+      message: `Tilaus päättyy ${new Date(data.current_period_end).toLocaleDateString('fi-FI')}`,
+      cancelAt: data.current_period_end,
+      redirectTo: '/account?canceled=true' 
+    });
+
   } catch (error) {
     console.error('Error canceling subscription:', error);
     return NextResponse.json(
