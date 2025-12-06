@@ -17,46 +17,53 @@ export function PricingButton({ tier, label, disabled }: PricingButtonProps) {
   const router = useRouter();
   const { isSignedIn } = useAuth();
 
-  const handleClick = async () => {
-    // Jos ei kirjautunut, ohjaa kirjautumiseen
-    if (!isSignedIn) {
-      router.push('/sign-in?redirect=/pricing');
-      return;
-    }
+const handleClick = async () => {
+  console.log('🎯 Button clicked!');
+  console.log('🔐 isSignedIn:', isSignedIn);
+  console.log('📦 tier:', tier);
 
-    // Jos free tier, ohjaa dashboardiin
-    if (tier === 'free') {
-      router.push('/dashboard');
-      return;
-    }
+  if (!isSignedIn) {
+    console.log('❌ Not signed in, redirecting to sign-in');
+    router.push('/sign-in?redirect=/pricing');
+    return;
+  }
 
-    setLoading(true);
+  if (tier === 'free') {
+    console.log('ℹ️ Free tier, redirecting to dashboard');
+    router.push('/dashboard');
+    return;
+  }
 
-    try {
-      console.log(`🛒 Starting checkout for tier: ${tier}`);
-      
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier })
-      });
+  setLoading(true);
+  console.log('🚀 Calling API...');
 
-      const data = await response.json();
+  try {
+    const response = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier })
+    });
 
-      if (data.url) {
-        console.log('✅ Redirecting to Stripe checkout...');
-        window.location.href = data.url;
-      } else {
-        console.error('❌ Checkout failed:', data.error);
-        alert('Virhe: ' + (data.error || 'Maksuprosessi epäonnistui'));
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('💥 Checkout error:', error);
-      alert('Maksuprosessi epäonnistui. Yritä uudelleen.');
+    console.log('📡 Response status:', response.status);
+    console.log('📡 Response ok:', response.ok);
+
+    const data = await response.json();
+    console.log('📦 Response data:', data);
+
+    if (data.url) {
+      console.log('✅ Got URL, redirecting to:', data.url);
+      window.location.href = data.url;
+    } else {
+      console.error('❌ No URL in response');
+      alert('Virhe: ' + (data.error || 'Ei checkout URL:ia'));
       setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error('💥 Fetch error:', error);
+    alert('Maksuprosessi epäonnistui');
+    setLoading(false);
+  }
+};
 
   return (
     <button
