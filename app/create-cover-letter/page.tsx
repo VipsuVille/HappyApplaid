@@ -193,7 +193,7 @@ const handleSubmit = async () => {
     setIsGenerating(false);
   }
 };
-  const handleAnswerQuestions = async () => {
+const handleAnswerQuestions = async () => {
   const criticalQuestions = questions.filter(q => q.priority === 'critical');
   const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
   
@@ -210,6 +210,19 @@ const handleSubmit = async () => {
       ? '/api/generate-cover-letter-v2'
       : '/api/generate-cover-letter';
 
+    const action = useRAG 
+      ? 'cover_letter_rag' 
+      : selectedVersion === 'v2' 
+        ? 'cover_letter_v2' 
+        : 'cover_letter_v1';
+
+    console.log('📤 Lähetetään vastaukset:', {
+      endpoint,
+      answersCount: Object.keys(answers).length,
+      skipQuestions: true,
+      action
+    });
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -219,42 +232,74 @@ const handleSubmit = async () => {
         language,
         style,
         answeredQuestions: answers,
+        skipQuestions: true, // ✅ EI ENÄÄ KYSYMYKSIÄ
         enableRAG: useRAG
       })
     });
 
+    console.log('📥 API vastaus:', {
+      status: response.status,
+      ok: response.ok
+    });
+
     const data = await response.json();
+
+    console.log('📦 API data:', {
+      success: data.success,
+      hasCoverLetterId: !!data.coverLetterId,
+      coverLetterId: data.coverLetterId,
+      error: data.error
+    });
+
+    // ✅ Tarkista HTTP status
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // ✅ Jos AI kysyy VIELÄ kysymyksiä (ei pitäisi tapahtua)
+    if (data.needsMoreInfo && data.questions) {
+      console.warn('⚠️ AI kysyi taas kysymyksiä vaikka skipQuestions=true');
+      setError('AI tarvitsee vielä lisätietoja. Yritä uudelleen.');
+      return;
+    }
 
     // ✅ VARMISTA ETTÄ coverLetterId ON OLEMASSA
     if (data.success && data.coverLetterId) {
-      const action = useRAG 
-        ? 'cover_letter_rag' 
-        : selectedVersion === 'v2' 
-          ? 'cover_letter_v2' 
-          : 'cover_letter_v1';
-      
+      // ✅ KULUTA TOKENIT
       if (plan_type !== 'free' && isActive) {
-        await consumeTokens(action);
+        console.log(`💰 Consuming tokens for: ${action}`);
+        const consumed = await consumeTokens(action);
+        
+        if (!consumed) {
+          console.warn("⚠️ Token consumption failed, but letter was created");
+        }
       }
 
+      // ✅ TYHJENNÄ KYSYMYKSET JA VASTAUKSET
       setShowQuestions(false);
       setQuestions([]);
       setAnswers({});
-      toast.success('✅ Hakukirje luotu!');
+      
+      toast.success('✅ Hakukirje luotu vastausten perusteella!');
+      
+      console.log('🚀 Navigoidaan:', `/edit-cover-letter/${data.coverLetterId}`);
       router.push(`/edit-cover-letter/${data.coverLetterId}`);
     } else {
-      throw new Error(data.error || 'Vastausten tallennus epäonnistui');
+      console.error('❌ API ei palauttanut coverLetterId:', data);
+      throw new Error(data.error || 'Vastausten tallennus epäonnistui - coverLetterId puuttuu');
     }
 
   } catch (err) {
-    console.error('❌ Error:', err);
-    setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-    toast.error(err instanceof Error ? err.message : 'Vastausten tallennus epäonnistui');
+    console.error('❌ Error in handleAnswerQuestions:', err);
+    console.error('❌ Stack:', err instanceof Error ? err.stack : 'N/A');
+    
+    const errorMessage = err instanceof Error ? err.message : 'Tuntematon virhe';
+    setError(errorMessage);
+    toast.error(errorMessage);
   } finally {
     setIsGenerating(false);
   }
 };
-
   if (!isLoaded || tokensLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

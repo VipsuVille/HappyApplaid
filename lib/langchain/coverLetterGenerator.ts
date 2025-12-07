@@ -33,6 +33,7 @@ export interface DataQuality {
   suggestions: string[];
 }
 
+// ✅ VAIN YKSI INTERFACE MÄÄRITTELY
 export interface CoverLetterV1Input {
   jobDescription: string;
   name: string;
@@ -67,6 +68,9 @@ export interface CoverLetterV1Input {
   enableRAG?: boolean;
   allowedSkills?: string[];
   forbiddenClaims?: string[];
+  
+  // ✅ SKIP QUESTIONS
+  skipQuestions?: boolean;
 }
 
 /**
@@ -142,47 +146,56 @@ Return JSON.`]
 export async function generateCoverLetterV1(input: CoverLetterV1Input): Promise<CoverLetterV1Output> {
   try {
     console.log("🔍 V1: Flexible analysis...");
+    console.log(`   - skipQuestions: ${input.skipQuestions}`);
 
-    // ✅ STEP 0: Smart analysis
-    const smartAnalysis = await analyzeJobAndProfile({
-      jobDescription: input.jobDescription,
-      userProfile: {
-        name: input.name,
-        workExperience: input.workExperience,
-        education: input.education,
-        skills: input.skills,
-        workingStyle: input.workingStyle,
-        problemSolving: input.problemSolving,
-        uniqueStrength: input.uniqueStrength,
-        careerGoals: input.careerGoals,
-        bestProjectExample: input.bestProjectExample,
-        failureLesson: input.failureLesson,
-        personalNotes: input.personalNotes
-      },
-      language: input.language || 'finnish'
-    });
+    // ✅ TALLENNETAAN smartAnalysis MUUTTUJAAN (scope koko funktion laajuinen)
+    let smartAnalysis: any = null;
 
-    // KYSYTÄÄNKÖ?
-    if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
-      console.log(`❓ Generated ${smartAnalysis.questions.length} questions`);
-      
-      return {
-        content: "",
-        title: "Lisätietoja tarvitaan",
-        signature: input.name,
-        questions: smartAnalysis.questions,
-        needsMoreInfo: true,
-        data_quality: {
-          quality: smartAnalysis.confidence > 70 ? 'moderate' : 'minimal',
-          score: smartAnalysis.confidence,
-          reasoning: smartAnalysis.reasoning,
-          personalityCompleteness: smartAnalysis.confidence,
-          suggestions: smartAnalysis.questions.map(q => q.question)
-        }
-      };
+    // ✅ STEP 0: Smart analysis (JOS EI SKIP)
+    if (!input.skipQuestions) {
+      smartAnalysis = await analyzeJobAndProfile({
+        jobDescription: input.jobDescription,
+        userProfile: {
+          name: input.name,
+          workExperience: input.workExperience,
+          education: input.education,
+          skills: input.skills,
+          workingStyle: input.workingStyle,
+          problemSolving: input.problemSolving,
+          uniqueStrength: input.uniqueStrength,
+          careerGoals: input.careerGoals,
+          bestProjectExample: input.bestProjectExample,
+          failureLesson: input.failureLesson,
+          personalNotes: input.personalNotes
+        },
+        language: input.language || 'finnish'
+      });
+
+      // KYSYTÄÄNKÖ?
+      if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
+        console.log(`❓ Generated ${smartAnalysis.questions.length} questions`);
+        
+        return {
+          content: "",
+          title: "Lisätietoja tarvitaan",
+          signature: input.name,
+          questions: smartAnalysis.questions,
+          needsMoreInfo: true,
+          data_quality: {
+            quality: smartAnalysis.confidence > 70 ? 'moderate' : 'minimal',
+            score: smartAnalysis.confidence,
+            reasoning: smartAnalysis.reasoning,
+            personalityCompleteness: smartAnalysis.confidence,
+            suggestions: smartAnalysis.questions.map((q: SmartQuestion) => q.question)
+          }
+        };
+      }
+
+      console.log("✅ Profile sufficient");
+    } else {
+      console.log("⏭️ Skipping question analysis (skipQuestions=true)");
     }
 
-    console.log("✅ Profile sufficient");
     console.log("🚀 Analyzing job...");
 
     // STEP 1: Analyze job
@@ -211,7 +224,7 @@ export async function generateCoverLetterV1(input: CoverLetterV1Input): Promise<
             failureLesson: input.failureLesson,
           },
           enableRAG: true,
-          contentType: 'cover_letter' // ✅ FILTER
+          contentType: 'cover_letter'
         });
         console.log('✅ RAG loaded (cover_letter type)');
       } catch (error) {
@@ -254,30 +267,11 @@ ${knowledgeContext}
 **FORBIDDEN CLAIMS:**
 {forbiddenClaims}
 
-**VERIFICATION:**
-Before ANY skill claim:
-1. Check: In allowedSkills?
-2. If NO → GENERATE QUESTION
-3. NEVER fabricate
-
-**QUESTION FORMAT:**
-{{
-  "questions": [
-    {{
-      "id": "verify_X",
-      "question": "Job needs [skill]. Do you have it?",
-      "context": "Quote from job",
-      "priority": "high"
-    }}
-  ]
-}}
-
 **YOUR MISSION:**
 1. Match personality to THIS job
 2. Use ONLY allowedSkills
 3. Show fit through authentic stories
-4. If missing skill → ASK QUESTION
-5. 280-350 words
+4. 280-350 words
 
 **STRUCTURE:**
 1. Opening: Hook + fit
@@ -293,8 +287,7 @@ Before ANY skill claim:
 
 **OUTPUT:**
 {{
-  "content": "full letter" OR null,
-  "questions": [] OR [questions],
+  "content": "full letter",
   "title": "job title",
   "signature": "name",
   "personality_hooks": ["trait1", "trait2"],
@@ -304,7 +297,7 @@ Before ANY skill claim:
 
 Return JSON.`;
 
-   const humanTemplate = `Generate letter OR questions.
+    const humanTemplate = `Generate cover letter.
 
 **JOB:**
 {jobDescription}
@@ -347,12 +340,7 @@ Learning: {failureLesson}
 **PERSONAL NOTES (TOP PRIORITY):**
 {personalNotes}
 
-**CRITICAL:**
-- If job needs skill NOT in ALLOWED → ASK
-- NEVER use FORBIDDEN skills
-- If uncertain → ASK
-
-Return JSON (letter OR questions).`;
+Return JSON with cover letter.`;
 
     const prompt = ChatPromptTemplate.fromMessages([
       ["system", systemPrompt],
@@ -405,21 +393,6 @@ Return JSON (letter OR questions).`;
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    // ✅ IF QUESTIONS
-    if (parsed.questions && parsed.questions.length > 0) {
-      console.log(`❓ AI questions: ${parsed.questions.length}`);
-      return {
-        content: "",
-        title: parsed.title || "Cover Letter",
-        signature: parsed.signature || input.name,
-        questions: parsed.questions,
-        needsMoreInfo: true,
-        personality_hooks: parsed.personality_hooks || [],
-        job_match_score: parsed.job_match_score || 7,
-        key_differentiators: parsed.key_differentiators || [],
-      };
-    }
-
     // ✅ FORMAT CONTENT
     const formattedContent = (parsed.content || '')
       .replace(/\*\*/g, "")
@@ -434,11 +407,18 @@ Return JSON (letter OR questions).`;
       personality_hooks: parsed.personality_hooks || [],
       job_match_score: parsed.job_match_score || 7,
       key_differentiators: parsed.key_differentiators || [],
-      data_quality: {
+      // ✅ KORJATTU: Käytä smartAnalysis jos olemassa, muuten fallback
+      data_quality: smartAnalysis ? {
         quality: smartAnalysis.confidence >= 80 ? 'rich' : smartAnalysis.confidence >= 50 ? 'moderate' : 'minimal',
         score: smartAnalysis.confidence,
         reasoning: smartAnalysis.reasoning,
         personalityCompleteness: smartAnalysis.confidence,
+        suggestions: []
+      } : {
+        quality: 'moderate',
+        score: 70,
+        reasoning: 'Generated with skipQuestions=true',
+        personalityCompleteness: 70,
         suggestions: []
       }
     };
