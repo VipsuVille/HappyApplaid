@@ -76,74 +76,81 @@ export function useTokens() {
   const [error, setError] = useState<string | null>(null);
   const { userId, isSignedIn } = useAuth();
 
-  const fetchTokens = async () => {
-    if (!isSignedIn || !userId) {
-      setTokenData({
-        tokens: 0,
-        isActive: false,
-        plan_type: 'free',
-        features: TIER_FEATURES.free,
-        cancel_at_period_end: false,
-        current_period_end: null,
-        status: 'inactive'
-      });
-      setIsLoading(false);
-      return;
+  const fetchTokens = async (retries = 3) => {
+  // ✅ Jos ei kirjautunut, aseta safe defaults
+  if (!isSignedIn || !userId) {
+    setTokenData({
+      tokens: 0,
+      isActive: false,
+      plan_type: 'free',
+      features: TIER_FEATURES.free,
+      cancel_at_period_end: false,
+      current_period_end: null,
+      status: 'inactive'
+    });
+    setIsLoading(false);
+    return;
+  }
+
+  try {
+    console.log(`🔄 Fetching tokens (attempt ${4 - retries}/3)...`);
+    
+    const response = await fetch('/api/check-subscription', {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    });
+
+    // ✅ JOS 401 JA RETRIESEJÄ JÄLJELLÄ → YRITÄ UUDELLEEN
+    if (response.status === 401 && retries > 0) {
+      console.warn(`⚠️ Auth not ready (401), retrying in 1s... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return fetchTokens(retries - 1);
     }
 
-    try {
-      console.log('🔄 Fetching tokens from /api/check-subscription...');
-      
-      // ✅ KÄYTÄ /api/check-subscription (ei /api/subscription)
-      const response = await fetch('/api/check-subscription', {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      console.log('✅ Token data received:', {
-        plan_type: data.plan_type,
-        tokens: data.tokens,
-        is_premium: data.is_premium,
-        cancel_at_period_end: data.cancel_at_period_end
-      });
-
-      const planType = (data.plan_type || 'free') as 'free' | 'basic' | 'semi-pro' | 'pro';
-      
-      setTokenData({
-        tokens: data.tokens || 0,
-        isActive: data.is_premium || false,
-        plan_type: planType,
-        features: TIER_FEATURES[planType],
-        cancel_at_period_end: data.cancel_at_period_end || false,
-        current_period_end: data.current_period_end || null,
-        status: data.status || 'inactive'
-      });
-
-      setError(null);
-    } catch (err) {
-      console.error('❌ Error fetching tokens:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      
-      // Safe fallback
-      setTokenData({
-        tokens: 0,
-        isActive: false,
-        plan_type: 'free',
-        features: TIER_FEATURES.free,
-        cancel_at_period_end: false,
-        current_period_end: null,
-        status: 'inactive'
-      });
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-  };
+
+    const data = await response.json();
+    
+    console.log('✅ Token data received:', {
+      plan_type: data.plan_type,
+      tokens: data.tokens,
+      is_premium: data.is_premium,
+      cancel_at_period_end: data.cancel_at_period_end
+    });
+
+    const planType = (data.plan_type || 'free') as 'free' | 'basic' | 'semi-pro' | 'pro';
+    
+    setTokenData({
+      tokens: data.tokens || 0,
+      isActive: data.is_premium || false,
+      plan_type: planType,
+      features: TIER_FEATURES[planType],
+      cancel_at_period_end: data.cancel_at_period_end || false,
+      current_period_end: data.current_period_end || null,
+      status: data.status || 'inactive'
+    });
+
+    setError(null);
+  } catch (err) {
+    console.error('❌ Error fetching tokens:', err);
+    setError(err instanceof Error ? err.message : 'Unknown error');
+    
+    // Safe fallback
+    setTokenData({
+      tokens: 0,
+      isActive: false,
+      plan_type: 'free',
+      features: TIER_FEATURES.free,
+      cancel_at_period_end: false,
+      current_period_end: null,
+      status: 'inactive'
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ✅ KULUTA TOKENIT
   const consumeTokens = async (action: TokenAction): Promise<boolean> => {

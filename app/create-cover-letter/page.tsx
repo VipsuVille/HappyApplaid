@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { SignedIn, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -50,8 +50,7 @@ export default function CreateCoverLetterPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showQuestions, setShowQuestions] = useState(false);
-  
-  const { user, isLoaded } = useUser();
+const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
 
   // ✅ KÄYTÄ SINUN useTokens HOOKIA
@@ -79,98 +78,122 @@ export default function CreateCoverLetterPage() {
     }
   }, [isGenerating]);
 
-  const handleSubmit = async () => {
-    if (!jobDescription.trim()) {
-      setError("Työpaikkailmoitus on pakollinen");
+ // create-cover-letter/page.tsx
+const handleSubmit = async () => {
+  // ✅ KORJAA: SignedIn → isSignedIn
+  if (!isLoaded || !isSignedIn || !user?.id) {
+    console.error('❌ Clerk not ready');
+    toast.error('Odota hetki, kirjautuminen käynnissä...');
+    return;
+  }
+
+  if (!jobDescription.trim()) {
+    setError("Työpaikkailmoitus on pakollinen");
+    return;
+  }
+
+  // ✅ VALIDOI V2/RAG KÄYTTÖ
+  if (selectedVersion === 'v2' && !features.canUseV2) {
+    toast.error("V2 ATS Generator vaatii Semi-Pro tai Pro -tason");
+    return;
+  }
+
+  if (useRAG && !features.canUseRAG) {
+    toast.error("RAG-tietokanta vaatii Pro-tason");
+    return;
+  }
+
+  // ✅ TARKISTA TOKENIT
+  const action = useRAG 
+    ? 'cover_letter_rag' 
+    : selectedVersion === 'v2' 
+      ? 'cover_letter_v2' 
+      : 'cover_letter_v1';
+  
+  const validation = canUseAction(action);
+  if (!validation.allowed && plan_type !== 'free') {
+    toast.error(validation.reason || 'Ei voi generoida hakukirjettä');
+    return;
+  }
+
+  const cost = getActionCost(action);
+
+  setIsGenerating(true);
+  setError(null);
+
+  try {
+    const endpoint = selectedVersion === 'v2' 
+      ? '/api/generate-cover-letter-v2'
+      : '/api/generate-cover-letter';
+
+    console.log("🚀 Generating cover letter:", { 
+      version: selectedVersion, 
+      useRAG, 
+      cost,
+      userId: user.id // ✅ Varmista että tämä on olemassa
+    });
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobDescription,
+        personalNotes,
+        language,
+        style,
+        enableRAG: useRAG
+      })
+    });
+
+    const data = await response.json();
+
+    // ✅ JOS 401 → AUTH ONGELMA
+    if (response.status === 401) {
+      toast.error('Kirjautuminen vanhentunut. Lataa sivu uudelleen.');
       return;
     }
 
-    // ✅ VALIDOI V2/RAG KÄYTTÖ
-    if (selectedVersion === 'v2' && !features.canUseV2) {
-      toast.error("V2 ATS Generator vaatii Semi-Pro tai Pro -tason");
-      return;
-    }
-
-    if (useRAG && !features.canUseRAG) {
-      toast.error("RAG-tietokanta vaatii Pro-tason");
-      return;
-    }
-
-    // ✅ TARKISTA TOKENIT
-    const action = useRAG 
-      ? 'cover_letter_rag' 
-      : selectedVersion === 'v2' 
-        ? 'cover_letter_v2' 
-        : 'cover_letter_v1';
-    
-    const validation = canUseAction(action);
-    if (!validation.allowed && plan_type !== 'free') {
-      toast.error(validation.reason || 'Ei voi generoida hakukirjettä');
-      return;
-    }
-
-    const cost = getActionCost(action);
-
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const endpoint = selectedVersion === 'v2' 
-        ? '/api/generate-cover-letter-v2'
-        : '/api/generate-cover-letter';
-
-      console.log("🚀 Generating cover letter:", { version: selectedVersion, useRAG, cost });
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobDescription,
-          personalNotes,
-          language,
-          style,
-          enableRAG: useRAG
-        })
-      });
-
-      const data = await response.json();
-
-      // ✅ JOS AI PALAUTTAA KYSYMYKSIÄ
-      if (data.needsMoreInfo && data.questions) {
-        setQuestions(data.questions);
-        setShowQuestions(true);
-        setIsGenerating(false);
-        return;
-      }
-
-      // ✅ SUCCESS
-      if (data.success) {
-        // ✅ KULUTA TOKENIT
-        if (plan_type !== 'free' && isActive) {
-          console.log(`💰 Consuming ${cost} tokens for action: ${action}`);
-          const consumed = await consumeTokens(action);
-          
-          if (!consumed) {
-            console.warn("⚠️ Token consumption failed, but letter was created");
-          } else {
-            console.log(`✅ Tokens consumed. Remaining: ${tokens - cost}`);
-          }
-        }
-
-        toast.success(
-          useRAG ? "🎯 RAG-optimoitu hakukirje luotu!" :
-          selectedVersion === 'v2' ? "✅ ATS-optimoitu hakukirje luotu!" :
-          "✅ Hakukirje luotu!"
-        );
-        router.push(`/edit-cover-letter/${data.coverLetterId}`);
-      }
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-    } finally {
+    // ✅ JOS AI PALAUTTAA KYSYMYKSIÄ
+    if (data.needsMoreInfo && data.questions) {
+      setQuestions(data.questions);
+      setShowQuestions(true);
       setIsGenerating(false);
+      return;
     }
-  };
+
+    // ✅ SUCCESS
+    if (data.success && data.coverLetterId) {
+      // ✅ KULUTA TOKENIT
+      if (plan_type !== 'free' && isActive) {
+        console.log(`💰 Consuming ${cost} tokens for action: ${action}`);
+        const consumed = await consumeTokens(action);
+        
+        if (!consumed) {
+          console.warn("⚠️ Token consumption failed, but letter was created");
+        } else {
+          console.log(`✅ Tokens consumed. Remaining: ${tokens - cost}`);
+        }
+      }
+
+      toast.success(
+        useRAG ? "🎯 RAG-optimoitu hakukirje luotu!" :
+        selectedVersion === 'v2' ? "✅ ATS-optimoitu hakukirje luotu!" :
+        "✅ Hakukirje luotu!"
+      );
+      
+      router.push(`/edit-cover-letter/${data.coverLetterId}`);
+    } else {
+      throw new Error(data.error || 'Hakukirjeen luonti epäonnistui');
+    }
+
+  } catch (err) {
+    console.error('❌ Error:', err);
+    setError(err instanceof Error ? err.message : 'Tuntematon virhe');
+    toast.error(err instanceof Error ? err.message : 'Hakukirjeen luonti epäonnistui');
+  } finally {
+    setIsGenerating(false);
+  }
+};
 
   const handleAnswerQuestions = async () => {
     const criticalQuestions = questions.filter(q => q.priority === 'critical');
