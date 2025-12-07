@@ -162,7 +162,7 @@
       "important": ["keyword2"],
       "optional": ["keyword3"]
     }
-  }`],
+  `],
 
       ['human', `**JOB DESCRIPTION:**
   {jobDescription}
