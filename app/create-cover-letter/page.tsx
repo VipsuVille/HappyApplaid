@@ -80,7 +80,6 @@ const { user, isLoaded, isSignedIn } = useUser();
 
  // create-cover-letter/page.tsx
 const handleSubmit = async () => {
-  // ✅ KORJAA: SignedIn → isSignedIn
   if (!isLoaded || !isSignedIn || !user?.id) {
     console.error('❌ Clerk not ready');
     toast.error('Odota hetki, kirjautuminen käynnissä...');
@@ -130,7 +129,7 @@ const handleSubmit = async () => {
       version: selectedVersion, 
       useRAG, 
       cost,
-      userId: user.id // ✅ Varmista että tämä on olemassa
+      userId: user.id
     });
 
     const response = await fetch(endpoint, {
@@ -161,7 +160,7 @@ const handleSubmit = async () => {
       return;
     }
 
-    // ✅ SUCCESS
+    // ✅ SUCCESS - VAIN JOS coverLetterId ON OLEMASSA
     if (data.success && data.coverLetterId) {
       // ✅ KULUTA TOKENIT
       if (plan_type !== 'free' && isActive) {
@@ -194,63 +193,67 @@ const handleSubmit = async () => {
     setIsGenerating(false);
   }
 };
-
   const handleAnswerQuestions = async () => {
-    const criticalQuestions = questions.filter(q => q.priority === 'critical');
-    const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
-    
-    if (unansweredCritical.length > 0) {
-      setError('Vastaa kaikkiin pakollisiin kysymyksiin');
-      return;
-    }
+  const criticalQuestions = questions.filter(q => q.priority === 'critical');
+  const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
+  
+  if (unansweredCritical.length > 0) {
+    setError('Vastaa kaikkiin pakollisiin kysymyksiin');
+    return;
+  }
 
-    setIsGenerating(true);
-    setError(null);
+  setIsGenerating(true);
+  setError(null);
 
-    try {
-      const endpoint = selectedVersion === 'v2' 
-        ? '/api/generate-cover-letter-v2'
-        : '/api/generate-cover-letter';
+  try {
+    const endpoint = selectedVersion === 'v2' 
+      ? '/api/generate-cover-letter-v2'
+      : '/api/generate-cover-letter';
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobDescription,
-          personalNotes,
-          language,
-          style,
-          answeredQuestions: answers,
-          enableRAG: useRAG
-        })
-      });
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobDescription,
+        personalNotes,
+        language,
+        style,
+        answeredQuestions: answers,
+        enableRAG: useRAG
+      })
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (data.success) {
-        const action = useRAG 
-          ? 'cover_letter_rag' 
-          : selectedVersion === 'v2' 
-            ? 'cover_letter_v2' 
-            : 'cover_letter_v1';
-        
-        if (plan_type !== 'free' && isActive) {
-          await consumeTokens(action);
-        }
-
-        setShowQuestions(false);
-        setQuestions([]);
-        setAnswers({});
-        toast.success('✅ Hakukirje luotu!');
-        router.push(`/edit-cover-letter/${data.coverLetterId}`);
+    // ✅ VARMISTA ETTÄ coverLetterId ON OLEMASSA
+    if (data.success && data.coverLetterId) {
+      const action = useRAG 
+        ? 'cover_letter_rag' 
+        : selectedVersion === 'v2' 
+          ? 'cover_letter_v2' 
+          : 'cover_letter_v1';
+      
+      if (plan_type !== 'free' && isActive) {
+        await consumeTokens(action);
       }
 
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-    } finally {
-      setIsGenerating(false);
+      setShowQuestions(false);
+      setQuestions([]);
+      setAnswers({});
+      toast.success('✅ Hakukirje luotu!');
+      router.push(`/edit-cover-letter/${data.coverLetterId}`);
+    } else {
+      throw new Error(data.error || 'Vastausten tallennus epäonnistui');
     }
-  };
+
+  } catch (err) {
+    console.error('❌ Error:', err);
+    setError(err instanceof Error ? err.message : 'Tuntematon virhe');
+    toast.error(err instanceof Error ? err.message : 'Vastausten tallennus epäonnistui');
+  } finally {
+    setIsGenerating(false);
+  }
+};
 
   if (!isLoaded || tokensLoading) {
     return (
