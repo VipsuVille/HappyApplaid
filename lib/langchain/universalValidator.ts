@@ -94,11 +94,11 @@ Does candidate have relevant information for THIS specific role?
 - If job is different language than profile, flag it
 
 **OUTPUT:**
-{
+{{
   "canGenerateNow": true/false,
   "score": 0-100,
   "questions": [
-    {
+    {{
       "id": "unclear_1",
       "question": "Question in user's language",
       "why": "Why this matters for THIS job",
@@ -107,11 +107,11 @@ Does candidate have relevant information for THIS specific role?
       "priority": "critical|important|optional",
       "type": "clarification|missing|vague",
       "suggestions": ["Possible meaning 1", "Possible meaning 2"]
-    }
+    }}
   ],
   "warnings": ["Warning in user's language"],
   "reason": "Explanation in user's language"
-}
+    }}
 
 **SCORING:**
 - 90-100: Excellent for THIS job, ready

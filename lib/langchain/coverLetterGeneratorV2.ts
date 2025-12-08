@@ -7,6 +7,7 @@ import { z } from "zod";
 import { analyzeJobAndProfile, type SmartQuestion } from "./smartQuestionAnalyzer";
 import type { GroundTruth } from "@/lib/ats/masterGuardian";
 import { buildAIContext } from "@/lib/knowledge"; // ✅ RAG
+import { escapeTemplateString } from "../utils/escapeTemplate";
 
 // ✅ PÄIVITETTY SCHEMA: Questions support
 const coherentCoverLetterSchema = z.object({
@@ -141,19 +142,19 @@ export async function generateCoherentCoverLetter(input: {
   const smartAnalysis = await analyzeJobAndProfile({
     jobDescription: input.jobDescription,
     userProfile: {
-      name: input.name,
-      workExperience: input.workExperience,
-      education: input.education,
-      skills: input.skills,
-      workingStyle: input.workingStyle,
-      problemSolving: input.problemSolving,
-      uniqueStrength: input.uniqueStrength,
-      careerGoals: input.careerGoals,
-      bestProjectExample: input.bestProjectExample,
-      failureLesson: input.failureLesson,
-      personalNotes: input.personalNotes
+      name: escapeTemplateString(input.name || "Not specified"),
+      workExperience: escapeTemplateString(input.workExperience || "Not specified"),
+      education: escapeTemplateString(input.education || "Not specified"),
+      skills: escapeTemplateString(input.skills || "Not specified"),
+      workingStyle: escapeTemplateString(input.workingStyle || "Not specified"),
+      problemSolving: escapeTemplateString(input.problemSolving || "Not specified"),
+      uniqueStrength: escapeTemplateString(input.uniqueStrength || "Not specified"),
+      careerGoals: escapeTemplateString(input.careerGoals || "Not specified"),
+      bestProjectExample: escapeTemplateString(input.bestProjectExample || "Not specified"),
+      failureLesson: escapeTemplateString(input.failureLesson || "Not specified"),
+      personalNotes: escapeTemplateString(input.personalNotes || "Not specified"),
     },
-    language: input.language || 'finnish'
+    language: escapeTemplateString(input.language || 'finnish')
   });
 
   // KYSYTÄÄNKÖ?
@@ -192,10 +193,10 @@ export async function generateCoherentCoverLetter(input: {
   console.log('🔍 Analyzing job...');
   
   // STEP 1: Analyze job
-  const jobAnalysis = await analyzeJobPosting(input.jobDescription);
+const jobAnalysis = await analyzeJobPosting(escapeTemplateString(input.jobDescription));
   console.log(`📊 Detected: ${jobAnalysis.detected_industry}, ${jobAnalysis.company_size}`);
 
-  const hasWorkExperience = input.workExperience && input.workExperience.length > 100;
+  const hasWorkExperience = escapeTemplateString(input.workExperience || "Not specified") && escapeTemplateString(input.workExperience || "Not specified").length > 100;
 
   // ✅ STEP 2: LOAD RAG CONTEXT (if enabled)
   let knowledgeContext = '';
@@ -206,18 +207,18 @@ export async function generateCoherentCoverLetter(input: {
         jobDescription: input.jobDescription,
         userProfile: {
           // Full profile for semantic inference
-          workExperience: input.workExperience,
-          education: input.education,
-          skills: input.skills,
-          workingStyle: input.workingStyle,
-          problemSolving: input.problemSolving,
-          uniqueStrength: input.uniqueStrength,
-          learningStyle: input.learningStyle,
-          teamRole: input.teamRole,
-          superpower: input.superpower,
-          careerGoals: input.careerGoals,
-          bestProjectExample: input.bestProjectExample,
-          failureLesson: input.failureLesson,
+          workExperience: escapeTemplateString(input.workExperience || "Not specified"),
+          education: escapeTemplateString(input.education || "Not specified"),
+          skills: escapeTemplateString(input.skills || "Not specified"),
+          workingStyle: escapeTemplateString(input.workingStyle || "Not specified"),
+          problemSolving: escapeTemplateString(input.problemSolving || "Not specified"),
+          uniqueStrength: escapeTemplateString(input.uniqueStrength || "Not specified"),
+          learningStyle: escapeTemplateString(input.learningStyle || "Not specified"),
+          teamRole: escapeTemplateString(input.teamRole || "Not specified"),
+          superpower: escapeTemplateString(input.superpower || "Not specified"),
+          careerGoals: escapeTemplateString(input.careerGoals || "Not specified"),
+          bestProjectExample: escapeTemplateString(input.bestProjectExample || "Not specified"),
+          failureLesson: escapeTemplateString(input.failureLesson || "Not specified"),
         },
         enableRAG: true,
         contentType: 'cover_letter' // ✅ FILTER TO COVER LETTERS
@@ -381,27 +382,27 @@ Return JSON (letter OR questions).`]
       companyName: jobAnalysis.company_name,
       jobTitle: jobAnalysis.job_title,
       styleInstructions,
-      language: input.language || "Finnish",
-      jobDescription: input.jobDescription,
-      name: input.name,
-      age: input.age ? `${input.age} years` : 'Not specified',
-      workExperience: input.workExperience || "Limited formal experience",
-      education: input.education || "Not specified",
-      skills: input.skills || "Developing",
-      allowedSkills: input.allowedSkills?.join(", ") || "All skills from profile",
-      forbiddenClaims: input.forbiddenClaims?.join(", ") || "None",
-      workingStyle: input.workingStyle || "Not specified",
-      problemSolving: input.problemSolving || "Not specified",
-      energySources: input.energySources || "Not specified",
-      uniqueStrength: input.uniqueStrength || "Not specified",
-      learningStyle: input.learningStyle || "Not specified",
-      teamRole: input.teamRole || "Not specified",
-      superpower: input.superpower || "Not specified",
-      valuesExample: input.valuesExample || "Not specified",
-      careerGoals: input.careerGoals || "Not specified",
-      bestProjectExample: input.bestProjectExample || "Not specified",
-      failureLesson: input.failureLesson || "Not specified",
-      personalNotes: input.personalNotes || "Not specified",
+      language: escapeTemplateString(input.language  || "Finnish"),
+      jobDescription: escapeTemplateString(input.jobDescription || "Not specified"),
+      name: escapeTemplateString(input.name || "Not specified"),
+      age: escapeTemplateString(input.age ? `${input.age} years` : 'Not specified'),
+      workExperience: escapeTemplateString(input.workExperience || "Limited formal experience"),
+      education: escapeTemplateString(input.education || "Not specified"),
+      skills: escapeTemplateString(input.skills || "Developing"),
+      allowedSkills: escapeTemplateString(input.allowedSkills?.join(", ") || "All skills from profile"),
+      forbiddenClaims: escapeTemplateString(input.forbiddenClaims?.join(", ") || "None"),
+      workingStyle: escapeTemplateString(input.workingStyle || "Not specified"),
+      problemSolving: escapeTemplateString(input.problemSolving || "Not specified"),
+      energySources: escapeTemplateString(input.energySources || "Not specified"),
+      uniqueStrength: escapeTemplateString(input.uniqueStrength || "Not specified"),
+      learningStyle: escapeTemplateString(input.learningStyle || "Not specified"),
+      teamRole: escapeTemplateString(input.teamRole || "Not specified"),
+      superpower: escapeTemplateString(input.superpower || "Not specified"),
+      valuesExample: escapeTemplateString(input.valuesExample || "Not specified"),
+      careerGoals: escapeTemplateString(input.careerGoals || "Not specified"),
+      bestProjectExample: escapeTemplateString(input.bestProjectExample || "Not specified"),
+      failureLesson: escapeTemplateString(input.failureLesson || "Not specified"),
+      personalNotes: escapeTemplateString(input.personalNotes || "Not specified"),
       ageInstruction,
       format_instructions: outputParser.getFormatInstructions(),
     });
