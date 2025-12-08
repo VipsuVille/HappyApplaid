@@ -1,4 +1,4 @@
-// lib/langchain/coverLetterGeneratorV2.ts - TÄYDELLINEN RAG-INTEGRAATIO
+// lib/langchain/coverLetterGeneratorV2.ts - TÄYDELLINEN RAG-INTEGRAATIO (KORJATTU)
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -6,28 +6,24 @@ import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { analyzeJobAndProfile, type SmartQuestion } from "./smartQuestionAnalyzer";
 import type { GroundTruth } from "@/lib/ats/masterGuardian";
-import { buildAIContext } from "@/lib/knowledge"; // ✅ RAG
-import { escapeTemplateString } from "../utils/escapeTemplate";
+import { buildAIContext } from "@/lib/knowledge";
 
-// ✅ PÄIVITETTY SCHEMA: Questions support
+// ✅ SCHEMA
 const coherentCoverLetterSchema = z.object({
-  fullText: z.string().optional().describe("Hakukirje (JOS ei kysymyksiä)"),
-  
+  fullText: z.string().optional(),
   questions: z.array(z.object({
     id: z.string(),
     question: z.string(),
     why: z.string(),
     context: z.string(),
     priority: z.enum(['critical', 'important', 'helpful'])
-  })).optional().describe("Kysymykset JOS tietoa puuttuu"),
-  
+  })).optional(),
   keyPoints: z.object({
     personalityHook: z.string(),
     experienceHighlight: z.string(),
     skillsMatch: z.string(),
     motivation: z.string(),
   }).optional(),
-  
   atsData: z.object({
     matchedKeywords: z.array(z.string()),
     missingExperience: z.boolean(),
@@ -40,7 +36,7 @@ type CoherentCoverLetter = z.infer<typeof coherentCoverLetterSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(coherentCoverLetterSchema);
 
 /**
- * ✅ ANALYZE JOB (NO HARDCODING)
+ * ✅ ANALYZE JOB - EI ESCAPETUSTA
  */
 async function analyzeJobPosting(jobDescription: string) {
   const model = new ChatOpenAI({
@@ -105,7 +101,7 @@ Return JSON:
 }
 
 /**
- * ✅ MAIN GENERATOR (RAG + Questions)
+ * ✅ MAIN GENERATOR - EI ESCAPETUKSIA
  */
 export async function generateCoherentCoverLetter(input: {
   jobDescription: string;
@@ -130,8 +126,6 @@ export async function generateCoherentCoverLetter(input: {
   failureLesson?: string;
   language?: string;
   style?: "formal" | "casual";
-  
-  // ✅ RAG + Ground Truth
   enableRAG?: boolean;
   allowedSkills?: string[];
   forbiddenClaims?: string[];
@@ -142,19 +136,19 @@ export async function generateCoherentCoverLetter(input: {
   const smartAnalysis = await analyzeJobAndProfile({
     jobDescription: input.jobDescription,
     userProfile: {
-      name: escapeTemplateString(input.name || "Not specified"),
-      workExperience: escapeTemplateString(input.workExperience || "Not specified"),
-      education: escapeTemplateString(input.education || "Not specified"),
-      skills: escapeTemplateString(input.skills || "Not specified"),
-      workingStyle: escapeTemplateString(input.workingStyle || "Not specified"),
-      problemSolving: escapeTemplateString(input.problemSolving || "Not specified"),
-      uniqueStrength: escapeTemplateString(input.uniqueStrength || "Not specified"),
-      careerGoals: escapeTemplateString(input.careerGoals || "Not specified"),
-      bestProjectExample: escapeTemplateString(input.bestProjectExample || "Not specified"),
-      failureLesson: escapeTemplateString(input.failureLesson || "Not specified"),
-      personalNotes: escapeTemplateString(input.personalNotes || "Not specified"),
+      name: input.name || "Not specified",
+      workExperience: input.workExperience || "Not specified",
+      education: input.education || "Not specified",
+      skills: input.skills || "Not specified",
+      workingStyle: input.workingStyle || "Not specified",
+      problemSolving: input.problemSolving || "Not specified",
+      uniqueStrength: input.uniqueStrength || "Not specified",
+      careerGoals: input.careerGoals || "Not specified",
+      bestProjectExample: input.bestProjectExample || "Not specified",
+      failureLesson: input.failureLesson || "Not specified",
+      personalNotes: input.personalNotes || "Not specified",
     },
-    language: escapeTemplateString(input.language || 'finnish')
+    language: input.language || 'finnish'
   });
 
   // KYSYTÄÄNKÖ?
@@ -193,12 +187,12 @@ export async function generateCoherentCoverLetter(input: {
   console.log('🔍 Analyzing job...');
   
   // STEP 1: Analyze job
-const jobAnalysis = await analyzeJobPosting(escapeTemplateString(input.jobDescription));
+  const jobAnalysis = await analyzeJobPosting(input.jobDescription);
   console.log(`📊 Detected: ${jobAnalysis.detected_industry}, ${jobAnalysis.company_size}`);
 
-  const hasWorkExperience = escapeTemplateString(input.workExperience || "Not specified") && escapeTemplateString(input.workExperience || "Not specified").length > 100;
+  const hasWorkExperience = input.workExperience && input.workExperience.length > 100;
 
-  // ✅ STEP 2: LOAD RAG CONTEXT (if enabled)
+  // ✅ STEP 2: LOAD RAG CONTEXT
   let knowledgeContext = '';
   
   if (input.enableRAG) {
@@ -206,30 +200,29 @@ const jobAnalysis = await analyzeJobPosting(escapeTemplateString(input.jobDescri
       knowledgeContext = await buildAIContext({
         jobDescription: input.jobDescription,
         userProfile: {
-          // Full profile for semantic inference
-          workExperience: escapeTemplateString(input.workExperience || "Not specified"),
-          education: escapeTemplateString(input.education || "Not specified"),
-          skills: escapeTemplateString(input.skills || "Not specified"),
-          workingStyle: escapeTemplateString(input.workingStyle || "Not specified"),
-          problemSolving: escapeTemplateString(input.problemSolving || "Not specified"),
-          uniqueStrength: escapeTemplateString(input.uniqueStrength || "Not specified"),
-          learningStyle: escapeTemplateString(input.learningStyle || "Not specified"),
-          teamRole: escapeTemplateString(input.teamRole || "Not specified"),
-          superpower: escapeTemplateString(input.superpower || "Not specified"),
-          careerGoals: escapeTemplateString(input.careerGoals || "Not specified"),
-          bestProjectExample: escapeTemplateString(input.bestProjectExample || "Not specified"),
-          failureLesson: escapeTemplateString(input.failureLesson || "Not specified"),
+          workExperience: input.workExperience || "Not specified",
+          education: input.education || "Not specified",
+          skills: input.skills || "Not specified",
+          workingStyle: input.workingStyle || "Not specified",
+          problemSolving: input.problemSolving || "Not specified",
+          uniqueStrength: input.uniqueStrength || "Not specified",
+          learningStyle: input.learningStyle || "Not specified",
+          teamRole: input.teamRole || "Not specified",
+          superpower: input.superpower || "Not specified",
+          careerGoals: input.careerGoals || "Not specified",
+          bestProjectExample: input.bestProjectExample || "Not specified",
+          failureLesson: input.failureLesson || "Not specified",
         },
         enableRAG: true,
-        contentType: 'cover_letter' // ✅ FILTER TO COVER LETTERS
+        contentType: 'cover_letter'
       });
-      console.log('✅ RAG context loaded (cover_letter type)');
+      console.log('✅ RAG context loaded');
     } catch (error) {
       console.warn('⚠️ RAG failed, continuing without:', error);
       knowledgeContext = '';
     }
   } else {
-    console.log('📋 RAG disabled (Basic/Semi-Pro tier)');
+    console.log('📋 RAG disabled');
   }
 
   const model = new ChatOpenAI({
@@ -246,7 +239,7 @@ const jobAnalysis = await analyzeJobPosting(escapeTemplateString(input.jobDescri
     ? `OPENING: Start with age and professional identity.`
     : `OPENING: Start with professional identity.`;
 
-  // ✅ STEP 3: BUILD PROMPT WITH RAG + GROUND TRUTH
+  // ✅ STEP 3: BUILD PROMPT
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", `You are writing an ATS-optimized cover letter for THIS SPECIFIC job.
 
@@ -258,7 +251,7 @@ Requirements: {requiredSkills}
 
 ${knowledgeContext ? `
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# EXPERT KNOWLEDGE BASE (PRO Feature - Cover Letter Specific)
+# EXPERT KNOWLEDGE BASE (PRO Feature)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${knowledgeContext}
@@ -282,38 +275,12 @@ BEFORE writing ANY skill claim:
 2. If NO → GENERATE QUESTION
 3. NEVER fabricate
 
-**QUESTION GENERATION:**
-If job requires skill NOT in allowedSkills:
-{{
-  "questions": [
-    {{
-      "id": "skill_verify_X",
-      "question": "Job mentions '[skill]'. Do you have experience?",
-      "why": "Job requires this but not in profile",
-      "context": "Quote from job",
-      "priority": "critical"
-    }}
-  ],
-  "fullText": null
-}}
-
 **YOUR MISSION:**
 1. Match candidate to THIS job
 2. Use ONLY allowedSkills
 3. If missing skill → ASK QUESTION
 4. Natural ATS keyword integration
 5. MAX 350 words
-
-**STRUCTURE (if generating):**
-1. Opening (80-100 words): Identity + motivation + keywords
-2. Body (150-180 words): Skills match + experience
-3. Closing (50-70 words): Enthusiasm + CTA
-
-**FORBIDDEN:**
-- Skills not in allowedSkills
-- Generic templates
-- Keyword stuffing
-- False claims
 
 **LANGUAGE:** {language}
 **STYLE:** {styleInstructions}
@@ -362,17 +329,13 @@ Learning: {failureLesson}
 **PERSONAL NOTES (TOP PRIORITY):**
 {personalNotes}
 
-**CRITICAL:**
-- If job needs skill NOT in ALLOWED → ASK QUESTION
-- NEVER claim skills from FORBIDDEN
-- If uncertain → ASK QUESTION
-
 {ageInstruction}
 
 Return JSON (letter OR questions).`]
   ]);
 
   try {
+    // ✅ EI YHTÄÄN escapeTemplateString() KUTSUA!
     const formattedPrompt = await prompt.formatMessages({
       detectedIndustry: jobAnalysis.detected_industry,
       companySize: jobAnalysis.company_size,
@@ -382,27 +345,27 @@ Return JSON (letter OR questions).`]
       companyName: jobAnalysis.company_name,
       jobTitle: jobAnalysis.job_title,
       styleInstructions,
-      language: escapeTemplateString(input.language  || "Finnish"),
-      jobDescription: escapeTemplateString(input.jobDescription || "Not specified"),
-      name: escapeTemplateString(input.name || "Not specified"),
-      age: escapeTemplateString(input.age ? `${input.age} years` : 'Not specified'),
-      workExperience: escapeTemplateString(input.workExperience || "Limited formal experience"),
-      education: escapeTemplateString(input.education || "Not specified"),
-      skills: escapeTemplateString(input.skills || "Developing"),
-      allowedSkills: escapeTemplateString(input.allowedSkills?.join(", ") || "All skills from profile"),
-      forbiddenClaims: escapeTemplateString(input.forbiddenClaims?.join(", ") || "None"),
-      workingStyle: escapeTemplateString(input.workingStyle || "Not specified"),
-      problemSolving: escapeTemplateString(input.problemSolving || "Not specified"),
-      energySources: escapeTemplateString(input.energySources || "Not specified"),
-      uniqueStrength: escapeTemplateString(input.uniqueStrength || "Not specified"),
-      learningStyle: escapeTemplateString(input.learningStyle || "Not specified"),
-      teamRole: escapeTemplateString(input.teamRole || "Not specified"),
-      superpower: escapeTemplateString(input.superpower || "Not specified"),
-      valuesExample: escapeTemplateString(input.valuesExample || "Not specified"),
-      careerGoals: escapeTemplateString(input.careerGoals || "Not specified"),
-      bestProjectExample: escapeTemplateString(input.bestProjectExample || "Not specified"),
-      failureLesson: escapeTemplateString(input.failureLesson || "Not specified"),
-      personalNotes: escapeTemplateString(input.personalNotes || "Not specified"),
+      language: input.language || "Finnish",
+      jobDescription: input.jobDescription || "Not specified",
+      name: input.name || "Not specified",
+      age: input.age ? `${input.age} years` : 'Not specified',
+      workExperience: input.workExperience || "Limited formal experience",
+      education: input.education || "Not specified",
+      skills: input.skills || "Developing",
+      allowedSkills: input.allowedSkills?.join(", ") || "All skills from profile",
+      forbiddenClaims: input.forbiddenClaims?.join(", ") || "None",
+      workingStyle: input.workingStyle || "Not specified",
+      problemSolving: input.problemSolving || "Not specified",
+      energySources: input.energySources || "Not specified",
+      uniqueStrength: input.uniqueStrength || "Not specified",
+      learningStyle: input.learningStyle || "Not specified",
+      teamRole: input.teamRole || "Not specified",
+      superpower: input.superpower || "Not specified",
+      valuesExample: input.valuesExample || "Not specified",
+      careerGoals: input.careerGoals || "Not specified",
+      bestProjectExample: input.bestProjectExample || "Not specified",
+      failureLesson: input.failureLesson || "Not specified",
+      personalNotes: input.personalNotes || "Not specified",
       ageInstruction,
       format_instructions: outputParser.getFormatInstructions(),
     });
