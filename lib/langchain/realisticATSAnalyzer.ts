@@ -4,6 +4,7 @@
   import { ChatPromptTemplate } from '@langchain/core/prompts';
   import { detectLanguageWithAI } from './languageDetector';
   import { analyzeKeywordsUniversal } from '../ats/synonymMatcher';
+import { escapeTemplateString } from '../utils/escapeTemplate';
 
   export interface ATSDetection {
     usesATS: boolean;
@@ -94,8 +95,9 @@
     ]);
 
     try {
-      const formatted = await prompt.formatMessages({ jobDescription });
-      const result = await model.invoke(formatted);
+const formatted = await prompt.formatMessages({ 
+        jobDescription: escapeTemplateString(jobDescription) 
+      });      const result = await model.invoke(formatted);
       const content = typeof result.content === 'string' 
         ? result.content 
         : JSON.stringify(result.content);
@@ -171,8 +173,9 @@
     ]);
 
     try {
-      const formatted = await prompt.formatMessages({ jobDescription });
-      const result = await model.invoke(formatted);
+const formatted = await prompt.formatMessages({ 
+        jobDescription: escapeTemplateString(jobDescription) 
+      });      const result = await model.invoke(formatted);
       const content = typeof result.content === 'string' 
         ? result.content 
         : JSON.stringify(result.content);

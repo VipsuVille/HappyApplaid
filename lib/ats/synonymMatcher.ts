@@ -2,6 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { escapeTemplateString } from '../utils/escapeTemplate';
 
 export interface KeywordMatch {
   keyword: string;
@@ -83,10 +84,10 @@ Return JSON.`]
 
   try {
     const formatted = await prompt.formatMessages({
-      keyword,
-      coverLetterText: coverLetterText.substring(0, 2000),
-      jobContext: jobDescription?.substring(0, 500) || 'Not provided',
-      languageHint: language || 'Auto-detect'
+keyword: escapeTemplateString(keyword),
+      coverLetterText: escapeTemplateString(coverLetterText.substring(0, 2000)),
+      jobContext: escapeTemplateString(jobDescription?.substring(0, 500) || 'Not provided'),
+      languageHint: escapeTemplateString(language || 'Auto-detect')
     });
 
     const result = await model.invoke(formatted);

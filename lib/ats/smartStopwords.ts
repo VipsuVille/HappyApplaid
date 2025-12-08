@@ -2,6 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { escapeTemplateString } from '../utils/escapeTemplate';
 
 /**
  * ✅ UNIVERSAALI AVAINSANOJEN SUODATUS - JOB-FIRST
@@ -90,9 +91,9 @@ Return JSON.`]
 
   try {
     const formatted = await prompt.formatMessages({
-      jobDescription: jobDescription.substring(0, 1500),
-      keywords: keywords.join(', '),
-      languageHint: language || 'Auto-detect'
+jobDescription: escapeTemplateString(jobDescription.substring(0, 1500)),
+   keywords: escapeTemplateString(keywords.join(', ')),
+      languageHint: escapeTemplateString(language || 'Auto-detect')
     });
 
     const result = await model.invoke(formatted);

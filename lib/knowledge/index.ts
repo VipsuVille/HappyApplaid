@@ -4,6 +4,7 @@ import { OpenAIEmbeddings } from '@langchain/openai';
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase';
 import { supabaseAdmin } from '@/lib/supabase';
 import { createHash } from 'crypto';
+import { escapeTemplateString } from '../utils/escapeTemplate'; // ✅ LISÄÄ TÄMÄ
 
 /**
  * ✅ ZERO HARDCODING KNOWLEDGE BASE
@@ -97,8 +98,8 @@ ${meta.content_type ? `**Type:** ${meta.content_type}` : ''}
 ${meta.topics ? `**Topics:** ${meta.topics.join(', ')}` : ''}
 ${isPriority ? '**⚠️ Admin-marked as HIGH PRIORITY for this content type**' : ''}
 
-${doc.pageContent}
-          `.trim();
+${escapeTemplateString(doc.pageContent)} // ✅ KORJAUS TÄHÄN
+          `.trim();
         })
         .join('\n\n---\n\n');
 
