@@ -1,4 +1,5 @@
-// components/ui/smartHeader.tsx
+// components/ui/smartHeader.tsx - KORJATTU
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,7 +9,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/context/LanguageContext';
-import { useSubscription } from '@/components/SubscriptionStatus'; // ✅ LISÄÄ TÄMÄ
+import { useSubscription } from '@/context/SubscriptionContext'; // ✅ UUSI CONTEXT!
 import {
   FileText,
   Menu,
@@ -23,17 +24,11 @@ import {
   ChevronDown,
 } from 'lucide-react';
 
-// ===================================
-// TYPES - Yksinkertaistettu
-// ===================================
 interface SmartHeaderProps {
   isLoading?: boolean;
   showAuthButtons?: boolean;
 }
 
-// ===================================
-// SMART HEADER COMPONENT
-// ===================================
 export default function SmartHeader({ 
   isLoading = false,
   showAuthButtons = true,
@@ -44,17 +39,17 @@ export default function SmartHeader({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  // ✅ KÄYTÄ useSubscription HOOKKIA
-  const { subscription, isActive, isLoading: subscriptionLoading } = useSubscription();
+  // ✅ KÄYTÄ UUTTA CONTEXT HOOKIA
+  const { subscription, isLoading: subscriptionLoading } = useSubscription();
 
   const isDevelopmentMode = process.env.NEXT_PUBLIC_DEVELOPMENT_MODE === 'true';
 
-  // ✅ PUHDAS DATA
-  const isPremium = isActive && subscription?.plan_type !== 'free';
+  // ✅ PUHDAS DATA CONTEXTISTA
+  const isPremium = subscription?.is_premium || false;
   const tokens = subscription?.tokens || 0;
   const plan = subscription?.plan_type || 'free';
 
-  // Debug-lokit (poista tuotannossa)
+  // Debug-lokit
   useEffect(() => {
     console.log("📱 SmartHeader State:", {
       isSignedIn,
@@ -62,13 +57,10 @@ export default function SmartHeader({
       isPremium,
       plan,
       tokens,
-      subscription
     });
-  }, [isSignedIn, subscriptionLoading, isPremium, plan, tokens, subscription]);
+  }, [isSignedIn, subscriptionLoading, isPremium, plan, tokens]);
 
-  // ===================================
-  // NAVIGATION LINKS
-  // ===================================
+  // Navigation links
   const navLinks = [
     {
       href: '/',
@@ -105,9 +97,7 @@ export default function SmartHeader({
   const isActive_route = (href: string) => pathname === href;
   const handleLinkClick = () => setMobileMenuOpen(false);
 
-  // ===================================
-  // LOADING SKELETON
-  // ===================================
+  // Loading skeleton
   if (!isLoaded || (isSignedIn && subscriptionLoading)) {
     return (
       <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
@@ -124,9 +114,6 @@ export default function SmartHeader({
     );
   }
 
-  // ===================================
-  // MAIN RENDER
-  // ===================================
   return (
     <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -170,10 +157,10 @@ export default function SmartHeader({
               })}
           </nav>
 
-          {/* RIGHT SIDE: USER INFO & ACTIONS */}
+          {/* RIGHT SIDE */}
           <div className="flex items-center gap-2 sm:gap-3">
             
-            {/* Language Toggle (Desktop) */}
+            {/* Language Toggle */}
             <Button
               onClick={toggleLanguage}
               variant="ghost"
@@ -185,7 +172,7 @@ export default function SmartHeader({
               <span className="text-xs">{language === 'en' ? 'FI' : 'EN'}</span>
             </Button>
 
-            {/* ✅ PREMIUM/FREE BADGE (Desktop) */}
+            {/* PREMIUM/FREE BADGE */}
             {isSignedIn && !subscriptionLoading && (
               <>
                 {isPremium ? (
@@ -209,7 +196,7 @@ export default function SmartHeader({
               </>
             )}
 
-            {/* User Menu (Desktop) */}
+            {/* User Menu */}
             {isSignedIn && (
               <div className="hidden sm:block relative">
                 <button
@@ -237,7 +224,7 @@ export default function SmartHeader({
               </div>
             )}
 
-            {/* Auth Buttons (Desktop) */}
+            {/* Auth Buttons */}
             {showAuthButtons && isDevelopmentMode && !isSignedIn && (
               <div className="hidden md:flex gap-2">
                 <Link href="/sign-in">
@@ -252,25 +239,20 @@ export default function SmartHeader({
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              aria-label="Toggle menu"
             >
-              {mobileMenuOpen ? (
-                <X className="h-6 w-6 text-gray-600" />
-              ) : (
-                <Menu className="h-6 w-6 text-gray-600" />
-              )}
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
 
         {/* MOBILE MENU */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 py-4 space-y-2 animate-in slide-in-from-top duration-200">
+          <div className="md:hidden border-t border-gray-200 py-4 space-y-2">
             
-            {/* User Info Card (Mobile) */}
+            {/* User Info Card */}
             {isSignedIn && (
               <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl mb-4 border border-indigo-100">
-                <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
+                <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
                   {user?.firstName?.charAt(0) || 'U'}
                 </div>
                 <div className="flex-1">
@@ -294,7 +276,7 @@ export default function SmartHeader({
               </div>
             )}
 
-            {/* Language Toggle (Mobile) */}
+            {/* Language Toggle */}
             <button
               onClick={() => {
                 toggleLanguage();
@@ -308,7 +290,7 @@ export default function SmartHeader({
               </span>
             </button>
 
-            {/* Navigation Links (Mobile) */}
+            {/* Navigation Links */}
             <div className="space-y-1">
               {navLinks
                 .filter((link) => link.show)
@@ -332,7 +314,7 @@ export default function SmartHeader({
                 })}
             </div>
 
-            {/* Sign Out Button (Mobile) */}
+            {/* Sign Out */}
             {showAuthButtons && isDevelopmentMode && isSignedIn && (
               <div className="pt-4 border-t border-gray-200 mt-4">
                 <SignOutButton>
@@ -344,7 +326,7 @@ export default function SmartHeader({
               </div>
             )}
 
-            {/* Sign In Button (Mobile) */}
+            {/* Sign In */}
             {showAuthButtons && isDevelopmentMode && !isSignedIn && (
               <div className="pt-4 border-t border-gray-200 mt-4">
                 <Link href="/sign-in" onClick={handleLinkClick}>
@@ -357,7 +339,7 @@ export default function SmartHeader({
           </div>
         )}
 
-        {/* LOADING INDICATOR */}
+        {/* Loading indicator */}
         {isLoading && (
           <div className="absolute bottom-0 left-0 w-full h-1">
             <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse" />

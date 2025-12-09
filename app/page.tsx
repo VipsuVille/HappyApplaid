@@ -16,6 +16,7 @@ import WelcomeModal from "@/components/welcomephase/WelcomeModal";
 import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
 import SmartHeader from "@/components/ui/smartHeader";
 import { PRICING } from "@/lib/pricing";
+import { convertProfileToApiFormat } from "@/types";
 
 interface SubscriptionStatus {
   plan_type: "free" | "basic" | "semi-pro" | "pro";
@@ -41,6 +42,7 @@ export default function Home() {
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const { tokens } = useTokens();
+const displayName = user?.firstName || convertProfileToApiFormat.name || null;
 
   // Hae freemium status
   useEffect(() => {
@@ -1205,7 +1207,9 @@ export default function Home() {
         {/* Welcome Section */}
         <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl p-8">
           <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            {language === "en" ? `Welcome, ${user?.firstName}!` : `Tervetuloa, ${user?.firstName}!`}
+ {language === "en" 
+              ? `Welcome${displayName ? `, ${displayName}` : ''}!` 
+              : `Tervetuloa${displayName ? `, ${displayName}` : ''}!`}
           </h1>
           <p className="text-gray-700 text-lg">
             {currentTier === 'free' 

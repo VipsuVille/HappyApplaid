@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from "next/font/google";
 import { Toaster } from 'sonner';
 import "./globals.css";
+import { SubscriptionProvider } from '@/context/SubscriptionContext';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -67,12 +68,15 @@ export default function RootLayout({
   return (
     <ClerkProvider appearance={clerkAppearance}>
       <html lang="en">
-        <LanguageProvider>
-          <body className={`${inter.className} bg-slate-200`}>
-            {children}
-            <Toaster position="top-center" />
-          </body>
-        </LanguageProvider>
+        <body className={`${inter.className} bg-slate-200`}>
+          {/* ✅ KAIKKI PROVIDERIT BODY:N SISÄÄN */}
+          <SubscriptionProvider>
+            <LanguageProvider>
+              {children}
+              <Toaster position="top-center" />
+            </LanguageProvider>
+          </SubscriptionProvider>
+        </body>
       </html>
     </ClerkProvider>
   );
