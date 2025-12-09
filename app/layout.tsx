@@ -4,8 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from "next/font/google";
 import { Toaster } from 'sonner';
 import "./globals.css";
-import { SubscriptionProvider } from '@/context/SubscriptionContext';
-
+import SubscriptionProvider from '@/context/SubscriptionContext';
 const inter = Inter({ subsets: ["latin"] });
 
 const clerkAppearance = {
