@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter-v2/route.ts - TIER-POHJAINEN V2 ATS + RAG
+// app/api/generate-cover-letter-v2/route.ts - TÄYSIN KORJATTU
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -6,7 +6,6 @@ import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGenerato
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
-import { sanitizeGroundTruthForPrompt } from "@/lib/utils/escapeTemplate";
 import { getTierFeatures } from "@/lib/stripe/subscriptions";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 
@@ -21,11 +20,16 @@ function extractJobTitleFromDescription(jobDescription: string): string {
 }
 
 export async function POST(req: Request) {
-  const { userId } = await auth();
+  // ✅ KORJAUS 1: Käytä auth() HETI - älä odota
+  const authData = await auth();
+  const userId = authData.userId;
 
   if (!userId) {
+    console.error('❌ No userId from auth()');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  console.log(`✅ Auth OK: ${userId}`);
 
   try {
     const requestData = await req.json();
@@ -37,6 +41,7 @@ export async function POST(req: Request) {
       language,
       style,
       answeredQuestions,
+      skipQuestions, // ✅ LISÄTTY
     } = requestData;
 
     const {
@@ -63,6 +68,18 @@ export async function POST(req: Request) {
 
     const extractedJobTitle = extractJobTitleFromDescription(finalJobDescription);
 
+    // ✅ KORJAUS 2: TARKISTA SKIP-FLAG ENSIN
+    const shouldSkipQuestions = skipQuestions === true || 
+                                (answeredQuestions && Object.keys(answeredQuestions).length > 0);
+
+    console.log(`📝 V2 Generate request:`, {
+      userId,
+      hasAnsweredQuestions: !!answeredQuestions,
+      answersCount: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+      skipQuestions: shouldSkipQuestions,
+      skipQuestionsRaw: skipQuestions
+    });
+
     // ✅ 1. TARKISTA TILAUS & TIER
     const { data: subscription, error: subscriptionError } = await supabaseAdmin
       .from("subscriptions")
@@ -78,11 +95,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // ✅ 2. HAE TIER-OMINAISUUDET
-    // HUOM: Lisätty await, koska getTierFeatures on nyt async
     const tier = await getTierFeatures(subscription.plan_type);
 
-    // V2 vaatii Semi-Pro tai Pro
     if (!tier.canUseV2) {
       return NextResponse.json(
         { 
@@ -96,11 +110,8 @@ export async function POST(req: Request) {
     }
 
     console.log(`🎫 User tier: ${tier.name}`);
-    console.log(`   - V2/ATS: ✅`);
-    console.log(`   - RAG: ${tier.canUseRAG ? '✅' : '❌'}`);
-    console.log(`   - Cost: $${tier.costPerLetter}/letter`);
 
-    // ✅ 3. HAE GROUND TRUTH (kaikille tiereille)
+    // ✅ 2. HAE GROUND TRUTH
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
@@ -109,19 +120,15 @@ export async function POST(req: Request) {
 
     const groundTruth = await extractGroundTruthAI(userProfile || {});
     
-    console.log(`🛡️ Ground Truth extracted:`);
-    console.log(`   - Skills: ${groundTruth.technicalSkills.length}`);
-    console.log(`   - Experience: ${groundTruth.yearsOfExperience || 0} years`);
+    console.log(`🛡️ Ground Truth extracted`);
 
-    // ✅ 4. TARKISTA ATS-KÄYTTÖ
+    // ✅ 3. TARKISTA ATS-KÄYTTÖ
     console.log('🔍 Detecting ATS usage...');
     const atsDetection = await detectATSUsageAI(finalJobDescription);
     
     console.log(`   - Uses ATS: ${atsDetection.usesATS ? '✅' : '❌'}`);
-    console.log(`   - Confidence: ${atsDetection.confidence}`);
-    console.log(`   - Reasoning: ${atsDetection.reasoning}`);
 
-    // ✅ 5. MERGE VASTAUKSET personalNotesiin
+    // ✅ 4. MERGE VASTAUKSET
     let enhancedPersonalNotes = finalPersonalNotes || '';
     
     if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
@@ -136,7 +143,7 @@ export async function POST(req: Request) {
         : answersText;
     }
 
-    // ✅ 6. PREPARE INPUT
+    // ✅ 5. PREPARE INPUT
     let coverLetterInput;
     if (profileData) {
       const apiFormat = convertProfileToApiFormat(profileData);
@@ -163,10 +170,13 @@ export async function POST(req: Request) {
         bestProjectExample: profileData.bestProjectExample,
         failureLesson: profileData.failureLesson,
         
-        // ✅ TIER-POHJAINEN RAG
         enableRAG: tier.canUseRAG,
         allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim
+        forbiddenClaims: groundTruth.cannotClaim,
+        
+        // ✅ KORJAUS 3: Pakota skip jos vastauksia on
+        skipQuestions: shouldSkipQuestions,
+        answeredQuestions: answeredQuestions || {}
       };
     } else {
       coverLetterInput = {
@@ -185,16 +195,18 @@ export async function POST(req: Request) {
         allowedSkills: groundTruth.technicalSkills,
         forbiddenClaims: groundTruth.cannotClaim,
         
+        skipQuestions: shouldSkipQuestions,
+        answeredQuestions: answeredQuestions || {}
       };
     }
 
-    // ✅ 7. GENEROI V2 ATS
-    console.log(`📝 Generating V2 ATS cover letter (RAG: ${tier.canUseRAG})...`);
+    // ✅ 6. GENEROI V2 ATS
+    console.log(`📝 Generating V2 (RAG: ${tier.canUseRAG}, skipQuestions: ${coverLetterInput.skipQuestions})...`);
     
     const coverLetterData = await generateCoherentCoverLetter(coverLetterInput);
 
-    // ✅ 8. JOS KYSYMYKSIÄ
-    if (coverLetterData.questions && coverLetterData.questions.length > 0) {
+    // ✅ 7. JOS KYSYMYKSIÄ JA EI SKIP → PALAUTA KYSYMYKSET
+    if (!coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
       console.log(`❓ AI needs clarification: ${coverLetterData.questions.length} questions`);
       
       return NextResponse.json({
@@ -202,17 +214,35 @@ export async function POST(req: Request) {
         needsMoreInfo: true,
         questions: coverLetterData.questions,
         title: coverLetterData.title,
-        reason: 'AI tarvitsee vahvistusta varmistaakseen totuudenmukaisuuden'
+        reason: 'AI tarvitsee vahvistusta ATS-optimointiin'
       });
     }
 
-    // ✅ 9. MASTER GUARDIAN
-    console.log('🛡️ Running Master Guardian...');
-    
-    // Varmista että content on määritelty
-    if (!coverLetterData.content) {
-      throw new Error('Cover letter content is undefined');
+    // ✅ 7B. JOS SKIP MUTTA AI KYSYI SILTI → VAROITA JA JATKA
+    if (coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
+      console.warn(`⚠️ AI kysyi ${coverLetterData.questions.length} kysymystä vaikka skipQuestions=true`);
+      console.warn(`⚠️ Jatketaan pakolla generointiin...`);
+      
+      // ÄLÄ palauta kysymyksiä - pakota generointi
+      // (AI palauttaa "needsMoreInfo: true" mutta me ignoroidaan se)
     }
+
+    // ✅ TARKISTA: Onko sisältöä?
+    if (!coverLetterData.content || coverLetterData.content.trim().length === 0) {
+      console.error('❌ No content generated');
+      return NextResponse.json({
+        error: 'GENERATION_FAILED',
+        message: 'AI ei generoinut sisältöä',
+        debug: {
+          hasQuestions: !!coverLetterData.questions,
+          questionsCount: coverLetterData.questions?.length || 0,
+          skipQuestions: coverLetterInput.skipQuestions
+        }
+      }, { status: 500 });
+    }
+
+    // ✅ 8. MASTER GUARDIAN
+    console.log('🛡️ Running Master Guardian...');
     
     const guardianCheck = await masterConsistencyCheckAI(
       coverLetterData.content,
@@ -233,7 +263,7 @@ export async function POST(req: Request) {
 
     console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
 
-    // ✅ 10. ATS ANALYYSI (jos ATS havaittu)
+    // ✅ 9. ATS ANALYYSI
     let atsAnalysis = null;
     if (atsDetection.usesATS) {
       console.log('📊 Running ATS analysis...');
@@ -244,7 +274,7 @@ export async function POST(req: Request) {
       console.log(`   - ATS Score: ${atsAnalysis.score}/100`);
     }
 
-    // ✅ 11. TALLENNA
+    // ✅ 10. TALLENNA
     const { data: coverLetter, error: insertError } = await supabaseAdmin
       .from("cover_letters")
       .insert({
@@ -287,7 +317,6 @@ export async function POST(req: Request) {
             main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
           
-          // Tier info
           tier: tier.name,
           cost_per_letter: tier.costPerLetter,
           
@@ -302,7 +331,6 @@ export async function POST(req: Request) {
           
           rag_enabled: tier.canUseRAG,
           
-          // ATS Data
           ats_detection: atsDetection,
           ats_analysis: atsAnalysis,
           
@@ -317,6 +345,8 @@ export async function POST(req: Request) {
             language: coverLetterInput.language,
             tier: tier.name,
             answered_questions: answeredQuestions || {},
+            questions_count: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+            skip_questions: coverLetterInput.skipQuestions,
             generator_version: 'v2-ats'
           }
         },
@@ -325,10 +355,16 @@ export async function POST(req: Request) {
       .single();
 
     if (insertError) {
+      console.error('❌ V2 Insert error:', insertError);
       throw insertError;
     }
 
-    console.log(`✅ Cover letter saved: ${coverLetter.id}`);
+    if (!coverLetter || !coverLetter.id) {
+      console.error('❌ Cover letter ID missing after insert');
+      throw new Error('Cover letter saved but ID is missing');
+    }
+
+    console.log(`✅ V2 Cover letter saved: ${coverLetter.id}`);
 
     return NextResponse.json({
       success: true,
@@ -359,7 +395,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    console.error("Error generating cover letter V2:", error);
+    console.error("❌ Error generating cover letter V2:", error);
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Unknown error",

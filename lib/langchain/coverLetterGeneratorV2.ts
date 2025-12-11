@@ -1,4 +1,4 @@
-// lib/langchain/coverLetterGeneratorV2.ts - TÄYDELLINEN RAG-INTEGRAATIO (KORJATTU)
+// lib/langchain/coverLetterGeneratorV2.ts - KORJATTU TYYPITYS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -36,7 +36,7 @@ type CoherentCoverLetter = z.infer<typeof coherentCoverLetterSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(coherentCoverLetterSchema);
 
 /**
- * ✅ ANALYZE JOB - EI ESCAPETUSTA
+ * ✅ ANALYZE JOB
  */
 async function analyzeJobPosting(jobDescription: string) {
   const model = new ChatOpenAI({
@@ -93,15 +93,14 @@ Return JSON:
       company_size: "unknown",
       keywords: [], 
       required_skills: [], 
-      required_experience: "Not specified", 
-      company_name: "the company", 
+      required_experience: "Not specified",       company_name: "the company", 
       job_title: "this position" 
     };
   }
 }
 
 /**
- * ✅ MAIN GENERATOR - EI ESCAPETUKSIA
+ * ✅ MAIN GENERATOR - KORJATTU TYYPITYS
  */
 export async function generateCoherentCoverLetter(input: {
   jobDescription: string;
@@ -129,70 +128,70 @@ export async function generateCoherentCoverLetter(input: {
   enableRAG?: boolean;
   allowedSkills?: string[];
   forbiddenClaims?: string[];
-    skipQuestions?: boolean;
+  
+  // ✅ LISÄTTY PUUTTUVAT KENTÄT:
+  skipQuestions?: boolean;
   answeredQuestions?: Record<string, string>;
-  
-})
- {
+}) {
   console.log('🔍 V2: Flexible job-profile analysis (ATS + RAG)...');
-   const shouldSkipQuestions = input.skipQuestions || 
-                              (input.answeredQuestions && Object.keys(input.answeredQuestions).length > 0);
   
-  if (!shouldSkipQuestions) {
-  // ✅ STEP 0: Smart analysis
-  const smartAnalysis = await analyzeJobAndProfile({
-    jobDescription: input.jobDescription,
-    userProfile: {
-      name: input.name || "Not specified",
-      workExperience: input.workExperience || "Not specified",
-      education: input.education || "Not specified",
-      skills: input.skills || "Not specified",
-      workingStyle: input.workingStyle || "Not specified",
-      problemSolving: input.problemSolving || "Not specified",
-      uniqueStrength: input.uniqueStrength || "Not specified",
-      careerGoals: input.careerGoals || "Not specified",
-      bestProjectExample: input.bestProjectExample || "Not specified",
-      failureLesson: input.failureLesson || "Not specified",
-      personalNotes: input.personalNotes || "Not specified",
-    },
-    language: input.language || 'finnish'
-  });
+  // ✅ KORJAUS: Jos skipQuestions=true, ohita kysymysanalyysi KOKONAAN
+  if (input.skipQuestions) {
+    console.log('⏭️ Skipping question analysis (skipQuestions=true)');
+  } else {
+    // ✅ STEP 0: Smart analysis
+    const smartAnalysis = await analyzeJobAndProfile({
+      jobDescription: input.jobDescription,
+      userProfile: {
+        name: input.name || "Not specified",
+        workExperience: input.workExperience || "Not specified",
+        education: input.education || "Not specified",
+        skills: input.skills || "Not specified",
+        workingStyle: input.workingStyle || "Not specified",
+        problemSolving: input.problemSolving || "Not specified",
+        uniqueStrength: input.uniqueStrength || "Not specified",
+        careerGoals: input.careerGoals || "Not specified",
+        bestProjectExample: input.bestProjectExample || "Not specified",
+        failureLesson: input.failureLesson || "Not specified",
+        personalNotes: input.personalNotes || "Not specified",
+      },
+      language: input.language || 'finnish'
+    });
 
-  // KYSYTÄÄNKÖ?
-  if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
-    const criticalQuestions = smartAnalysis.questions.filter(
-      q => q.priority === 'critical'
-    );
-    
-    if (criticalQuestions.length > 0) {
-      console.log(`❓ Found ${criticalQuestions.length} critical questions`);
+    // KYSYTÄÄNKÖ?
+    if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
+      const criticalQuestions = smartAnalysis.questions.filter(
+        q => q.priority === 'critical'
+      );
       
-      return {
-        fullText: "",
-        content: "",
-        title: "Lisätietoja tarvitaan",
-        signature: input.name,
-        questions: criticalQuestions,
-        keyPoints: {
-          personalityHook: "",
-          experienceHighlight: "",
-          skillsMatch: "",
-          motivation: ""
-        },
-        atsData: {
-          matchedKeywords: [],
-          missingExperience: true,
-          readabilityScore: 0
-        },
-        hasWorkExperience: false,
-        needsMoreInfo: true
-      };
+      if (criticalQuestions.length > 0) {
+        console.log(`❓ Found ${criticalQuestions.length} critical questions`);
+        
+        return {
+          fullText: "",
+          content: "",
+          title: "Lisätietoja tarvitaan",
+          signature: input.name,
+          questions: criticalQuestions,
+          keyPoints: {
+            personalityHook: "",
+            experienceHighlight: "",
+            skillsMatch: "",
+            motivation: ""
+          },
+          atsData: {
+            matchedKeywords: [],
+            missingExperience: true,
+            readabilityScore: 0
+          },
+          hasWorkExperience: false,
+          needsMoreInfo: true
+        };
+      }
     }
-  }} else {
-  console.log('✅ Skipping questions, forcing generation');
   }
 
-  console.log('✅ Profile sufficient');
+  console.log('✅ Profile sufficient OR questions skipped');
   console.log('🔍 Analyzing job...');
   
   // STEP 1: Analyze job
@@ -279,24 +278,20 @@ ${knowledgeContext}
 {forbiddenClaims}
 
 **VERIFICATION PROTOCOL:**
-BEFORE writing ANY skill claim:
-1. Check: Is it in allowedSkills?
-2. If NO → GENERATE QUESTION
-3. NEVER fabricate
+NEVER fabricate skills. Use ONLY allowedSkills.
 
 **YOUR MISSION:**
 1. Match candidate to THIS job
 2. Use ONLY allowedSkills
-3. If missing skill → ASK QUESTION
-4. Natural ATS keyword integration
-5. MAX 350 words
+3. Natural ATS keyword integration
+4. MAX 350 words
 
 **LANGUAGE:** {language}
 **STYLE:** {styleInstructions}
 
 {format_instructions}`],
 
-    ["human", `Generate cover letter OR questions if uncertain.
+    ["human", `Generate cover letter.
 
 **JOB:**
 {jobDescription}
@@ -340,11 +335,10 @@ Learning: {failureLesson}
 
 {ageInstruction}
 
-Return JSON (letter OR questions).`]
+Return JSON with ONLY "fullText" field. Do NOT return "questions".`]
   ]);
 
   try {
-    // ✅ EI YHTÄÄN escapeTemplateString() KUTSUA!
     const formattedPrompt = await prompt.formatMessages({
       detectedIndustry: jobAnalysis.detected_industry,
       companySize: jobAnalysis.company_size,
@@ -377,81 +371,68 @@ Return JSON (letter OR questions).`]
       personalNotes: input.personalNotes || "Not specified",
       ageInstruction,
       format_instructions: outputParser.getFormatInstructions(),
-    });
+});
+const result = await model.invoke(formattedPrompt);
+const content = typeof result.content === 'string' 
+  ? result.content 
+  : JSON.stringify(result.content);
 
-    const result = await model.invoke(formattedPrompt);
-    const content = typeof result.content === 'string' 
-      ? result.content 
-      : JSON.stringify(result.content);
+const cleanContent = content
+  .replace(/```json/g, '')
+  .replace(/```/g, '')
+  .trim();
 
-    const cleanContent = content
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
+const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+if (!jsonMatch) throw new Error('No valid JSON');
 
-    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No valid JSON');
+const parsed = await outputParser.parse(jsonMatch[0]);
 
-    const parsed = await outputParser.parse(jsonMatch[0]);
-
-    // ✅ IF AI GENERATED QUESTIONS
-    if (parsed.questions && parsed.questions.length > 0) {
-      console.log(`❓ AI generated ${parsed.questions.length} questions`);
-      return {
-        fullText: "",
-        content: "",
-        title: jobAnalysis.job_title || "Cover Letter",
-        signature: input.name,
-        questions: parsed.questions,
-        keyPoints: parsed.keyPoints || {
-          personalityHook: "",
-          experienceHighlight: "",
-          skillsMatch: "",
-          motivation: ""
-        },
-        atsData: parsed.atsData || {
-          matchedKeywords: [],
-          missingExperience: true,
-          readabilityScore: 0
-        },
-        jobAnalysis,
-        hasWorkExperience,
-        needsMoreInfo: true
-      };
-    }
-
-    // ✅ NORMAL: No questions, return letter
-    return {
-      fullText: parsed.fullText,
-      content: parsed.fullText,
-      title: jobAnalysis.job_title || "Cover Letter",
-      signature: input.name,
-      keyPoints: parsed.keyPoints!,
-      atsData: parsed.atsData!,
-      jobAnalysis,
-      hasWorkExperience,
-    };
-  } catch (error) {
-    console.error('❌ V2 Generator error:', error);
-    throw new Error(`Generator failed: ${error instanceof Error ? error.message : 'Unknown'}`);
-  }
+// ✅ KORJAUS: Jos AI palautti kysymyksiä vaikka skipQuestions=true, IGNOROI NE
+if (input.skipQuestions && parsed.questions && parsed.questions.length > 0) {
+  console.warn(`⚠️ AI returned ${parsed.questions.length} questions despite skipQuestions=true - IGNORING`);
+  parsed.questions = []; // Tyhjennä kysymykset
 }
 
+// ✅ NORMAL: Return letter
+return {
+  fullText: parsed.fullText,
+  content: parsed.fullText,
+  title: jobAnalysis.job_title || "Cover Letter",
+  signature: input.name,
+  keyPoints: parsed.keyPoints || {
+    personalityHook: "",
+    experienceHighlight: "",
+    skillsMatch: "",
+    motivation: ""
+  },
+  atsData: parsed.atsData || {
+    matchedKeywords: [],
+    missingExperience: false,
+    readabilityScore: 7
+  },
+  jobAnalysis,
+  hasWorkExperience,
+};
+} catch (error) {
+console.error('❌ V2 Generator error:', error);
+throw new Error("Generator failed:");
+}
+}
 export function generateATSReport(data: { atsData: CoherentCoverLetter['atsData'] }) {
-  return {
-    keywords_used: data.atsData?.matchedKeywords.length || 0,
-    total_keywords: data.atsData?.matchedKeywords.length || 0,
-    keyword_match_score: Math.round(((data.atsData?.matchedKeywords.length || 0) / 15) * 100),
-    ats_compatibility_score: (data.atsData?.readabilityScore || 5) * 10,
-    critical_keywords_used: data.atsData?.matchedKeywords || [],
-    missing_keywords: [],
-    improvement_suggestions: [
-      (data.atsData?.matchedKeywords.length || 0) < 8
-        ? "Consider adding more relevant terms"
-        : "Good keyword coverage",
-      (data.atsData?.readabilityScore || 5) < 6
-        ? "Simplify language"
-        : "Good readability",
-    ],
-  };
+return {
+keywords_used: data.atsData?.matchedKeywords.length || 0,
+total_keywords: data.atsData?.matchedKeywords.length || 0,
+keyword_match_score: Math.round(((data.atsData?.matchedKeywords.length || 0) / 15) * 100),
+ats_compatibility_score: (data.atsData?.readabilityScore || 5) * 10,
+critical_keywords_used: data.atsData?.matchedKeywords || [],
+missing_keywords: [],
+improvement_suggestions: [
+(data.atsData?.matchedKeywords.length || 0) < 8
+? "Consider adding more relevant terms"
+: "Good keyword coverage",
+(data.atsData?.readabilityScore || 5) < 6
+? "Simplify language"
+: "Good readability",
+],
+};
 }
