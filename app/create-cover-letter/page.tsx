@@ -1,22 +1,13 @@
-// app/create-cover-letter/page.tsx
+// app/create-cover-letter/page.tsx - KYSYMYSDIALOGI LISÄTTY
 "use client";
 
 import { useState, useEffect } from "react";
-import { SignedIn, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Loader2,
-  Sparkles,
-  Zap,
-  CheckCircle,
-  Crown,
-  AlertCircle,
-  Target,
-  Info,
-  ArrowRight,
-  X
+  Loader2, Sparkles, Zap, CheckCircle, Crown, AlertCircle, Target, Info, ArrowRight, X
 } from "lucide-react";
 import SmartHeader from "@/components/ui/smartHeader";
 import { useTokens } from "@/hooks/useTokens";
@@ -42,27 +33,23 @@ export default function CreateCoverLetterPage() {
   const [selectedVersion, setSelectedVersion] = useState<CoverLetterVersion>("v1");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // ✅ RAG TOGGLE
   const [useRAG, setUseRAG] = useState(false);
   
-  // ✅ KYSYMYSFLOW STATE
+  // ✅ KYSYMYSFLOW
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showQuestions, setShowQuestions] = useState(false);
-const { user, isLoaded, isSignedIn } = useUser();
+  
+  // ✅ UUSI: KYSYMYSDIALOGI
+  const [showQuestionPrompt, setShowQuestionPrompt] = useState(false);
+  const [pendingQuestions, setPendingQuestions] = useState<Question[]>([]);
+
+  const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
 
-  // ✅ KÄYTÄ SINUN useTokens HOOKIA
   const { 
-    tokens,
-    isActive,
-    plan_type,
-    features,
-    isLoading: tokensLoading,
-    consumeTokens,
-    canUseAction,
-    getActionCost
+    tokens, isActive, plan_type, features, isLoading: tokensLoading,
+    consumeTokens, canUseAction, getActionCost
   } = useTokens();
 
   useEffect(() => {
@@ -72,234 +59,242 @@ const { user, isLoaded, isSignedIn } = useUser();
         e.returnValue = 'Hakukirjettä luodaan. Haluatko varmasti poistua?';
         return e.returnValue;
       };
-      
       window.addEventListener('beforeunload', handleBeforeUnload);
       return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }
   }, [isGenerating]);
 
- // create-cover-letter/page.tsx
-const handleSubmit = async () => {
-  if (!isLoaded || !isSignedIn || !user?.id) {
-    console.error('❌ Clerk not ready');
-    toast.error('Odota hetki, kirjautuminen käynnissä...');
-    return;
-  }
-
-  if (!jobDescription.trim()) {
-    setError("Työpaikkailmoitus on pakollinen");
-    return;
-  }
-
-  // ✅ VALIDOI V2/RAG KÄYTTÖ
-  if (selectedVersion === 'v2' && !features.canUseV2) {
-    toast.error("V2 ATS Generator vaatii Semi-Pro tai Pro -tason");
-    return;
-  }
-
-  if (useRAG && !features.canUseRAG) {
-    toast.error("RAG-tietokanta vaatii Pro-tason");
-    return;
-  }
-
-  // ✅ TARKISTA TOKENIT
-  const action = useRAG 
-    ? 'cover_letter_rag' 
-    : selectedVersion === 'v2' 
-      ? 'cover_letter_v2' 
-      : 'cover_letter_v1';
-  
-  const validation = canUseAction(action);
-  if (!validation.allowed && plan_type !== 'free') {
-    toast.error(validation.reason || 'Ei voi generoida hakukirjettä');
-    return;
-  }
-
-  const cost = getActionCost(action);
-
-  setIsGenerating(true);
-  setError(null);
-
-  try {
-    const endpoint = selectedVersion === 'v2' 
-      ? '/api/generate-cover-letter-v2'
-      : '/api/generate-cover-letter';
-
-    console.log("🚀 Generating cover letter:", { 
-      version: selectedVersion, 
-      useRAG, 
-      cost,
-      userId: user.id
-    });
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jobDescription,
-        personalNotes,
-        language,
-        style,
-        enableRAG: useRAG
-      })
-    });
-
-    const data = await response.json();
-
-    // ✅ JOS 401 → AUTH ONGELMA
-    if (response.status === 401) {
-      toast.error('Kirjautuminen vanhentunut. Lataa sivu uudelleen.');
+  const handleSubmit = async () => {
+    if (!isLoaded || !isSignedIn || !user?.id) {
+      toast.error('Odota hetki, kirjautuminen käynnissä...');
       return;
     }
 
-    // ✅ JOS AI PALAUTTAA KYSYMYKSIÄ
-    if (data.needsMoreInfo && data.questions) {
-      setQuestions(data.questions);
-      setShowQuestions(true);
-      setIsGenerating(false);
+    if (!jobDescription.trim()) {
+      setError("Työpaikkailmoitus on pakollinen");
       return;
     }
 
-    // ✅ SUCCESS - VAIN JOS coverLetterId ON OLEMASSA
-    if (data.success && data.coverLetterId) {
-      // ✅ KULUTA TOKENIT
-      if (plan_type !== 'free' && isActive) {
-        console.log(`💰 Consuming ${cost} tokens for action: ${action}`);
-        const consumed = await consumeTokens(action);
-        
-        if (!consumed) {
-          console.warn("⚠️ Token consumption failed, but letter was created");
-        } else {
-          console.log(`✅ Tokens consumed. Remaining: ${tokens - cost}`);
-        }
-      }
-
-      toast.success(
-        useRAG ? "🎯 RAG-optimoitu hakukirje luotu!" :
-        selectedVersion === 'v2' ? "✅ ATS-optimoitu hakukirje luotu!" :
-        "✅ Hakukirje luotu!"
-      );
-      
-      router.push(`/edit-cover-letter/${data.coverLetterId}`);
-    } else {
-      throw new Error(data.error || 'Hakukirjeen luonti epäonnistui');
+    if (selectedVersion === 'v2' && !features.canUseV2) {
+      toast.error("V2 ATS Generator vaatii Semi-Pro tai Pro -tason");
+      return;
     }
 
-  } catch (err) {
-    console.error('❌ Error:', err);
-    setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-    toast.error(err instanceof Error ? err.message : 'Hakukirjeen luonti epäonnistui');
-  } finally {
-    setIsGenerating(false);
-  }
-};
-const handleAnswerQuestions = async () => {
-  const criticalQuestions = questions.filter(q => q.priority === 'critical');
-  const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
-  
-  if (unansweredCritical.length > 0) {
-    setError('Vastaa kaikkiin pakollisiin kysymyksiin');
-    return;
-  }
-
-  setIsGenerating(true);
-  setError(null);
-
-  try {
-    const endpoint = selectedVersion === 'v2' 
-      ? '/api/generate-cover-letter-v2'
-      : '/api/generate-cover-letter';
+    if (useRAG && !features.canUseRAG) {
+      toast.error("RAG-tietokanta vaatii Pro-tason");
+      return;
+    }
 
     const action = useRAG 
       ? 'cover_letter_rag' 
       : selectedVersion === 'v2' 
         ? 'cover_letter_v2' 
         : 'cover_letter_v1';
-
-    console.log('📤 Lähetetään vastaukset:', {
-      endpoint,
-      answersCount: Object.keys(answers).length,
-      skipQuestions: true,
-      action
-    });
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jobDescription,
-        personalNotes,
-        language,
-        style,
-        answeredQuestions: answers,
-        skipQuestions: true, // ✅ EI ENÄÄ KYSYMYKSIÄ
-        enableRAG: useRAG
-      })
-    });
-
-    console.log('📥 API vastaus:', {
-      status: response.status,
-      ok: response.ok
-    });
-
-    const data = await response.json();
-
-    console.log('📦 API data:', {
-      success: data.success,
-      hasCoverLetterId: !!data.coverLetterId,
-      coverLetterId: data.coverLetterId,
-      error: data.error
-    });
-
-    // ✅ Tarkista HTTP status
-    if (!response.ok) {
-      throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    // ✅ Jos AI kysyy VIELÄ kysymyksiä (ei pitäisi tapahtua)
-    if (data.needsMoreInfo && data.questions) {
-      console.warn('⚠️ AI kysyi taas kysymyksiä vaikka skipQuestions=true');
-      setError('AI tarvitsee vielä lisätietoja. Yritä uudelleen.');
+    
+    const validation = canUseAction(action);
+    if (!validation.allowed && plan_type !== 'free') {
+      toast.error(validation.reason || 'Ei voi generoida hakukirjettä');
       return;
     }
 
-    // ✅ VARMISTA ETTÄ coverLetterId ON OLEMASSA
-    if (data.success && data.coverLetterId) {
-      // ✅ KULUTA TOKENIT
-      if (plan_type !== 'free' && isActive) {
-        console.log(`💰 Consuming tokens for: ${action}`);
-        const consumed = await consumeTokens(action);
-        
-        if (!consumed) {
-          console.warn("⚠️ Token consumption failed, but letter was created");
-        }
+    const cost = getActionCost(action);
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const endpoint = selectedVersion === 'v2' 
+        ? '/api/generate-cover-letter-v2'
+        : '/api/generate-cover-letter';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobDescription,
+          personalNotes,
+          language,
+          style,
+          enableRAG: useRAG,
+          skipQuestions: false // ✅ Ensimmäinen yritys: salli kysymykset
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.status === 401) {
+        toast.error('Kirjautuminen vanhentunut. Lataa sivu uudelleen.');
+        return;
       }
 
-      // ✅ TYHJENNÄ KYSYMYKSET JA VASTAUKSET
-      setShowQuestions(false);
-      setQuestions([]);
-      setAnswers({});
-      
-      toast.success('✅ Hakukirje luotu vastausten perusteella!');
-      
-      console.log('🚀 Navigoidaan:', `/edit-cover-letter/${data.coverLetterId}`);
-      router.push(`/edit-cover-letter/${data.coverLetterId}`);
-    } else {
-      console.error('❌ API ei palauttanut coverLetterId:', data);
-      throw new Error(data.error || 'Vastausten tallennus epäonnistui - coverLetterId puuttuu');
+      // ✅ JOS AI PALAUTTAA KYSYMYKSIÄ - NÄYTÄ DIALOGI
+      if (data.needsMoreInfo && data.questions && data.questions.length > 0) {
+        console.log(`❓ AI has ${data.questions.length} questions`);
+        
+        setPendingQuestions(data.questions);
+        setShowQuestionPrompt(true); // ✅ Näytä dialogi
+        setIsGenerating(false);
+        return;
+      }
+
+      if (data.success && data.coverLetterId) {
+        if (plan_type !== 'free' && isActive) {
+          await consumeTokens(action);
+        }
+
+        toast.success(
+          useRAG ? "🎯 RAG-optimoitu hakukirje luotu!" :
+          selectedVersion === 'v2' ? "✅ ATS-optimoitu hakukirje luotu!" :
+          "✅ Hakukirje luotu!"
+        );
+        
+        router.push(`/edit-cover-letter/${data.coverLetterId}`);
+      } else {
+        throw new Error(data.error || 'Hakukirjeen luonti epäonnistui');
+      }
+
+    } catch (err) {
+      console.error('❌ Error:', err);
+      setError(err instanceof Error ? err.message : 'Tuntematon virhe');
+      toast.error(err instanceof Error ? err.message : 'Hakukirjeen luonti epäonnistui');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // ✅ KÄYTTÄJÄ HALUAA VASTATA
+  const handleShowQuestions = () => {
+    setQuestions(pendingQuestions);
+    setShowQuestions(true);
+    setShowQuestionPrompt(false);
+  };
+
+  // ✅ KÄYTTÄJÄ HALUAA JATKAA ILMAN
+  const handleSkipQuestions = async () => {
+    setShowQuestionPrompt(false);
+    setIsGenerating(true);
+
+    try {
+      const endpoint = selectedVersion === 'v2' 
+        ? '/api/generate-cover-letter-v2'
+        : '/api/generate-cover-letter';
+
+      const action = useRAG 
+        ? 'cover_letter_rag' 
+        : selectedVersion === 'v2' 
+          ? 'cover_letter_v2' 
+          : 'cover_letter_v1';
+
+      console.log('⏭️ Skipping questions, generating anyway...');
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobDescription,
+          personalNotes,
+          language,
+          style,
+          enableRAG: useRAG,
+          skipQuestions: true // ✅ Pakota generointi
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.coverLetterId) {
+        if (plan_type !== 'free' && isActive) {
+          await consumeTokens(action);
+        }
+        
+        toast.success('✅ Hakukirje luotu!');
+        router.push(`/edit-cover-letter/${data.coverLetterId}`);
+      } else {
+        throw new Error(data.error || 'Generointi epäonnistui');
+      }
+
+    } catch (err) {
+      console.error('❌ Error:', err);
+      toast.error('Generointi epäonnistui');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAnswerQuestions = async () => {
+    const criticalQuestions = questions.filter(q => q.priority === 'critical');
+    const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
+    
+    if (unansweredCritical.length > 0) {
+      setError('Vastaa kaikkiin pakollisiin kysymyksiin');
+      return;
     }
 
-  } catch (err) {
-    console.error('❌ Error in handleAnswerQuestions:', err);
-    console.error('❌ Stack:', err instanceof Error ? err.stack : 'N/A');
-    
-    const errorMessage = err instanceof Error ? err.message : 'Tuntematon virhe';
-    setError(errorMessage);
-    toast.error(errorMessage);
-  } finally {
-    setIsGenerating(false);
-  }
-};
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const endpoint = selectedVersion === 'v2' 
+        ? '/api/generate-cover-letter-v2'
+        : '/api/generate-cover-letter';
+
+      const action = useRAG 
+        ? 'cover_letter_rag' 
+        : selectedVersion === 'v2' 
+          ? 'cover_letter_v2' 
+          : 'cover_letter_v1';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobDescription,
+          personalNotes,
+          language,
+          style,
+          answeredQuestions: answers,
+          skipQuestions: true,
+          enableRAG: useRAG
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+
+      if (data.needsMoreInfo && data.questions) {
+        console.warn('⚠️ AI kysyi taas kysymyksiä vaikka skipQuestions=true');
+        setError('AI tarvitsee vielä lisätietoja. Yritä uudelleen.');
+        return;
+      }
+
+      if (data.success && data.coverLetterId) {
+        if (plan_type !== 'free' && isActive) {
+          await consumeTokens(action);
+        }
+
+        setShowQuestions(false);
+        setQuestions([]);
+        setAnswers({});
+        
+        toast.success('✅ Hakukirje luotu vastausten perusteella!');
+        router.push(`/edit-cover-letter/${data.coverLetterId}`);
+      } else {
+        throw new Error(data.error || 'coverLetterId puuttuu');
+      }
+
+    } catch (err) {
+      console.error('❌ Error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Tuntematon virhe';
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   if (!isLoaded || tokensLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -318,6 +313,54 @@ const handleAnswerQuestions = async () => {
       
       <SmartHeader />
 
+      {/* ✅ KYSYMYSDIALOGI */}
+      {showQuestionPrompt && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-8 border-2 border-white/40">
+            <div className="text-center mb-6">
+              <div className="h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                AI:lla olisi lisäkysymyksiä
+              </h3>
+              <p className="text-gray-600">
+                Haluatko vastata {pendingQuestions.length} kysymykseen parempaa laatua varten, 
+                vai generoidaanko hakukirje nykyisillä tiedoilla?
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={handleShowQuestions}
+                className="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <CheckCircle className="w-5 h-5" />
+                Näytä kysymykset ({pendingQuestions.length} kpl)
+              </button>
+
+              <button
+                onClick={handleSkipQuestions}
+                disabled={isGenerating}
+                className="w-full px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+              >
+                <ArrowRight className="w-5 h-5" />
+                Jatka ilman kysymyksiä
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowQuestionPrompt(false);
+                  setIsGenerating(false);
+                }}
+                className="w-full px-4 py-2 text-gray-500 hover:text-gray-700 text-sm"
+              >
+                Peruuta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* ✅ GENEROINTI ILMOITUS */}
       {isGenerating && (
         <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md animate-fade-in px-4">

@@ -129,6 +129,7 @@ export async function generateCoherentCoverLetter(input: {
   enableRAG?: boolean;
   allowedSkills?: string[];
   forbiddenClaims?: string[];
+  
 }) {
   console.log('🔍 V2: Flexible job-profile analysis (ATS + RAG)...');
   

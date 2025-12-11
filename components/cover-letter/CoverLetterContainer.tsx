@@ -1,4 +1,4 @@
-// components/cover-letter/CoverLetterContainer.tsx
+// components/cover-letter/CoverLetterContainer.tsx - PDF-TYYLITTELY KORJATTU
 import React, { forwardRef } from 'react';
 
 interface CoverLetterContainerProps {
@@ -12,9 +12,15 @@ interface CoverLetterContainerProps {
 
 const CoverLetterContainer = forwardRef<HTMLDivElement, CoverLetterContainerProps>(
   ({ children, className = '', onGeneratePDF, templateType = 'default', style, ...props }, ref) => {
-    // ✅ TARKISTA ONKO PDF-TILA (props tai URL)
+    // ✅ TARKISTA ONKO PDF-TILA (URL-parametri)
     const isPdfMode = typeof window !== 'undefined' && 
                       window.location.search.includes('pdf=true');
+    
+    console.log('🎨 CoverLetterContainer render:', {
+      isPdfMode,
+      url: typeof window !== 'undefined' ? window.location.href : 'SSR',
+      templateType: templateType || props['data-template-type']
+    });
     
     return (
       <div
@@ -27,7 +33,8 @@ const CoverLetterContainer = forwardRef<HTMLDivElement, CoverLetterContainerProp
           backgroundColor: 'white',
           position: 'relative',
           overflow: 'hidden',
-          // ✅ PIILOTA VARJOT PDF:SSÄ
+          
+          // ✅ NÄYTÄ VARJOT VAIN NORMAALITILASSA (ei PDF:ssä)
           ...(!isPdfMode && {
             boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15), 0 2px 10px rgba(0, 0, 0, 0.12)',
             borderRadius: '3px'
@@ -35,9 +42,10 @@ const CoverLetterContainer = forwardRef<HTMLDivElement, CoverLetterContainerProp
           ...style
         }}
       >
-        {/* ✅ PIILOTA SININEN PALKKI PDF:SSÄ */}
+        {/* ✅ SININEN PALKKI - VAIN NORMAALITILASSA (ei PDF:ssä) */}
         {!isPdfMode && (
           <>
+            {/* Vasen sininen palkki */}
             <div
               className="cover-letter-accent"
               style={{
@@ -47,10 +55,12 @@ const CoverLetterContainer = forwardRef<HTMLDivElement, CoverLetterContainerProp
                 width: '12px',
                 height: '100%',
                 background: 'linear-gradient(to bottom, #3498db, #2980b9, #3498db)',
-                boxShadow: 'inset -1px 0 3px rgba(0,0,0,0.1)'
+                boxShadow: 'inset -1px 0 3px rgba(0,0,0,0.1)',
+                zIndex: 1
               }}
             ></div>
             
+            {/* Yläreuna gradient */}
             <div
               className="cover-letter-top-accent"
               style={{
@@ -60,17 +70,20 @@ const CoverLetterContainer = forwardRef<HTMLDivElement, CoverLetterContainerProp
                 right: 0,
                 height: '8px',
                 background: 'linear-gradient(to right, #3498db, #ede7f6)',
-                opacity: 0.7
+                opacity: 0.7,
+                zIndex: 1
               }}
             ></div>
           </>
         )}
         
-        {/* ✅ PDF:SSÄ EI MARGINAALIA VASEMMALLE */}
+        {/* ✅ SISÄLTÖ: Marginaali vain normaalitilassa */}
         <div style={{ 
           marginLeft: isPdfMode ? '0' : '20px', 
           width: isPdfMode ? '100%' : 'calc(100% - 20px)', 
-          paddingTop: isPdfMode ? '0' : '12px' 
+          paddingTop: isPdfMode ? '0' : '12px',
+          position: 'relative',
+          zIndex: 2
         }}>
           {children}
         </div>
