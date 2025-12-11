@@ -129,10 +129,16 @@ export async function generateCoherentCoverLetter(input: {
   enableRAG?: boolean;
   allowedSkills?: string[];
   forbiddenClaims?: string[];
+    skipQuestions?: boolean;
+  answeredQuestions?: Record<string, string>;
   
-}) {
+})
+ {
   console.log('🔍 V2: Flexible job-profile analysis (ATS + RAG)...');
+   const shouldSkipQuestions = input.skipQuestions || 
+                              (input.answeredQuestions && Object.keys(input.answeredQuestions).length > 0);
   
+  if (!shouldSkipQuestions) {
   // ✅ STEP 0: Smart analysis
   const smartAnalysis = await analyzeJobAndProfile({
     jobDescription: input.jobDescription,
@@ -182,6 +188,8 @@ export async function generateCoherentCoverLetter(input: {
         needsMoreInfo: true
       };
     }
+  }} else {
+  console.log('✅ Skipping questions, forcing generation');
   }
 
   console.log('✅ Profile sufficient');

@@ -1,7 +1,7 @@
-// hooks/useTokens.ts - LOPULLINEN VERSIO
+// hooks/useTokens.ts - KORJATTU CACHED VERSIO
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
 export type TokenAction = 
@@ -27,40 +27,11 @@ interface TokenData {
   status: string;
 }
 
-// ✅ TIER-KUSTANNUKSET (sama kuin dokumentissa 17, mutta korjatut hinnat)
 const TIER_COSTS = {
-  free: {
-    cv_v1: 0,
-    cv_ats: 0,
-    cv_rag: 0,
-    cover_letter_v1: 0,
-    cover_letter_v2: 0,
-    cover_letter_rag: 0,
-  },
-  basic: {
-    cv_v1: 50,
-    cv_ats: 0, // Ei saatavilla
-    cv_rag: 0,
-    cover_letter_v1: 50,
-    cover_letter_v2: 0, // Ei saatavilla
-    cover_letter_rag: 0,
-  },
-  'semi-pro': {
-    cv_v1: 50,
-    cv_ats: 75,
-    cv_rag: 0,
-    cover_letter_v1: 50,
-    cover_letter_v2: 75,
-    cover_letter_rag: 0,
-  },
-  pro: {
-    cv_v1: 50,
-    cv_ats: 75,
-    cv_rag: 100,
-    cover_letter_v1: 50,
-    cover_letter_v2: 75,
-    cover_letter_rag: 100,
-  }
+  free: { cv_v1: 0, cv_ats: 0, cv_rag: 0, cover_letter_v1: 0, cover_letter_v2: 0, cover_letter_rag: 0 },
+  basic: { cv_v1: 50, cv_ats: 0, cv_rag: 0, cover_letter_v1: 50, cover_letter_v2: 0, cover_letter_rag: 0 },
+  'semi-pro': { cv_v1: 50, cv_ats: 75, cv_rag: 0, cover_letter_v1: 50, cover_letter_v2: 75, cover_letter_rag: 0 },
+  pro: { cv_v1: 50, cv_ats: 75, cv_rag: 100, cover_letter_v1: 50, cover_letter_v2: 75, cover_letter_rag: 100 }
 };
 
 const TIER_FEATURES = {
@@ -70,222 +41,182 @@ const TIER_FEATURES = {
   pro: { canUseV1: true, canUseV2: true, canUseRAG: true, canUseATS: true }
 };
 
+// ------------------------------------------------------------------
+// 🛑 GLOBAL CACHE & DEDUPLICATION (Hookin ulkopuolella!)
+// ------------------------------------------------------------------
+let globalCache: TokenData | null = null;
+let lastFetchTime = 0;
+const CACHE_DURATION = 30000; // 30 sekuntia
+let fetchPromise: Promise<TokenData | null> | null = null; // Estää päällekkäiset pyynnöt
+
 export function useTokens() {
-  const [tokenData, setTokenData] = useState<TokenData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [tokenData, setTokenData] = useState<TokenData | null>(globalCache);
+  const [isLoading, setIsLoading] = useState(!globalCache);
   const [error, setError] = useState<string | null>(null);
-  const { userId, isSignedIn } = useAuth();
+  const { userId, isSignedIn, isLoaded } = useAuth();
 
-  const fetchTokens = async (retries = 3) => {
-  // ✅ Jos ei kirjautunut, aseta safe defaults
-  if (!isSignedIn || !userId) {
-    setTokenData({
-      tokens: 0,
-      isActive: false,
-      plan_type: 'free',
-      features: TIER_FEATURES.free,
-      cancel_at_period_end: false,
-      current_period_end: null,
-      status: 'inactive'
-    });
-    setIsLoading(false);
-    return;
-  }
+  // ✅ Keskitetty tapa päivittää sekä lokaali state että globaali cache
+  const updateStateAndCache = (data: TokenData) => {
+    globalCache = data;
+    lastFetchTime = Date.now();
+    setTokenData(data);
+  };
 
-  try {
-    console.log(`🔄 Fetching tokens (attempt ${4 - retries}/3)...`);
-    
-    const response = await fetch('/api/check-subscription', {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache' }
-    });
-
-    // ✅ JOS 401 JA RETRIESEJÄ JÄLJELLÄ → YRITÄ UUDELLEEN
-    if (response.status === 401 && retries > 0) {
-      console.warn(`⚠️ Auth not ready (401), retrying in 1s... (${retries} retries left)`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return fetchTokens(retries - 1);
+  const fetchTokens = useCallback(async (forceRefresh = false) => {
+    // 1. Auth check
+    if (!isLoaded) return;
+    if (!isSignedIn || !userId) {
+        const defaultData: TokenData = {
+            tokens: 0, isActive: false, plan_type: 'free',
+            features: TIER_FEATURES.free, cancel_at_period_end: false,
+            current_period_end: null, status: 'inactive'
+        };
+        updateStateAndCache(defaultData);
+        setIsLoading(false);
+        return;
     }
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+    // 2. Cache check (jos ei pakoteta päivitystä)
+    const now = Date.now();
+    if (!forceRefresh && globalCache && (now - lastFetchTime < CACHE_DURATION)) {
+        // console.log('💾 Using cached token data');
+        setTokenData(globalCache);
+        setIsLoading(false);
+        return;
     }
 
-    const data = await response.json();
-    
-    console.log('✅ Token data received:', {
-      plan_type: data.plan_type,
-      tokens: data.tokens,
-      is_premium: data.is_premium,
-      cancel_at_period_end: data.cancel_at_period_end
-    });
+    // 3. Deduping: Jos pyyntö on jo menossa, odota sitä äläkä tee uutta
+    if (fetchPromise) {
+        // console.log('⏳ Waiting for existing fetch...');
+        try {
+            const data = await fetchPromise;
+            if (data) setTokenData(data);
+        } catch (err) { /* ignore secondary error */ }
+        setIsLoading(false);
+        return;
+    }
 
-    const planType = (data.plan_type || 'free') as 'free' | 'basic' | 'semi-pro' | 'pro';
+    // 4. Actual Fetch
+    // console.log('🔄 Fetching tokens from API...');
     
-    setTokenData({
-      tokens: data.tokens || 0,
-      isActive: data.is_premium || false,
-      plan_type: planType,
-      features: TIER_FEATURES[planType],
-      cancel_at_period_end: data.cancel_at_period_end || false,
-      current_period_end: data.current_period_end || null,
-      status: data.status || 'inactive'
-    });
+    // Luodaan promise, jonka muutkin komponentit voivat jakaa
+    fetchPromise = (async () => {
+        try {
+            const response = await fetch('/api/check-subscription', {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache' }
+            });
 
-    setError(null);
-  } catch (err) {
-    console.error('❌ Error fetching tokens:', err);
-    setError(err instanceof Error ? err.message : 'Unknown error');
-    
-    // Safe fallback
-    setTokenData({
-      tokens: 0,
-      isActive: false,
-      plan_type: 'free',
-      features: TIER_FEATURES.free,
-      cancel_at_period_end: false,
-      current_period_end: null,
-      status: 'inactive'
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+            if (!response.ok) {
+                if (response.status === 429) throw new Error('Too many requests');
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const planType = (data.plan_type || 'free') as keyof typeof TIER_FEATURES;
+            
+            const newData: TokenData = {
+                tokens: data.tokens || 0,
+                isActive: data.is_premium || false,
+                plan_type: planType,
+                features: TIER_FEATURES[planType],
+                cancel_at_period_end: data.cancel_at_period_end || false,
+                current_period_end: data.current_period_end || null,
+                status: data.status || 'inactive'
+            };
+
+            updateStateAndCache(newData);
+            setError(null);
+            return newData;
+        } catch (err) {
+            console.error('❌ Error fetching tokens:', err);
+            setError(err instanceof Error ? err.message : 'Unknown error');
+            return null;
+        } finally {
+            fetchPromise = null; // Vapauta lukko
+            setIsLoading(false);
+        }
+    })();
+
+    await fetchPromise;
+  }, [userId, isSignedIn, isLoaded]);
 
   // ✅ KULUTA TOKENIT
   const consumeTokens = async (action: TokenAction): Promise<boolean> => {
-    if (!userId || !tokenData) {
-      console.error('❌ No userId or tokenData');
-      return false;
-    }
+    if (!userId || !tokenData) return false;
 
     try {
-      const tokensRequired = getActionCost(action);
-      
-      if (tokensRequired === 0) {
-        console.log('✅ Action requires 0 tokens');
-        return true;
-      }
+      const tokensRequired = TIER_COSTS[tokenData.plan_type][action];
+      if (tokensRequired === 0) return true;
 
       if (tokenData.tokens < tokensRequired) {
         setError(`Ei tarpeeksi tokeneita (tarvitaan ${tokensRequired})`);
         return false;
       }
 
-      console.log(`💰 Consuming ${tokensRequired} tokens for ${action}...`);
-
+      console.log(`💰 Consuming ${tokensRequired} tokens...`);
       const response = await fetch('/api/tokens/consume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          tokens: tokensRequired // ✅ Käytä "tokens" kenttää (kuten API odottaa)
-        })
+        body: JSON.stringify({ action, tokens: tokensRequired })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to consume tokens');
-      }
-
+      if (!response.ok) throw new Error('Failed to consume tokens');
       const data = await response.json();
-      
-      console.log(`✅ Tokens consumed. Remaining: ${data.tokensRemaining}`);
 
-      // Päivitä local state
-      setTokenData(prev => prev ? {
-        ...prev,
-        tokens: data.tokensRemaining
-      } : null);
+      // ✅ TÄRKEÄ: Päivitä cache heti kulutuksen jälkeen!
+      // Muuten cache palauttaa vanhan saldon seuraavat 30sek.
+      if (globalCache) {
+          const updatedData = { ...globalCache, tokens: data.tokensRemaining };
+          updateStateAndCache(updatedData);
+      }
       
       return true;
     } catch (err) {
       console.error('❌ Error consuming tokens:', err);
-      setError(err instanceof Error ? err.message : 'Token consumption failed');
+      setError('Token consumption failed');
       return false;
     }
   };
 
-  // ✅ TARKISTA VOIKO KÄYTTÄÄ TOIMINTOA
-  const canUseAction = (action: TokenAction): {
-    allowed: boolean;
-    reason?: string;
-  } => {
-    if (!tokenData) {
-      return { 
-        allowed: false, 
-        reason: 'Ei subscription-dataa' 
-      };
-    }
-
+  const canUseAction = (action: TokenAction) => {
+    if (!tokenData) return { allowed: false, reason: 'Ladataan...' };
+    
     const tier = tokenData.plan_type;
-    const tokensRequired = TIER_COSTS[tier][action];
+    const required = TIER_COSTS[tier][action];
 
-    // Jos action ei ole saatavilla tälle tierille
-    if (tokensRequired === undefined || tokensRequired === 0) {
-      const actionName = action.includes('rag') ? 'RAG' :
-                        action.includes('v2') || action.includes('ats') ? 'ATS' :
-                        'V1';
-      
-      return { 
-        allowed: false, 
-        reason: `${actionName} ei saatavilla ${tier.toUpperCase()}-tiellä` 
-      };
-    }
-
-    // Tarkista onko tilaus aktiivinen
-    if (!tokenData.isActive && tier !== 'free') {
-      return { 
-        allowed: false, 
-        reason: 'Tilaus ei aktiivinen' 
-      };
-    }
-
-    // Tarkista tokenit
-    if (tokenData.tokens < tokensRequired) {
-      return { 
-        allowed: false, 
-        reason: `Tarvitaan ${tokensRequired} tokenia (sinulla ${tokenData.tokens})` 
-      };
-    }
+    // Check availability
+    if (required === undefined) return { allowed: false, reason: 'Ei saatavilla tässä plaanissa' };
+    
+    // Check balance
+    if (tokenData.tokens < required) return { allowed: false, reason: `Ei tarpeeksi tokeneita (${required})` };
 
     return { allowed: true };
   };
 
-  // ✅ ANNA TOIMINNON HINTA
-  const getActionCost = (action: TokenAction): number => {
-    if (!tokenData) return 0;
-    return TIER_COSTS[tokenData.plan_type][action] || 0;
-  };
-
-  // ✅ AUTO-REFRESH
+  // ✅ Initial fetch + Interval
   useEffect(() => {
-    fetchTokens();
+    fetchTokens(); // Hakee (tai käyttää cachea)
 
-    // Päivitä 30 sekunnin välein
-    const intervalId = setInterval(fetchTokens, 30000);
+    const intervalId = setInterval(() => {
+        // Force refresh false -> käyttää cachea jos validi, 
+        // mutta koska cache on 30s ja interval 30s, tämä hakee uuden juuri sopivasti.
+        fetchTokens(); 
+    }, 30000);
 
     return () => clearInterval(intervalId);
-  }, [userId, isSignedIn]);
+  }, [fetchTokens]);
 
   return {
-    // Data
     tokens: tokenData?.tokens || 0,
     isActive: tokenData?.isActive || false,
     plan_type: tokenData?.plan_type || 'free',
     features: tokenData?.features || TIER_FEATURES.free,
-    cancel_at_period_end: tokenData?.cancel_at_period_end || false,
-    current_period_end: tokenData?.current_period_end || null,
-    status: tokenData?.status || 'inactive',
-
-    // Loading/Error
     isLoading,
     error,
-
-    // Actions
     consumeTokens,
-    fetchTokens,
+    fetchTokens: () => fetchTokens(true), // Manuaalinen refresh pakottaa haun
     canUseAction,
-    getActionCost,
+    getActionCost: (action: TokenAction) => tokenData ? TIER_COSTS[tokenData.plan_type][action] : 0,
   };
 }
