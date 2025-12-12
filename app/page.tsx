@@ -7,9 +7,25 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useUser, SignInButton, SignedOut } from "@clerk/nextjs";
 import {
-  FileText, User, Files, Check, Sparkles, Target, Zap,
-  Crown, Lock, X, Play, ChevronRight, Database, Shield, Brain, 
-  FileInput, AlertTriangle, XCircle, Award
+  FileText,
+  User,
+  Files,
+  Check,
+  Sparkles,
+  Target,
+  Zap,
+  Crown,
+  Lock,
+  X,
+  Play,
+  ChevronRight,
+  Database,
+  Shield,
+  Brain,
+  FileInput,
+  AlertTriangle,
+  XCircle,
+  Award,
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -42,7 +58,10 @@ export default function Home() {
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const { tokens } = useTokens();
-const displayName = user?.firstName || convertProfileToApiFormat.name || null;
+  
+  // Huom: convertProfileToApiFormat.name voi olla ongelmallinen jos se on funktio, 
+  // mutta pidin logiikan ennallaan pyynnön mukaisesti.
+  const displayName = user?.firstName || (convertProfileToApiFormat as any).name || null;
 
   // Hae freemium status
   useEffect(() => {
@@ -78,7 +97,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
         const hasProfile = profileResponse.ok;
         const cvsData = cvsResponse.ok ? await cvsResponse.json() : [];
         const hasCVs = cvsData.length > 0;
-        const hasSeenOnboarding = localStorage.getItem(`onboarding_completed_${user.id}`);
+        const hasSeenOnboarding = localStorage.getItem(
+          `onboarding_completed_${user.id}`
+        );
         const isNewUser = !hasProfile && !hasCVs && !hasSeenOnboarding;
         if (isNewUser) {
           setShowWelcome(true);
@@ -94,7 +115,11 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
     }
   }, [isSignedIn, user?.id, isLoaded]);
 
-  const handleWelcomeComplete = async (data: { name: string; email: string; useClerkEmail: boolean }) => {
+  const handleWelcomeComplete = async (data: {
+    name: string;
+    email: string;
+    useClerkEmail: boolean;
+  }) => {
     try {
       const response = await fetch("/api/save-profile", {
         method: "POST",
@@ -103,11 +128,28 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
           profile: {
             name: data.name,
             email: data.email,
-            education: [{ id: 1, school: "", degree: "", year: "", isOngoing: false }],
-            workExperience: [{ id: 1, company: "", position: "", duration: "", description: "" }],
+            education: [
+              { id: 1, school: "", degree: "", year: "", isOngoing: false },
+            ],
+            workExperience: [
+              {
+                id: 1,
+                company: "",
+                position: "",
+                duration: "",
+                description: "",
+              },
+            ],
             languages: [{ id: 1, language: "", level: "Hyvä" }],
-            workingStyle: "", problemSolving: "", energySources: "", uniqueStrength: "",
-            learningStyle: "", teamRole: "", valuesExample: "", superpower: "", skills: "",
+            workingStyle: "",
+            problemSolving: "",
+            energySources: "",
+            uniqueStrength: "",
+            learningStyle: "",
+            teamRole: "",
+            valuesExample: "",
+            superpower: "",
+            skills: "",
           },
         }),
       });
@@ -158,10 +200,25 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
         setLoadingRecent(false);
       }
     };
-    if (isLoaded && isSignedIn && profileCompleted === true && !showWelcome && !showOnboarding) {
+    if (
+      isLoaded &&
+      isSignedIn &&
+      profileCompleted === true &&
+      !showWelcome &&
+      !showOnboarding
+    ) {
       loadRecentDocuments();
     }
-  }, [isSignedIn, user?.id, profileCompleted, tokens, freemiumStatus, isLoaded, showWelcome, showOnboarding]);
+  }, [
+    isSignedIn,
+    user?.id,
+    profileCompleted,
+    tokens,
+    freemiumStatus,
+    isLoaded,
+    showWelcome,
+    showOnboarding,
+  ]);
 
   if (!isLoaded) {
     return (
@@ -178,9 +235,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
   if (showWelcome) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-        <WelcomeModal 
+        <WelcomeModal
           isOpen={true}
-          onComplete={handleWelcomeComplete} 
+          onComplete={handleWelcomeComplete}
           onSkip={handleWelcomeSkip}
           initialEmail={user?.emailAddresses?.[0]?.emailAddress}
         />
@@ -191,7 +248,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
   if (showOnboarding) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-        <OnboardingSteps 
+        <OnboardingSteps
           isOpen={true}
           onComplete={handleOnboardingComplete}
           currentUserName={user?.firstName || "käyttäjä"}
@@ -206,31 +263,37 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
   if (!isSignedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
-        
         {/* Animated background blobs */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-          <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-400/20 to-yellow-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+          <div
+            className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse"
+            style={{ animationDelay: "1s" }}
+          ></div>
+          <div
+            className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-400/20 to-yellow-400/20 rounded-full blur-3xl animate-pulse"
+            style={{ animationDelay: "2s" }}
+          ></div>
         </div>
 
         <SmartHeader />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
-          
           {/* ===================================
               HERO SECTION - MYYVÄ HOOK
               =================================== */}
           <div className="mb-16">
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl shadow-indigo-500/10 p-12 md:p-16 backdrop-saturate-150 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl"></div>
-              
+
               <div className="relative z-10 text-center">
                 {/* Trust Badge */}
                 <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/90 backdrop-blur-sm rounded-full border-2 border-green-300 shadow-xl mb-6">
                   <Shield className="w-6 h-6 text-green-600" />
                   <span className="font-bold text-green-800">
-                    {language === "en" ? "The Only AI That Doesn't Lie" : "Ainoa AI joka EI valehtele"}
+                    {language === "en"
+                      ? "The Only AI That Doesn't Lie"
+                      : "Ainoa AI joka EI valehtele"}
                   </span>
                   <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
                 </div>
@@ -238,7 +301,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 {/* Main Hook */}
                 <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight">
                   <span className="bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent">
-                    {language === "en" ? "90% of AI Cover Letters" : "90% AI-hakukirjeistä"}
+                    {language === "en"
+                      ? "90% of AI Cover Letters"
+                      : "90% AI-hakukirjeistä"}
                   </span>
                   <br />
                   <span className="text-gray-900">
@@ -249,7 +314,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     {language === "en" ? "We Stop That." : "Me estämme sen."}
                   </span>
                 </h1>
-                
+
                 <p className="text-xl md:text-2xl text-gray-700 max-w-4xl mx-auto leading-relaxed mb-8">
                   {language === "en"
                     ? "The first system that provably prevents AI from inventing skills, work experience, or degrees. Multi-layered validation ensures every word is true."
@@ -265,23 +330,33 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                       </Button>
                     </SignInButton>
                   </SignedOut>
-                  <Button 
+                  <Button
                     variant="outline"
-                    onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={() =>
+                      document
+                        .getElementById("how-it-works")
+                        ?.scrollIntoView({ behavior: "smooth" })
+                    }
                     className="px-8 py-4 bg-white text-indigo-600 rounded-xl font-bold text-lg border-2 border-indigo-300 hover:bg-indigo-50 transition-all"
                   >
-                    {language === "en" ? "See How It Works" : "Katso Miten Se Toimii"}
+                    {language === "en"
+                      ? "See How It Works"
+                      : "Katso Miten Se Toimii"}
                   </Button>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <Check className="w-5 h-5 text-green-600" />
-                    <span>{language === "en" ? "No credit card" : "Ei luottokorttia"}</span>
+                    <span>
+                      {language === "en" ? "No credit card" : "Ei luottokorttia"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-5 h-5 text-green-600" />
-                    <span>{language === "en" ? "1 free CV" : "1 ilmainen CV"}</span>
+                    <span>
+                      {language === "en" ? "1 free CV" : "1 ilmainen CV"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-5 h-5 text-green-600" />
@@ -300,11 +375,15 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 rounded-full mb-4">
                 <AlertTriangle className="w-5 h-5 text-red-600" />
                 <span className="font-bold text-red-800">
-                  {language === "en" ? "The Problem With Other AI Tools" : "Ongelma Muissa AI-työkaluissa"}
+                  {language === "en"
+                    ? "The Problem With Other AI Tools"
+                    : "Ongelma Muissa AI-työkaluissa"}
                 </span>
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
-                {language === "en" ? "ChatGPT & Co. Invent. We Don't." : "ChatGPT & Co. Keksivät. Me Emme."}
+                {language === "en"
+                  ? "ChatGPT & Co. Invent. We Don't."
+                  : "ChatGPT & Co. Keksivät. Me Emme."}
               </h2>
             </div>
 
@@ -315,7 +394,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   {language === "en" ? "Invented Skills" : "Keksityt Taidot"}
                 </h3>
                 <p className="text-sm text-gray-700 text-center">
-                  {language === "en" 
+                  {language === "en"
                     ? '"Skills: Python, React, AWS..." → You\'ve never used them'
                     : '"Osaamiseni: Python, React, AWS..." → Et ole koskaan käyttänyt niitä'}
                 </p>
@@ -324,7 +403,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
               <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-6">
                 <XCircle className="w-12 h-12 text-red-600 mb-4 mx-auto" />
                 <h3 className="font-bold text-lg mb-2 text-center">
-                  {language === "en" ? "Exaggerated Experience" : "Liioiteltu Kokemus"}
+                  {language === "en"
+                    ? "Exaggerated Experience"
+                    : "Liioiteltu Kokemus"}
                 </h3>
                 <p className="text-sm text-gray-700 text-center">
                   {language === "en"
@@ -348,25 +429,34 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
 
             <div className="mt-8 bg-gradient-to-r from-red-100 to-pink-100 border-2 border-red-300 rounded-xl p-6">
               <h4 className="font-bold text-red-900 mb-3 text-center text-xl">
-                💥 {language === "en" ? "What Happens When You Get Caught?" : "Mitä Tapahtuu Kun Jäät Kiinni?"}
+                💥{" "}
+                {language === "en"
+                  ? "What Happens When You Get Caught?"
+                  : "Mitä Tapahtuu Kun Jäät Kiinni?"}
               </h4>
               <div className="grid md:grid-cols-3 gap-4 text-center text-sm">
                 <div>
                   <p className="font-bold text-red-800 text-2xl mb-1">❌</p>
                   <p className="text-red-700">
-                    {language === "en" ? "Application rejected immediately" : "Hakemus hylätty välittömästi"}
+                    {language === "en"
+                      ? "Application rejected immediately"
+                      : "Hakemus hylätty välittömästi"}
                   </p>
                 </div>
                 <div>
                   <p className="font-bold text-red-800 text-2xl mb-1">🚫</p>
                   <p className="text-red-700">
-                    {language === "en" ? "Blacklisted at company" : "Mustalle listalle yrityksessä"}
+                    {language === "en"
+                      ? "Blacklisted at company"
+                      : "Mustalle listalle yrityksessä"}
                   </p>
                 </div>
                 <div>
                   <p className="font-bold text-red-800 text-2xl mb-1">📉</p>
                   <p className="text-red-700">
-                    {language === "en" ? "Reputation damaged in industry" : "Maine kärsii alalla"}
+                    {language === "en"
+                      ? "Reputation damaged in industry"
+                      : "Maine kärsii alalla"}
                   </p>
                 </div>
               </div>
@@ -376,16 +466,23 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
           {/* ===================================
               RATKAISU - 5 KERROSTA
               =================================== */}
-          <div id="how-it-works" className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-3xl p-8 md:p-12 border-2 border-green-300 shadow-2xl mb-16">
+          <div
+            id="how-it-works"
+            className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-3xl p-8 md:p-12 border-2 border-green-300 shadow-2xl mb-16"
+          >
             <div className="text-center mb-12">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full mb-4">
                 <Shield className="w-5 h-5 text-green-600" />
                 <span className="font-bold text-green-800">
-                  {language === "en" ? "HappyApplaid Solution" : "HappyApplaid Ratkaisu"}
+                  {language === "en"
+                    ? "HappyApplaid Solution"
+                    : "HappyApplaid Ratkaisu"}
                 </span>
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {language === "en" ? "5-Layer Truth Verification" : "5-Kerroksinen Totuuden Varmistus"}
+                {language === "en"
+                  ? "5-Layer Truth Verification"
+                  : "5-Kerroksinen Totuuden Varmistus"}
               </h2>
               <p className="text-lg text-gray-700 max-w-3xl mx-auto">
                 {language === "en"
@@ -405,7 +502,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <div className="flex-1">
                     <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
                       <Brain className="w-6 h-6 text-blue-600" />
-                      {language === "en" ? "Psychological Profiling" : "Psykologinen Profilointi"}
+                      {language === "en"
+                        ? "Psychological Profiling"
+                        : "Psykologinen Profilointi"}
                     </h3>
                     <p className="text-gray-700 mb-3">
                       {language === "en"
@@ -414,7 +513,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     </p>
                     <div className="bg-blue-50 rounded-lg p-3">
                       <p className="text-sm text-blue-900">
-                        <strong>{language === "en" ? "Example:" : "Esimerkki:"}</strong>{" "}
+                        <strong>
+                          {language === "en" ? "Example:" : "Esimerkki:"}
+                        </strong>{" "}
                         {language === "en"
                           ? 'If you\'re introverted, AI won\'t write "I enjoy large social situations" - that would be inauthentic.'
                           : 'Jos olet introvertti, AI ei kirjoita "Nautin suurista sosiaalisista tilanteista" – se olisi epäaitoa.'}
@@ -433,7 +534,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <div className="flex-1">
                     <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
                       <Target className="w-6 h-6 text-purple-600" />
-                      {language === "en" ? "Smart Question System" : "Älykäs Kysymysjärjestelmä"}
+                      {language === "en"
+                        ? "Smart Question System"
+                        : "Älykäs Kysymysjärjestelmä"}
                     </h3>
                     <p className="text-gray-700 mb-3">
                       {language === "en"
@@ -442,7 +545,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     </p>
                     <div className="bg-purple-50 rounded-lg p-3">
                       <p className="text-sm text-purple-900">
-                        <strong>{language === "en" ? "Example:" : "Esimerkki:"}</strong>{" "}
+                        <strong>
+                          {language === "en" ? "Example:" : "Esimerkki:"}
+                        </strong>{" "}
                         {language === "en"
                           ? 'Job requires "project management" but you haven\'t mentioned it → AI asks: "Do you have project management experience?" instead of claiming you do.'
                           : 'Työ vaatii "projektinhallintaa" mutta et ole maininnut sitä → AI kysyy: "Onko sinulla projektinhallintakokemusta?" eikä vain väitä että on.'}
@@ -461,7 +566,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <div className="flex-1">
                     <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
                       <Zap className="w-6 h-6 text-amber-600" />
-                      {language === "en" ? "ATS Optimization (Semi-Pro+)" : "ATS-Optimointi (Semi-Pro+)"}
+                      {language === "en"
+                        ? "ATS Optimization (Semi-Pro+)"
+                        : "ATS-Optimointi (Semi-Pro+)"}
                     </h3>
                     <p className="text-gray-700 mb-3">
                       {language === "en"
@@ -470,7 +577,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     </p>
                     <div className="bg-amber-50 rounded-lg p-3">
                       <p className="text-sm text-amber-900">
-                        <strong>{language === "en" ? "Fact:" : "Fakta:"}</strong>{" "}
+                        <strong>
+                          {language === "en" ? "Fact:" : "Fakta:"}
+                        </strong>{" "}
                         {language === "en"
                           ? "75% of large companies use ATS. We increase pass rate from 60% → 90%+ with semantic matching (not just keywords, but also synonyms)."
                           : "75% suuryrityksistä käyttää ATS:ää. Me nostamme läpäisyprosentin 60% → 90%+ semanttisella matchauksella (ei vain avainsanat, vaan myös synonyymit)."}
@@ -492,7 +601,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <div className="flex-1">
                     <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
                       <Database className="w-6 h-6 text-yellow-700" />
-                      {language === "en" ? "RAG - Expert Consultation (PRO)" : "RAG - Eksperttikonsultaatio (PRO)"}
+                      {language === "en"
+                        ? "RAG - Expert Consultation (PRO)"
+                        : "RAG - Eksperttikonsultaatio (PRO)"}
                       <Crown className="w-5 h-5 text-yellow-600" />
                     </h3>
                     <p className="text-gray-700 mb-3">
@@ -502,17 +613,39 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     </p>
                     <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-300">
                       <p className="text-sm text-yellow-900 mb-2">
-                        <strong>{language === "en" ? "How it works:" : "Miten se toimii:"}</strong>
+                        <strong>
+                          {language === "en"
+                            ? "How it works:"
+                            : "Miten se toimii:"}
+                        </strong>
                       </p>
                       <ol className="text-sm text-yellow-900 space-y-1 list-decimal list-inside">
-                        <li>{language === "en" ? "Semantic search from database (no keywords)" : "Semanttinen haku tietokannasta (ei avainsanoja)"}</li>
-                        <li>{language === "en" ? "Filter by content type (CV vs cover letter)" : "Suodatus sisällön tyypin mukaan (CV vs hakukirje)"}</li>
-                        <li>{language === "en" ? "Priority: high → medium → low sources" : "Prioriteetti: high → medium → low lähteet"}</li>
-                        <li>{language === "en" ? "Integration into AI generation in real-time" : "Integrointi AI:n generointiin reaaliajassa"}</li>
+                        <li>
+                          {language === "en"
+                            ? "Semantic search from database (no keywords)"
+                            : "Semanttinen haku tietokannasta (ei avainsanoja)"}
+                        </li>
+                        <li>
+                          {language === "en"
+                            ? "Filter by content type (CV vs cover letter)"
+                            : "Suodatus sisällön tyypin mukaan (CV vs hakukirje)"}
+                        </li>
+                        <li>
+                          {language === "en"
+                            ? "Priority: high → medium → low sources"
+                            : "Prioriteetti: high → medium → low lähteet"}
+                        </li>
+                        <li>
+                          {language === "en"
+                            ? "Integration into AI generation in real-time"
+                            : "Integrointi AI:n generointiin reaaliajassa"}
+                        </li>
                       </ol>
                       <div className="mt-3 pt-3 border-t border-yellow-300">
                         <p className="text-xs text-yellow-800">
-                          <strong>{language === "en" ? "Proof:" : "Todiste:"}</strong>{" "}
+                          <strong>
+                            {language === "en" ? "Proof:" : "Todiste:"}
+                          </strong>{" "}
                           {language === "en"
                             ? "PRO users get on average 2.3x more interview invitations than Basic users."
                             : "PRO-käyttäjät saavat keskimäärin 2.3x enemmän haastattelukutsuja kuin Basic-käyttäjät."}
@@ -532,7 +665,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <div className="flex-1">
                     <h3 className="font-bold text-xl mb-2 flex items-center gap-2">
                       <Shield className="w-6 h-6 text-red-600" />
-                      {language === "en" ? "Master Guardian - Final Watchdog" : "Master Guardian - Viimeinen Vartija"}
+                      {language === "en"
+                        ? "Master Guardian - Final Watchdog"
+                        : "Master Guardian - Viimeinen Vartija"}
                     </h3>
                     <p className="text-gray-700 mb-3">
                       {language === "en"
@@ -541,29 +676,52 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     </p>
                     <div className="bg-red-50 rounded-lg p-4 border-2 border-red-300">
                       <p className="text-sm text-red-900 mb-3">
-                        <strong>{language === "en" ? "What Master Guardian checks:" : "Mitä Master Guardian tarkistaa:"}</strong>
+                        <strong>
+                          {language === "en"
+                            ? "What Master Guardian checks:"
+                            : "Mitä Master Guardian tarkistaa:"}
+                        </strong>
                       </p>
                       <div className="grid md:grid-cols-2 gap-3 text-sm">
                         <div className="flex items-start gap-2">
                           <Shield className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-red-800">{language === "en" ? "Work years match" : "Työvuodet täsmäävät"}</span>
+                          <span className="text-red-800">
+                            {language === "en"
+                              ? "Work years match"
+                              : "Työvuodet täsmäävät"}
+                          </span>
                         </div>
                         <div className="flex items-start gap-2">
                           <Shield className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-red-800">{language === "en" ? "Degrees verified" : "Tutkinnot todistettu"}</span>
+                          <span className="text-red-800">
+                            {language === "en"
+                              ? "Degrees verified"
+                              : "Tutkinnot todistettu"}
+                          </span>
                         </div>
                         <div className="flex items-start gap-2">
                           <Shield className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-red-800">{language === "en" ? "Skills in profile" : "Taidot profiilissa"}</span>
+                          <span className="text-red-800">
+                            {language === "en"
+                              ? "Skills in profile"
+                              : "Taidot profiilissa"}
+                          </span>
                         </div>
                         <div className="flex items-start gap-2">
                           <Shield className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-red-800">{language === "en" ? "Job titles realistic" : "Työnimikkeet realistiset"}</span>
+                          <span className="text-red-800">
+                            {language === "en"
+                              ? "Job titles realistic"
+                              : "Työnimikkeet realistiset"}
+                          </span>
                         </div>
                       </div>
                       <div className="mt-4 bg-white border-2 border-red-400 rounded-lg p-3">
                         <p className="text-xs font-bold text-red-900 mb-1">
-                          🚨 {language === "en" ? "DANGER = AUTOMATICALLY REJECTED" : "DANGER = HYLÄTTY AUTOMAATTISESTI"}
+                          🚨{" "}
+                          {language === "en"
+                            ? "DANGER = AUTOMATICALLY REJECTED"
+                            : "DANGER = HYLÄTTY AUTOMAATTISESTI"}
                         </p>
                         <p className="text-xs text-red-800">
                           {language === "en"
@@ -582,7 +740,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
               <div className="flex items-center justify-center gap-3 mb-3">
                 <Award className="w-8 h-8" />
                 <h3 className="text-2xl font-bold">
-                  {language === "en" ? "100% Truthfulness Guarantee" : "100% Totuudenmukaisuustakuu"}
+                  {language === "en"
+                    ? "100% Truthfulness Guarantee"
+                    : "100% Totuudenmukaisuustakuu"}
                 </h3>
               </div>
               <p className="text-lg text-green-100">
@@ -615,7 +775,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <Play className="h-10 w-10 text-white ml-1" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                  {language === "en" ? "Demo Video Coming Soon" : "Demo-video Tulossa Pian"}
+                  {language === "en"
+                    ? "Demo Video Coming Soon"
+                    : "Demo-video Tulossa Pian"}
                 </h3>
                 <p className="text-gray-600 max-w-md">
                   {language === "en"
@@ -633,27 +795,35 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   {language === "en" ? "Profile Creation" : "Profiilin Luonti"}
                 </h4>
                 <p className="text-sm text-gray-600">
-                  {language === "en" ? "Step-by-step walkthrough" : "Askel askeleelta läpikäynti"}
+                  {language === "en"
+                    ? "Step-by-step walkthrough"
+                    : "Askel askeleelta läpikäynti"}
                 </p>
               </div>
-              
+
               <div className="text-center p-4 bg-purple-50 rounded-xl">
                 <FileText className="h-8 w-8 text-purple-600 mx-auto mb-2" />
                 <h4 className="font-bold text-gray-900 mb-1">
-                  {language === "en" ? "Document Generation" : "Dokumentin Generointi"}
+                  {language === "en"
+                    ? "Document Generation"
+                    : "Dokumentin Generointi"}
                 </h4>
                 <p className="text-sm text-gray-600">
-                  {language === "en" ? "Live generation process" : "Suora generointiprosessi"}
+                  {language === "en"
+                    ? "Live generation process"
+                    : "Suora generointiprosessi"}
                 </p>
               </div>
-              
+
               <div className="text-center p-4 bg-green-50 rounded-xl">
                 <Shield className="h-8 w-8 text-green-600 mx-auto mb-2" />
                 <h4 className="font-bold text-gray-900 mb-1">
                   {language === "en" ? "Master Guardian" : "Master Guardian"}
                 </h4>
                 <p className="text-sm text-gray-600">
-                  {language === "en" ? "Validation in action" : "Validointi toiminnassa"}
+                  {language === "en"
+                    ? "Validation in action"
+                    : "Validointi toiminnassa"}
                 </p>
               </div>
             </div>
@@ -671,7 +841,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 </span>
               </div>
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {language === "en" ? "How It Actually Works" : "Näin Se Oikeasti Toimii"}
+                {language === "en"
+                  ? "How It Actually Works"
+                  : "Näin Se Oikeasti Toimii"}
               </h2>
               <p className="text-lg text-gray-700 max-w-3xl mx-auto">
                 {language === "en"
@@ -682,7 +854,6 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
 
             {/* Component Grid */}
             <div className="grid md:grid-cols-2 gap-6">
-              
               {/* Component 1 */}
               <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200">
                 <div className="flex items-start gap-3 mb-4">
@@ -690,9 +861,13 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     <Brain className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">personalityExtractor.ts</h3>
+                    <h3 className="font-bold text-lg">
+                      personalityExtractor.ts
+                    </h3>
                     <p className="text-xs text-blue-700 font-mono">
-                      {language === "en" ? "Role: Psychologist" : "Rooli: Psykologi"}
+                      {language === "en"
+                        ? "Role: Psychologist"
+                        : "Rooli: Psykologi"}
                     </p>
                   </div>
                 </div>
@@ -703,12 +878,18 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 </p>
                 <div className="bg-blue-100 rounded-lg p-3 text-xs">
                   <p className="font-bold text-blue-900 mb-1">
-                    {language === "en" ? "Real validation:" : "Todellinen validointi:"}
+                    {language === "en"
+                      ? "Real validation:"
+                      : "Todellinen validointi:"}
                   </p>
                   <code className="text-blue-800">
-                    extractionQuality.completeness: 0-1<br/>
-                    extractionQuality.clarity: 0-1<br/>
-                    → {language === "en" ? "If < 0.5, document not credible" : "Jos < 0.5, dokumentti ei ole uskottava"}
+                    extractionQuality.completeness: 0-1
+                    <br />
+                    extractionQuality.clarity: 0-1
+                    <br />→{" "}
+                    {language === "en"
+                      ? "If < 0.5, document not credible"
+                      : "Jos < 0.5, dokumentti ei ole uskottava"}
                   </code>
                 </div>
               </div>
@@ -720,9 +901,13 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     <Target className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">smartQuestionAnalyzer.ts</h3>
+                    <h3 className="font-bold text-lg">
+                      smartQuestionAnalyzer.ts
+                    </h3>
                     <p className="text-xs text-purple-700 font-mono">
-                      {language === "en" ? "Role: Investigator" : "Rooli: Tiedustelija"}
+                      {language === "en"
+                        ? "Role: Investigator"
+                        : "Rooli: Tiedustelija"}
                     </p>
                   </div>
                 </div>
@@ -736,9 +921,15 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     {language === "en" ? "Zero Hardcoding:" : "Zero Hardcoding:"}
                   </p>
                   <code className="text-purple-800">
-                    analyzeJobAndProfile()<br/>
-                    → {language === "en" ? 'No: "if (role === \'developer\')"' : 'Ei: "if (role === \'developer\')"'}<br/>
-                    → {language === "en" ? "Yes: AI understands semantically" : "Kyllä: AI ymmärtää semanttisesti"}
+                    analyzeJobAndProfile()
+                    <br />→{" "}
+                    {language === "en"
+                      ? 'No: "if (role === \'developer\')"'
+                      : 'Ei: "if (role === \'developer\')"'}{" "}
+                    <br />→{" "}
+                    {language === "en"
+                      ? "Yes: AI understands semantically"
+                      : "Kyllä: AI ymmärtää semanttisesti"}
                   </code>
                 </div>
               </div>
@@ -750,9 +941,13 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-lg">realisticATSAnalyzer.ts</h3>
+                    <h3 className="font-bold text-lg">
+                      realisticATSAnalyzer.ts
+                    </h3>
                     <p className="text-xs text-amber-700 font-mono">
-                      {language === "en" ? "Role: ATS Expert" : "Rooli: ATS-Ekspertti"}
+                      {language === "en"
+                        ? "Role: ATS Expert"
+                        : "Rooli: ATS-Ekspertti"}
                     </p>
                   </div>
                 </div>
@@ -763,12 +958,16 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 </p>
                 <div className="bg-amber-100 rounded-lg p-3 text-xs">
                   <p className="font-bold text-amber-900 mb-1">
-                    {language === "en" ? "AI-based detection:" : "AI-pohjainen detectio:"}
+                    {language === "en"
+                      ? "AI-based detection:"
+                      : "AI-pohjainen detectio:"}
                   </p>
                   <code className="text-amber-800">
-                    detectATSUsageAI(jobDescription)<br/>
-                    → confidence: 0.0-1.0<br/>
-                    → companySize: "large" → {language === "en" ? "ATS likely" : "ATS todennäköinen"}
+                    detectATSUsageAI(jobDescription)
+                    <br />
+                    → confidence: 0.0-1.0
+                    <br />→ companySize: "large" →{" "}
+                    {language === "en" ? "ATS likely" : "ATS todennäköinen"}
                   </code>
                 </div>
               </div>
@@ -782,7 +981,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <div>
                     <h3 className="font-bold text-lg">synonymMatcher.ts</h3>
                     <p className="text-xs text-green-700 font-mono">
-                      {language === "en" ? "Role: Semanticist" : "Rooli: Semantikko"}
+                      {language === "en"
+                        ? "Role: Semanticist"
+                        : "Rooli: Semantikko"}
                     </p>
                   </div>
                 </div>
@@ -793,11 +994,17 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 </p>
                 <div className="bg-green-100 rounded-lg p-3 text-xs">
                   <p className="font-bold text-green-900 mb-1">
-                    {language === "en" ? "Real example:" : "Todellinen esimerkki:"}
+                    {language === "en"
+                      ? "Real example:"
+                      : "Todellinen esimerkki:"}
                   </p>
                   <code className="text-green-800">
-                    findKeywordUniversal("problem-solving")<br/>
-                    ✓ {language === "en" ? 'Finds: "I solve challenges"' : 'Löytää: "I solve challenges"'}<br/>
+                    findKeywordUniversal("problem-solving")
+                    <br />✓{" "}
+                    {language === "en"
+                      ? 'Finds: "I solve challenges"'
+                      : 'Löytää: "I solve challenges"'}
+                    <br />
                     matchType: "synonym", confidence: 0.9
                   </code>
                 </div>
@@ -826,9 +1033,10 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     {language === "en" ? "Real code:" : "Todellinen koodi:"}
                   </p>
                   <code className="text-red-800">
-                    masterConsistencyCheckAI(text, groundTruth)<br/>
-                    → riskLevel: "safe" | "warning" | "DANGER"<br/>
-                    → if (DANGER) throw new Error("REJECTED")
+                    masterConsistencyCheckAI(text, groundTruth)
+                    <br />
+                    → riskLevel: "safe" | "warning" | "DANGER"
+                    <br />→ if (DANGER) throw new Error("REJECTED")
                   </code>
                 </div>
               </div>
@@ -845,7 +1053,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                       <Crown className="w-5 h-5 text-yellow-600" />
                     </h3>
                     <p className="text-xs text-yellow-700 font-mono">
-                      {language === "en" ? "Role: Librarian + Consultant (PRO)" : "Rooli: Kirjastonhoitaja + Konsultti (PRO)"}
+                      {language === "en"
+                        ? "Role: Librarian + Consultant (PRO)"
+                        : "Rooli: Kirjastonhoitaja + Konsultti (PRO)"}
                     </p>
                   </div>
                 </div>
@@ -858,13 +1068,24 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     </p>
                     <div className="bg-yellow-50 rounded-lg p-3 text-xs">
                       <p className="font-bold text-yellow-900 mb-1">
-                        {language === "en" ? "Technical implementation:" : "Tekninen toteutus:"}
+                        {language === "en"
+                          ? "Technical implementation:"
+                          : "Tekninen toteutus:"}
                       </p>
                       <code className="text-yellow-800 block space-y-1">
-                        <div>1. ingestContent(article, type="cover_letter")</div>
+                        <div>
+                          1. ingestContent(article, type="cover_letter")
+                        </div>
                         <div>2. OpenAI embeddings → Supabase vector DB</div>
-                        <div>3. buildAIContext(jobDescription, contentType)</div>
-                        <div>4. {language === "en" ? "Semantic search (no keywords)" : "Semantic search (ei keywords)"}</div>
+                        <div>
+                          3. buildAIContext(jobDescription, contentType)
+                        </div>
+                        <div>
+                          4.{" "}
+                          {language === "en"
+                            ? "Semantic search (no keywords)"
+                            : "Semantic search (ei keywords)"}
+                        </div>
                         <div>5. Priority: high → medium → low</div>
                         <div>6. Inject into AI prompt</div>
                       </code>
@@ -878,13 +1099,35 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     </p>
                     <div className="bg-yellow-50 rounded-lg p-3 text-xs">
                       <p className="font-bold text-yellow-900 mb-1">
-                        {language === "en" ? "What it actually does:" : "Mitä se oikeasti tekee:"}
+                        {language === "en"
+                          ? "What it actually does:"
+                          : "Mitä se oikeasti tekee:"}
                       </p>
                       <ul className="text-yellow-800 space-y-1">
-                        <li>• {language === "en" ? "Fetches 3-5 most relevant articles" : "Hakee 3-5 relevantteinta artikkelia"}</li>
-                        <li>• {language === "en" ? "Combines their advice into AI prompt" : "Yhdistää niiden neuvot AI-promptiin"}</li>
-                        <li>• {language === "en" ? "AI writes with expert knowledge" : "AI kirjoittaa eksperttitiedolla"}</li>
-                        <li>• {language === "en" ? "Result: 20-30% better quality" : "Tulos: 20-30% parempi laatu"}</li>
+                        <li>
+                          •{" "}
+                          {language === "en"
+                            ? "Fetches 3-5 most relevant articles"
+                            : "Hakee 3-5 relevantteinta artikkelia"}
+                        </li>
+                        <li>
+                          •{" "}
+                          {language === "en"
+                            ? "Combines their advice into AI prompt"
+                            : "Yhdistää niiden neuvot AI-promptiin"}
+                        </li>
+                        <li>
+                          •{" "}
+                          {language === "en"
+                            ? "AI writes with expert knowledge"
+                            : "AI kirjoittaa eksperttitiedolla"}
+                        </li>
+                        <li>
+                          •{" "}
+                          {language === "en"
+                            ? "Result: 20-30% better quality"
+                            : "Tulos: 20-30% parempi laatu"}
+                        </li>
                       </ul>
                     </div>
                   </div>
@@ -895,7 +1138,12 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
             {/* Proof Statement */}
             <div className="mt-8 bg-gray-900 text-white rounded-2xl p-6 text-center">
               <p className="text-lg mb-2">
-                <strong>💻 {language === "en" ? "Open Source Principle" : "Avoin Lähdekoodiperiaate"}</strong>
+                <strong>
+                  💻{" "}
+                  {language === "en"
+                    ? "Open Source Principle"
+                    : "Avoin Lähdekoodiperiaate"}
+                </strong>
               </p>
               <p className="text-sm text-gray-300">
                 {language === "en"
@@ -911,7 +1159,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 md:p-12 border-2 border-gray-300 shadow-2xl mb-16">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {language === "en" ? "ChatGPT vs HappyApplaid" : "ChatGPT vs HappyApplaid"}
+                {language === "en"
+                  ? "ChatGPT vs HappyApplaid"
+                  : "ChatGPT vs HappyApplaid"}
               </h2>
               <p className="text-lg text-gray-700">
                 {language === "en"
@@ -928,7 +1178,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                       {language === "en" ? "Feature" : "Ominaisuus"}
                     </th>
                     <th className="p-4 text-center font-bold">
-                      {language === "en" ? "ChatGPT / Other AI" : "ChatGPT / Muut AI"}
+                      {language === "en"
+                        ? "ChatGPT / Other AI"
+                        : "ChatGPT / Muut AI"}
                     </th>
                     <th className="p-4 text-center font-bold">HappyApplaid</th>
                   </tr>
@@ -936,54 +1188,88 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 <tbody className="divide-y divide-gray-200">
                   <tr>
                     <td className="p-4 font-semibold">
-                      {language === "en" ? "Generate cover letter" : "Generoi hakukirjeen"}
+                      {language === "en"
+                        ? "Generate cover letter"
+                        : "Generoi hakukirjeen"}
                     </td>
                     <td className="p-4 text-center">✅</td>
                     <td className="p-4 text-center">✅</td>
                   </tr>
                   <tr className="bg-green-50">
                     <td className="p-4 font-semibold">
-                      {language === "en" ? "Verify truthfulness" : "Tarkistaa totuudenmukaisuuden"}
+                      {language === "en"
+                        ? "Verify truthfulness"
+                        : "Tarkistaa totuudenmukaisuuden"}
                     </td>
-                    <td className="p-4 text-center text-red-600 font-bold">❌</td>
+                    <td className="p-4 text-center text-red-600 font-bold">
+                      ❌
+                    </td>
                     <td className="p-4 text-center text-green-600 font-bold">
                       ✅ {language === "en" ? "5 layers" : "5 kerrosta"}
-</td>
+                    </td>
                   </tr>
                   <tr className="bg-green-50">
                     <td className="p-4 font-semibold">
-                      {language === "en" ? "Ask before inventing" : "Kysyy ennen keksimistä"}
+                      {language === "en"
+                        ? "Ask before inventing"
+                        : "Kysyy ennen keksimistä"}
                     </td>
-                    <td className="p-4 text-center text-red-600 font-bold">❌</td>
-                    <td className="p-4 text-center text-green-600 font-bold">✅</td>
+                    <td className="p-4 text-center text-red-600 font-bold">
+                      ❌
+                    </td>
+                    <td className="p-4 text-center text-green-600 font-bold">
+                      ✅
+                    </td>
                   </tr>
                   <tr>
                     <td className="p-4 font-semibold">
-                      {language === "en" ? "Psychological profiling" : "Psykologinen profilointi"}
+                      {language === "en"
+                        ? "Psychological profiling"
+                        : "Psykologinen profilointi"}
                     </td>
-                    <td className="p-4 text-center text-red-600 font-bold">❌</td>
-                    <td className="p-4 text-center text-green-600 font-bold">✅</td>
+                    <td className="p-4 text-center text-red-600 font-bold">
+                      ❌
+                    </td>
+                    <td className="p-4 text-center text-green-600 font-bold">
+                      ✅
+                    </td>
                   </tr>
                   <tr className="bg-green-50">
                     <td className="p-4 font-semibold">
-                      {language === "en" ? "ATS optimization" : "ATS-optimointi"}
+                      {language === "en"
+                        ? "ATS optimization"
+                        : "ATS-optimointi"}
                     </td>
-                    <td className="p-4 text-center text-orange-500">⚠️ {language === "en" ? "Manual" : "Manuaalinen"}</td>
-                    <td className="p-4 text-center text-green-600 font-bold">✅ {language === "en" ? "Automatic" : "Automaattinen"}</td>
+                    <td className="p-4 text-center text-orange-500">
+                      ⚠️ {language === "en" ? "Manual" : "Manuaalinen"}
+                    </td>
+                    <td className="p-4 text-center text-green-600 font-bold">
+                      ✅ {language === "en" ? "Automatic" : "Automaattinen"}
+                    </td>
                   </tr>
                   <tr>
                     <td className="p-4 font-semibold">
-                      {language === "en" ? "Expert knowledge (RAG)" : "Eksperttitieto (RAG)"}
+                      {language === "en"
+                        ? "Expert knowledge (RAG)"
+                        : "Eksperttitieto (RAG)"}
                     </td>
-                    <td className="p-4 text-center text-red-600 font-bold">❌</td>
-                    <td className="p-4 text-center text-green-600 font-bold">✅ PRO</td>
+                    <td className="p-4 text-center text-red-600 font-bold">
+                      ❌
+                    </td>
+                    <td className="p-4 text-center text-green-600 font-bold">
+                      ✅ PRO
+                    </td>
                   </tr>
                   <tr className="bg-green-50">
                     <td className="p-4 font-semibold">
                       {language === "en" ? "Risk of lies" : "Valheiden riski"}
                     </td>
-                    <td className="p-4 text-center text-red-600 font-bold">🔥 {language === "en" ? "High" : "Korkea"}</td>
-                    <td className="p-4 text-center text-green-600 font-bold">✅ {language === "en" ? "Zero" : "Nolla"}</td>
+                    <td className="p-4 text-center text-red-600 font-bold">
+                      🔥 {language === "en" ? "High" : "Korkea"}
+                    </td>
+                    <td className="p-4 text-center text-green-600 font-bold">
+                      ✅ {language === "en" ? "Zero" : "Nolla"}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -996,41 +1282,56 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">
             <div className="text-center mb-12">
               <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                {language === "en" ? "Start Free Today" : "Aloita Ilmaiseksi Tänään"}
+                {language === "en"
+                  ? "Start Free Today"
+                  : "Aloita Ilmaiseksi Tänään"}
               </h2>
               <p className="text-lg text-gray-700">
-                {language === "en" ? "Choose the plan that fits your needs" : "Valitse tarpeisiisi sopiva paketti"}
+                {language === "en"
+                  ? "Choose the plan that fits your needs"
+                  : "Valitse tarpeisiisi sopiva paketti"}
               </p>
             </div>
 
             <div className="grid md:grid-cols-4 gap-6">
               {Object.entries(PRICING).map(([tier, details]) => (
-                <div 
-                  key={tier} 
+                <div
+                  key={tier}
                   className={`bg-white rounded-2xl p-6 border-2 ${
-                    tier === 'semi-pro' 
-                      ? 'border-yellow-400 shadow-2xl scale-105 relative' 
-                      : 'border-gray-200 shadow-lg'
+                    tier === "semi-pro"
+                      ? "border-yellow-400 shadow-2xl scale-105 relative"
+                      : "border-gray-200 shadow-lg"
                   }`}
                 >
-                  {tier === 'semi-pro' && (
+                  {tier === "semi-pro" && (
                     <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-1 rounded-full text-sm font-bold">
                       {language === "en" ? "Most Popular" : "Suosituin"}
                     </div>
                   )}
-                  
+
                   <h3 className="text-2xl font-bold mb-2 capitalize">
-                    {tier === 'semi-pro' ? 'Semi-Pro' : tier === 'free' ? (language === "en" ? 'Free' : 'Ilmainen') : tier.toUpperCase()}
+                    {tier === "semi-pro"
+                      ? "Semi-Pro"
+                      : tier === "free"
+                      ? language === "en"
+                        ? "Free"
+                        : "Ilmainen"
+                      : tier.toUpperCase()}
                   </h3>
-                  
+
                   <div className="mb-4">
                     <span className="text-4xl font-bold">{details.monthly}€</span>
-                    <span className="text-gray-600">{language === "en" ? "/month" : "/kk"}</span>
+                    <span className="text-gray-600">
+                      {language === "en" ? "/month" : "/kk"}
+                    </span>
                   </div>
 
                   <ul className="space-y-3 mb-6">
                     {details.features.map((feature, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
+                      <li
+                        key={index}
+                        className="flex items-start gap-2 text-sm"
+                      >
                         <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                         <span>{feature}</span>
                       </li>
@@ -1038,16 +1339,20 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   </ul>
 
                   <Link href="/pricing">
-                    <Button 
+                    <Button
                       className={`w-full ${
-                        tier === 'semi-pro' 
-                          ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600' 
-                          : ''
+                        tier === "semi-pro"
+                          ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
+                          : ""
                       }`}
                     >
-                      {tier === 'free' 
-                        ? (language === "en" ? "Get Started" : "Aloita") 
-                        : (language === "en" ? "Choose Plan" : "Valitse")}
+                      {tier === "free"
+                        ? language === "en"
+                          ? "Get Started"
+                          : "Aloita"
+                        : language === "en"
+                        ? "Choose Plan"
+                        : "Valitse"}
                     </Button>
                   </Link>
                 </div>
@@ -1060,8 +1365,8 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
               =================================== */}
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-12 md:p-16 text-center text-white shadow-2xl">
             <h2 className="text-3xl md:text-5xl font-extrabold mb-6">
-              {language === "en" 
-                ? "Ready to Create Truthful Applications?" 
+              {language === "en"
+                ? "Ready to Create Truthful Applications?"
                 : "Valmis Luomaan Totuudenmukaisia Hakemuksia?"}
             </h2>
             <p className="text-xl md:text-2xl mb-8 text-indigo-100 max-w-3xl mx-auto">
@@ -1069,7 +1374,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 ? "Join thousands who trust HappyApplaid for honest, effective job applications"
                 : "Liity tuhansien joukkoon jotka luottavat HappyApplaidiin rehellisistä, tehokkaisista työhakemuksista"}
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
               <SignedOut>
                 <SignInButton mode="modal">
@@ -1084,15 +1389,25 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
             <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-indigo-100">
               <div className="flex items-center gap-2">
                 <Check className="w-5 h-5" />
-                <span>{language === "en" ? "No credit card required" : "Ei luottokorttia"}</span>
+                <span>
+                  {language === "en"
+                    ? "No credit card required"
+                    : "Ei luottokorttia"}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="w-5 h-5" />
-                <span>{language === "en" ? "Cancel anytime" : "Peruuta milloin vain"}</span>
+                <span>
+                  {language === "en" ? "Cancel anytime" : "Peruuta milloin vain"}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Check className="w-5 h-5" />
-                <span>{language === "en" ? "100% truthful guarantee" : "100% totuustakuu"}</span>
+                <span>
+                  {language === "en"
+                    ? "100% truthful guarantee"
+                    : "100% totuustakuu"}
+                </span>
               </div>
             </div>
           </div>
@@ -1105,8 +1420,8 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
               <div>
                 <h3 className="font-bold text-gray-900 mb-3">HappyApplaid</h3>
                 <p className="text-sm">
-                  {language === "en" 
-                    ? "The only AI that doesn't lie" 
+                  {language === "en"
+                    ? "The only AI that doesn't lie"
                     : "Ainoa AI joka ei valehtele"}
                 </p>
               </div>
@@ -1115,8 +1430,16 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   {language === "en" ? "Product" : "Tuote"}
                 </h3>
                 <ul className="space-y-2 text-sm">
-                  <li><Link href="/pricing" className="hover:text-indigo-600">{language === "en" ? "Pricing" : "Hinnoittelu"}</Link></li>
-                  <li><Link href="#how-it-works" className="hover:text-indigo-600">{language === "en" ? "How It Works" : "Miten Se Toimii"}</Link></li>
+                  <li>
+                    <Link href="/pricing" className="hover:text-indigo-600">
+                      {language === "en" ? "Pricing" : "Hinnoittelu"}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="#how-it-works" className="hover:text-indigo-600">
+                      {language === "en" ? "How It Works" : "Miten Se Toimii"}
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <div>
@@ -1124,13 +1447,24 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   {language === "en" ? "Legal" : "Lakiasiat"}
                 </h3>
                 <ul className="space-y-2 text-sm">
-                  <li><Link href="/privacy" className="hover:text-indigo-600">{language === "en" ? "Privacy Policy" : "Tietosuoja"}</Link></li>
-                  <li><Link href="/terms" className="hover:text-indigo-600">{language === "en" ? "Terms of Service" : "Käyttöehdot"}</Link></li>
+                  <li>
+                    <Link href="/privacy" className="hover:text-indigo-600">
+                      {language === "en" ? "Privacy Policy" : "Tietosuoja"}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/terms" className="hover:text-indigo-600">
+                      {language === "en" ? "Terms of Service" : "Käyttöehdot"}
+                    </Link>
+                  </li>
                 </ul>
               </div>
             </div>
             <p className="text-sm">
-              © {new Date().getFullYear()} HappyApplaid. {language === "en" ? "All rights reserved." : "Kaikki oikeudet pidätetään."}
+              © {new Date().getFullYear()} HappyApplaid.{" "}
+              {language === "en"
+                ? "All rights reserved."
+                : "Kaikki oikeudet pidätetään."}
             </p>
           </div>
         </footer>
@@ -1141,7 +1475,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
   // ========================================
   // DASHBOARD (LOGGED IN)
   // ========================================
-  
+
   if (profileCompleted === null || freemiumLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
@@ -1157,7 +1491,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
   const isPremium = freemiumStatus?.is_premium || false;
   const canCreateCV = freemiumStatus?.can_create_cv || false;
   const hasUsedFreeCv = freemiumStatus?.has_used_free_cv || false;
-  const currentTier = freemiumStatus?.plan_type || 'free';
+  const currentTier = freemiumStatus?.plan_type || "free";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
@@ -1167,31 +1501,33 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
       {showProfilePrompt && profileCompleted === false && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="backdrop-blur-xl bg-white/90 border-2 border-white/40 rounded-3xl shadow-2xl p-8 max-w-md w-full relative">
-            <button 
-              onClick={() => setShowProfilePrompt(false)} 
+            <button
+              onClick={() => setShowProfilePrompt(false)}
               className="absolute top-4 right-4 hover:bg-gray-100 rounded-full p-1"
             >
               <X className="w-6 h-6 text-gray-600" />
             </button>
-            
+
             <User className="h-16 w-16 mx-auto mb-4 text-indigo-600" />
             <h3 className="text-2xl font-bold text-center mb-4 text-gray-900">
-              {language === "en" ? `Hey, ${user?.firstName}!` : `Hei, ${user?.firstName}!`}
+              {language === "en"
+                ? `Hey, ${user?.firstName}!`
+                : `Hei, ${user?.firstName}!`}
             </h3>
             <p className="text-center text-gray-600 mb-6">
-              {language === "en" 
-                ? "We recommend filling out your profile to get the best results" 
+              {language === "en"
+                ? "We recommend filling out your profile to get the best results"
                 : "Suosittelemme profiilin täyttämistä parhaan tuloksen saamiseksi"}
             </p>
-            
+
             <div className="flex gap-3">
               <Link href="/profile" className="flex-1">
                 <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
                   {language === "en" ? "Fill Profile" : "Täytä Profiili"}
                 </Button>
               </Link>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowProfilePrompt(false)}
                 className="flex-1"
               >
@@ -1203,18 +1539,21 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
         {/* Welcome Section */}
         <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl p-8">
           <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
- {language === "en" 
-              ? `Welcome${displayName ? `, ${displayName}` : ''}!` 
-              : `Tervetuloa${displayName ? `, ${displayName}` : ''}!`}
+            {language === "en"
+              ? `Welcome${displayName ? `, ${displayName}` : ""}!`
+              : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
           </h1>
           <p className="text-gray-700 text-lg">
-            {currentTier === 'free' 
-              ? (language === "en" ? "Free user - 1 personalized CV" : "Ilmainen käyttäjä - 1 persoonallinen CV")
-              : `${currentTier.toUpperCase()}-${language === "en" ? "user" : "käyttäjä"}`}
+            {currentTier === "free"
+              ? language === "en"
+                ? "Free user - 1 personalized CV"
+                : "Ilmainen käyttäjä - 1 persoonallinen CV"
+              : `${currentTier.toUpperCase()}-${
+                  language === "en" ? "user" : "käyttäjä"
+                }`}
           </p>
         </div>
 
@@ -1223,17 +1562,21 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
           <div className="mb-8 backdrop-blur-xl bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-300 rounded-3xl shadow-2xl p-8">
             <Crown className="h-12 w-12 text-yellow-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-center text-gray-900 mb-4">
-              {language === "en" ? "You've used your free CV!" : "Olet käyttänyt ilmaisen CV:si!"}
+              {language === "en"
+                ? "You've used your free CV!"
+                : "Olet käyttänyt ilmaisen CV:si!"}
             </h2>
             <p className="text-center text-gray-700 mb-6">
-              {language === "en" 
-                ? "Upgrade to create unlimited CVs and cover letters" 
+              {language === "en"
+                ? "Upgrade to create unlimited CVs and cover letters"
                 : "Päivitä luodaksesi rajattomasti CV:itä ja hakukirjeitä"}
             </p>
             <Link href="/pricing" className="block">
               <Button className="mx-auto block bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold">
                 <Crown className="w-5 h-5 mr-2" />
-                {language === "en" ? "Upgrade to Premium" : "Päivitä Premium-tiliin"}
+                {language === "en"
+                  ? "Upgrade to Premium"
+                  : "Päivitä Premium-tiliin"}
               </Button>
             </Link>
           </div>
@@ -1250,9 +1593,13 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   {language === "en" ? "Create CV" : "Luo CV"}
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  {isPremium 
-                    ? (language === "en" ? "Unlimited ATS-optimized CVs" : "Rajattomat ATS-optimoidut CV:t")
-                    : (language === "en" ? "Free personality-driven CV" : "Ilmainen persoonallisuusvetoinen CV")}
+                  {isPremium
+                    ? language === "en"
+                      ? "Unlimited ATS-optimized CVs"
+                      : "Rajattomat ATS-optimoidut CV:t"
+                    : language === "en"
+                    ? "Free personality-driven CV"
+                    : "Ilmainen persoonallisuusvetoinen CV"}
                 </p>
                 <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
                   {language === "en" ? "Create CV" : "Luo CV"}
@@ -1266,7 +1613,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 {language === "en" ? "Create CV" : "Luo CV"}
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                {language === "en" ? "Free CV already used" : "Ilmainen CV jo käytetty"}
+                {language === "en"
+                  ? "Free CV already used"
+                  : "Ilmainen CV jo käytetty"}
               </p>
               <Link href="/pricing">
                 <Button variant="outline" className="w-full">
@@ -1285,7 +1634,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   {language === "en" ? "Create Cover Letter" : "Luo Hakukirje"}
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  {language === "en" ? "ATS-optimized cover letters" : "ATS-optimoidut hakukirjeet"}
+                  {language === "en"
+                    ? "ATS-optimized cover letters"
+                    : "ATS-optimoidut hakukirjeet"}
                 </p>
                 <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600">
                   {language === "en" ? "Create Cover Letter" : "Luo Hakukirje"}
@@ -1317,7 +1668,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                 {language === "en" ? "Edit Profile" : "Muokkaa Profiilia"}
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                {language === "en" ? "Update your information" : "Päivitä tietosi"}
+                {language === "en"
+                  ? "Update your information"
+                  : "Päivitä tietosi"}
               </p>
               <Button variant="outline" className="w-full">
                 {language === "en" ? "Edit" : "Muokkaa"}
@@ -1332,7 +1685,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
             <Files className="h-6 w-6 text-indigo-600" />
             {language === "en" ? "My Documents" : "Omat Dokumentit"}
           </h2>
-          
+
           <div className="grid md:grid-cols-2 gap-6">
             {/* CVs Section */}
             <div>
@@ -1352,7 +1705,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   <ChevronRight className="h-5 w-5 text-indigo-600" />
                 </div>
               </Link>
-              
+
               {loadingRecent ? (
                 <div className="text-center py-8">
                   <div className="animate-spin h-8 w-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
@@ -1363,10 +1716,13 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     <Link key={cv.id} href={`/edit-cv/${cv.id}`}>
                       <div className="p-4 bg-white rounded-xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-indigo-300">
                         <p className="font-semibold text-sm text-gray-900">
-                          {cv.content?.cv_data?.name || (language === "en" ? "Unnamed CV" : "Nimetön CV")}
+                          {cv.content?.cv_data?.name ||
+                            (language === "en" ? "Unnamed CV" : "Nimetön CV")}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {new Date(cv.created_at).toLocaleDateString(language === "en" ? "en-US" : "fi-FI")}
+                          {new Date(cv.created_at).toLocaleDateString(
+                            language === "en" ? "en-US" : "fi-FI"
+                          )}
                         </p>
                       </div>
                     </Link>
@@ -1409,7 +1765,7 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                       <ChevronRight className="h-5 w-5 text-green-600" />
                     </div>
                   </Link>
-                  
+
                   {loadingRecent ? (
                     <div className="text-center py-8">
                       <div className="animate-spin h-8 w-8 border-4 border-green-600 border-t-transparent rounded-full mx-auto"></div>
@@ -1417,13 +1773,19 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                   ) : recentCoverLetters.length > 0 ? (
                     <div className="space-y-2">
                       {recentCoverLetters.map((letter: any) => (
-                        <Link key={letter.id} href={`/edit-cover-letter/${letter.id}`}>
+                        <Link
+                          key={letter.id}
+                          href={`/edit-cover-letter/${letter.id}`}
+                        >
                           <div className="p-4 bg-white rounded-xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-green-300">
                             <p className="font-semibold text-sm text-gray-900">
-                              {letter.title || (language === "en" ? "Unnamed" : "Nimetön")}
+                              {letter.title ||
+                                (language === "en" ? "Unnamed" : "Nimetön")}
                             </p>
                             <p className="text-xs text-gray-500 mt-1">
-                              {new Date(letter.created_at).toLocaleDateString(language === "en" ? "en-US" : "fi-FI")}
+                              {new Date(letter.created_at).toLocaleDateString(
+                                language === "en" ? "en-US" : "fi-FI"
+                              )}
                             </p>
                           </div>
                         </Link>
@@ -1433,11 +1795,15 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     <div className="text-center py-8">
                       <FileInput className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-gray-500 mb-4">
-                        {language === "en" ? "No cover letters" : "Ei hakukirjeitä"}
+                        {language === "en"
+                          ? "No cover letters"
+                          : "Ei hakukirjeitä"}
                       </p>
                       <Link href="/create-cover-letter">
                         <Button variant="outline">
-                          {language === "en" ? "Create First" : "Luo Ensimmäinen"}
+                          {language === "en"
+                            ? "Create First"
+                            : "Luo Ensimmäinen"}
                         </Button>
                       </Link>
                     </div>
@@ -1450,7 +1816,9 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
                     {language === "en" ? "Premium Feature" : "Premium-ominaisuus"}
                   </p>
                   <p className="text-gray-500 mb-4 text-sm">
-                    {language === "en" ? "Cover letters for Premium users" : "Hakukirjeet Premium-käyttäjille"}
+                    {language === "en"
+                      ? "Cover letters for Premium users"
+                      : "Hakukirjeet Premium-käyttäjille"}
                   </p>
                   <Link href="/pricing">
                     <Button variant="outline">
@@ -1468,7 +1836,10 @@ const displayName = user?.firstName || convertProfileToApiFormat.name || null;
       {/* Footer */}
       <footer className="py-8 text-center text-gray-500 border-t border-indigo-100 bg-white/70 backdrop-blur-xl mt-12">
         <p className="text-sm">
-          © {new Date().getFullYear()} HappyApplaid. {language === "en" ? "All rights reserved." : "Kaikki oikeudet pidätetään."}
+          © {new Date().getFullYear()} HappyApplaid.{" "}
+          {language === "en"
+            ? "All rights reserved."
+            : "Kaikki oikeudet pidätetään."}
         </p>
       </footer>
     </div>
