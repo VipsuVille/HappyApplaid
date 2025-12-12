@@ -7,21 +7,9 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useUser, SignInButton, SignedOut } from "@clerk/nextjs";
 import {
-  FileText,
-  User,
-  Files,
-  Check,
-  Sparkles,
-  Target,
-  Zap,
-  Crown,
-  Lock,
-  X,
-  ChevronRight,
-  Shield,
-  Brain,
-  FileInput,
-  FileEdit,
+  FileText, User, Files, Check, Sparkles, Target, Zap,
+  Crown, Lock, X, ChevronRight, Shield, Brain, 
+  FileInput, FileEdit
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -52,7 +40,7 @@ export default function Home() {
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const { tokens } = useTokens();
-
+  
   const displayName = user?.firstName || null;
 
   // Hae freemium status
@@ -89,9 +77,7 @@ export default function Home() {
         const hasProfile = profileResponse.ok;
         const cvsData = cvsResponse.ok ? await cvsResponse.json() : [];
         const hasCVs = cvsData.length > 0;
-        const hasSeenOnboarding = localStorage.getItem(
-          `onboarding_completed_${user.id}`
-        );
+        const hasSeenOnboarding = localStorage.getItem(`onboarding_completed_${user.id}`);
         const isNewUser = !hasProfile && !hasCVs && !hasSeenOnboarding;
         if (isNewUser) {
           setShowWelcome(true);
@@ -107,11 +93,7 @@ export default function Home() {
     }
   }, [isSignedIn, user?.id, isLoaded]);
 
-  const handleWelcomeComplete = async (data: {
-    name: string;
-    email: string;
-    useClerkEmail: boolean;
-  }) => {
+  const handleWelcomeComplete = async (data: { name: string; email: string; useClerkEmail: boolean }) => {
     try {
       const response = await fetch("/api/save-profile", {
         method: "POST",
@@ -120,28 +102,11 @@ export default function Home() {
           profile: {
             name: data.name,
             email: data.email,
-            education: [
-              { id: 1, school: "", degree: "", year: "", isOngoing: false },
-            ],
-            workExperience: [
-              {
-                id: 1,
-                company: "",
-                position: "",
-                duration: "",
-                description: "",
-              },
-            ],
+            education: [{ id: 1, school: "", degree: "", year: "", isOngoing: false }],
+            workExperience: [{ id: 1, company: "", position: "", duration: "", description: "" }],
             languages: [{ id: 1, language: "", level: "Hyvä" }],
-            workingStyle: "",
-            problemSolving: "",
-            energySources: "",
-            uniqueStrength: "",
-            learningStyle: "",
-            teamRole: "",
-            valuesExample: "",
-            superpower: "",
-            skills: "",
+            workingStyle: "", problemSolving: "", energySources: "", uniqueStrength: "",
+            learningStyle: "", teamRole: "", valuesExample: "", superpower: "", skills: "",
           },
         }),
       });
@@ -192,25 +157,10 @@ export default function Home() {
         setLoadingRecent(false);
       }
     };
-    if (
-      isLoaded &&
-      isSignedIn &&
-      profileCompleted === true &&
-      !showWelcome &&
-      !showOnboarding
-    ) {
+    if (isLoaded && isSignedIn && profileCompleted === true && !showWelcome && !showOnboarding) {
       loadRecentDocuments();
     }
-  }, [
-    isSignedIn,
-    user?.id,
-    profileCompleted,
-    tokens,
-    freemiumStatus,
-    isLoaded,
-    showWelcome,
-    showOnboarding,
-  ]);
+  }, [isSignedIn, user?.id, profileCompleted, tokens, freemiumStatus, isLoaded, showWelcome, showOnboarding]);
 
   if (!isLoaded) {
     return (
@@ -227,9 +177,9 @@ export default function Home() {
   if (showWelcome) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-        <WelcomeModal
+        <WelcomeModal 
           isOpen={true}
-          onComplete={handleWelcomeComplete}
+          onComplete={handleWelcomeComplete} 
           onSkip={handleWelcomeSkip}
           initialEmail={user?.emailAddresses?.[0]?.emailAddress}
         />
@@ -240,7 +190,7 @@ export default function Home() {
   if (showOnboarding) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-        <OnboardingSteps
+        <OnboardingSteps 
           isOpen={true}
           onComplete={handleOnboardingComplete}
           currentUserName={user?.firstName || "käyttäjä"}
@@ -255,59 +205,49 @@ export default function Home() {
   if (!isSignedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
+        
         {/* Animated background blobs */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
-          <div
-            className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse"
-            style={{ animationDelay: "1s" }}
-          ></div>
-          <div
-            className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-400/20 to-yellow-400/20 rounded-full blur-3xl animate-pulse"
-            style={{ animationDelay: "2s" }}
-          ></div>
+          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+          <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-400/20 to-yellow-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
         </div>
 
         <SmartHeader />
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
+          
           {/* ===================================
               HERO SECTION - REALISTINEN LUPAUS
               =================================== */}
           <div className="mb-16">
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl shadow-indigo-500/10 p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl"></div>
-
+              
               <div className="relative z-10 text-center">
                 {/* Trust Badge */}
                 <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 bg-white/90 backdrop-blur-sm rounded-full border-2 border-indigo-300 shadow-xl mb-4 sm:mb-6">
                   <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
                   <span className="font-bold text-indigo-800 text-sm sm:text-base">
-                    {language === "en"
-                      ? "90% of Work Done For You"
-                      : "90% Työstä Tehty Puolestasi"}
+                    {language === "en" ? "90% of Work Done For You" : "90% Työstä Tehty Puolestasi"}
                   </span>
                 </div>
 
                 {/* Main Hook */}
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 sm:mb-6 leading-tight px-2">
                   <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                    {language === "en"
-                      ? "Create Your Profile Once,"
-                      : "Luo Profiili Kerran,"}
+                    {language === "en" ? "Create Your Profile Once," : "Luo Profiili Kerran,"}
                   </span>
                   <br />
                   <span className="text-gray-900">
-                    {language === "en"
-                      ? "Get Personalized CVs & Cover Letters"
-                      : "Saa Personoituja CV:itä & Hakukirjeitä"}
+                    {language === "en" ? "Get Personalized CVs & Cover Letters" : "Saa Personoituja CV:itä & Hakukirjeitä"}
                   </span>
                   <br />
                   <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
                     {language === "en" ? "In Minutes" : "Minuuteissa"}
                   </span>
                 </h1>
-
+                
                 <p className="text-base sm:text-lg md:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed mb-6 sm:mb-8 px-4">
                   {language === "en"
                     ? "We handle 90% of the work - you fill your profile once, then review and customize. Personalized, ATS-optimized applications ready in minutes."
@@ -323,54 +263,34 @@ export default function Home() {
                       </Button>
                     </SignInButton>
                   </SignedOut>
-                  <Button
+                  <Button 
                     variant="outline"
-                    onClick={() =>
-                      document
-                        .getElementById("how-it-works")
-                        ?.scrollIntoView({ behavior: "smooth" })
-                    }
+                    onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
                     className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-white text-indigo-600 rounded-xl font-bold text-base sm:text-lg border-2 border-indigo-300 hover:bg-indigo-50 transition-all"
                   >
-                    {language === "en"
-                      ? "See How It Works"
-                      : "Katso Miten Se Toimii"}
+                    {language === "en" ? "See How It Works" : "Katso Miten Se Toimii"}
                   </Button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 text-xs sm:text-sm text-gray-600 max-w-2xl mx-auto px-4">
                   <div className="flex items-center justify-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-                    <span>
-                      {language === "en" ? "No credit card" : "Ei luottokorttia"}
-                    </span>
+                    <span>{language === "en" ? "No credit card" : "Ei luottokorttia"}</span>
                   </div>
                   <div className="flex items-center justify-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-                    <span>
-                      {language === "en"
-                        ? "1 free CV + letter"
-                        : "1 ilmainen CV + kirje"}
-                    </span>
+                    <span>{language === "en" ? "1 free CV + Cover Letter" : "1 ilmainen CV + Hakukirje"}</span>
                   </div>
                   <div className="flex items-center justify-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-                    <span>
-                      {language === "en" ? "5min setup" : "5min setup"}
-                    </span>
+                    <span>{language === "en" ? "No commitment" : "Ei sitoutumista"}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ===================================
-              HOW IT WORKS
-              =================================== */}
-          <div
-            id="how-it-works"
-            className="bg-white/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-12 sm:mb-16"
-          >
+          <div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-12 sm:mb-16">
             <div className="text-center mb-8 sm:mb-12">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 rounded-full mb-4">
                 <Target className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
@@ -379,9 +299,7 @@ export default function Home() {
                 </span>
               </div>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-2">
-                {language === "en"
-                  ? "3 Simple Steps to Your Perfect Application"
-                  : "3 Yksinkertaista Askelta Täydelliseen Hakemukseen"}
+                {language === "en" ? "3 Simple Steps to Your Perfect Application" : "3 Yksinkertaista Askelta Täydelliseen Hakemukseen"}
               </h2>
               <p className="text-base sm:text-lg text-gray-700 max-w-3xl mx-auto px-4">
                 {language === "en"
@@ -398,9 +316,7 @@ export default function Home() {
                 </div>
                 <User className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-600 mx-auto mb-3 sm:mb-4" />
                 <h3 className="font-bold text-lg sm:text-xl mb-2 sm:mb-3">
-                  {language === "en"
-                    ? "Create Profile (Once)"
-                    : "Luo Profiili (Kerran)"}
+                  {language === "en" ? "Create Profile (Once)" : "Luo Profiili (Kerran)"}
                 </h3>
                 <p className="text-sm sm:text-base text-gray-700 mb-3 sm:mb-4">
                   {language === "en"
@@ -409,8 +325,7 @@ export default function Home() {
                 </p>
                 <div className="bg-white rounded-lg p-3 text-xs sm:text-sm">
                   <p className="font-semibold text-indigo-900">
-                    ⏱️{" "}
-                    {language === "en" ? "~5-10 minutes" : "~5-10 minuuttia"}
+                    ⏱️ {language === "en" ? "~5-10 minutes" : "~5-10 minuuttia"}
                   </p>
                 </div>
               </div>
@@ -422,9 +337,7 @@ export default function Home() {
                 </div>
                 <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-green-600 mx-auto mb-3 sm:mb-4" />
                 <h3 className="font-bold text-lg sm:text-xl mb-2 sm:mb-3">
-                  {language === "en"
-                    ? "AI Generates (Automatically)"
-                    : "AI Generoi (Automaattisesti)"}
+                  {language === "en" ? "AI Generates (Automatically)" : "AI Generoi (Automaattisesti)"}
                 </h3>
                 <p className="text-sm sm:text-base text-gray-700 mb-3 sm:mb-4">
                   {language === "en"
@@ -433,8 +346,7 @@ export default function Home() {
                 </p>
                 <div className="bg-white rounded-lg p-3 text-xs sm:text-sm">
                   <p className="font-semibold text-green-900">
-                    ⚡{" "}
-                    {language === "en" ? "~30-60 seconds" : "~30-60 sekuntia"}
+                    ⚡ {language === "en" ? "~30-60 seconds" : "~30-60 sekuntia"}
                   </p>
                 </div>
               </div>
@@ -455,8 +367,7 @@ export default function Home() {
                 </p>
                 <div className="bg-white rounded-lg p-3 text-xs sm:text-sm">
                   <p className="font-semibold text-amber-900">
-                    👀{" "}
-                    {language === "en" ? "~2-3 minutes" : "~2-3 minuuttia"}
+                    👀 {language === "en" ? "~2-3 minutes" : "~2-3 minuuttia"}
                   </p>
                 </div>
               </div>
@@ -464,10 +375,7 @@ export default function Home() {
 
             <div className="mt-8 sm:mt-12 bg-gradient-to-r from-indigo-100 to-purple-100 border-2 border-indigo-300 rounded-2xl p-4 sm:p-6 text-center">
               <p className="text-base sm:text-lg font-bold text-indigo-900 mb-2">
-                ⏱️{" "}
-                {language === "en"
-                  ? "Total Time: ~7-15 minutes per application"
-                  : "Kokonaisaika: ~7-15 minuuttia per hakemus"}
+                ⏱️ {language === "en" ? "Total Time: ~7-15 minutes per application" : "Kokonaisaika: ~7-15 minuuttia per hakemus"}
               </p>
               <p className="text-xs sm:text-sm text-indigo-700">
                 {language === "en"
@@ -477,36 +385,35 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ===================================
-              MIKSI ATS-OPTIMOINTI ON TÄRKEÄÄ
-              =================================== */}
+
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-amber-300 shadow-2xl mb-12 sm:mb-16">
             <div className="text-center mb-8 sm:mb-12">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 rounded-full mb-4">
                 <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
                 <span className="font-bold text-amber-800 text-sm sm:text-base">
-                  {language === "en"
-                    ? "Why ATS Optimization Matters"
-                    : "Miksi ATS-Optimointi On Tärkeää"}
+                  {language === "en" ? "Why ATS Optimization Matters" : "Miksi ATS-Optimointi On Tärkeää"}
                 </span>
               </div>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-2">
-                {language === "en"
-                  ? "98% of Fortune 500 Companies Use ATS"
-                  : "98% Fortune 500 -yrityksistä Käyttää ATS:ää"}
+                {language === "en" 
+                  ? "98% of Fortune 500 Companies Use ATS*"
+                  : "98% Fortune 500 -yrityksistä Käyttää ATS:ää*"}
               </h2>
               <p className="text-base sm:text-lg text-gray-700 max-w-3xl mx-auto px-4">
                 {language === "en"
                   ? "If your CV isn't optimized, it never reaches human eyes"
                   : "Jos CV:si ei ole optimoitu, se ei koskaan päädy ihmissilmille"}
               </p>
+              <p className="text-xs text-gray-500 mt-2">
+                {language === "en"
+                  ? "*Source: Jobscan 2024, Harvard Business Review"
+                  : "*Lähde: Jobscan 2024, Harvard Business Review"}
+              </p>
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
               <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-amber-200 text-center">
-                <div className="text-3xl sm:text-4xl font-bold text-amber-600 mb-2">
-                  98%
-                </div>
+                <div className="text-3xl sm:text-4xl font-bold text-amber-600 mb-2">98%</div>
                 <p className="text-sm sm:text-base text-gray-700">
                   {language === "en"
                     ? "Fortune 500 companies use ATS systems"
@@ -515,9 +422,7 @@ export default function Home() {
               </div>
 
               <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-amber-200 text-center">
-                <div className="text-3xl sm:text-4xl font-bold text-amber-600 mb-2">
-                  75%
-                </div>
+                <div className="text-3xl sm:text-4xl font-bold text-amber-600 mb-2">75%</div>
                 <p className="text-sm sm:text-base text-gray-700">
                   {language === "en"
                     ? "Of all recruiters use ATS or tech-driven tools"
@@ -526,9 +431,7 @@ export default function Home() {
               </div>
 
               <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-amber-200 text-center">
-                <div className="text-3xl sm:text-4xl font-bold text-amber-600 mb-2">
-                  250+
-                </div>
+                <div className="text-3xl sm:text-4xl font-bold text-amber-600 mb-2">250+</div>
                 <p className="text-sm sm:text-base text-gray-700">
                   {language === "en"
                     ? "Average applications per corporate job posting"
@@ -539,15 +442,11 @@ export default function Home() {
 
             <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-amber-300">
               <h3 className="font-bold text-base sm:text-lg mb-3 text-center text-gray-900">
-                {language === "en"
-                  ? "What This Means For You:"
-                  : "Mitä Tämä Tarkoittaa Sinulle:"}
+                {language === "en" ? "What This Means For You:" : "Mitä Tämä Tarkoittaa Sinulle:"}
               </h3>
               <div className="space-y-3 text-sm sm:text-base">
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 mt-0.5">
-                    1
-                  </div>
+                  <div className="h-6 w-6 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 mt-0.5">1</div>
                   <p className="text-gray-700">
                     {language === "en"
                       ? "Your CV must pass ATS screening before any recruiter sees it"
@@ -555,9 +454,7 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 mt-0.5">
-                    2
-                  </div>
+                  <div className="h-6 w-6 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 mt-0.5">2</div>
                   <p className="text-gray-700">
                     {language === "en"
                       ? "With 250+ applications per job, standing out is critical"
@@ -565,22 +462,17 @@ export default function Home() {
                   </p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="h-6 w-6 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 mt-0.5">
-                    3
-                  </div>
+                  <div className="h-6 w-6 bg-amber-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 mt-0.5">3</div>
                   <p className="text-gray-700">
                     {language === "en"
-                      ? "Semi-Pro & Pro plans automatically optimize for ATS - Basic doesn't"
-                      : "Semi-Pro & Pro -paketit optimoivat automaattisesti ATS:ää varten - Basic ei"}
+                      ? "Basic: Standard CV & job-optimized cover letter (no ATS). Semi-Pro & Pro: ATS optimization included"
+                      : "Basic: Normaali CV & työkohtainen hakukirje (ei ATS). Semi-Pro & Pro: ATS-optimointi mukana"}
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ===================================
-              OMINAISUUDET - Mitä saat
-              =================================== */}
           <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-purple-200 shadow-2xl mb-12 sm:mb-16">
             <div className="text-center mb-8 sm:mb-12">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-2">
@@ -594,19 +486,26 @@ export default function Home() {
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {/* Feature 1 */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-indigo-200 shadow-lg">
+              {/* Feature 1 - PAINOTETTU */}
+              <div className="bg-gradient-to-br from-indigo-100 to-purple-100 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-indigo-300 shadow-xl relative">
+                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                  {language === "en" ? "CORE FEATURE" : "YDINOMINAISUUS"}
+                </div>
                 <Brain className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-600 mb-3 sm:mb-4" />
                 <h3 className="font-bold text-base sm:text-lg mb-2">
-                  {language === "en"
-                    ? "Personality-Based Writing"
-                    : "Persoonallisuuspohjainen Kirjoitus"}
+                  {language === "en" ? "Personality-Based Writing" : "Persoonallisuuspohjainen Kirjoitus"}
                 </h3>
-                <p className="text-sm sm:text-base text-gray-700">
+                <p className="text-sm sm:text-base text-gray-700 mb-3">
                   {language === "en"
-                    ? "AI analyzes your profile and writes in your voice - not like a robot"
-                    : "AI analysoi profiilisi ja kirjoittaa sinun äänelläsi - ei robottimaisesti"}
+                    ? "AI analyzes your unique personality profile and writes in YOUR authentic voice - not generic templates. Every word sounds like you."
+                    : "AI analysoi ainutlaatuisen persoonallisuusprofiilisi ja kirjoittaa SINUN aidolla äänelläsi - ei geneerisiä malleja. Jokainen sana kuulostaa sinulta."}
                 </p>
+                <div className="bg-white rounded-lg p-3 text-xs">
+                  <p className="font-semibold text-indigo-900 mb-1">
+                    {language === "en" ? "Available in:" : "Saatavilla:"}
+                  </p>
+                  <p className="text-indigo-700">✓ Basic • ✓ Semi-Pro • ✓ Pro</p>
+                </div>
               </div>
 
               {/* Feature 2 */}
@@ -626,9 +525,7 @@ export default function Home() {
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-amber-200 shadow-lg">
                 <Target className="w-10 h-10 sm:w-12 sm:h-12 text-amber-600 mb-3 sm:mb-4" />
                 <h3 className="font-bold text-base sm:text-lg mb-2">
-                  {language === "en"
-                    ? "Job-Specific Content"
-                    : "Työkohtainen Sisältö"}
+                  {language === "en" ? "Job-Specific Content" : "Työkohtainen Sisältö"}
                 </h3>
                 <p className="text-sm sm:text-base text-gray-700">
                   {language === "en"
@@ -637,13 +534,14 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Feature 4 */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-purple-200 shadow-lg">
+              {/* Feature 4 - COMING SOON */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-purple-200 shadow-lg relative opacity-75">
+                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse">
+                  {language === "en" ? "COMING SOON" : "TULOSSA"}
+                </div>
                 <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-purple-600 mb-3 sm:mb-4" />
                 <h3 className="font-bold text-base sm:text-lg mb-2">
-                  {language === "en"
-                    ? "Multiple Formats"
-                    : "Useita Formaatteja"}
+                  {language === "en" ? "Multiple Formats" : "Useita Formaatteja"}
                 </h3>
                 <p className="text-sm sm:text-base text-gray-700">
                   {language === "en"
@@ -657,9 +555,7 @@ export default function Home() {
                 <Crown className="w-10 h-10 sm:w-12 sm:h-12 text-yellow-600 mb-3 sm:mb-4" />
                 <h3 className="font-bold text-base sm:text-lg mb-2 flex items-center gap-2">
                   {language === "en" ? "Expert Knowledge" : "Eksperttitieto"}
-                  <span className="text-xs bg-yellow-200 px-2 py-0.5 rounded-full">
-                    PRO
-                  </span>
+                  <span className="text-xs bg-yellow-200 px-2 py-0.5 rounded-full">PRO</span>
                 </h3>
                 <p className="text-sm sm:text-base text-gray-700">
                   {language === "en"
@@ -683,57 +579,46 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ===================================
-              PRICING - YKSINKERTAINEN
-              =================================== */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-12 sm:mb-16">
-            <div className="text-center mb-8 sm:mb-12">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-2">
-                {language === "en"
-                  ? "Simple, Transparent Pricing"
-                  : "Yksinkertainen, Läpinäkyvä Hinnoittelu"}
-              </h2>
-              <p className="text-base sm:text-lg text-gray-700 px-4">
-                {language === "en"
-                  ? "Start free - upgrade when you need more"
-                  : "Aloita ilmaiseksi - päivitä kun tarvitset enemmän"}
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
-              {/* Free */}
+<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
+              {/* Free/Basic */}
               <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
                 <h3 className="text-xl sm:text-2xl font-bold mb-2">
-                  {language === "en" ? "Free" : "Ilmainen"}
+                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
                 </h3>
                 <div className="mb-4">
                   <span className="text-3xl sm:text-4xl font-bold">0€</span>
-                  <span className="text-gray-600 text-sm">
-                    {language === "en" ? "/month" : "/kk"}
-                  </span>
+                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
                 </div>
                 <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en" ? "1 free CV" : "1 ilmainen CV"}
-                    </span>
+                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en"
-                        ? "1 free cover letter"
-                        : "1 ilmainen hakukirje"}
-                    </span>
+                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en" ? "Basic templates" : "Peruspohjat"}
-                    </span>
+                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
                   </li>
                 </ul>
+                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
+                  <p className="text-xs text-blue-900">
+                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
+                    {language === "en" 
+                      ? "Startups, small businesses, personal applications"
+                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
+                  </p>
+                </div>
                 <SignedOut>
                   <SignInButton mode="modal">
                     <Button className="w-full bg-gray-600 hover:bg-gray-700">
@@ -743,523 +628,156 @@ export default function Home() {
                 </SignedOut>
               </div>
 
-              {/* Semi-Pro - SUOSITUIN */}
-              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl p-4 sm:p-6 border-2 border-yellow-400 shadow-2xl relative scale-105">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                  {language === "en" ? "Most Popular" : "Suosituin"}
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">Semi-Pro</h3>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
+              {/* Free/Basic */}
+              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">
+                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
+                </h3>
                 <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">12€</span>
-                  <span className="text-gray-600 text-sm">
-                    {language === "en" ? "/month" : "/kk"}
-                  </span>
+                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
+                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
                 </div>
                 <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en" ? "Unlimited CVs" : "Rajattomat CV:t"}
-                    </span>
+                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en"
-                        ? "Unlimited cover letters"
-                        : "Rajattomat hakukirjeet"}
-                    </span>
+                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en" ? "ATS optimization" : "ATS-optimointi"}
-                    </span>
+                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en" ? "Premium templates" : "Premium-pohjat"}
-                    </span>
+                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
                   </li>
                 </ul>
-                <Link href="/pricing">
-                  <Button className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600">
-                    {language === "en" ? "Choose Plan" : "Valitse"}
-                  </Button>
-                </Link>
-              </div>
-
-              {/* Pro */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-purple-300 shadow-lg">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2 flex items-center gap-2">
-                  Pro
-                  <Crown className="w-5 h-5 text-purple-600" />
-                </h3>
-                <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">25€</span>
-                  <span className="text-gray-600 text-sm">
-                    {language === "en" ? "/month" : "/kk"}
-                  </span>
-                </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en"
-                        ? "Everything in Semi-Pro"
-                        : "Kaikki Semi-Prossa"}
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en"
-                        ? "RAG: Expert knowledge"
-                        : "RAG: Eksperttitieto"}
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en"
-                        ? "Priority support"
-                        : "Prioriteettituki"}
-                    </span>
-                  </li>
-                </ul>
-                <Link href="/pricing">
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700">
-                    {language === "en" ? "Choose Plan" : "Valitse"}
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            <p className="text-center text-xs sm:text-sm text-gray-600 mt-6 sm:mt-8 px-4">
-              {language === "en"
-                ? "All plans: Cancel anytime • No credit card required for free plan"
-                : "Kaikki paketit: Peruuta milloin vain • Ei luottokorttia ilmaisessa"}
-            </p>
-          </div>
-
-          {/* ===================================
-              FINAL CTA
-              =================================== */}
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 sm:p-12 md:p-16 text-center text-white shadow-2xl">
-            <h2 className="text-2xl sm:text-3xl md:text-5xl font-extrabold mb-4 sm:mb-6 px-2">
-              {language === "en"
-                ? "Ready to Save Hours on Job Applications?"
-                : "Valmis Säästämään Tunteja Työnhaussa?"}
-            </h2>
-            <p className="text-base sm:text-lg md:text-2xl mb-6 sm:mb-8 text-indigo-100 max-w-3xl mx-auto px-4">
-              {language === "en"
-                ? "Create your profile once, get personalized applications in minutes"
-                : "Luo profiili kerran, saa personoituja hakemuksia minuuteissa"}
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mb-6 sm:mb-8 px-4">
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <Button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-white text-indigo-600 rounded-xl font-bold text-base sm:text-lg hover:bg-gray-100 shadow-xl transform hover:scale-105 transition-all">
-                    <Sparkles className="inline w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                    {language === "en"
-                      ? "Start Free Now"
-                      : "Aloita Ilmaiseksi"}
-                  </Button>
-                </SignInButton>
-              </SignedOut>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-8 text-xs sm:text-sm text-indigo-100 max-w-2xl mx-auto px-4">
-              <div className="flex items-center justify-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm">
-                <Check className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                <span>
-                  {language === "en" ? "No credit card" : "Ei luottokorttia"}
-                </span>
-              </div>
-              <div className="flex items-center justify-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm">
-                <Check className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                <span>
-                  {language === "en"
-                    ? "Cancel anytime"
-                    : "Peruuta milloin vain"}
-                </span>
-              </div>
-              <div className="flex items-center justify-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm">
-                <Check className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                <span>{language === "en" ? "5min setup" : "5min setup"}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <footer className="py-8 sm:py-12 text-center text-gray-600 border-t border-indigo-100 bg-white/70 backdrop-blur-xl mt-12 sm:mt-16">
-            <div className="max-w-7xl mx-auto px-4">
-              <div className="text-xs sm:text-sm">
-                © {new Date().getFullYear()} HappyApplaid.{" "}
-                {language === "en"
-                  ? "All rights reserved."
-                  : "Kaikki oikeudet pidätetään."}
-              </div>
-            </div>
-          </footer>
-        </div>
-      </div>
-    );
-  }
-
-  // ========================================
-  // DASHBOARD (LOGGED IN)
-  // ========================================
-
-  if (profileCompleted === null || freemiumLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
-        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
-          <div className="text-lg font-bold text-gray-900">
-            {language === "en" ? "Loading..." : "Ladataan..."}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const isPremium = freemiumStatus?.is_premium || false;
-  const canCreateCV = freemiumStatus?.can_create_cv || false;
-  const hasUsedFreeCv = freemiumStatus?.has_used_free_cv || false;
-  const currentTier = freemiumStatus?.plan_type || "free";
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-      <SmartHeader />
-
-      {/* Profile Prompt Modal */}
-      {showProfilePrompt && profileCompleted === false && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="backdrop-blur-xl bg-white/90 border-2 border-white/40 rounded-3xl shadow-2xl p-8 max-w-md w-full relative">
-            <button
-              onClick={() => setShowProfilePrompt(false)}
-              className="absolute top-4 right-4 hover:bg-gray-100 rounded-full p-1"
-            >
-              <X className="w-6 h-6 text-gray-600" />
-            </button>
-
-            <User className="h-16 w-16 mx-auto mb-4 text-indigo-600" />
-            <h3 className="text-2xl font-bold text-center mb-4 text-gray-900">
-              {language === "en"
-                ? `Hey, ${user?.firstName}!`
-                : `Hei, ${user?.firstName}!`}
-            </h3>
-            <p className="text-center text-gray-600 mb-6">
-              {language === "en"
-                ? "We recommend filling out your profile to get the best results"
-                : "Suosittelemme profiilin täyttämistä parhaan tuloksen saamiseksi"}
-            </p>
-
-            <div className="flex gap-3">
-              <Link href="/profile" className="flex-1">
-                <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
-                  {language === "en" ? "Fill Profile" : "Täytä Profiili"}
-                </Button>
-              </Link>
-              <Button
-                variant="outline"
-                onClick={() => setShowProfilePrompt(false)}
-                className="flex-1"
-              >
-                {language === "en" ? "Later" : "Myöhemmin"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl p-6 sm:p-8">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            {language === "en"
-              ? `Welcome${displayName ? `, ${displayName}` : ""}!`
-              : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
-          </h1>
-          <p className="text-gray-700 text-base sm:text-lg">
-            {currentTier === "free"
-              ? language === "en"
-                ? "Free user - 1 free CV + 1 free cover letter"
-                : "Ilmainen käyttäjä - 1 ilmainen CV + 1 ilmainen hakukirje"
-              : `${currentTier.toUpperCase()}-${
-                  language === "en" ? "user" : "käyttäjä"
-                }`}
-          </p>
-        </div>
-
-        {/* Upgrade Prompt for Free Users */}
-        {!isPremium && hasUsedFreeCv && (
-          <div className="mb-8 backdrop-blur-xl bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-300 rounded-3xl shadow-2xl p-6 sm:p-8">
-            <Crown className="h-10 w-10 sm:h-12 sm:w-12 text-yellow-600 mx-auto mb-4" />
-            <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 mb-4">
-              {language === "en"
-                ? "You've used your free documents!"
-                : "Olet käyttänyt ilmaiset dokumentit!"}
-            </h2>
-            <p className="text-center text-gray-700 mb-6 text-sm sm:text-base">
-              {language === "en"
-                ? "Upgrade to create unlimited CVs and cover letters with ATS optimization"
-                : "Päivitä luodaksesi rajattomasti CV:itä ja hakukirjeitä ATS-optimoinnilla"}
-            </p>
-            <Link href="/pricing" className="block">
-              <Button className="mx-auto block bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold">
-                <Crown className="w-5 h-5 mr-2" />
-                {language === "en"
-                  ? "Upgrade to Premium"
-                  : "Päivitä Premium-tiliin"}
-              </Button>
-            </Link>
-          </div>
-        )}
-
-        {/* Quick Actions Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          {/* Create CV Card */}
-          {canCreateCV ? (
-            <Link href="/create-cv">
-              <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
-                <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-indigo-600 mb-4" />
-                <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
-                  {language === "en" ? "Create CV" : "Luo CV"}
-                </h3>
-                <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                  {isPremium
-                    ? language === "en"
-                      ? "Unlimited ATS-optimized CVs"
-                      : "Rajattomat ATS-optimoidut CV:t"
-                    : language === "en"
-                    ? "Free personality-driven CV"
-                    : "Ilmainen persoonallisuusvetoinen CV"}
-                </p>
-                <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
-                  {language === "en" ? "Create CV" : "Luo CV"}
-                </Button>
-              </div>
-            </Link>
-          ) : (
-            <div className="backdrop-blur-xl bg-white/70 border-2 border-gray-300 rounded-2xl shadow-xl p-6 opacity-60">
-              <Lock className="h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mb-4" />
-              <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
-                {language === "en" ? "Create CV" : "Luo CV"}
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                {language === "en"
-                  ? "Free CV already used"
-                  : "Ilmainen CV jo käytetty"}
-              </p>
-              <Link href="/pricing">
-                <Button variant="outline" className="w-full">
-                  {language === "en" ? "Upgrade" : "Päivitä"}
-                </Button>
-              </Link>
-            </div>
-          )}
-
-          {/* Create Cover Letter Card */}
-          <Link href="/create-cover-letter">
-            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
-              <FileInput className="h-10 w-10 sm:h-12 sm:w-12 text-green-600 mb-4" />
-              <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
-                {language === "en" ? "Create Cover Letter" : "Luo Hakukirje"}
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                {isPremium
-                  ? language === "en"
-                    ? "Unlimited ATS-optimized letters"
-                    : "Rajattomat ATS-optimoidut kirjeet"
-                  : language === "en"
-                  ? "1 free cover letter"
-                  : "1 ilmainen hakukirje"}
-              </p>
-              <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600">
-                {language === "en" ? "Create Letter" : "Luo Kirje"}
-              </Button>
-            </div>
-          </Link>
-
-          {/* Edit Profile Card */}
-          <Link href="/profile">
-            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
-              <User className="h-10 w-10 sm:h-12 sm:w-12 text-amber-600 mb-4" />
-              <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
-                {language === "en" ? "Edit Profile" : "Muokkaa Profiilia"}
-              </h3>
-              <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                {language === "en"
-                  ? "Update your information"
-                  : "Päivitä tietosi"}
-              </p>
-              <Button variant="outline" className="w-full">
-                {language === "en" ? "Edit" : "Muokkaa"}
-              </Button>
-            </div>
-          </Link>
-        </div>
-
-        {/* Recent Documents */}
-        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl p-6 sm:p-8">
-          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 text-gray-900">
-            <Files className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
-            {language === "en" ? "My Documents" : "Omat Dokumentit"}
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
-            {/* CVs Section */}
-            <div>
-              <Link href="/my-cvs">
-                <div className="flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-all mb-3 sm:mb-4 cursor-pointer">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
-                    <span className="font-bold text-gray-900 text-sm sm:text-base">
-                      {language === "en" ? "My CVs" : "Omat CV:t"}
-                    </span>
-                    {recentCVs.length > 0 && (
-                      <span className="bg-indigo-200 px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold">
-                        {recentCVs.length}
-                      </span>
-                    )}
-                  </div>
-                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
-                </div>
-              </Link>
-
-              {loadingRecent ? (
-                <div className="text-center py-6 sm:py-8">
-                  <div className="animate-spin h-6 w-6 sm:h-8 sm:w-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
-                </div>
-              ) : recentCVs.length > 0 ? (
-                <div className="space-y-2">
-                  {recentCVs.map((cv: any) => (
-                    <Link key={cv.id} href={`/edit-cv/${cv.id}`}>
-                      <div className="p-3 sm:p-4 bg-white rounded-xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-indigo-300">
-                        <p className="font-semibold text-xs sm:text-sm text-gray-900 truncate">
-                          {cv.content?.personalInfo?.name ||
-                            cv.title ||
-                            (language === "en" ? "Unnamed CV" : "Nimetön CV")}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(cv.created_at).toLocaleDateString(
-                            language === "en" ? "en-US" : "fi-FI",
-                            {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            }
-                          )}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 sm:py-8">
-                  <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-2 sm:mb-3" />
-                  <p className="text-sm sm:text-base text-gray-500 mb-3 sm:mb-4">
-                    {language === "en" ? "No CVs yet" : "Ei vielä CV:itä"}
+                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
+                  <p className="text-xs text-blue-900">
+                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
+                    {language === "en" 
+                      ? "Startups, small businesses, personal applications"
+                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
                   </p>
-                  {canCreateCV && (
-                    <Link href="/create-cv">
-                      <Button variant="outline" size="sm">
-                        {language === "en"
-                          ? "Create First CV"
-                          : "Luo Ensimmäinen CV"}
-                      </Button>
-                    </Link>
-                  )}
                 </div>
-              )}
-            </div>
-
-            {/* Cover Letters Section */}
-            <div>
-              <Link href="/my-cover-letters">
-                <div className="flex items-center justify-between p-3 sm:p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-all mb-3 sm:mb-4 cursor-pointer">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <FileInput className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
-                    <span className="font-bold text-gray-900 text-sm sm:text-base">
-                      {language === "en" ? "Cover Letters" : "Hakukirjeet"}
-                    </span>
-                    {recentCoverLetters.length > 0 && (
-                      <span className="bg-green-200 px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold">
-                        {recentCoverLetters.length}
-                      </span>
-                    )}
-                  </div>
-                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
-                </div>
-              </Link>
-
-              {loadingRecent ? (
-                <div className="text-center py-6 sm:py-8">
-                  <div className="animate-spin h-6 w-6 sm:h-8 sm:w-8 border-4 border-green-600 border-t-transparent rounded-full mx-auto"></div>
-                </div>
-              ) : recentCoverLetters.length > 0 ? (
-                <div className="space-y-2">
-                  {recentCoverLetters.map((letter: any) => (
-                    <Link
-                      key={letter.id}
-                      href={`/edit-cover-letter/${letter.id}`}
-                    >
-                      <div className="p-3 sm:p-4 bg-white rounded-xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-green-300">
-                        <p className="font-semibold text-xs sm:text-sm text-gray-900 truncate">
-                          {letter.title ||
-                            letter.job_title ||
-                            (language === "en"
-                              ? "Unnamed Cover Letter"
-                              : "Nimetön Hakukirje")}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(letter.created_at).toLocaleDateString(
-                            language === "en" ? "en-US" : "fi-FI",
-                            {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            }
-                          )}
-                        </p>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6 sm:py-8">
-                  <FileInput className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-2 sm:mb-3" />
-                  <p className="text-sm sm:text-base text-gray-500 mb-3 sm:mb-4">
-                    {language === "en"
-                      ? "No cover letters yet"
-                      : "Ei vielä hakukirjeitä"}
-                  </p>
-                  <Link href="/create-cover-letter">
-                    <Button variant="outline" size="sm">
-                      {language === "en"
-                        ? "Create First Letter"
-                        : "Luo Ensimmäinen Kirje"}
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
+                      {language === "en" ? "Get Started" : "Aloita"}
                     </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+                  </SignInButton>
+                </SignedOut>
+              </div>
 
-      {/* Footer */}
-      <footer className="py-8 text-center text-gray-500 border-t border-indigo-100 bg-white/70 backdrop-blur-xl mt-12">
-        <p className="text-sm">
-          © {new Date().getFullYear()} HappyApplaid.{" "}
-          {language === "en"
-            ? "All rights reserved."
-            : "Kaikki oikeudet pidätetään."}
-        </p>
-      </footer>
-    </div>
-  );
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
+              {/* Free/Basic */}
+              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">
+                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
+                </h3>
+                <div className="mb-4">
+                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
+                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
+                </div>
+                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
+                  </li>
+                </ul>
+                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
+                  <p className="text-xs text-blue-900">
+                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
+                    {language === "en" 
+                      ? "Startups, small businesses, personal applications"
+                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
+                  </p>
+                </div>
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
+                      {language === "en" ? "Get Started" : "Aloita"}
+                    </Button>
+                  </SignInButton>
+                </SignedOut>
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
+              {/* Free/Basic */}
+              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
+                <h3 className="text-xl sm:text-2xl font-bold mb-2">
+                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
+                </h3>
+                <div className="mb-4">
+                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
+                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
+                </div>
+                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
+                  </li>
+                </ul>
+                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
+                  <p className="text-xs text-blue-900">
+                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
+                    {language === "en" 
+                      ? "Startups, small businesses, personal applications"
+                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
+                  </p>
+                </div>
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
+                      {language === "en" ? "Get Started" : "Aloita"}
+                    </Button>
+                  </SignInButton>
+                </SignedOut>
+              </div>
+                      </div>
+      </div>
+      </div>
+      </div></div></div>
+    );
 }
+  }
