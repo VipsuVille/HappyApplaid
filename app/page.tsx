@@ -290,6 +290,16 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Jatkuu osassa 2... */}
+        </div>
+      </div>
+    );
+  }
+// JATKOA OSA 1:lle - Lisää tämä Landing Page -osioon ennen return null;
+
+          {/* ===================================
+              MITEN SE TOIMII - 3 YKSINKERTAISTA ASKELTA
+              =================================== */}
           <div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-12 sm:mb-16">
             <div className="text-center mb-8 sm:mb-12">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 rounded-full mb-4">
@@ -385,7 +395,9 @@ export default function Home() {
             </div>
           </div>
 
-
+          {/* ===================================
+              MIKSI ATS-OPTIMOINTI ON TÄRKEÄÄ
+              =================================== */}
           <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-amber-300 shadow-2xl mb-12 sm:mb-16">
             <div className="text-center mb-8 sm:mb-12">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 rounded-full mb-4">
@@ -473,6 +485,9 @@ export default function Home() {
             </div>
           </div>
 
+          {/* ===================================
+              OMINAISUUDET - Mitä saat
+              =================================== */}
           <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-purple-200 shadow-2xl mb-12 sm:mb-16">
             <div className="text-center mb-8 sm:mb-12">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-2">
@@ -535,19 +550,25 @@ export default function Home() {
               </div>
 
               {/* Feature 4 - COMING SOON */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-purple-200 shadow-lg relative opacity-75">
-                <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold animate-pulse">
-                  {language === "en" ? "COMING SOON" : "TULOSSA"}
+              <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-gray-300 shadow-lg relative">
+                <div className="absolute inset-0 bg-gray-50/50 rounded-2xl"></div>
+                <div className="relative z-10">
+                  <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+                    {language === "en" ? "COMING SOON" : "TULOSSA PIAN"}
+                  </div>
+                  <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mb-3 sm:mb-4" />
+                  <h3 className="font-bold text-base sm:text-lg mb-2 text-gray-600">
+                    {language === "en" ? "Multiple Formats" : "Useita Formaatteja"}
+                  </h3>
+                  <p className="text-sm sm:text-base text-gray-500">
+                    {language === "en"
+                      ? "Professional CV templates + cover letters in PDF format"
+                      : "Ammattimaiset CV-pohjat + hakukirjeet PDF-muodossa"}
+                  </p>
+                  <div className="mt-3 text-xs text-gray-400 italic">
+                    {language === "en" ? "⏳ In development" : "⏳ Kehityksessä"}
+                  </div>
                 </div>
-                <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-purple-600 mb-3 sm:mb-4" />
-                <h3 className="font-bold text-base sm:text-lg mb-2">
-                  {language === "en" ? "Multiple Formats" : "Useita Formaatteja"}
-                </h3>
-                <p className="text-sm sm:text-base text-gray-700">
-                  {language === "en"
-                    ? "Professional CV templates + cover letters in PDF format"
-                    : "Ammattimaiset CV-pohjat + hakukirjeet PDF-muodossa"}
-                </p>
               </div>
 
               {/* Feature 5 */}
@@ -579,205 +600,8 @@ export default function Home() {
             </div>
           </div>
 
-<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
-              {/* Free/Basic */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">
-                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
-                </h3>
-                <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
-                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
-                </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
-                  </li>
-                </ul>
-                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
-                  <p className="text-xs text-blue-900">
-                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
-                    {language === "en" 
-                      ? "Startups, small businesses, personal applications"
-                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
-                  </p>
-                </div>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
-                      {language === "en" ? "Get Started" : "Aloita"}
-                    </Button>
-                  </SignInButton>
-                </SignedOut>
-              </div>
-
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
-              {/* Free/Basic */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">
-                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
-                </h3>
-                <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
-                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
-                </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
-                  </li>
-                </ul>
-                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
-                  <p className="text-xs text-blue-900">
-                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
-                    {language === "en" 
-                      ? "Startups, small businesses, personal applications"
-                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
-                  </p>
-                </div>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
-                      {language === "en" ? "Get Started" : "Aloita"}
-                    </Button>
-                  </SignInButton>
-                </SignedOut>
-              </div>
-
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
-              {/* Free/Basic */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">
-                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
-                </h3>
-                <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
-                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
-                </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
-                  </li>
-                </ul>
-                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
-                  <p className="text-xs text-blue-900">
-                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
-                    {language === "en" 
-                      ? "Startups, small businesses, personal applications"
-                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
-                  </p>
-                </div>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
-                      {language === "en" ? "Get Started" : "Aloita"}
-                    </Button>
-                  </SignInButton>
-                </SignedOut>
-              </div>
-
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
-              {/* Free/Basic */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">
-                  {language === "en" ? "Basic (Free)" : "Basic (Ilmainen)"}
-                </h3>
-                <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
-                  <span className="text-gray-600 text-sm">{language === "en" ? "/forever" : "/ikuisesti"}</span>
-                </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 personality-driven CV" : "1 persoonallisuusvetoinen CV"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 job-optimized cover letter" : "1 työkohtainen hakukirje"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Personality-based writing" : "Persoonallisuuspohjainen kirjoitus"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "Perfect for small companies" : "Täydellinen pienille yrityksille"}</span>
-                  </li>
-                </ul>
-                <div className="bg-blue-50 rounded-lg p-3 mb-4 border border-blue-200">
-                  <p className="text-xs text-blue-900">
-                    <strong>{language === "en" ? "Best for:" : "Parhaiten:"}</strong>{" "}
-                    {language === "en" 
-                      ? "Startups, small businesses, personal applications"
-                      : "Startup-yritykset, pienet firmat, henkilökohtaiset hakemukset"}
-                  </p>
-                </div>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
-                      {language === "en" ? "Get Started" : "Aloita"}
-                    </Button>
-                  </SignInButton>
-                </SignedOut>
-              </div>
-                      </div>
-      </div>
-      </div>
-      </div></div></div>
-    );
+// JATKUU seuraavassa viestissä (pricing, CTA, dashboard)...
+  // DASHBOARD osa tulossa osassa 2...
+  
+  return null;
 }
-  }
