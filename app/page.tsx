@@ -28,6 +28,7 @@ import {
   MessageCircle,
   Database,
   Lightbulb,
+  Play,
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -281,7 +282,7 @@ export default function Home() {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
           {/* ===================================
-              HERO SECTION - REALISTINEN LUPAUS
+              HERO SECTION
               =================================== */}
           <div className="mb-16">
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl shadow-indigo-500/10 p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
@@ -293,8 +294,8 @@ export default function Home() {
                   <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
                   <span className="font-bold text-indigo-800 text-sm sm:text-base">
                     {language === "en"
-                      ? "90% of Work Done For You"
-                      : "90% Työstä Tehty Puolestasi"}
+                      ? "Not Just AI. Your Digital Twin."
+                      : "Ei Vain AI. Vaan Digitaalinen Kaksosesi."}
                   </span>
                 </div>
 
@@ -308,19 +309,15 @@ export default function Home() {
                   <br />
                   <span className="text-gray-900">
                     {language === "en"
-                      ? "Get Personalized CVs & Cover Letters"
-                      : "Saa Personoituja CV:itä & Hakukirjeitä"}
-                  </span>
-                  <br />
-                  <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                    {language === "en" ? "In Minutes" : "Minuuteissa"}
+                      ? "Get Personalized Applications Forever"
+                      : "Saa Personoituja Hakemuksia Ikuisesti"}
                   </span>
                 </h1>
 
                 <p className="text-base sm:text-lg md:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed mb-6 sm:mb-8 px-4">
                   {language === "en"
-                    ? "Start for free with zero commitment. Just fill your profile so our AI knows you. You get 1 free CV and Cover Letter (Basic features) to verify the quality yourself."
-                    : "Aloita ilmaiseksi ilman sitoumuksia. Täytä vain profiilisi, jotta AI oppii tuntemaan sinut. Saat 1 ilmaisen CV:n ja hakukirjeen (Basic-ominaisuudet) testataksesi laatua."}
+                    ? "Start for free with zero risk. We just need you to fill your profile so our AI knows you. You get 1 free CV and a general Cover Letter to test the quality."
+                    : "Aloita ilmaiseksi nollariskillä. Sinun tarvitsee vain täyttää profiilisi, jotta AI oppii tuntemaan sinut. Saat 1 ilmaisen CV:n ja yhden yleisen esittelykirjeen testataksesi laatua."}
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-6 sm:mb-8 px-4">
@@ -361,15 +358,15 @@ export default function Home() {
                     <Clock className="w-4 h-4 text-indigo-600 flex-shrink-0" />
                     <span>
                       {language === "en"
-                        ? "10-15min one-time setup"
-                        : "10-15min kertaluonteinen asennus"}
+                        ? "10-15min setup"
+                        : "10-15min asennus"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
-                        ? "Zero commitment"
+                        ? "No commitment"
                         : "Ei sitoutumista"}
                     </span>
                   </div>
@@ -383,7 +380,6 @@ export default function Home() {
               =================================== */}
           <div className="mb-20">
              <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 rounded-3xl p-8 md:p-16 text-white shadow-2xl relative overflow-hidden text-center">
-                {/* Background effects */}
                 <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
                 <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
                 
@@ -391,14 +387,14 @@ export default function Home() {
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/20 mb-6 backdrop-blur-sm">
                     <Brain className="w-5 h-5 text-pink-300" />
                     <span className="font-bold text-indigo-100 tracking-wide uppercase text-sm">
-                      {language === "en" ? "Our Core Difference" : "Meidän Ydinerottuvuutemme"}
+                      {language === "en" ? "Not Just AI" : "Ei Vain AI"}
                     </span>
                   </div>
                   
                   <h2 className="text-3xl md:text-5xl font-extrabold mb-6 leading-tight">
                     {language === "en" 
-                      ? "Not Just AI. Your Digital Twin." 
-                      : "Ei Vain AI. Vaan Digitaalinen Kaksosesi."}
+                      ? "Your Digital Twin." 
+                      : "Sinun Digitaalinen Kaksosesi."}
                   </h2>
                   
                   <p className="text-lg md:text-xl text-indigo-100 mb-8 leading-relaxed">
@@ -413,7 +409,7 @@ export default function Home() {
                         <X className="w-5 h-5 text-red-400" /> 
                         Generic AI (ChatGPT etc.)
                       </h3>
-                      <p className="text-sm text-gray-300">
+                      <p className="text-sm text-gray-300 italic">
                         "I am a hard working individual who is motivated to succeed in this role..."
                       </p>
                     </div>
@@ -434,6 +430,35 @@ export default function Home() {
           </div>
 
           {/* ===================================
+              VIDEO DEMO (COMING SOON)
+              =================================== */}
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 border-2 border-indigo-200 shadow-xl mb-16 relative overflow-hidden group">
+             <div className="text-center mb-8">
+               <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                 {language === "en" ? "See It In Action" : "Katso Miten Se Toimii"}
+               </h2>
+               <p className="text-gray-600">
+                 {language === "en" ? "Watch a short demo of the process" : "Katso lyhyt demo prosessista"}
+               </p>
+             </div>
+             
+             {/* Video Placeholder / Coming Soon */}
+             <div className="relative aspect-video bg-gray-100 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-gray-200">
+               {/* Coming Soon Overlay */}
+               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-20">
+                 <div className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-xl shadow-2xl transform rotate-0 sm:-rotate-3 border-2 border-indigo-400">
+                   {language === "en" ? "Video Coming Soon!" : "Video Tulossa Pian!"}
+                 </div>
+               </div>
+               
+               {/* Fake Play Button behind overlay */}
+               <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                 <Play className="w-10 h-10 text-white ml-1 opacity-50" />
+               </div>
+             </div>
+          </div>
+
+          {/* ===================================
               SMART FEATURES (AI QUESTIONS & RAG)
               =================================== */}
           <div className="grid md:grid-cols-2 gap-8 mb-20">
@@ -447,8 +472,8 @@ export default function Home() {
               </h3>
               <p className="text-gray-700 mb-6">
                 {language === "en"
-                  ? "If our AI doesn't know enough about your experience for a specific job, it stops and asks you smart questions. It learns from your answers and saves them forever."
-                  : "Jos AI ei tiedä tarpeeksi kokemuksestasi tiettyyn työhön, se pysähtyy ja kysyy sinulta älykkäitä kysymyksiä. Se oppii vastauksistasi ja tallentaa ne ikuisesti."}
+                  ? "If our AI needs more info for a specific job, it asks you smart questions. It learns from your answers and saves them to your profile—so you never have to repeat yourself."
+                  : "Jos AI tarvitsee lisätietoja tiettyyn työhön, se kysyy älykkäitä kysymyksiä. Se oppii vastauksistasi ja tallentaa ne profiiliisi – jotta sinun ei tarvitse koskaan toistaa itseäsi."}
               </p>
               <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
                 <p className="text-sm font-semibold text-indigo-800 flex items-center gap-2">
@@ -457,8 +482,8 @@ export default function Home() {
                 </p>
                 <p className="text-sm text-indigo-700 mt-1">
                   {language === "en"
-                    ? "Answer once, use everywhere. No repetitive data entry."
-                    : "Vastaa kerran, käytä kaikkialla. Ei toistuvaa tietojen syöttöä."}
+                    ? "Your profile gets smarter with every application."
+                    : "Profiilisi viisastuu jokaisen hakemuksen myötä."}
                 </p>
               </div>
             </div>
@@ -474,80 +499,19 @@ export default function Home() {
               </h3>
               <p className="text-gray-700 mb-6">
                 {language === "en"
-                  ? "Our Pro AI doesn't just guess. It reads real recruitment articles and HR guides from our database before writing your application."
-                  : "Pro AI:mme ei vain arvaile. Se lukee tietokannastamme oikeita rekrytointiartikkeleita ja HR-oppaita ennen hakemuksesi kirjoittamista."}
+                  ? "Our Pro AI reads real recruitment articles and HR guides from our database before writing. It's like having an expert check your application."
+                  : "Pro AI:mme lukee tietokannastamme oikeita rekrytointiartikkeleita ja HR-oppaita ennen kirjoittamista. Kuin asiantuntija tarkistaisi hakemuksesi."}
               </p>
               <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
                 <p className="text-sm font-semibold text-purple-800 flex items-center gap-2">
                   <Database className="w-4 h-4" />
-                  {language === "en" ? "How it works:" : "Miten se toimii:"}
+                  {language === "en" ? "RAG Technology:" : "RAG-Teknologia:"}
                 </p>
                 <p className="text-sm text-purple-700 mt-1">
                   {language === "en"
-                    ? "Retrieval-Augmented Generation (RAG) ensures professional, industry-standard advice."
-                    : "Retrieval-Augmented Generation (RAG) varmistaa ammattimaisen, alan standardien mukaisen neuvonnan."}
+                    ? "Retrieval-Augmented Generation ensures professional advice."
+                    : "Retrieval-Augmented Generation varmistaa ammattimaisen neuvonnan."}
                 </p>
-              </div>
-            </div>
-          </div>
-
-          {/* ===================================
-              MIKSI ATS-OPTIMOINTI ON TÄRKEÄÄ
-              =================================== */}
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-amber-300 shadow-2xl mb-16">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 rounded-full mb-4">
-                <Zap className="w-4 h-4 text-amber-600" />
-                <span className="font-bold text-amber-800 text-sm">
-                  {language === "en" ? "Why ATS Optimization Matters" : "Miksi ATS-Optimointi On Tärkeää"}
-                </span>
-              </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                {language === "en" ? "98% of Fortune 500 Companies Use ATS" : "98% Fortune 500 -yrityksistä Käyttää ATS:ää"}
-              </h2>
-              <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-                {language === "en"
-                  ? "If your CV isn't optimized for big company portals, it might never reach human eyes."
-                  : "Jos CV:si ei ole optimoitu suuryritysten portaaleihin, se ei välttämättä koskaan päädy ihmissilmille."}
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-2xl p-6 border border-amber-200 text-center">
-                <div className="text-4xl font-bold text-amber-600 mb-2">98%</div>
-                <p className="text-sm text-gray-700">{language === "en" ? "Fortune 500 companies use ATS" : "Fortune 500 -yrityksistä käyttää ATS:ää"}</p>
-              </div>
-              <div className="bg-white rounded-2xl p-6 border border-amber-200 text-center">
-                <div className="text-4xl font-bold text-amber-600 mb-2">75%</div>
-                <p className="text-sm text-gray-700">{language === "en" ? "Recruiters use screening tools" : "Rekrytoijista käyttää seulontatyökaluja"}</p>
-              </div>
-              <div className="bg-white rounded-2xl p-6 border border-amber-200 text-center">
-                <div className="text-4xl font-bold text-amber-600 mb-2">250+</div>
-                <p className="text-sm text-gray-700">{language === "en" ? "Avg applications per job" : "Keskimäärin hakemuksia per paikka"}</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 border border-amber-300">
-              <h3 className="font-bold text-lg mb-3 text-center text-gray-900">
-                {language === "en" ? "Choose the Right Tool:" : "Valitse Oikea Työkalu:"}
-              </h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-start gap-3">
-                  <span className="font-bold text-blue-600 min-w-[80px]">{language === "en" ? "Basic Plan" : "Basic-taso"}</span>
-                  <p className="text-gray-700">
-                    {language === "en" 
-                      ? "Creates standard job-specific letters. Perfect for emailing smaller companies directly or introducing yourself."
-                      : "Luo tavallisia, työpaikkakohtaisia kirjeitä. Täydellinen sähköpostitse lähetettäviin hakemuksiin tai pienille yrityksille."}
-                  </p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <span className="font-bold text-amber-600 min-w-[80px]">Semi-Pro</span>
-                  <p className="text-gray-700">
-                    {language === "en"
-                      ? "Adds the ATS optimization layer. Essential when applying through large corporate portals (Workday, Taleo, etc.)."
-                      : "Lisää ATS-optimointikerroksen. Välttämätön, kun haet suurten yritysten portaalien kautta (Workday, Taleo, jne.)."}
-                  </p>
-                </div>
               </div>
             </div>
           </div>
@@ -574,10 +538,10 @@ export default function Home() {
 
                 {/* Feature 3 - COMING SOON */}
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 shadow-none relative overflow-hidden group">
-                   <div className="absolute top-3 right-3 bg-gray-200 text-gray-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider z-10">
+                   <div className="absolute top-3 right-3 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider z-10 shadow-sm">
                       {language === "en" ? "Coming Soon" : "Tulossa Pian"}
                    </div>
-                   <div className="grayscale opacity-60 group-hover:opacity-70 transition-opacity">
+                   <div className="grayscale opacity-50 group-hover:opacity-60 transition-opacity">
                       <FileText className="w-10 h-10 text-gray-500 mb-4" />
                       <h3 className="font-bold text-lg mb-2">{language === "en" ? "Multiple Formats" : "Useita Formaatteja"}</h3>
                       <p className="text-sm text-gray-600">{language === "en" ? "PDF export and professional templates." : "PDF-vienti ja ammattimaiset pohjat."}</p>
@@ -615,7 +579,11 @@ export default function Home() {
                 <ul className="space-y-3 mb-6 text-sm flex-1">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>{language === "en" ? "1 Free CV + Letter" : "1 Ilmainen CV + Kirje"}</span>
+                    <span className="font-semibold text-gray-900">{language === "en" ? "1 Free CV" : "1 Ilmainen CV"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "1 General Letter" : "1 Yleinen Kirje"}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
@@ -623,7 +591,7 @@ export default function Home() {
                   </li>
                   <li className="flex items-start gap-2 opacity-50">
                     <Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                    <span>No ATS / RAG</span>
+                    <span>No Job Specific / ATS</span>
                   </li>
                 </ul>
                 <SignedOut>
@@ -651,8 +619,13 @@ export default function Home() {
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span>{language === "en" ? "Unlimited Letters" : "Rajattomat Kirjeet"}</span>
                   </li>
-                  <li className="flex items-start gap-2 text-xs text-blue-600 font-medium bg-blue-50 p-1 rounded">
-                    {language === "en" ? "Good for direct emails" : "Hyvä suoriin sähköposteihin"}
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span>{language === "en" ? "Job-Specific Letters" : "Työpaikkakohtaiset Kirjeet"}</span>
+                  </li>
+                  <li className="flex items-start gap-2 opacity-50">
+                    <Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <span>No ATS Optimization</span>
                   </li>
                 </ul>
                 <Link href="/pricing">
@@ -684,9 +657,6 @@ export default function Home() {
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span className="font-bold">{language === "en" ? "ATS Optimized Letters" : "ATS-optimoidut Kirjeet"}</span>
-                  </li>
-                  <li className="flex items-start gap-2 text-xs text-amber-800 font-medium bg-amber-100 p-1 rounded">
-                     {language === "en" ? "Essential for big portals" : "Välttämätön isoihin portaaleihin"}
                   </li>
                 </ul>
                 <Link href="/pricing">
@@ -853,8 +823,8 @@ export default function Home() {
           <p className="text-gray-700 text-base sm:text-lg">
             {currentTier === "free"
               ? language === "en"
-                ? "Free user - 1 free CV + 1 free cover letter (Basic)"
-                : "Ilmainen käyttäjä - 1 ilmainen CV + 1 ilmainen hakukirje (Basic)"
+                ? "Free user - 1 free CV + 1 general cover letter"
+                : "Ilmainen käyttäjä - 1 ilmainen CV + 1 yleinen hakukirje"
               : `${currentTier.toUpperCase()}-${
                   language === "en" ? "user" : "käyttäjä"
                 }`}
@@ -942,8 +912,8 @@ export default function Home() {
                     ? "Unlimited ATS-optimized letters"
                     : "Rajattomat ATS-optimoidut kirjeet"
                   : language === "en"
-                  ? "1 free cover letter (Basic)"
-                  : "1 ilmainen hakukirje (Basic)"}
+                  ? "1 general letter (Basic)"
+                  : "1 yleinen hakukirje (Basic)"}
               </p>
               <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600">
                 {language === "en" ? "Create Letter" : "Luo Kirje"}
