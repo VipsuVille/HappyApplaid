@@ -1,4 +1,4 @@
-// app/edit-cover-letter/[id]/page.tsx - FINAL VERSION (OSA 1/3)
+// app/edit-cover-letter/[id]/page.tsx - FINAL KORJATTU VERSIO
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,12 +7,11 @@ import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, TrendingUp, AlertTriangle, 
   Loader2, RefreshCw, Sparkles, Edit3, Palette, Layout,
-  AlignLeft, AlignCenter, AlignRight, Zap, CheckCircle, XCircle
+  AlignLeft, AlignCenter, AlignRight, Zap, CheckCircle, XCircle, Minimize2
 } from 'lucide-react';
 import SmartHeader from '@/components/ui/smartHeader';
 import { fetchCoverLetterById, updateCoverLetter, deleteCoverLetter } from '@/services/coverLetterService-client';
 
-// ✅ A4 CONSTANTS (90% = 1010px)
 const A4_HEIGHT_PX = 1123;
 const MAX_CONTENT_HEIGHT_PX = Math.round(A4_HEIGHT_PX * 0.9);
 
@@ -52,7 +51,6 @@ export default function EditCoverLetterPage() {
   const [showKeywordSuggestions, setShowKeywordSuggestions] = useState(true);
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
 
-  // LATAA COVER LETTER
   useEffect(() => {
     const loadCoverLetter = async () => {
       try {
@@ -72,7 +70,6 @@ export default function EditCoverLetterPage() {
         const hasATSData = !!data.ai_data?.ats_optimization;
         setIsATSOptimized(hasATSData);
 
-        // Lataa tallennettua ulkonäköä
         if (data.ai_data?.styling) {
           setFontSize(data.ai_data.styling.fontSize || 16);
           setLineHeight(data.ai_data.styling.lineHeight || 1.7);
@@ -93,7 +90,6 @@ export default function EditCoverLetterPage() {
     if (id) loadCoverLetter();
   }, [id, getToken, router]);
 
-  // ✅ TARKISTA SIVUN KORKEUS
   useEffect(() => {
     if (!isEditing && previewRef.current) {
       const checkHeight = () => {
@@ -115,7 +111,6 @@ export default function EditCoverLetterPage() {
     }
   }, [editedContent, fontSize, lineHeight, textAlign, fontFamily, isEditing]);
 
-  // ATS-ANALYYSI
   const analyzeATS = async (content: string, jobDesc?: string) => {
     if (!isATSOptimized) return;
     if (!jobDesc && !coverLetter?.content?.job_description) return;
@@ -148,7 +143,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // ✅ AUTOMAATTINEN TIIVISTYS
   const handleAutoCompact = () => {
     if (!pageOverflow) return;
     
@@ -175,11 +169,6 @@ export default function EditCoverLetterPage() {
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
-  // Jatketaan seuraavassa viestissä...
-
-  // app/edit-cover-letter/[id]/page.tsx - OSA 2/3: TOIMINNOT
-
-  // ✅ LISÄÄ AVAINSANA TEKSTIIN
   const insertKeywordAtCursor = (keyword: string) => {
     const textarea = document.getElementById('contentEditor') as HTMLTextAreaElement;
     if (!textarea) return;
@@ -200,7 +189,6 @@ export default function EditCoverLetterPage() {
     setSelectedKeywords([...selectedKeywords, keyword]);
   };
 
-  // SMART INSERT KEYWORD
   const handleSmartInsertKeyword = async (keyword: string) => {
     if (!isATSOptimized) {
       alert('Avainsanojen lisäys on käytettävissä vain ATS-optimoiduille hakukirjeille.');
@@ -243,7 +231,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // IMPROVE ATS
   const handleImproveATS = async () => {
     if (!atsAnalysis || !coverLetter) return;
 
@@ -307,7 +294,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // ✅ TALLENNA
   const handleSave = async () => {
     if (!coverLetter) return;
 
@@ -360,7 +346,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // POISTA
   const handleDelete = async () => {
     if (!confirm('Haluatko varmasti poistaa tämän hakukirjeen?')) return;
 
@@ -379,7 +364,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // LATAA PDF
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
@@ -432,7 +416,6 @@ export default function EditCoverLetterPage() {
     return 'Parannettavaa';
   };
 
-  // LOADING STATE
   if (!coverLetter) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
@@ -444,8 +427,6 @@ export default function EditCoverLetterPage() {
     );
   }
 
-
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 relative overflow-hidden">
       
@@ -456,6 +437,7 @@ export default function EditCoverLetterPage() {
 
       <SmartHeader />
       
+      {/* TOP BAR */}
       <div className="px-2 md:px-6 py-3 md:py-4 mt-16 sticky top-16 z-40">
         <div className="max-w-[1800px] mx-auto backdrop-blur-xl bg-white/80 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-4">
           <div className="flex items-center justify-between gap-2">
@@ -547,186 +529,208 @@ export default function EditCoverLetterPage() {
         </div>
       )}
 
+      {/* MAIN CONTENT */}
       <div className="max-w-[1800px] mx-auto p-2 md:p-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-6">
         
-          {isATSOptimized && atsAnalysis && (
-            <div className="lg:col-span-3 space-y-3 md:space-y-4">
+          {/* ✅ LEFT PANEL: AINA NÄKYVISSÄ FONTTISÄÄTIMET */}
+          <div className="lg:col-span-3 space-y-3 md:space-y-4">
+            
+            {/* ✅ ULKONÄKÖASETUKSET - AINA NÄKYVISSÄ! */}
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-4">
+              <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <Palette className="w-4 h-4" />
+                Ulkonäkö & Koko
+              </h3>
               
-              {atsAnalysis.score < 75 && atsAnalysis.missingCritical?.length > 0 && (
-                <button
-                  onClick={handleImproveATS}
-                  disabled={isImproving}
-                  className="w-full p-3 md:p-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl md:rounded-2xl font-semibold hover:from-blue-600 hover:to-purple-600 shadow-xl disabled:opacity-50 flex items-center justify-center gap-2 text-sm md:text-base"
-                >
-                  {isImproving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
-                      Parannetaan...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 md:w-5 md:h-5" />
-                      Paranna ATS
-                    </>
-                  )}
-                </button>
-              )}
-              
-              <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl overflow-hidden">
-                <div className={`p-3 md:p-4 ${getScoreBg(atsAnalysis.score)}`}>
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      {getScoreIcon(atsAnalysis.score)}
-                      <div className={`text-3xl md:text-4xl font-bold ${getScoreColor(atsAnalysis.score)}`}>
-                        {atsAnalysis.score}%
-                      </div>
-                    </div>
-                    <p className="text-xs md:text-sm font-semibold text-gray-700">
-                      {getScoreLabel(atsAnalysis.score)}
-                    </p>
-                    <button
-                      onClick={() => analyzeATS(editedContent)}
-                      disabled={isAnalyzing}
-                      className="mt-2 md:mt-3 text-xs text-blue-600 hover:underline flex items-center gap-1 mx-auto"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      {isAnalyzing ? 'Analysoidaan...' : 'Päivitä'}
-                    </button>
-                  </div>
+              {/* Font Size */}
+              <div className="mb-3">
+                <label className="text-xs text-gray-600 mb-1 block flex items-center justify-between">
+                  <span>Fonttikoko</span>
+                  <span className="font-bold text-indigo-600">{fontSize}px</span>
+                </label>
+                <input
+                  type="range"
+                  min="11"
+                  max="20"
+                  value={fontSize}
+                  onChange={(e) => setFontSize(parseInt(e.target.value))}
+                  className="w-full h-2 bg-gradient-to-r from-blue-200 to-indigo-300 rounded-lg appearance-none cursor-pointer slider-thumb"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>11px</span>
+                  <span>20px</span>
                 </div>
               </div>
 
-              {showKeywordSuggestions && atsAnalysis.missingCritical?.length > 0 && (
-                <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-4">
-                  <div className="flex items-center justify-between mb-2 md:mb-3">
-                    <h3 className="text-sm md:text-base font-semibold text-gray-800 flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                      Puuttuvat ({atsAnalysis.missingCritical.length})
-                    </h3>
-                  </div>
-                  <div className="space-y-2 max-h-60 md:max-h-80 overflow-y-auto">
-                    {atsAnalysis.missingCritical.map((keyword: string, idx: number) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <button
-                          onClick={() => insertKeywordAtCursor(keyword)}
-                          className="flex-1 p-2 text-left text-xs md:text-sm bg-yellow-50 hover:bg-yellow-100 border border-yellow-300 rounded-lg"
-                        >
-                          {keyword}
-                        </button>
-                        <button
-                          onClick={() => handleSmartInsertKeyword(keyword)}
-                          disabled={insertingKeyword === keyword}
-                          className="px-2 md:px-3 py-2 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                        >
-                          {insertingKeyword === keyword ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-3 h-3" />
-                          )}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+              {/* Line Height */}
+              <div className="mb-3">
+                <label className="text-xs text-gray-600 mb-1 block flex items-center justify-between">
+                  <span>Riviväli</span>
+                  <span className="font-bold text-purple-600">{lineHeight.toFixed(1)}</span>
+                </label>
+                <input
+                  type="range"
+                  min="1.2"
+                  max="2.0"
+                  step="0.1"
+                  value={lineHeight}
+                  onChange={(e) => setLineHeight(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gradient-to-r from-purple-200 to-pink-300 rounded-lg appearance-none cursor-pointer slider-thumb"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>1.2</span>
+                  <span>2.0</span>
                 </div>
-              )}
+              </div>
 
-              {isEditing && (
-                <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-4">
-                  <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <Palette className="w-4 h-4" />
-                    Ulkonäkö
+              {/* Font Family */}
+              <div className="mb-3">
+                <label className="text-xs text-gray-600 mb-1 block">Fontti</label>
+                <select
+                  value={fontFamily}
+                  onChange={(e) => setFontFamily(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg text-xs md:text-sm bg-white/80"
+                >
+                  <option value="serif">Serif (Merriweather)</option>
+                  <option value="sans-serif">Sans-serif (Arial)</option>
+                  <option value="monospace">Monospace (Courier)</option>
+                </select>
+              </div>
+
+              {/* Text Align */}
+              <div>
+                <label className="text-xs text-gray-600 mb-2 block">Tasaus</label>
+                <div className="grid grid-cols-4 gap-1">
+                  <button
+                    onClick={() => setTextAlign('left')}
+                    className={`p-2 border rounded-lg transition-all ${textAlign === 'left' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}`}
+                  >
+                    <AlignLeft className="w-4 h-4 mx-auto" />
+                  </button>
+                  <button
+                    onClick={() => setTextAlign('center')}
+                    className={`p-2 border rounded-lg transition-all ${textAlign === 'center' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}`}
+                  >
+                    <AlignCenter className="w-4 h-4 mx-auto" />
+                  </button>
+                  <button
+                    onClick={() => setTextAlign('right')}
+                    className={`p-2 border rounded-lg transition-all ${textAlign === 'right' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}`}
+                  >
+                    <AlignRight className="w-4 h-4 mx-auto" />
+                  </button>
+                  <button
+                    onClick={() => setTextAlign('justify')}
+                    className={`p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}`}
+                  >
+                    <Layout className="w-4 h-4 mx-auto" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* ✅ AUTOMAATTINEN TIIVISTYS NAPPI */}
+              {pageOverflow && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleAutoCompact}
+                    className="w-full p-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl font-semibold hover:from-amber-600 hover:to-orange-700 shadow-lg flex items-center justify-center gap-2">
+<Minimize2 className="w-4 h-4" />
+Tiivistä automaattisesti
+</button>
+<p className="text-xs text-gray-600 mt-2 text-center">
+Pienentää fonttia ja riviväliä sopivaksi
+</p>
+</div>
+)}
+</div>
+{/* ATS SCORE (jos ATS-optimoitu) */}
+        {isATSOptimized && atsAnalysis && (
+          <>
+            {atsAnalysis.score < 75 && atsAnalysis.missingCritical?.length > 0 && (
+              <button
+                onClick={handleImproveATS}
+                disabled={isImproving}
+                className="w-full p-3 md:p-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl md:rounded-2xl font-semibold hover:from-blue-600 hover:to-purple-600 shadow-xl disabled:opacity-50 flex items-center justify-center gap-2 text-sm md:text-base"
+              >
+                {isImproving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+                    Parannetaan...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 md:w-5 md:h-5" />
+                    Paranna ATS
+                  </>
+                )}
+              </button>
+            )}
+            
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl overflow-hidden">
+              <div className={`p-3 md:p-4 ${getScoreBg(atsAnalysis.score)}`}>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    {getScoreIcon(atsAnalysis.score)}
+                    <div className={`text-3xl md:text-4xl font-bold ${getScoreColor(atsAnalysis.score)}`}>
+                      {atsAnalysis.score}%
+                    </div>
+                  </div>
+                  <p className="text-xs md:text-sm font-semibold text-gray-700">
+                    {getScoreLabel(atsAnalysis.score)}
+                  </p>
+                  <button
+                    onClick={() => analyzeATS(editedContent)}
+                    disabled={isAnalyzing}
+                    className="mt-2 md:mt-3 text-xs text-blue-600 hover:underline flex items-center gap-1 mx-auto"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    {isAnalyzing ? 'Analysoidaan...' : 'Päivitä'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {showKeywordSuggestions && atsAnalysis.missingCritical?.length > 0 && (
+              <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-4">
+                <div className="flex items-center justify-between mb-2 md:mb-3">
+                  <h3 className="text-sm md:text-base font-semibold text-gray-800 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                    Puuttuvat ({atsAnalysis.missingCritical.length})
                   </h3>
-                  
-                  <div className="mb-3">
-                    <label className="text-xs text-gray-600 mb-1 block flex items-center justify-between">
-                      <span>Fonttikoko</span>
-                      <span className="font-bold text-indigo-600">{fontSize}px</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="11"
-                      max="20"
-                      value={fontSize}
-                      onChange={(e) => setFontSize(parseInt(e.target.value))}
-                      className="w-full h-2 bg-gradient-to-r from-blue-200 to-indigo-300 rounded-lg appearance-none cursor-pointer slider-thumb"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>11px</span>
-                      <span>20px</span>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="text-xs text-gray-600 mb-1 block flex items-center justify-between">
-                      <span>Riviväli</span>
-                      <span className="font-bold text-purple-600">{lineHeight.toFixed(1)}</span>
-                    </label>
-                    <input
-                      type="range"
-                      min="1.2"
-                      max="2.0"
-                      step="0.1"
-                      value={lineHeight}
-                      onChange={(e) => setLineHeight(parseFloat(e.target.value))}
-                      className="w-full h-2 bg-gradient-to-r from-purple-200 to-pink-300 rounded-lg appearance-none cursor-pointer slider-thumb"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>1.2</span>
-                      <span>2.0</span>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="text-xs text-gray-600 mb-1 block">Fontti</label>
-                    <select
-                      value={fontFamily}
-                      onChange={(e) => setFontFamily(e.target.value)}
-                      className="w-full p-2 border border-gray-300 rounded-lg text-xs md:text-sm bg-white/80"
-                    >
-                      <option value="serif">Serif (Merriweather)</option>
-                      <option value="sans-serif">Sans-serif (Arial)</option>
-                      <option value="monospace">Monospace (Courier)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-gray-600 mb-2 block">Tasaus</label>
-                    <div className="grid grid-cols-4 gap-1">
+                </div>
+                <div className="space-y-2 max-h-60 md:max-h-80 overflow-y-auto">
+                  {atsAnalysis.missingCritical.map((keyword: string, idx: number) => (
+                    <div key={idx} className="flex items-center gap-2">
                       <button
-                        onClick={() => setTextAlign('left')}
-                        className={`p-2 border rounded-lg transition-all ${textAlign === 'left' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}`}
+                        onClick={() => insertKeywordAtCursor(keyword)}
+                        className="flex-1 p-2 text-left text-xs md:text-sm bg-yellow-50 hover:bg-yellow-100 border border-yellow-300 rounded-lg"
                       >
-                        <AlignLeft className="w-4 h-4 mx-auto" />
+                        {keyword}
                       </button>
                       <button
-                        onClick={() => setTextAlign('center')}
-                        className={`p-2 border rounded-lg transition-all ${textAlign === 'center' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}`}
+                        onClick={() => handleSmartInsertKeyword(keyword)}
+                        disabled={insertingKeyword === keyword}
+                        className="px-2 md:px-3 py-2 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 disabled:opacity-50"
                       >
-                        <AlignCenter className="w-4 h-4 mx-auto" />
+                        {insertingKeyword === keyword ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3 h-3" />
+                        )}
                       </button>
-                      <button
-                        onClick={() => setTextAlign('right')}
-                        className={"p-2 border rounded-lg transition-all ${textAlign === 'right' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}"}>
-<AlignRight className="w-4 h-4 mx-auto" />
-</button>
-<button
-onClick={() => setTextAlign('justify')}
-className={"p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg-blue-100 border-blue-500 scale-105' : 'bg-white/80 hover:bg-gray-100 border-gray-300'}"}
->
-<Layout className="w-4 h-4 mx-auto" />
-</button>
-</div>
-</div>
-</div>
-)}
-</div>
-)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
-{/* CENTER: Cover Letter */}
-      <div className={isATSOptimized ? "lg:col-span-9" : "lg:col-span-12"}>
+      {/* CENTER: Cover Letter */}
+      <div className="lg:col-span-9">
         
-        {/* ⚠️ OVERFLOW WARNING */}
         {pageOverflow && !isEditing && (
           <div className="mb-3 md:mb-4 p-3 md:p-4 bg-red-50 border-2 border-red-500 rounded-xl md:rounded-2xl">
             <div className="flex items-start gap-2 md:gap-3">
@@ -736,23 +740,12 @@ className={"p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg
                   ⚠️ Sisältö ylittää 90% A4-sivun!
                 </h3>
                 <p className="text-xs md:text-sm text-red-800 mb-2 md:mb-3">
-                  Hakukirjeesi on <strong>{Math.round((contentHeight - MAX_CONTENT_HEIGHT_PX) / MAX_CONTENT_HEIGHT_PX * 100)}%</strong> liian pitkä.
+                  Hakukirjeesi on <strong>{Math.round((contentHeight - MAX_CONTENT_HEIGHT_PX) / MAX_CONTENT_HEIGHT_PX * 100)}%</strong> liian pitkä. 
+                  Allekirjoitus ei mahdu samalle sivulle.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={handleAutoCompact}
-                    className="px-3 md:px-4 py-2 bg-blue-600 text-white text-xs md:text-sm font-semibold rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
-                  >
-                    <Sparkles className="w-3 h-3 md:w-4 md:h-4" />
-                    Tiivistä automaattisesti
-                  </button>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="px-3 md:px-4 py-2 bg-gray-600 text-white text-xs md:text-sm font-semibold rounded-lg hover:bg-gray-700"
-                  >
-                    Muokkaa itse
-                  </button>
-                </div>
+                <p className="text-xs text-red-700 mb-3">
+                  💡 Käytä vasemman palkin "Tiivistä automaattisesti" -nappia tai säädä fonttikokoa/riviväliä manuaalisesti.
+                </p>
               </div>
             </div>
           </div>
@@ -766,7 +759,6 @@ className={"p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg
           </div>
         )}
 
-        {/* Hakukirje */}
         <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-6">
           {isEditing ? (
             <textarea
@@ -796,11 +788,10 @@ className={"p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg
             />
           )}
           
-          {/* ✅ KORKEUS-INDIKAATTORI */}
           {!isEditing && (
             <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-200 relative">
               <div className="flex items-center justify-between text-xs md:text-sm text-gray-600 mb-2">
-                <span>A4-sivun täyttö:</span>
+                <span>A4-sivun täyttö (Max 90%):</span>
                 <span className={pageOverflow ? 'text-red-600 font-bold' : 'text-green-600 font-semibold'}>
                   {Math.round((contentHeight / A4_HEIGHT_PX) * 100)}% / 100%
                 </span>
@@ -813,7 +804,6 @@ className={"p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg
                     backgroundColor: pageOverflow ? '#ef4444' : '#10b981'
                   }}
                 />
-                {/* 90% marker */}
                 <div 
                   className="absolute top-0 h-full w-0.5 bg-yellow-500" 
                   style={{left: '90%'}}
@@ -821,7 +811,7 @@ className={"p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1 text-right">
-                ✅ Tavoite: 90% = {MAX_CONTENT_HEIGHT_PX}px
+                ✅ Tavoite: 90% = {MAX_CONTENT_HEIGHT_PX}px | Nykyinen: {contentHeight}px
               </p>
             </div>
           )}
@@ -830,7 +820,6 @@ className={"p-2 border rounded-lg transition-all ${textAlign === 'justify' ? 'bg
     </div>
   </div>
   
-  {/* ✅ CSS LISÄYS SLIDERILLE */}
   <style jsx global>{`
     @keyframes fade-in {
       from { opacity: 0; transform: translateY(-10px); }
