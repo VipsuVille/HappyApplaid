@@ -413,7 +413,7 @@ export default function Home() {
                         <X className="w-5 h-5 text-red-400" /> 
                         Generic AI (ChatGPT etc.)
                       </h3>
-                      <p className=\"text-sm text-gray-300 italic\">
+                      <p className="text-sm text-gray-300">
                         "I am a hard working individual who is motivated to succeed in this role..."
                       </p>
                     </div>
