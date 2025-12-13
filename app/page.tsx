@@ -29,7 +29,6 @@ import {
   Database,
   Lightbulb,
   Play,
-  Download,
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -285,15 +284,15 @@ export default function Home() {
           {/* ===================================
               HERO SECTION
               =================================== */}
-          <div className="mb-12 sm:mb-16">
-            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-xl sm:shadow-2xl shadow-indigo-500/10 p-6 sm:p-12 lg:p-16 relative overflow-hidden">
+          <div className="mb-16">
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl shadow-indigo-500/10 p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl"></div>
 
               <div className="relative z-10 text-center">
                 {/* Trust Badge */}
-                <div className="inline-flex items-center gap-2 sm:gap-3 px-4 py-2 bg-white/90 backdrop-blur-sm rounded-full border border-indigo-200 shadow-sm mb-6">
-                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
-                  <span className="font-bold text-indigo-800 text-xs sm:text-sm">
+                <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 bg-white/90 backdrop-blur-sm rounded-full border-2 border-indigo-300 shadow-xl mb-4 sm:mb-6">
+                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
+                  <span className="font-bold text-indigo-800 text-sm sm:text-base">
                     {language === "en"
                       ? "Not Just AI. Your Digital Twin."
                       : "Ei Vain AI. Vaan Digitaalinen Kaksosesi."}
@@ -301,7 +300,7 @@ export default function Home() {
                 </div>
 
                 {/* Main Hook */}
-                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight px-2">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 sm:mb-6 leading-tight px-2">
                   <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                     {language === "en"
                       ? "Create Your Profile Once,"
@@ -315,17 +314,17 @@ export default function Home() {
                   </span>
                 </h1>
 
-                <p className="text-base sm:text-lg md:text-xl text-gray-700 max-w-2xl mx-auto leading-relaxed mb-8 px-4">
+                <p className="text-base sm:text-lg md:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed mb-6 sm:mb-8 px-4">
                   {language === "en"
                     ? "Start for free with zero risk. We just need you to fill your profile so our AI knows you. You get 1 free CV and a general Cover Letter to test the quality."
                     : "Aloita ilmaiseksi ilman sitoutumista. Sinun tarvitsee vain täyttää profiilisi, jotta AI oppii tuntemaan sinut. Saat 1 ilmaisen CV:n ja yhden yleisen esittelykirjeen testataksesi laatua."}
                 </p>
 
-                <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-8 px-4">
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-6 sm:mb-8 px-4">
                   <SignedOut>
                     <SignInButton mode="modal">
-                      <Button className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all">
-                        <Sparkles className="inline w-5 h-5 mr-2" />
+                      <Button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all">
+                        <Sparkles className="inline w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         {language === "en" ? "Start Free" : "Aloita Ilmaiseksi"}
                       </Button>
                     </SignInButton>
@@ -337,7 +336,7 @@ export default function Home() {
                         .getElementById("how-it-works")
                         ?.scrollIntoView({ behavior: "smooth" })
                     }
-                    className="w-full sm:w-auto px-8 py-4 bg-white text-indigo-600 rounded-xl font-bold text-lg border-2 border-indigo-200 hover:bg-indigo-50 transition-all"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-white text-indigo-600 rounded-xl font-bold text-base sm:text-lg border-2 border-indigo-300 hover:bg-indigo-50 transition-all"
                   >
                     {language === "en"
                       ? "See How It Works"
@@ -345,9 +344,9 @@ export default function Home() {
                   </Button>
                 </div>
 
-                {/* Key Selling Points - Mobile Optimized */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm text-gray-700 max-w-3xl mx-auto px-4 font-medium">
-                  <div className="flex items-center justify-center gap-2 bg-white/60 px-3 py-2 rounded-xl border border-indigo-100 shadow-sm">
+                {/* Key Selling Points */}
+                <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-xs sm:text-sm text-gray-700 max-w-3xl mx-auto px-4 font-medium">
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
                     <CreditCard className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
@@ -355,7 +354,7 @@ export default function Home() {
                         : "Ei vaadi luottokorttia"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-center gap-2 bg-white/60 px-3 py-2 rounded-xl border border-indigo-100 shadow-sm">
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
                     <Clock className="w-4 h-4 text-indigo-600 flex-shrink-0" />
                     <span>
                       {language === "en"
@@ -363,12 +362,12 @@ export default function Home() {
                         : "10-15min asennus"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-center gap-2 bg-white/60 px-3 py-2 rounded-xl border border-indigo-100 shadow-sm">
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
-                        ? "No commitment"
-                        : "Ei sitoutumista"}
+                        ? "No commitment In Free Version"
+                        : "Ei sitoutumista Ilmaisversiossa"}
                     </span>
                   </div>
                 </div>
@@ -379,34 +378,34 @@ export default function Home() {
           {/* ===================================
               CORE DIFFERENCE: PERSONALITY
               =================================== */}
-          <div className="mb-16 sm:mb-20">
-             <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 rounded-3xl p-6 sm:p-12 md:p-16 text-white shadow-2xl relative overflow-hidden text-center">
-                <div className="absolute top-0 right-0 w-64 sm:w-96 h-64 sm:h-96 bg-purple-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
-                <div className="absolute bottom-0 left-0 w-64 sm:w-96 h-64 sm:h-96 bg-indigo-500/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
+          <div className="mb-20">
+             <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 rounded-3xl p-8 md:p-16 text-white shadow-2xl relative overflow-hidden text-center">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
+                <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
                 
                 <div className="relative z-10 max-w-4xl mx-auto">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-white/10 rounded-full border border-white/20 mb-6 backdrop-blur-sm">
-                    <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-pink-300" />
-                    <span className="font-bold text-indigo-100 tracking-wide uppercase text-xs sm:text-sm">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/20 mb-6 backdrop-blur-sm">
+                    <Brain className="w-5 h-5 text-pink-300" />
+                    <span className="font-bold text-indigo-100 tracking-wide uppercase text-sm">
                       {language === "en" ? "Not Just AI" : "Ei Vain AI"}
                     </span>
                   </div>
                   
-                  <h2 className="text-2xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
+                  <h2 className="text-3xl md:text-5xl font-extrabold mb-6 leading-tight">
                     {language === "en" 
                       ? "Your Digital Twin." 
                       : "Sinun Digitaalinen Kaksosesi."}
                   </h2>
                   
-                  <p className="text-base sm:text-lg md:text-xl text-indigo-100 mb-8 leading-relaxed">
+                  <p className="text-lg md:text-xl text-indigo-100 mb-8 leading-relaxed">
                     {language === "en"
                       ? "Most AI tools generate generic, robotic text that recruiters spot instantly. Our unique engine analyzes your profile, your strengths, working style, and values—and writes in YOUR unique voice."
                       : "Useimmat AI-työkalut luovat geneeristä tekstiä, jonka rekrytoijat tunnistavat heti. Meidän ainutlaatuinen ohjelmamme analysoi profiilisi psygolokisesti – vahvuutesi, työtapasi ja arvosi – ja kirjoittaa SINUN ainutlaatuisella äänelläsi."}
                   </p>
 
-                  <div className="grid md:grid-cols-2 gap-4 sm:gap-6 text-left">
-                    <div className="bg-white/10 p-5 sm:p-6 rounded-2xl border border-white/10 backdrop-blur-sm">
-                      <h3 className="font-bold text-base sm:text-lg mb-2 flex items-center gap-2">
+                  <div className="grid md:grid-cols-2 gap-6 text-left">
+                    <div className="bg-white/10 p-6 rounded-2xl border border-white/10 backdrop-blur-sm">
+                      <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
                         <X className="w-5 h-5 text-red-400" /> 
                         Generic AI (ChatGPT etc.)
                       </h3>
@@ -414,8 +413,8 @@ export default function Home() {
                         "I am a hard working individual who is motivated to succeed in this role..."
                       </p>
                     </div>
-                    <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-5 sm:p-6 rounded-2xl border border-green-500/30 backdrop-blur-sm">
-                      <h3 className="font-bold text-base sm:text-lg mb-2 flex items-center gap-2 text-green-300">
+                    <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-6 rounded-2xl border border-green-500/30 backdrop-blur-sm">
+                      <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-green-300">
                         <Check className="w-5 h-5" /> 
                         HappyApplaid
                       </h3>
@@ -433,28 +432,28 @@ export default function Home() {
           {/* ===================================
               VIDEO DEMO (COMING SOON)
               =================================== */}
-          <div id="how-it-works" className="scroll-mt-24 bg-white/80 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-indigo-100 shadow-xl mb-16 relative overflow-hidden group">
+          <div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 border-2 border-indigo-200 shadow-xl mb-16 relative overflow-hidden group">
              <div className="text-center mb-8">
-               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+               <h2 className="text-3xl font-bold text-gray-900 mb-2">
                  {language === "en" ? "See It In Action" : "Katso Kuinka Ohjelma Toimii"}
                </h2>
-               <p className="text-gray-600 text-sm sm:text-base">
+               <p className="text-gray-600">
                  {language === "en" ? "Watch a short demo of the process" : "Katso lyhyt demo prosessista"}
                </p>
              </div>
              
              {/* Video Placeholder / Coming Soon */}
-             <div className="relative aspect-video bg-gray-100 rounded-2xl overflow-hidden flex items-center justify-center border border-gray-200">
+             <div className="relative aspect-video bg-gray-100 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-gray-200">
                {/* Coming Soon Overlay */}
-               <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-20">
-                 <div className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-lg sm:text-xl shadow-2xl transform rotate-0 sm:-rotate-3 border-2 border-indigo-400">
+               <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-20">
+                 <div className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-xl shadow-2xl transform rotate-0 sm:-rotate-3 border-2 border-indigo-400">
                    {language === "en" ? "Video Coming Soon!" : "Video Tulossa Pian!"}
                  </div>
                </div>
                
                {/* Fake Play Button behind overlay */}
-               <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 rounded-full flex items-center justify-center">
-                 <Play className="w-8 h-8 sm:w-10 sm:h-10 text-white ml-1 opacity-50" />
+               <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
+                 <Play className="w-10 h-10 text-white ml-1 opacity-50" />
                </div>
              </div>
           </div>
@@ -462,16 +461,16 @@ export default function Home() {
           {/* ===================================
               SMART FEATURES (AI QUESTIONS & RAG)
               =================================== */}
-          <div className="grid md:grid-cols-2 gap-6 sm:gap-8 mb-16 sm:mb-20">
+          <div className="grid md:grid-cols-2 gap-8 mb-20">
             {/* Feature: Smart Questions */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-indigo-100 shadow-lg hover:shadow-xl transition-all">
-              <div className="bg-indigo-100 w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center mb-6">
-                <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-indigo-600" />
+            <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 border-2 border-indigo-100 shadow-xl hover:shadow-2xl transition-all">
+              <div className="bg-indigo-100 w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+                <MessageCircle className="w-7 h-7 text-indigo-600" />
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">
                 {language === "en" ? "AI That Grows With You" : "AI Joka Kasvaa Kanssasi"}
               </h3>
-              <p className="text-gray-700 mb-6 text-sm sm:text-base">
+              <p className="text-gray-700 mb-6">
                 {language === "en"
                   ? "If our AI needs more info for a specific job, it asks you smart questions. It learns from your answers and saves them to your profile—so you never have to repeat yourself."
                   : "Jos AI tarvitsee lisätietoja tiettyyn työhön, se kysyy älykkäitä kysymyksiä. Se oppii vastauksistasi ja tallentaa ne profiiliisi – jotta sinun ei tarvitse koskaan toistaa itseäsi."}
@@ -490,15 +489,15 @@ export default function Home() {
             </div>
 
             {/* Feature: RAG Expert Knowledge */}
-            <div className="bg-white/70 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-purple-100 shadow-lg hover:shadow-xl transition-all">
-              <div className="bg-purple-100 w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center mb-6">
-                <Crown className="w-6 h-6 sm:w-7 sm:h-7 text-purple-600" />
+            <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 border-2 border-purple-100 shadow-xl hover:shadow-2xl transition-all">
+              <div className="bg-purple-100 w-14 h-14 rounded-2xl flex items-center justify-center mb-6">
+                <Crown className="w-7 h-7 text-purple-600" />
               </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <h3 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                 {language === "en" ? "Built-in HR Consultant" : "Sisäänrakennettu HR-Konsultti"}
                 <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full border border-purple-300">Pro</span>
               </h3>
-              <p className="text-gray-700 mb-6 text-sm sm:text-base">
+              <p className="text-gray-700 mb-6">
                 {language === "en"
                   ? "Our Pro AI reads real recruitment articles and HR guides from our database before writing. It's like having an expert check your application."
                   : "Pro AI:mme lukee tietokannastamme oikeita rekrytointiartikkeleita ja HR-oppaita ennen kirjoittamista. Kuin asiantuntija tarkistaisi hakemuksesi."}
@@ -521,7 +520,7 @@ export default function Home() {
               FEATURE GRID
               =================================== */}
           <div className="mb-20">
-             <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-8">{language === "en" ? "Everything You Need" : "Kaikki Mitä Tarvitset"}</h2>
+             <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">{language === "en" ? "Everything You Need" : "Kaikki Mitä Tarvitset"}</h2>
              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Feature 1 */}
                 <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
@@ -537,11 +536,18 @@ export default function Home() {
                    <p className="text-sm text-gray-600">{language === "en" ? "AI verifies claims against your profile." : "AI tarkistaa väitteet profiiliasi vasten."}</p>
                 </div>
 
-                {/* Feature 3 - PDF EXPORT (ACTIVE) */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-                   <Download className="w-10 h-10 text-indigo-600 mb-4" />
-                   <h3 className="font-bold text-lg mb-2">{language === "en" ? "PDF Export" : "PDF-lataus"}</h3>
-                   <p className="text-sm text-gray-600">{language === "en" ? "Download your CVs and letters as professional PDFs instantly." : "Lataa CV:t ja hakukirjeet ammattimaisina PDF-tiedostoina heti."}</p>
+                {/* Feature 3 - COMING SOON */}
+                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 shadow-none relative overflow-hidden group">
+                   <div className="absolute top-3 right-3 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider z-10 shadow-sm">
+                      {language === "en" ? "Coming Soon" : "Tulossa Pian"}
+                   </div>
+                   <div className="grayscale opacity-50 group-hover:opacity-60 transition-opacity">
+                      <FileText className="w-10 h-10 text-gray-500 mb-4" />
+                      <h3 className="font-bold text-lg mb-2">{language === "en" ? "Multiple Formats" : "Useita Formaatteja"}</h3>
+                      <p className="text-sm text-gray-600">{language === "en" ? "PDF export and professional templates." : "PDF-vienti ja ammattimaiset pohjat."}</p>
+                   </div>
+                   {/* Overlay stripes */}
+                   <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.03)_10px,rgba(0,0,0,0.03)_20px)] pointer-events-none"></div>
                 </div>
              </div>
           </div>
@@ -549,12 +555,12 @@ export default function Home() {
           {/* ===================================
               PRICING
               =================================== */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-6 sm:p-12 border-2 border-indigo-200 shadow-xl mb-16">
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">
             <div className="text-center mb-12">
-              <h2 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-4">
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
                 {language === "en" ? "Simple, Transparent Pricing" : "Yksinkertainen, Läpinäkyvä Hinnoittelu"}
               </h2>
-              <p className="text-base sm:text-lg text-gray-700">
+              <p className="text-lg text-gray-700">
                 {language === "en" ? "Start free - upgrade when you need more" : "Aloita ilmaiseksi - päivitä kun tarvitset enemmän"}
               </p>
             </div>
@@ -629,10 +635,10 @@ export default function Home() {
                 </Link>
               </div>
 
-              {/* Semi-Pro - RECOMMENDED */}
+              {/* Semi-Pro - MOST POPULAR */}
               <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl p-6 border-2 border-yellow-400 shadow-2xl relative scale-105 z-10 flex flex-col">
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md whitespace-nowrap">
-                  {language === "en" ? "Recommended" : "Suosittelemme"}
+                  {language === "en" ? "Most Popular" : "Suosituin"}
                 </div>
                 <h3 className="text-xl font-bold mb-2 text-amber-900">Semi-Pro</h3>
                 <div className="mb-4">
@@ -699,7 +705,7 @@ export default function Home() {
               FINAL CTA
               =================================== */}
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 sm:p-12 md:p-16 text-center text-white shadow-2xl">
-            <h2 className="text-2xl sm:text-3xl md:text-5xl font-extrabold mb-6">
+            <h2 className="text-3xl md:text-5xl font-extrabold mb-6">
               {language === "en" ? "Ready to Save Hours?" : "Valmis Säästämään Tunteja?"}
             </h2>
             <p className="text-lg md:text-xl mb-8 text-indigo-100 max-w-2xl mx-auto">
@@ -739,3 +745,358 @@ export default function Home() {
       </div>
     );
   }
+
+  // ========================================
+  // DASHBOARD (LOGGED IN)
+  // ========================================
+
+  if (profileCompleted === null || freemiumLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
+        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
+          <div className="text-lg font-bold text-gray-900">
+            {language === "en" ? "Loading..." : "Ladataan..."}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isPremium = freemiumStatus?.is_premium || false;
+  const canCreateCV = freemiumStatus?.can_create_cv || false;
+  const hasUsedFreeCv = freemiumStatus?.has_used_free_cv || false;
+  const currentTier = freemiumStatus?.plan_type || "free";
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
+      <SmartHeader />
+
+      {/* Profile Prompt Modal */}
+      {showProfilePrompt && profileCompleted === false && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="backdrop-blur-xl bg-white/90 border-2 border-white/40 rounded-3xl shadow-2xl p-8 max-w-md w-full relative">
+            <button
+              onClick={() => setShowProfilePrompt(false)}
+              className="absolute top-4 right-4 hover:bg-gray-100 rounded-full p-1"
+            >
+              <X className="w-6 h-6 text-gray-600" />
+            </button>
+
+            <User className="h-16 w-16 mx-auto mb-4 text-indigo-600" />
+            <h3 className="text-2xl font-bold text-center mb-4 text-gray-900">
+              {language === "en"
+                ? `Hey, ${user?.firstName}!`
+                : `Hei, ${user?.firstName}!`}
+            </h3>
+            <p className="text-center text-gray-600 mb-6">
+              {language === "en"
+                ? "We recommend filling out your profile to get the best results"
+                : "Suosittelemme profiilin täyttämistä parhaan tuloksen saamiseksi"}
+            </p>
+
+            <div className="flex gap-3">
+              <Link href="/profile" className="flex-1">
+                <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
+                  {language === "en" ? "Fill Profile" : "Täytä Profiili"}
+                </Button>
+              </Link>
+              <Button
+                variant="outline"
+                onClick={() => setShowProfilePrompt(false)}
+                className="flex-1"
+              >
+                {language === "en" ? "Later" : "Myöhemmin"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl p-6 sm:p-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            {language === "en"
+              ? `Welcome${displayName ? `, ${displayName}` : ""}!`
+              : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
+          </h1>
+          <p className="text-gray-700 text-base sm:text-lg">
+            {currentTier === "free"
+              ? language === "en"
+                ? "Free user - 1 free CV + 1 general cover letter"
+                : "Ilmainen käyttäjä - 1 ilmainen CV + 1 yleinen hakukirje"
+              : `${currentTier.toUpperCase()}-${
+                  language === "en" ? "user" : "käyttäjä"
+                }`}
+          </p>
+        </div>
+
+        {/* Upgrade Prompt for Free Users */}
+        {!isPremium && hasUsedFreeCv && (
+          <div className="mb-8 backdrop-blur-xl bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-300 rounded-3xl shadow-2xl p-6 sm:p-8">
+            <Crown className="h-10 w-10 sm:h-12 sm:w-12 text-yellow-600 mx-auto mb-4" />
+            <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 mb-4">
+              {language === "en"
+                ? "You've used your free documents!"
+                : "Olet käyttänyt ilmaiset dokumentit!"}
+            </h2>
+            <p className="text-center text-gray-700 mb-6 text-sm sm:text-base">
+              {language === "en"
+                ? "Upgrade to create unlimited CVs and cover letters with ATS optimization"
+                : "Päivitä luodaksesi rajattomasti CV:itä ja hakukirjeitä ATS-optimoinnilla"}
+            </p>
+            <Link href="/pricing" className="block">
+              <Button className="mx-auto block bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold">
+                <Crown className="w-5 h-5 mr-2" />
+                {language === "en"
+                  ? "Upgrade to Premium"
+                  : "Päivitä Premium-tiliin"}
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {/* Quick Actions Grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+          {/* Create CV Card */}
+          {canCreateCV ? (
+            <Link href="/create-cv">
+              <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
+                <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-indigo-600 mb-4" />
+                <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
+                  {language === "en" ? "Create CV" : "Luo CV"}
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600 mb-4">
+                  {isPremium
+                    ? language === "en"
+                      ? "Unlimited ATS-optimized CVs"
+                      : "Rajattomat ATS-optimoidut CV:t"
+                    : language === "en"
+                    ? "Free personality-driven CV (Basic)"
+                    : "Ilmainen persoonallisuusvetoinen CV (Basic)"}
+                </p>
+                <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
+                  {language === "en" ? "Create CV" : "Luo CV"}
+                </Button>
+              </div>
+            </Link>
+          ) : (
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-gray-300 rounded-2xl shadow-xl p-6 opacity-60">
+              <Lock className="h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mb-4" />
+              <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
+                {language === "en" ? "Create CV" : "Luo CV"}
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-600 mb-4">
+                {language === "en"
+                  ? "Free CV already used"
+                  : "Ilmainen CV jo käytetty"}
+              </p>
+              <Link href="/pricing">
+                <Button variant="outline" className="w-full">
+                  {language === "en" ? "Upgrade" : "Päivitä"}
+                </Button>
+              </Link>
+            </div>
+          )}
+
+          {/* Create Cover Letter Card */}
+          <Link href="/create-cover-letter">
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
+              <FileInput className="h-10 w-10 sm:h-12 sm:w-12 text-green-600 mb-4" />
+              <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
+                {language === "en" ? "Create Cover Letter" : "Luo Hakukirje"}
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-600 mb-4">
+                {isPremium
+                  ? language === "en"
+                    ? "Unlimited ATS-optimized letters"
+                    : "Rajattomat ATS-optimoidut kirjeet"
+                  : language === "en"
+                  ? "1 general letter (Basic)"
+                  : "1 yleinen hakukirje (Basic)"}
+              </p>
+              <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600">
+                {language === "en" ? "Create Letter" : "Luo Kirje"}
+              </Button>
+            </div>
+          </Link>
+
+          {/* Edit Profile Card */}
+          <Link href="/profile">
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
+              <User className="h-10 w-10 sm:h-12 sm:w-12 text-amber-600 mb-4" />
+              <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
+                {language === "en" ? "Edit Profile" : "Muokkaa Profiilia"}
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-600 mb-4">
+                {language === "en"
+                  ? "Update your information"
+                  : "Päivitä tietosi"}
+              </p>
+              <Button variant="outline" className="w-full">
+                {language === "en" ? "Edit" : "Muokkaa"}
+              </Button>
+            </div>
+          </Link>
+        </div>
+
+        {/* Recent Documents */}
+        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl p-6 sm:p-8">
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 text-gray-900">
+            <Files className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
+            {language === "en" ? "My Documents" : "Omat Dokumentit"}
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
+            {/* CVs Section */}
+            <div>
+              <Link href="/my-cvs">
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-all mb-3 sm:mb-4 cursor-pointer">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                    <span className="font-bold text-gray-900 text-sm sm:text-base">
+                      {language === "en" ? "My CVs" : "Omat CV:t"}
+                    </span>
+                    {recentCVs.length > 0 && (
+                      <span className="bg-indigo-200 px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold">
+                        {recentCVs.length}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                </div>
+              </Link>
+
+              {loadingRecent ? (
+                <div className="text-center py-6 sm:py-8">
+                  <div className="animate-spin h-6 w-6 sm:h-8 sm:w-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+                </div>
+              ) : recentCVs.length > 0 ? (
+                <div className="space-y-2">
+                  {recentCVs.map((cv: any) => (
+                    <Link key={cv.id} href={`/edit-cv/${cv.id}`}>
+                      <div className="p-3 sm:p-4 bg-white rounded-xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-indigo-300">
+                        <p className="font-semibold text-xs sm:text-sm text-gray-900 truncate">
+                          {cv.content?.personalInfo?.name ||
+                            cv.title ||
+                            (language === "en" ? "Unnamed CV" : "Nimetön CV")}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(cv.created_at).toLocaleDateString(
+                            language === "en" ? "en-US" : "fi-FI",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            }
+                          )}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 sm:py-8">
+                  <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-2 sm:mb-3" />
+                  <p className="text-sm sm:text-base text-gray-500 mb-3 sm:mb-4">
+                    {language === "en" ? "No CVs yet" : "Ei vielä CV:itä"}
+                  </p>
+                  {canCreateCV && (
+                    <Link href="/create-cv">
+                      <Button variant="outline" size="sm">
+                        {language === "en"
+                          ? "Create First CV"
+                          : "Luo Ensimmäinen CV"}
+                      </Button>
+                    </Link>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Cover Letters Section */}
+            <div>
+              <Link href="/my-cover-letters">
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-green-50 rounded-xl hover:bg-green-100 transition-all mb-3 sm:mb-4 cursor-pointer">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <FileInput className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                    <span className="font-bold text-gray-900 text-sm sm:text-base">
+                      {language === "en" ? "Cover Letters" : "Hakukirjeet"}
+                    </span>
+                    {recentCoverLetters.length > 0 && (
+                      <span className="bg-green-200 px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold">
+                        {recentCoverLetters.length}
+                      </span>
+                    )}
+                  </div>
+                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                </div>
+              </Link>
+
+              {loadingRecent ? (
+                <div className="text-center py-6 sm:py-8">
+                  <div className="animate-spin h-6 w-6 sm:h-8 sm:w-8 border-4 border-green-600 border-t-transparent rounded-full mx-auto"></div>
+                </div>
+              ) : recentCoverLetters.length > 0 ? (
+                <div className="space-y-2">
+                  {recentCoverLetters.map((letter: any) => (
+                    <Link
+                      key={letter.id}
+                      href={`/edit-cover-letter/${letter.id}`}
+                    >
+                      <div className="p-3 sm:p-4 bg-white rounded-xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-green-300">
+                        <p className="font-semibold text-xs sm:text-sm text-gray-900 truncate">
+                          {letter.title ||
+                            letter.job_title ||
+                            (language === "en"
+                              ? "Unnamed Cover Letter"
+                              : "Nimetön Hakukirje")}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(letter.created_at).toLocaleDateString(
+                            language === "en" ? "en-US" : "fi-FI",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            }
+                          )}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 sm:py-8">
+                  <FileInput className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 mx-auto mb-2 sm:mb-3" />
+                  <p className="text-sm sm:text-base text-gray-500 mb-3 sm:mb-4">
+                    {language === "en"
+                      ? "No cover letters yet"
+                      : "Ei vielä hakukirjeitä"}
+                  </p>
+                  <Link href="/create-cover-letter">
+                    <Button variant="outline" size="sm">
+                      {language === "en"
+                        ? "Create First Letter"
+                        : "Luo Ensimmäinen Kirje"}
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="py-8 text-center text-gray-500 border-t border-indigo-100 bg-white/70 backdrop-blur-xl mt-12">
+        <p className="text-sm">
+          © {new Date().getFullYear()} HappyApplaid.{" "}
+          {language === "en"
+            ? "All rights reserved."
+            : "Kaikki oikeudet pidätetään."}
+        </p>
+      </footer>
+    </div>
+  );
+}
