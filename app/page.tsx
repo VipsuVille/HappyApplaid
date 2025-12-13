@@ -23,6 +23,8 @@ import {
   FileInput,
   FileEdit,
   Clock,
+  CreditCard,
+  Ban, // Kielletty-merkki
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -342,29 +344,30 @@ export default function Home() {
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 text-xs sm:text-sm text-gray-600 max-w-2xl mx-auto px-4">
-                  <div className="flex items-center justify-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
+                {/* Key Selling Points */}
+                <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-xs sm:text-sm text-gray-700 max-w-3xl mx-auto px-4 font-medium">
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
+                    <CreditCard className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
                         ? "No credit card required"
-                        : "Ei vaadi luottokorttia"}
+                        : "Ei luottokorttia"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
+                    <Clock className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                    <span>
+                      {language === "en"
+                        ? "10-15min one-time setup"
+                        : "10-15min kertaluonteinen asennus"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
                         ? "1 Free CV + Letter (Basic)"
                         : "1 Ilmainen CV + Kirje (Basic)"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-                    <span>
-                      {language === "en"
-                        ? "No commitment"
-                        : "Ei sitoutumista"}
                     </span>
                   </div>
                 </div>
@@ -418,7 +421,7 @@ export default function Home() {
                 <div className="bg-white rounded-lg p-3 text-xs sm:text-sm">
                   <p className="font-semibold text-indigo-900">
                     ⏱️{" "}
-                    {language === "en" ? "~5-10 minutes" : "~5-10 minuuttia"}
+                    {language === "en" ? "~10-15 minutes" : "~10-15 minuuttia"}
                   </p>
                 </div>
               </div>
@@ -468,20 +471,6 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-8 sm:mt-12 bg-gradient-to-r from-indigo-100 to-purple-100 border-2 border-indigo-300 rounded-2xl p-4 sm:p-6 text-center">
-              <p className="text-base sm:text-lg font-bold text-indigo-900 mb-2">
-                ⏱️{" "}
-                {language === "en"
-                  ? "Total Time: ~7-15 minutes per application"
-                  : "Kokonaisaika: ~7-15 minuuttia per hakemus"}
-              </p>
-              <p className="text-xs sm:text-sm text-indigo-700">
-                {language === "en"
-                  ? "(After profile is created - then just 2-3 minutes per new application!)"
-                  : "(Kun profiili on luotu - sitten vain 2-3 minuuttia per uusi hakemus!)"}
-              </p>
             </div>
           </div>
 
@@ -557,7 +546,9 @@ export default function Home() {
                     1
                   </div>
                   <p className="text-gray-700">
-                    <strong>{language === "en" ? "Basic Plan" : "Basic-taso"}:</strong>{" "}
+                    <strong>
+                      {language === "en" ? "Basic Plan" : "Basic-taso"}:
+                    </strong>{" "}
                     {language === "en"
                       ? "Creates standard job-specific letters. Perfect for emailing smaller companies directly or introducing yourself."
                       : "Luo tavallisia, työpaikkakohtaisia kirjeitä. Täydellinen sähköpostitse lähetettäviin hakemuksiin tai pienille yrityksille."}
@@ -568,7 +559,9 @@ export default function Home() {
                     2
                   </div>
                   <p className="text-gray-700">
-                    <strong>{language === "en" ? "Semi-Pro & Pro" : "Semi-Pro & Pro"}:</strong>{" "}
+                    <strong>
+                      {language === "en" ? "Semi-Pro & Pro" : "Semi-Pro & Pro"}:
+                    </strong>{" "}
                     {language === "en"
                       ? "Adds the ATS optimization layer. Essential when applying through large corporate portals (Workday, Taleo, etc.)."
                       : "Lisää ATS-optimointikerroksen. Välttämätön, kun haet suurten yritysten portaalien kautta (Workday, Taleo, jne.)."}
@@ -579,7 +572,9 @@ export default function Home() {
                     3
                   </div>
                   <p className="text-gray-700">
-                    <strong>{language === "en" ? "Pro (RAG)" : "Pro (RAG)"}:</strong>{" "}
+                    <strong>
+                      {language === "en" ? "Pro (RAG)" : "Pro (RAG)"}:
+                    </strong>{" "}
                     {language === "en"
                       ? "The expert touch. Integrates deep industry knowledge into your text for maximum impact."
                       : "Eksperttitaso. Integroi syvällistä toimialatietoa tekstiisi maksimaalisen vaikutuksen saamiseksi."}
@@ -605,22 +600,32 @@ export default function Home() {
             </div>
 
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {/* Feature 1 - PERSONALITY (Emphasized) */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-indigo-400 shadow-xl transform hover:scale-105 transition-all">
-                <Brain className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-600 mb-3 sm:mb-4" />
-                <h3 className="font-bold text-base sm:text-lg mb-2 text-indigo-900">
-                  {language === "en"
-                    ? "Personality-Based Writing"
-                    : "Persoonallisuuspohjainen Kirjoitus"}
-                </h3>
-                <p className="text-sm sm:text-base text-gray-700">
-                  {language === "en"
-                    ? "Our unique engine analyzes your psychological profile and writes in YOUR voice - not like a generic robot. This is our core difference."
-                    : "Ainutlaatuinen moottorimme analysoi psykologisen profiilisi ja kirjoittaa SINUN äänelläsi - ei kuin geneerinen robotti. Tämä on tärkein erottuvuustekijämme."}
-                </p>
+              {/* Feature 1 - PERSONALITY (Emphasized - Full Width on Mobile, Big on Desktop) */}
+              <div className="col-span-1 md:col-span-2 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 sm:p-8 shadow-2xl transform hover:scale-[1.02] transition-all text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-white/20 p-2 rounded-lg">
+                      <Brain className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                    </div>
+                    <span className="bg-white/20 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">
+                      {language === "en" ? "Core Difference" : "Ydinerottuvuus"}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-xl sm:text-2xl mb-3">
+                    {language === "en"
+                      ? "Personality-Based Writing"
+                      : "Persoonallisuuspohjainen Kirjoitus"}
+                  </h3>
+                  <p className="text-indigo-100 text-sm sm:text-base leading-relaxed">
+                    {language === "en"
+                      ? "Our unique engine analyzes your psychological profile and writes in YOUR voice - not like a generic robot. Most AI tools sound fake. Ours sounds like the best version of you."
+                      : "Ainutlaatuinen moottorimme analysoi psykologisen profiilisi ja kirjoittaa SINUN äänelläsi - ei kuin geneerinen robotti. Useimmat AI-työkalut kuulostavat feikeiltä. Meidän työkalumme kuulostaa parhaalta versiolta sinusta."}
+                  </p>
+                </div>
               </div>
 
-              {/* Feature 2 */}
+              {/* Feature 2 - ATS */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-green-200 shadow-lg">
                 <Zap className="w-10 h-10 sm:w-12 sm:h-12 text-green-600 mb-3 sm:mb-4" />
                 <h3 className="font-bold text-base sm:text-lg mb-2">
@@ -633,7 +638,7 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Feature 3 */}
+              {/* Feature 3 - Job Specific */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-amber-200 shadow-lg">
                 <Target className="w-10 h-10 sm:w-12 sm:h-12 text-amber-600 mb-3 sm:mb-4" />
                 <h3 className="font-bold text-base sm:text-lg mb-2">
@@ -648,32 +653,12 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Feature 4 - COMING SOON */}
-              <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-gray-300 shadow-lg relative overflow-hidden group">
-                {/* Coming Soon Badge */}
-                <div className="absolute top-0 right-0 bg-gray-800 text-white text-xs font-bold px-3 py-1 rounded-bl-xl shadow-md z-10">
-                   {language === "en" ? "COMING SOON" : "TULOSSA PIAN"}
-                </div>
-                
-                <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mb-3 sm:mb-4 group-hover:text-purple-500 transition-colors" />
-                <h3 className="font-bold text-base sm:text-lg mb-2 text-gray-800">
-                  {language === "en"
-                    ? "Multiple Formats"
-                    : "Useita Formaatteja"}
-                </h3>
-                <p className="text-sm sm:text-base text-gray-600">
-                  {language === "en"
-                    ? "Professional CV templates + cover letters in PDF format"
-                    : "Ammattimaiset CV-pohjat + hakukirjeet PDF-muodossa"}
-                </p>
-              </div>
-
-              {/* Feature 5 */}
-              <div className="bg-gradient-to-br from-yellow-100 to-amber-100 rounded-2xl p-4 sm:p-6 border-2 border-yellow-400 shadow-lg relative">
+              {/* Feature 4 - EXPERT (Pro) */}
+              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl p-4 sm:p-6 border-2 border-yellow-400 shadow-lg relative">
                 <Crown className="w-10 h-10 sm:w-12 sm:h-12 text-yellow-600 mb-3 sm:mb-4" />
                 <h3 className="font-bold text-base sm:text-lg mb-2 flex items-center gap-2">
                   {language === "en" ? "Expert Knowledge" : "Eksperttitieto"}
-                  <span className="text-xs bg-yellow-200 px-2 py-0.5 rounded-full border border-yellow-400">
+                  <span className="text-xs bg-yellow-200 px-2 py-0.5 rounded-full border border-yellow-400 text-yellow-800 font-bold">
                     PRO
                   </span>
                 </h3>
@@ -684,17 +669,29 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Feature 6 */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border-2 border-blue-200 shadow-lg">
-                <Shield className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 mb-3 sm:mb-4" />
-                <h3 className="font-bold text-base sm:text-lg mb-2">
-                  {language === "en" ? "Quality Checks" : "Laatutarkistukset"}
-                </h3>
-                <p className="text-sm sm:text-base text-gray-700">
-                  {language === "en"
-                    ? "AI verifies content matches your real experience and skills"
-                    : "AI varmistaa että sisältö vastaa todellista kokemustasi ja taitojasi"}
-                </p>
+              {/* Feature 5 - Multiple Formats (COMING SOON) */}
+              <div className="bg-gray-100 rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-none relative overflow-hidden group opacity-70">
+                {/* Overlay for disabled look */}
+                <div className="absolute inset-0 bg-gray-200/50 flex items-center justify-center z-10 backdrop-blur-[1px]">
+                  <div className="bg-gray-800 text-white px-4 py-2 rounded-lg transform -rotate-6 font-bold text-sm shadow-xl flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    {language === "en" ? "COMING SOON" : "TULOSSA PIAN"}
+                  </div>
+                </div>
+
+                <div className="opacity-50 grayscale">
+                  <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-gray-500 mb-3 sm:mb-4" />
+                  <h3 className="font-bold text-base sm:text-lg mb-2 text-gray-700">
+                    {language === "en"
+                      ? "Multiple Formats"
+                      : "Useita Formaatteja"}
+                  </h3>
+                  <p className="text-sm sm:text-base text-gray-600">
+                    {language === "en"
+                      ? "Professional CV templates + cover letters in PDF format"
+                      : "Ammattimaiset CV-pohjat + hakukirjeet PDF-muodossa"}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -716,120 +713,166 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-4 max-w-7xl mx-auto">
               {/* Free */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-gray-200 shadow-lg">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">
+              <div className="bg-white rounded-2xl p-4 border-2 border-gray-200 shadow-lg flex flex-col">
+                <h3 className="text-xl font-bold mb-2">
                   {language === "en" ? "Free" : "Ilmainen"}
                 </h3>
                 <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">0€</span>
+                  <span className="text-3xl font-bold">0€</span>
                   <span className="text-gray-600 text-sm">
                     {language === "en" ? "/month" : "/kk"}
                   </span>
                 </div>
-                <div className="mb-4 bg-gray-100 p-2 rounded text-xs text-gray-600 text-center font-medium">
-                  {language === "en" ? "Includes Basic Features" : "Sisältää Basic-ominaisuudet"}
-                </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
+                <ul className="space-y-3 mb-6 text-sm flex-1">
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en" ? "1 Free CV" : "1 Ilmainen CV"}
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span>
                       {language === "en"
-                        ? "1 Free Cover Letter"
-                        : "1 Ilmainen Hakukirje"}
+                        ? "1 Free CV + Letter"
+                        : "1 Ilmainen CV + Kirje"}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-500">
-                      {language === "en" ? "No ATS Optimization" : "Ei ATS-optimointia"}
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span>
-                      {language === "en" ? "Good for direct email" : "Hyvä sähköpostihakuun"}
+                      {language === "en"
+                        ? "Save Profile Data"
+                        : "Profiilitiedot tallennetaan"}
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-500">
+                      {language === "en"
+                        ? "No ATS optimization"
+                        : "Ei ATS-optimointia"}
                     </span>
                   </li>
                 </ul>
                 <SignedOut>
                   <SignInButton mode="modal">
-                    <Button className="w-full bg-gray-600 hover:bg-gray-700">
-                      {language === "en" ? "Try Now (Risk Free)" : "Kokeile Nyt (Riskitön)"}
+                    <Button
+                      variant="outline"
+                      className="w-full border-gray-300 hover:bg-gray-100"
+                    >
+                      {language === "en" ? "Try Free" : "Kokeile"}
                     </Button>
                   </SignInButton>
                 </SignedOut>
               </div>
 
-              {/* Semi-Pro - SUOSITUIN */}
-              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl p-4 sm:p-6 border-2 border-yellow-400 shadow-2xl relative scale-105">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                  {language === "en" ? "Most Popular" : "Suosituin"}
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold mb-2">Semi-Pro</h3>
+              {/* Basic */}
+              <div className="bg-white rounded-2xl p-4 border-2 border-blue-200 shadow-lg flex flex-col">
+                <h3 className="text-xl font-bold mb-2 text-blue-900">Basic</h3>
                 <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">12€</span>
+                  <span className="text-3xl font-bold">4.99€</span>
                   <span className="text-gray-600 text-sm">
                     {language === "en" ? "/month" : "/kk"}
                   </span>
                 </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
+                <ul className="space-y-3 mb-6 text-sm flex-1">
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span>
                       {language === "en" ? "Unlimited CVs" : "Rajattomat CV:t"}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span>
                       {language === "en"
-                        ? "Unlimited cover letters"
-                        : "Rajattomat hakukirjeet"}
+                        ? "Unlimited Letters"
+                        : "Rajattomat Kirjeet"}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span className="font-bold">
-                      {language === "en" ? "ATS optimization" : "ATS-optimointi"}
+                    <Ban className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-500">
+                      {language === "en"
+                        ? "No ATS optimization"
+                        : "Ei ATS-optimointia"}
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2 text-xs text-blue-600 font-medium">
+                    <div className="mt-0.5">ℹ️</div>
+                    {language === "en"
+                      ? "Good for direct emails"
+                      : "Hyvä suoriin sähköposteihin"}
+                  </li>
+                </ul>
+                <Link href="/pricing">
+                  <Button className="w-full bg-blue-100 text-blue-700 hover:bg-blue-200">
+                    {language === "en" ? "Choose Basic" : "Valitse Basic"}
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Semi-Pro - MOST POPULAR */}
+              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl p-4 border-2 border-yellow-400 shadow-2xl relative scale-105 z-10 flex flex-col">
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md whitespace-nowrap">
+                  {language === "en" ? "Most Popular" : "Suosituin"}
+                </div>
+                <h3 className="text-xl font-bold mb-2 text-amber-900">
+                  Semi-Pro
+                </h3>
+                <div className="mb-4">
+                  <span className="text-3xl font-bold text-amber-900">
+                    9.99€
+                  </span>
+                  <span className="text-amber-700 text-sm">
+                    {language === "en" ? "/month" : "/kk"}
+                  </span>
+                </div>
+                <ul className="space-y-3 mb-6 text-sm flex-1">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-bold text-gray-900">
+                      {language === "en"
+                        ? "Everything in Basic"
+                        : "Kaikki Basicissä"}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {language === "en" ? "Essential for big firms" : "Välttämätön isoihin firmoihin"}
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-bold text-gray-900">
+                      {language === "en"
+                        ? "ATS Optimized CVs"
+                        : "ATS-optimoidut CV:t"}
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-bold text-gray-900">
+                      {language === "en"
+                        ? "ATS Optimized Letters"
+                        : "ATS-optimoidut Kirjeet"}
                     </span>
                   </li>
                 </ul>
                 <Link href="/pricing">
-                  <Button className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600">
-                    {language === "en" ? "Choose Plan" : "Valitse"}
+                  <Button className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg">
+                    {language === "en" ? "Choose Semi-Pro" : "Valitse Semi-Pro"}
                   </Button>
                 </Link>
               </div>
 
               {/* Pro */}
-              <div className="bg-white rounded-2xl p-4 sm:p-6 border-2 border-purple-300 shadow-lg">
-                <h3 className="text-xl sm:text-2xl font-bold mb-2 flex items-center gap-2">
+              <div className="bg-white rounded-2xl p-4 border-2 border-purple-200 shadow-lg flex flex-col">
+                <h3 className="text-xl font-bold mb-2 text-purple-900 flex items-center gap-2">
                   Pro
-                  <Crown className="w-5 h-5 text-purple-600" />
+                  <Crown className="w-4 h-4 text-purple-600" />
                 </h3>
                 <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold">25€</span>
+                  <span className="text-3xl font-bold">15.99€</span>
                   <span className="text-gray-600 text-sm">
                     {language === "en" ? "/month" : "/kk"}
                   </span>
                 </div>
-                <ul className="space-y-2 sm:space-y-3 mb-4 sm:mb-6 text-sm sm:text-base">
+                <ul className="space-y-3 mb-6 text-sm flex-1">
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span>
                       {language === "en"
                         ? "Everything in Semi-Pro"
@@ -837,34 +880,34 @@ export default function Home() {
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span className="font-bold">
+                    <Check className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-bold text-purple-900">
                       {language === "en"
-                        ? "RAG: Expert knowledge"
-                        : "RAG: Eksperttitieto"}
+                        ? "RAG Expert Database"
+                        : "RAG-Eksperttitietokanta"}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                    <span>
+                    <Check className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-bold text-purple-900">
                       {language === "en"
-                        ? "Maximum Impact"
-                        : "Maksimaalinen Vaikutus"}
+                        ? "AI Expert Boost"
+                        : "AI Asiantuntijaboost"}
                     </span>
                   </li>
                 </ul>
                 <Link href="/pricing">
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700">
-                    {language === "en" ? "Choose Plan" : "Valitse"}
+                  <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                    {language === "en" ? "Choose Pro" : "Valitse Pro"}
                   </Button>
                 </Link>
               </div>
             </div>
 
-            <p className="text-center text-xs sm:text-sm text-gray-600 mt-6 sm:mt-8 px-4">
+            <p className="text-center text-xs sm:text-sm text-gray-600 mt-8 px-4">
               {language === "en"
-                ? "All plans: Cancel anytime • No credit card required for free plan"
-                : "Kaikki paketit: Peruuta milloin vain • Ei luottokorttia ilmaisessa"}
+                ? "Cancel anytime • No credit card required for free plan"
+                : "Peruuta milloin vain • Ei luottokorttia ilmaisessa paketissa"}
             </p>
           </div>
 
@@ -913,7 +956,7 @@ export default function Home() {
               </div>
               <div className="flex items-center justify-center gap-2 bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm">
                 <Check className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                <span>{language === "en" ? "5min setup" : "5min setup"}</span>
+                <span>{language === "en" ? "10-15min setup" : "10-15min setup"}</span>
               </div>
             </div>
           </div>
