@@ -309,15 +309,15 @@ export default function Home() {
                   <br />
                   <span className="text-gray-900">
                     {language === "en"
-                      ? "Get Personalized Applications Forever"
-                      : "Saa Personoituja Hakemuksia Ikuisesti"}
+                      ? "Get Personalized Applications Quickly And Easy"
+                      : "Saa Personoituja Hakemuksia Nopeasti Ja Helposti"}
                   </span>
                 </h1>
 
                 <p className="text-base sm:text-lg md:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed mb-6 sm:mb-8 px-4">
                   {language === "en"
                     ? "Start for free with zero risk. We just need you to fill your profile so our AI knows you. You get 1 free CV and a general Cover Letter to test the quality."
-                    : "Aloita ilmaiseksi nollariskillä. Sinun tarvitsee vain täyttää profiilisi, jotta AI oppii tuntemaan sinut. Saat 1 ilmaisen CV:n ja yhden yleisen esittelykirjeen testataksesi laatua."}
+                    : "Aloita ilmaiseksi ilman sitoutumista. Sinun tarvitsee vain täyttää profiilisi, jotta AI oppii tuntemaan sinut. Saat 1 ilmaisen CV:n ja yhden yleisen esittelykirjeen testataksesi laatua."}
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-6 sm:mb-8 px-4">
@@ -340,7 +340,7 @@ export default function Home() {
                   >
                     {language === "en"
                       ? "See How It Works"
-                      : "Katso Miten Se Toimii"}
+                      : "Katso Miten Ohjelma Toimii"}
                   </Button>
                 </div>
 
@@ -366,8 +366,8 @@ export default function Home() {
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
-                        ? "No commitment"
-                        : "Ei sitoutumista"}
+                        ? "No commitment In Free Version"
+                        : "Ei sitoutumista Ilmaisversiossa"}
                     </span>
                   </div>
                 </div>
@@ -399,8 +399,8 @@ export default function Home() {
                   
                   <p className="text-lg md:text-xl text-indigo-100 mb-8 leading-relaxed">
                     {language === "en"
-                      ? "Most AI tools generate generic, robotic text that recruiters spot instantly. Our unique engine analyzes your psychological profile—your strengths, working style, and values—and writes in YOUR unique voice."
-                      : "Useimmat AI-työkalut luovat geneeristä tekstiä, jonka rekrytoijat tunnistavat heti. Meidän ainutlaatuinen moottorimme analysoi psykologisen profiilisi – vahvuutesi, työtapasi ja arvosi – ja kirjoittaa SINUN ainutlaatuisella äänelläsi."}
+                      ? "Most AI tools generate generic, robotic text that recruiters spot instantly. Our unique engine analyzes your profile, your strengths, working style, and values—and writes in YOUR unique voice."
+                      : "Useimmat AI-työkalut luovat geneeristä tekstiä, jonka rekrytoijat tunnistavat heti. Meidän ainutlaatuinen ohjelmamme analysoi profiilisi psygolokisesti – vahvuutesi, työtapasi ja arvosi – ja kirjoittaa SINUN ainutlaatuisella äänelläsi."}
                   </p>
 
                   <div className="grid md:grid-cols-2 gap-6 text-left">
@@ -432,10 +432,10 @@ export default function Home() {
           {/* ===================================
               VIDEO DEMO (COMING SOON)
               =================================== */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 border-2 border-indigo-200 shadow-xl mb-16 relative overflow-hidden group">
+          <div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl p-8 border-2 border-indigo-200 shadow-xl mb-16 relative overflow-hidden group">
              <div className="text-center mb-8">
                <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                 {language === "en" ? "See It In Action" : "Katso Miten Se Toimii"}
+                 {language === "en" ? "See It In Action" : "Katso Kuinka Ohjelma Toimii"}
                </h2>
                <p className="text-gray-600">
                  {language === "en" ? "Watch a short demo of the process" : "Katso lyhyt demo prosessista"}
