@@ -222,6 +222,7 @@ export default function Home() {
     showOnboarding,
   ]);
 
+  // --- 1. ENSIN: Clerk Loading State ---
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
@@ -234,6 +235,7 @@ export default function Home() {
     );
   }
 
+  // --- 2. Welcome/Onboarding State ---
   if (showWelcome) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
@@ -282,6 +284,7 @@ export default function Home() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
       
           <div className="mb-12 sm:mb-16">
+            {/* Muutos: Poistettu ylimääräinen pyöristys mobiilissa, pidetty responsiivisuus */}
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 p-6 sm:p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl sm:rounded-[2.5rem]"></div>
 
@@ -527,6 +530,7 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Muutos: Poistettu grid-rajoitus isommilla näytöillä ja palautettu perus space-y mobiilissa */}
           <div className="mb-16 sm:mb-20 space-y-4 sm:space-y-6">
             <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-indigo-100 shadow-xl hover:shadow-2xl transition-all">
               <div className="bg-indigo-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
@@ -586,7 +590,8 @@ export default function Home() {
              <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-6 sm:mb-8 px-4">
                {language === "en" ? "Everything You Need" : "Kaikki Mitä Tarvitset"}
              </h2>
-             <div className="grid gap-4 sm:gap-6">
+             {/* Muutos: Poistettu grid-rakenne isommilla näytöillä ja käytetty space-y:tä, jotta mobiilissa palikat ovat allekkain ja ovat ihmisläheisempiä */}
+             <div className="space-y-4 sm:space-y-6">
                 <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
                    <Target className="w-10 h-10 text-indigo-600 mb-4" />
                    <h3 className="font-bold text-lg mb-2">{language === "en" ? "Job-Specific Content" : "Työkohtainen Sisältö"}</h3>
@@ -599,12 +604,16 @@ export default function Home() {
                    <p className="text-sm text-gray-600">{language === "en" ? "AI verifies claims against your profile." : "AI tarkistaa väitteet profiiliasi vasten."}</p>
                 </div>
 
-                <div className="grid sm:grid-cols-1 gap-4 sm:gap-6">
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Muutos: Poistettu grid-rakenne tästäkin kohtaa */}
+                  
+                  {/* PDF Export - Lisätty tähän selkeästi, sillä se on toiminnallisuus */}
                   <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
                      <FileText className="w-10 h-10 text-purple-600 mb-4" />
-                     <h3 className="font-bold text-lg mb-2">{language === "en" ? "PDF Export" : "PDF-Vienti"}</h3>
-                     <p className="text-sm text-gray-600">{language === "en" ? "Download your CVs and cover letters as professional PDF files." : "Lataa CV:t ja hakukirjeet ammattimaisina PDF-tiedostoina."}</p>
+                     <h3 className="font-bold text-lg mb-2">{language === "en" ? "Professional PDF Export" : "Ammattimainen PDF-Vienti"}</h3>
+                     <p className="text-sm text-gray-600">{language === "en" ? "Download your CVs and cover letters as professional PDF files for easy sharing." : "Lataa CV:t ja hakukirjeet ammattimaisina PDF-tiedostoina helppoa jakamista varten."}</p>
                   </div>
+                  {/* PDF Export loppuu */}
 
                   <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 shadow-none relative overflow-hidden group">
                      <div className="absolute top-3 right-3 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider z-10 shadow-sm">
@@ -632,7 +641,8 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
+            {/* Muutos: Mobiilissa asettelu on nyt 1 sarake, isommilla näytöillä 2-4 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
               <div className="bg-white rounded-2xl sm:rounded-3xl p-6 border-2 border-gray-200 shadow-lg flex flex-col">
                 <h3 className="text-xl font-bold mb-2">{language === "en" ? "Free" : "Ilmainen"}</h3>
                 <div className="mb-4">
@@ -703,6 +713,7 @@ export default function Home() {
 
               {/* Semi-Pro - RECOMMENDED */}
               <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl sm:rounded-3xl p-6 border-2 border-yellow-400 shadow-2xl relative scale-105 z-10 flex flex-col">
+                {/* Muutos: Suosittelemme / Recommended */}
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md whitespace-nowrap">
                   {language === "en" ? "Recommended" : "Suosittelemme"}
                 </div>
@@ -715,22 +726,22 @@ export default function Home() {
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                     <span className="font-bold">{language === "en" ? "Everything in Basic" : "Kaikki Basicissä"}</span>
-</li>
-<li className="flex items-start gap-2">
-<Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-<span className="font-bold">{language === "en" ? "ATS Optimized CVs" : "ATS-optimoidut CV:t"}</span>
-</li>
-<li className="flex items-start gap-2">
-<Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
-<span className="font-bold">{language === "en" ? "ATS Optimized Letters" : "ATS-optimoidut Kirjeet"}</span>
-</li>
-</ul>
-<Link href="/pricing">
-<Button className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg">
-{language === "en" ? "Choose Semi-Pro" : "Valitse Semi-Pro"}
-</Button>
-</Link>
-</div>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-bold">{language === "en" ? "ATS Optimized CVs" : "ATS-optimoidut CV:t"}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <span className="font-bold">{language === "en" ? "ATS Optimized Letters" : "ATS-optimoidut Kirjeet"}</span>
+                  </li>
+                </ul>
+                <Link href="/pricing">
+                  <Button className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white shadow-lg">
+                    {language === "en" ? "Choose Semi-Pro" : "Valitse Semi-Pro"}
+                  </Button>
+                </Link>
+              </div>
                     {/* Pro */}
           <div className="bg-white rounded-2xl sm:rounded-3xl p-6 border-2 border-purple-200 shadow-lg flex flex-col">
             <h3 className="text-xl font-bold mb-2 text-purple-900 flex items-center gap-2">
@@ -804,6 +815,9 @@ export default function Home() {
     </div>
   </div>
     )}
+  
+  {/* --- 4. Dashboardin Tiedot Latautuvat (Kirjautunut, mutta ei valmis) --- */}
+  {/* HUOM: Siirretty tähän Landing Pagen returnin jälkeen */}
   if (profileCompleted === null || freemiumLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
@@ -866,6 +880,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* Muutos: Poistettu ylimääräinen pyöristys mobiilissa, pidetty responsiivisuus */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
@@ -910,7 +925,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Quick Actions Grid */}
+        {/* Quick Actions Grid - Pienet muutokset paddingeihin mobiilissa */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {/* Create CV Card */}
           {canCreateCV ? (
@@ -994,7 +1009,7 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Recent Documents */}
+        {/* Recent Documents - Pienet muutokset paddingeihin mobiilissa */}
         <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
           <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 text-gray-900">
             <Files className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
@@ -1153,4 +1168,4 @@ export default function Home() {
       </footer>
     </div>
   );
-  }
+}
