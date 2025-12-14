@@ -425,8 +425,7 @@ export default function Home() {
           </div>
 
     
-          <div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">
-            <div className="text-center mb-6 sm:mb-8">
+<div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">            <div className="text-center mb-6 sm:mb-8">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 rounded-full mb-4">
                 <Sparkles className="w-5 h-5 text-indigo-600" />
                 <span className="font-bold text-indigo-800 text-sm sm:text-base">
