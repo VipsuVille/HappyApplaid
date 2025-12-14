@@ -138,16 +138,21 @@ export default function SmartHeader({
               </Button>
 
               {/* Sign In Button */}
-              <SignInButton mode="modal">
-                <Button 
-                  size="sm" 
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
-                >
-                  <span className="text-sm">
-                    {language === 'en' ? 'Sign In' : 'Kirjaudu'}
-                  </span>
-                </Button>
-              </SignInButton>
+<SignInButton mode="modal">
+  <Button 
+    size="sm" 
+    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
+    onClick={(e) => {
+      // Varmista että click tapahtuma käsitellään
+      e.preventDefault();
+      e.stopPropagation();
+    }}
+  >
+    <span className="text-sm">
+      {language === 'en' ? 'Sign In' : 'Kirjaudu'}
+    </span>
+  </Button>
+</SignInButton>
             </div>
           </div>
         </div>

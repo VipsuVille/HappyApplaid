@@ -425,111 +425,151 @@ export default function Home() {
           </div>
 
     
-<div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">            <div className="text-center mb-6 sm:mb-8">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 rounded-full mb-4">
-                <Sparkles className="w-5 h-5 text-indigo-600" />
-                <span className="font-bold text-indigo-800 text-sm sm:text-base">
-                  {language === "en" ? "See It In Action" : "Katso Toiminnassa"}
-                </span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-4">
-                {language === "en" ? "How The System Works" : "Näin Järjestelmä Toimii"}
-              </h2>
-              <p className="text-base sm:text-lg text-gray-700 max-w-2xl mx-auto px-4">
-                {language === "en" 
-                  ? "Watch our video guide and see how the 5-layer validation prevents AI from lying"
-                  : "Katso video-oppaamme ja näe omin silmin miten 5-kerroksinen validointi estää AI:n valehtelemasta"}
-              </p>
+// Korvaa VIDEO DEMO SECTION kokonaan tällä:
+
+{/* ===================================
+    VIDEO DEMO SECTION - YKSINKERTAISTETTU
+    =================================== */}
+<div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">
+  <div className="text-center mb-6 sm:mb-8">
+    <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 rounded-full mb-4">
+      <Sparkles className="w-5 h-5 text-indigo-600" />
+      <span className="font-bold text-indigo-800 text-sm sm:text-base">
+        {language === "en" ? "See It In Action" : "Katso Toiminnassa"}
+      </span>
+    </div>
+    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4 px-4">
+      {language === "en" ? "How The System Works" : "Näin Järjestelmä Toimii"}
+    </h2>
+  </div>
+
+  {/* Video Placeholder - Yksinkertaistettu */}
+  <div className="max-w-3xl mx-auto px-4">
+    <div className="relative aspect-video bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl sm:rounded-3xl border-2 border-indigo-300 overflow-hidden shadow-xl">
+      <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
+        <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-2xl">
+          <svg className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+          </svg>
+        </div>
+        <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 text-center">
+          {language === "en" ? "Demo Video Coming Soon" : "Demo-video Tulossa Pian"}
+        </h3>
+      </div>
+
+      {/* Decorative dots */}
+      <div className="absolute top-3 sm:top-4 left-3 sm:left-4 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-red-400"></div>
+      <div className="absolute top-3 sm:top-4 left-8 sm:left-10 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-yellow-400"></div>
+      <div className="absolute top-3 sm:top-4 left-[52px] sm:left-16 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-green-400"></div>
+    </div>
+  </div>
+</div>
+
+{/* ===================================
+    AI THAT GROWS WITH YOU - PAINOTETTU
+    =================================== */}
+<div className="mb-16 sm:mb-20">
+  <div className="max-w-4xl mx-auto">
+    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl relative overflow-hidden">
+      {/* Decorative background */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-200/30 to-purple-200/30 rounded-full blur-3xl -mr-20 -mt-20"></div>
+      
+      <div className="relative z-10">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full border border-indigo-300 mb-6 backdrop-blur-sm">
+          <Sparkles className="w-5 h-5 text-indigo-600" />
+          <span className="font-bold text-indigo-800 text-sm">
+            {language === "en" ? "Smart & Adaptive" : "Älykäs & Mukautuva"}
+          </span>
+        </div>
+
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 mb-4 sm:mb-6">
+          {language === "en" ? "AI That Grows With You" : "AI Joka Kasvaa Kanssasi"}
+        </h2>
+        
+        <p className="text-base sm:text-lg md:text-xl text-gray-700 mb-6 sm:mb-8 leading-relaxed">
+          {language === "en"
+            ? "If our AI needs more info for a specific job, it asks you smart questions. It learns from your answers and saves them to your profile—so you never have to repeat yourself."
+            : "Jos AI tarvitsee lisätietoja tiettyyn työhön, se kysyy älykkäitä kysymyksiä. Se oppii vastauksistasi ja tallentaa ne profiiliisi – jotta sinun ei tarvitse koskaan toistaa itseäsi."}
+        </p>
+
+        <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
+          <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border border-indigo-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600" />
+              <h3 className="font-bold text-base sm:text-lg text-gray-900">
+                {language === "en" ? "Smart Questions" : "Älykkäät Kysymykset"}
+              </h3>
             </div>
-
-            <div className="max-w-4xl mx-auto">
-              <div className="relative aspect-video bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl sm:rounded-3xl border-2 border-indigo-300 overflow-hidden shadow-xl">
-
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 sm:p-8">
-                  <div className="h-16 w-16 sm:h-24 sm:w-24 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-2xl">
-                    <svg className="w-8 h-8 sm:w-12 sm:h-12 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
-                    </svg>
-                  </div>
-                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2 sm:mb-3 text-center px-4">
-                    {language === "en" ? "Demo Video Coming Soon" : "Demo-video Tulossa Pian"}
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-700 text-center max-w-md mb-4 sm:mb-6 px-4">
-                    {language === "en"
-                      ? "Video will show step-by-step how the system works: from profiling to validation to final document"
-                      : "Videolla näytämme miten järjestelmä toimii askel askeleelta: profiloinnista validointiin ja lopulliseen dokumenttiin"}
-                  </p>
-                  <div className="flex flex-wrap gap-2 sm:gap-3 justify-center px-4">
-                    <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-white/80 rounded-lg border border-indigo-200">
-                      <p className="text-xs sm:text-sm font-semibold text-indigo-700">⚡ Master Guardian</p>
-                    </div>
-                    <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-white/80 rounded-lg border border-purple-200">
-                      <p className="text-xs sm:text-sm font-semibold text-purple-700">🎯 ATS-{language === "en" ? "optimization" : "optimointi"}</p>
-                    </div>
-                    <div className="px-3 py-1.5 sm:px-4 sm:py-2 bg-white/80 rounded-lg border border-pink-200">
-                      <p className="text-xs sm:text-sm font-semibold text-pink-700">🧠 {language === "en" ? "Personality" : "Persoonallisuus"}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute top-3 sm:top-4 left-3 sm:left-4 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-red-400"></div>
-                <div className="absolute top-3 sm:top-4 left-8 sm:left-10 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-yellow-400"></div>
-                <div className="absolute top-3 sm:top-4 left-[52px] sm:left-16 h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-green-400"></div>
-              </div>
-            </div>
-
-            <div className="mt-6 sm:mt-8 grid sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl sm:rounded-3xl p-4 border border-blue-200">
-                <div className="h-8 w-8 bg-blue-500 rounded-lg flex items-center justify-center mb-3">
-                  <span className="text-white font-bold text-sm">1</span>
-                </div>
-                <h4 className="font-bold text-sm mb-2">{language === "en" ? "Profile Creation" : "Profiilin Luonti"}</h4>
-                <p className="text-xs text-gray-700">
-                  {language === "en" 
-                    ? "How 8 psychological dimensions are analyzed"
-                    : "Näytämme miten 8 psykologista dimensiota analysoidaan"}
-                </p>
-              </div>
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl sm:rounded-3xl p-4 border border-purple-200">
-                <div className="h-8 w-8 bg-purple-500 rounded-lg flex items-center justify-center mb-3">
-                  <span className="text-white font-bold text-sm">2</span>
-                </div>
-                <h4 className="font-bold text-sm mb-2">{language === "en" ? "Document Generation" : "Dokumentin Generointi"}</h4>
-                <p className="text-xs text-gray-700">
-                  {language === "en"
-                    ? "Follow in real-time how validation layers work"
-                    : "Seuraa reaaliajassa miten validointikerrokset toimivat"}
-                </p>
-              </div>
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl sm:rounded-3xl p-4 border border-green-200 sm:col-span-2 md:col-span-1">
-                <div className="h-8 w-8 bg-green-500 rounded-lg flex items-center justify-center mb-3">
-                  <span className="text-white font-bold text-sm">3</span>
-                </div>
-                <h4 className="font-bold text-sm mb-2">{language === "en" ? "Master Guardian In Action" : "Master Guardian Toiminnassa"}</h4>
-                <p className="text-xs text-gray-700">
-                  {language === "en"
-                    ? "See how Ground Truth prevents fabricated claims"
-                    : "Katso miten Ground Truth estää keksityt väittämät"}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 sm:gap-6 mt-8 sm:mt-12">
-              <div className="text-center">
-                <p className="text-3xl sm:text-4xl font-bold text-indigo-600 mb-1 sm:mb-2">5</p>
-                <p className="text-xs sm:text-base text-gray-700">{language === "en" ? "Validation Layers" : "Validointikerrosta"}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl sm:text-4xl font-bold text-purple-600 mb-1 sm:mb-2">90%+</p>
-                <p className="text-xs sm:text-base text-gray-700">{language === "en" ? "ATS Pass Rate" : "ATS-läpäisy"}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-3xl sm:text-4xl font-bold text-pink-600 mb-1 sm:mb-2">100%</p>
-                <p className="text-xs sm:text-base text-gray-700">{language === "en" ? "Truthful Content" : "Totuudenmukainen"}</p>
-              </div>
-            </div>
+            <p className="text-sm text-gray-600">
+              {language === "en"
+                ? "Contextual follow-ups based on the job requirements"
+                : "Kontekstuaaliset jatkokysymykset työn vaatimusten perusteella"}
+            </p>
           </div>
 
+          <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border border-indigo-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-3">
+              <Lightbulb className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
+              <h3 className="font-bold text-base sm:text-lg text-gray-900">
+                {language === "en" ? "Gets Smarter" : "Viisastuu"}
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600">
+              {language === "en"
+                ? "Your profile improves with every application"
+                : "Profiilisi paranee jokaisen hakemuksen myötä"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 sm:mt-8 bg-gradient-to-r from-indigo-600 to-purple-600 p-4 sm:p-6 rounded-2xl text-white">
+          <p className="text-sm sm:text-base font-semibold flex items-center gap-2">
+            <Check className="w-5 h-5" />
+            {language === "en" ? "Result:" : "Tulos:"}
+          </p>
+          <p className="text-base sm:text-lg md:text-xl font-bold mt-2">
+            {language === "en"
+              ? "Your profile gets smarter with every application."
+              : "Profiilisi viisastuu jokaisen hakemuksen myötä."}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{/* ===================================
+    RAG EXPERT KNOWLEDGE
+    =================================== */}
+<div className="mb-16 sm:mb-20">
+  <div className="max-w-4xl mx-auto">
+    <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-purple-100 shadow-xl hover:shadow-2xl transition-all">
+      <div className="bg-purple-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
+        <Crown className="w-7 h-7 text-purple-600" />
+      </div>
+      <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 flex-wrap">
+        {language === "en" ? "Built-in HR Consultant" : "Sisäänrakennettu HR-Konsultti"}
+        <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full border border-purple-300">Pro</span>
+      </h3>
+      <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">
+        {language === "en"
+          ? "Our Pro AI reads real recruitment articles and HR guides from our database before writing. It's like having an expert check your application."
+          : "Pro AI:mme lukee tietokannastamme oikeita rekrytointiartikkeleita ja HR-oppaita ennen kirjoittamista. Kuin asiantuntija tarkistaisi hakemuksesi."}
+      </p>
+      <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100">
+        <p className="text-sm font-semibold text-purple-800 flex items-center gap-2">
+          <Database className="w-4 h-4" />
+          {language === "en" ? "RAG Technology:" : "RAG-Teknologia:"}
+        </p>
+        <p className="text-sm text-purple-700 mt-1">
+          {language === "en"
+            ? "Retrieval-Augmented Generation ensures professional advice."
+            : "Retrieval-Augmented Generation varmistaa ammattimaisen neuvonnan."}
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
           {/* Muutos: Poistettu grid-rajoitus isommilla näytöillä ja palautettu perus space-y mobiilissa */}
           <div className="mb-16 sm:mb-20 space-y-4 sm:space-y-6">
             <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-indigo-100 shadow-xl hover:shadow-2xl transition-all">
