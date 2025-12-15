@@ -1,378 +1,186 @@
-
-'use client';
-export default function AccountPage() {
-  return (
-    <div className="container mx-auto py-12">
-      <h1 className="text-3xl font-bold mb-8">Oma tili</h1>
-      <p>Tulossa pian...</p>
-    </div>
-  );
-}/*
-
-/*import React, { useEffect, useState, useRef } from 'react';
-import { CVTemplateProps } from '@/types';
-import CVContainer from './CVContainer';
-import Section from './Section';
-import DOMPurify from "dompurify";
-import { fetchImageAsBase64 } from '@/lib/utils';
-
-import styles from './CreativeCVTemplate.module.css'; // Import your CSS module
-
-interface CVImages {
-  profile?: string;
-  background?: string;
-  base64?: {
-    profile?: string;
-    background?: string;
-  };
-}
-
-const printStyles = `
-  @page {
-    size: A4;
-    margin: 0;
-  }
-  @media print {
-    body {
-      width: 210mm;
-      height: 297mm;
-    }
-    * {
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-  }
-`;
+import React from 'react';
+import { CVTemplateProps } from '@/types'; // Tuo yhteinen tyyppi täältä
+import { MapPin, Phone, Mail, Globe } from 'lucide-react'; // Asenna lucide-react jos ei ole
 
 const CreativeCVTemplate: React.FC<CVTemplateProps> = ({
   data,
   aiData,
   isEditing,
+  showEditControls,
+  editMode,
   onContentChange,
-  onProfileImageChange,
-  onBackgroundImageChange,
 }) => {
-  const [images, setImages] = useState<CVImages>({});
-  const [seinakuvaBase64, setSeinakuvaBase64] = useState<string | undefined>(undefined);
-  const cvRef = useRef<HTMLDivElement>(null);
+  if (!data) return <div>Ladataan...</div>;
 
-  useEffect(() => {
-    const loadImages = async () => {
-      try {
-        if (!data.userId || !data.cvId) return;
+  // 1. Kuvien logiikka (sama kuin Simple-templatessa)
+  const getBackgroundImage = () => {
+    const bg = aiData?.background_image || aiData?.background_image_url;
+    if (bg?.startsWith('http') || bg?.startsWith('data:')) return bg;
+    return null;
+  };
 
-     
-      } catch (error) {
-        console.error('Error loading images:', error);
-        setImages({
-          profile: data.profileImage,
-          background: data.backgroundImage
-        });
-      }
-    };
+  const bgImage = getBackgroundImage();
 
-    loadImages();
-  }, [data.userId, data.cvId, data.profileImage, data.backgroundImage]);
-
-  useEffect(() => {
-    const fetchBase64Image = async () => {
-      try {
-        const response = await fetch('/api/image-base64');
-        const { base64 } = await response.json();
-        setSeinakuvaBase64(base64);
-      } catch (error) {
-        console.error('Error fetching base64 image:', error);
-      }
-    };
-
-    fetchBase64Image();
-  }, []);
-
- // Example for TechnicalCVTemplate - Apply this pattern to other templates too
-const generatePDF = async (): Promise<Blob> => {
-  if (!cvRef.current) throw new Error('CV element not found');
-
-  try {
-    // Add loading indication here if needed
-    
-    // Wait for images to load and fonts to be ready
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Clone the element to avoid modifying the original
-    const clone = cvRef.current.cloneNode(true) as HTMLElement;
-    
-   
-    
-    // Send to API for PDF generation
-    const response = await fetch('/api/generate-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-
-        
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'PDF generation failed');
-    }
-
-    return await response.blob();
-  } catch (error) {
-    console.error('PDF generation failed:', error);
-    throw error;
-  }
-};
+  // 2. Profiilikuva
+  const profileImg = data.profileImage || aiData?.profile_image;
 
   return (
-    <CVContainer ref={cvRef} 
-    onGeneratePDF={!isEditing ? generatePDF : undefined} 
-    templateType="creative">
-      <style>{printStyles}</style>
-      
-      <div style={{ 
-        width: '210mm', 
-        height: '297mm', 
-        maxWidth: '210mm', 
-        maxHeight: '297mm', 
-        minWidth: '210mm', 
-        minHeight: '297mm', 
-        justifyItems: 'center',
-        backgroundColor: 'white'
-      }}>
-        <div className="flex flex-row h-[297mm] w-[210mm] box-border">
-          {/* Vasen sivupalkki }
-          <div className="w-[70mm] flex flex-col h-[297mm]">
-            {/* Profiilikuva }
-            <div className="h-[99mm] w-[70mm] box-border">
-              {(images.profile || aiData?.profileInitials) && (
-                <div className="w-[70mm] h-[99mm] overflow-hidden">
-                  {images.profile ? (
-                    <img
-                      src={images.base64?.profile || images.profile}
-                      alt="Profiilikuva"
-                      style={{
-                        width: '70mm',
-                        height: '99mm',
-                        objectFit: 'cover',
-                      }}
-                      crossOrigin="anonymous" // Tärkeä CORS-ongelmien välttämiseksi
-                    />
-                  ) : (
-                    <div
-                      className="w-[70mm] h-[99mm] flex items-center justify-center bg-gray-200"
-                      style={{
-                        width: '70mm',
-                        height: '99mm',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: '#e5e7eb',
-                      }}
-                    >
-                      <span className="text-3xl">{aiData?.profileInitials}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {isEditing && (
-                <div className="absolute bottom-2 right-2">
-                  <label className="bg-blue-500 text-white px-3 py-1 rounded cursor-pointer">
-                    Vaihda kuva
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={onProfileImageChange}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              )}
-            </div>
+    <div
+      className="creative-cv-wrapper bg-white shadow-2xl"
+      style={{
+        width: '210mm',
+        height: '297mm',
+        display: 'flex',
+        overflow: 'hidden',
+        fontFamily: "'Poppins', sans-serif", // Varmista fontin lataus
+      }}
+    >
+      {/* --- VASEN PALKKI (Tumma / Kuva) --- */}
+      <div
+        className="left-sidebar text-white relative"
+        style={{
+          width: '75mm',
+          backgroundColor: '#1a1a1a', // Fallback väri
+          backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        {/* Overlay jotta teksti erottuu taustakuvan päältä */}
+        <div className="absolute inset-0 bg-black/70" />
 
-            {/* Taidot-osio }
-            <div
-              className="h-[198mm] w-[70mm] relative left-0"
-              style={{
-                position: 'relative',
-                width: '70mm',
-                height: '198mm',
-                margin: 0,
-                padding: 0,
-                left: 0,
-                top: 0,
-              }}
-            >
-              {seinakuvaBase64 && (
-                <img
-                  src={seinakuvaBase64}
-                  alt="seinakuva"
-                  style={{
-                    width: '70mm',
-                    height: '198mm',
-                    objectFit: 'cover',
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                  }}
-                  crossOrigin="anonymous"
-                />
+        <div className="relative z-10 p-8 h-full flex flex-col">
+          
+          {/* Profiilikuva */}
+          <div className="mb-8 flex justify-center">
+            <div className="w-40 h-40 rounded-full border-4 border-white/20 overflow-hidden shadow-xl">
+              {profileImg ? (
+                <img src={profileImg} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-white/10 flex items-center justify-center text-4xl font-bold">
+                  {aiData?.profile_initials || 'CV'}
+                </div>
               )}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  bottom: 0,
-                  left: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  padding: '1rem',
-                  color: 'white',
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  width: '70mm',
-                  height: '198mm',
-                }}
-              >
-                <Section
-                  title="Taidot"
-                  content={DOMPurify.sanitize(aiData?.html?.skills_section || '')}
-                  isEditing={isEditing}
-                  onChange={(newContent) => onContentChange?.('skills', newContent)}
-                />
-              </div>
             </div>
           </div>
 
-          {/* Oikea sisältöalue
-          <div className="w-[140mm] flex flex-col h-[297mm] bg-white min-w-0">
-            {/* Header-alue }
-            <div
-              className="h-[99mm] w-[140mm] relative"
-              style={{
-                height: '99mm',
-                width: '140mm',
-                position: 'relative',
-              }}
-            >
-              {images.background && (
-                <>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      right: 0,
-                      bottom: 0,
-                      left: 0,
-                      backgroundImage: `url('${images.base64?.background || images.background}')`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      opacity: 0.5,
-                      width: "140mm",
-                      height: "99mm",
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: '49mm',
-                      background: 'linear-gradient(to top, white, transparent)',
-                    }}
-                  />
-                </>
-              )}
-              {isEditing && (
-                <div className="absolute bottom-2 right-2">
-                  <label className="bg-blue-500 text-white px-3 py-1 rounded cursor-pointer">
-                    Vaihda taustakuva
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={onBackgroundImageChange}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              )}
-
-              {/* Nimi }
-              <div className="relative z-10 p-4 md:pb-0">
-                <Section
-                  title=""
-                  content={data.name}
-                  isEditing={isEditing}
-                  onChange={(newContent) => onContentChange?.('name', newContent)}
+          {/* Yhteystiedot */}
+          <div className="space-y-4 text-sm">
+            <h3 className="uppercase tracking-widest text-white/50 border-b border-white/20 pb-2 mb-4 font-bold">
+              Yhteystiedot
+            </h3>
+            
+            <div className="flex items-center gap-3">
+              <Phone className="w-4 h-4 text-emerald-400" />
+              {isEditing ? (
+                <input 
+                  value={data.phone || ''} 
+                  onChange={(e) => onContentChange?.('phone', e.target.value)}
+                  className="bg-transparent border-b border-white/20 w-full focus:outline-none text-white"
                 />
-              </div>
+              ) : <span>{data.phone}</span>}
             </div>
 
-            {/* Muut tiedot 
-            <div className="h-[198mm] p-4 md:pb-0 max-h-[198mm] grid grid-cols-2 gap-4 overflow-y-auto">
-              {/* Yhteystiedot 
-              <Section
-                title="Yhteystiedot"
-                content={`
-                  📧 ${data.email}\n
-                  📞 ${data.phone}\n
-                  📍 ${data.location}\n
-                  ${data.linkedIn ? `💼 ${data.linkedIn}` : ''}
-                `}
-                isEditing={isEditing}
-                onChange={(newContent) => {
-                  const lines = newContent.split('\n');
-                  const email = lines[0].replace('📧', '').trim();
-                  const phone = lines[1].replace('📞', '').trim();
-                  const location = lines[2].replace('📍', '').trim();
-                  const linkedIn = lines[3]?.replace('💼', '').trim() || '';
-
-                  onContentChange?.('email', email);
-                  onContentChange?.('phone', phone);
-                  onContentChange?.('location', location);
-                  onContentChange?.('linkedIn', linkedIn);
-                }}
-              />
-
-              {/* Harrastukset 
-              <Section
-                title="Harrastukset"
-                content={data.hobbies}
-                isEditing={isEditing}
-                onChange={(newContent) => onContentChange?.('hobbies', newContent)}
-              />
-
-              {/* Koulutus
-              <Section
-                title="Koulutus"
-                content={data.education}
-                isEditing={isEditing}
-                onChange={(newContent) => onContentChange?.('education', newContent)}
-              />
-
-              {/* Työkokemus 
-              <Section
-                title="Työkokemus"
-                content={data.workExperience}
-                isEditing={isEditing}
-                onChange={(newContent) => onContentChange?.('workExperience', newContent)}
-              />
-
-              {/* Kielitaito 
-              <Section
-                title="Kielitaito"
-                content={data.languages}
-                isEditing={isEditing}
-                onChange={(newContent) => onContentChange?.('languages', newContent)}
-              />
+            <div className="flex items-center gap-3">
+              <Mail className="w-4 h-4 text-emerald-400" />
+              {isEditing ? (
+                <input 
+                  value={data.email || ''} 
+                  onChange={(e) => onContentChange?.('email', e.target.value)}
+                  className="bg-transparent border-b border-white/20 w-full focus:outline-none text-white"
+                />
+              ) : <span>{data.email}</span>}
             </div>
+
+            <div className="flex items-center gap-3">
+              <MapPin className="w-4 h-4 text-emerald-400" />
+              {isEditing ? (
+                <input 
+                  value={data.location || ''} 
+                  onChange={(e) => onContentChange?.('location', e.target.value)}
+                  className="bg-transparent border-b border-white/20 w-full focus:outline-none text-white"
+                />
+              ) : <span>{data.location}</span>}
+            </div>
+          </div>
+
+          {/* Taidot (AI Data) */}
+          <div className="mt-10">
+             <h3 className="uppercase tracking-widest text-white/50 border-b border-white/20 pb-2 mb-4 font-bold">
+              Taidot
+            </h3>
+            <div 
+              className="text-sm text-gray-300 leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: aiData?.html?.skills_section || '' }} 
+            />
           </div>
         </div>
       </div>
-    </CVContainer>
+
+      {/* --- OIKEA PUOLI (Vaalea / Sisältö) --- */}
+      <div className="main-content flex-1 p-10 bg-white text-gray-800 flex flex-col">
+        
+        {/* Header: Nimi ja titteli */}
+        <div className="mb-10">
+          {isEditing ? (
+            <input
+              value={data.name || ''}
+              onChange={(e) => onContentChange?.('name', e.target.value)}
+              className="text-5xl font-black uppercase tracking-tighter w-full mb-2 text-gray-900 border-none focus:ring-0 p-0"
+              placeholder="NIMI"
+            />
+          ) : (
+            <h1 className="text-5xl font-black uppercase tracking-tighter mb-2 text-gray-900">
+              {data.name}
+            </h1>
+          )}
+
+          {isEditing ? (
+            <input
+              value={data.title || ''}
+              onChange={(e) => onContentChange?.('title', e.target.value)}
+              className="text-xl font-medium text-emerald-600 uppercase tracking-widest w-full border-none focus:ring-0 p-0"
+              placeholder="AMMATTINIMIKE"
+            />
+          ) : (
+            <h2 className="text-xl font-medium text-emerald-600 uppercase tracking-widest">
+              {data.title}
+            </h2>
+          )}
+        </div>
+
+        {/* Profiiliteksti */}
+        <div className="mb-8">
+           <h3 className="font-bold text-gray-900 uppercase tracking-wide mb-3 flex items-center gap-2">
+             <span className="w-8 h-1 bg-gray-900 block"></span> Profiili
+           </h3>
+           {isEditing ? (
+             <textarea 
+               value={aiData?.personal_description || ''}
+               onChange={(e) => onContentChange?.('personalDescription', e.target.value as any)}
+               className="w-full h-32 p-2 border border-gray-200 rounded text-gray-600 leading-relaxed"
+             />
+           ) : (
+             <p className="text-gray-600 leading-relaxed">
+               {aiData?.personal_description}
+             </p>
+           )}
+        </div>
+
+        {/* Työkokemus (HTML renderöinti) */}
+        <div className="flex-1">
+            <h3 className="font-bold text-gray-900 uppercase tracking-wide mb-4 flex items-center gap-2">
+             <span className="w-8 h-1 bg-gray-900 block"></span> Työkokemus
+           </h3>
+           <div 
+             className="prose prose-sm max-w-none text-gray-600"
+             dangerouslySetInnerHTML={{ __html: aiData?.html?.experience_section || '' }}
+           />
+        </div>
+
+      </div>
+    </div>
   );
 };
 
-export default CreativeCVTemplate;*/
+export default CreativeCVTemplate;

@@ -423,6 +423,16 @@ export interface DefaultImage {
 
 export type ImageField = "profileImage" | "backgroundImage";
 
+export interface CVTemplateProps {
+  data: UserFormData;
+  aiData: AIData;
+  isEditing: boolean;
+  showEditControls: boolean;
+  editMode: EditMode | null;
+  // Käytetään 'any' arvolle jotta se tukee string/boolean/undefined tyyppejä UserFormData:ssa
+  onContentChange?: (field: keyof UserFormData, value: any) => void; 
+}
+
 export const profileToUserFormData = (
   profileData: ProfileData
 ): Partial<UserFormData> => {

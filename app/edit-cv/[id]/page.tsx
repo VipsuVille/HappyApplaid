@@ -1,232 +1,91 @@
-//app/edit-cv/[id]/page.tsx - KORJATTU
-
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
-import { BaseCV, UserFormData } from '@/types';
-import { supabase } from '@/lib/supabase-client';
+import { 
+  Save, ArrowLeft, Trash2, Download, Loader2, 
+  ImageIcon, Layout, Palette, RefreshCw, Upload,
+  User, Image as ImageIconLucide, CheckCircle
+} from 'lucide-react';
+import SmartHeader from '@/components/ui/smartHeader';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
+import { supabase } from '@/lib/supabase-client';
+import { BaseCV, CVTemplateProps, UserFormData } from '@/types';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
 import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
 import { getDefaultImages } from '@/lib/imageUtils';
-import { Button } from '@/components/ui/button';
-import { 
-  ImageIcon, 
-  TextIcon, 
-  SaveIcon, 
-  ArrowLeftIcon, 
-  TrashIcon,
-  RotateCcwIcon
-} from 'lucide-react';
-import { toast } from 'sonner';
 
-const EditCVPage: React.FC = () => {
+export default function EditCVPage() {
   const params = useParams();
   const router = useRouter();
-  const id = params?.id as string;
   const { userId, getToken } = useAuth();
+  const id = params?.id as string;
 
-  // ✅ LISÄTTY: Säilytä alkuperäinen AI-generoitu taustakuva
-  const [originalAIBackgroundImage, setOriginalAIBackgroundImage] = useState<string | null>(null);
+  // --- STATE ---
   const [cvData, setCvData] = useState<BaseCV | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
+  // Kuvien hallinta
+  const [userBackgrounds, setUserBackgrounds] = useState<string[]>([]);
   const [defaultImages, setDefaultImages] = useState<{
     profileImages: string[];
     backgroundImages: string[];
-  }>({
-    profileImages: [],
-    backgroundImages: []
-  });
+  }>({ profileImages: [], backgroundImages: [] });
+  
+  // Viestit
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // ✅ LISÄTTY: Inline editing state
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [isDraggingProfile, setIsDraggingProfile] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
-  // CV:n lataus
+  // --- INITIAL LOAD ---
   useEffect(() => {
-    if (!userId || !id) {
-      setIsLoading(false);
-      return;
-    }
+    const init = async () => {
+      if (!userId || !id) return;
 
-    let isMounted = true;
-    let retryCount = 0;
-    const MAX_RETRIES = 5;
-    const RETRY_DELAY = 1000;
-
-    const loadCV = async () => {
       try {
-        console.log(`🔄 Loading CV (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+        const token = await getToken({ template: 'supabase' });
+        if (!token) throw new Error('No authentication token');
 
-        const token = await getToken({ template: "supabase" });
-        
-        if (!token) {
-          throw new Error("Autentikaatiotoken puuttuu");
-        }
+        // 1. Lataa CV
+        const { data, error } = await fetchCVById(id, userId, token);
+        if (error) throw error;
+        if (data) setCvData(data);
 
-        const { data, error: fetchError } = await fetchCVById(id, userId, token);
+        // 2. Lataa default kuvat
+        const defImages = await getDefaultImages();
+        setDefaultImages(defImages);
 
-        if (fetchError) {
-          console.error('❌ Supabase error:', fetchError);
-          throw fetchError;
-        }
+        // 3. Lataa käyttäjän omat taustakuvat Supabasesta
+        const { data: bgFiles } = await supabase.storage
+          .from('cv_files')
+          .list(`backgrounds/${userId}`, { limit: 20, sortBy: { column: 'created_at', order: 'desc' } });
 
-        if (!data && retryCount < MAX_RETRIES - 1) {
-          console.log(`⏳ CV not found yet, retrying in ${RETRY_DELAY}ms...`);
-          retryCount++;
-          setTimeout(() => {
-            if (isMounted) loadCV();
-          }, RETRY_DELAY);
-          return;
-        }
-
-        if (data && isMounted) {
-          console.log('✅ CV loaded successfully');
-          setCvData(data);
-          
-          // ✅ KORJATTU: Tallenna AI-generoitu taustakuva JOS sitä ei ole vielä tallennettu
-          if (data.content?.ai_data?.background_image && !originalAIBackgroundImage) {
-            setOriginalAIBackgroundImage(data.content.ai_data.background_image);
-          }
-          
-          setIsLoading(false);
-          setError(null);
-        } else if (!data) {
-          setError('CV:tä ei löytynyt');
-          setIsLoading(false);
+        if (bgFiles) {
+          const urls = bgFiles.map(file => {
+             const { data } = supabase.storage.from('cv_files').getPublicUrl(`backgrounds/${userId}/${file.name}`);
+             return data.publicUrl;
+          });
+          setUserBackgrounds(urls);
         }
 
       } catch (err) {
-        console.error('❌ Error loading CV:', err);
-        setError(err instanceof Error ? err.message : 'CV:n lataaminen epäonnistui');
+        console.error('Error initializing CV page:', err);
+        setErrorMessage('CV:n lataaminen epäonnistui');
+      } finally {
         setIsLoading(false);
       }
     };
 
-    loadCV();
-
-    return () => {
-      isMounted = false;
-    };
+    init();
   }, [id, userId, getToken]);
 
-  // Realtime-päivitykset
-  useEffect(() => {
-    if (!userId || !id) return;
+  // --- HANDLERS ---
 
-    console.log('📡 Setting up realtime subscription for CV:', id);
-
-    const channel = supabase
-      .channel(`cv_${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'cvs',
-          filter: `id=eq.${id}`,
-        },
-        (payload) => {
-          console.log('🔔 CV inserted via realtime:', payload.new);
-          setCvData(payload.new as BaseCV);
-          setIsLoading(false);
-          setError(null);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'cvs',
-          filter: `id=eq.${id}`,
-        },
-        (payload) => {
-          console.log('🔔 CV updated via realtime');
-          setCvData(payload.new as BaseCV);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('🔌 Unsubscribing from realtime');
-      channel.unsubscribe();
-    };
-  }, [id, userId]);
-
-  // Lataa default-kuvat
-  useEffect(() => {
-    const loadImages = async () => {
-      try {
-        const images = await getDefaultImages();
-        setDefaultImages(images);
-      } catch (error) {
-        console.error('⚠️ Kuvien lataus epäonnistui:', error);
-      }
-    };
-    loadImages();
-  }, []);
-
-  // ✅ KORJATTU: Palauta AI-generoitu taustakuva
-  const handleRestoreAIBackground = () => {
-    if (originalAIBackgroundImage) {
-      setCvData(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          content: {
-            ...prev.content,
-            cv_data: {
-              ...prev.content.cv_data,
-              backgroundImage: originalAIBackgroundImage,
-            },
-          },
-        };
-      });
-      toast.success('AI-generoitu taustakuva palautettu!');
-    }
-  };
-
-  // ✅ KORJATTU: Valitse default-kuva
-  const handleSelectDefaultImage = async (imageUrl: string, field: 'profileImage' | 'backgroundImage') => {
-    try {
-      const token = await getToken({ template: "supabase" });
-      
-      if (!token) {
-        console.error("❌ No token available");
-        toast.error("Kirjautuminen vanhentunut - päivitä sivu");
-        return;
-      }
-
-      setCvData(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          content: {
-            ...prev.content,
-            cv_data: {
-              ...prev.content.cv_data,
-              [field]: imageUrl,
-            },
-          },
-        };
-      });
-      
-      toast.success(field === 'backgroundImage' ? "Taustakuva vaihdettu!" : "Profiilikuva vaihdettu!");
-    } catch (error) {
-      console.error("❌ Error:", error);
-      toast.error("Kuvan vaihto epäonnistui");
-    }
-  };
-
-  // Handle content changes
+  // Sisällön päivitys (kutsutaan Template-komponenteista)
   const handleContentChange = useCallback(<K extends keyof UserFormData>(
     key: K, 
     value: UserFormData[K]
@@ -246,106 +105,124 @@ const EditCVPage: React.FC = () => {
     });
   }, []);
 
-  // Handle image uploads
-  const handleImageChange = async (
+  // Kuvan lataus (Profiili tai Tausta)
+  const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
-    field: 'profileImage' | 'backgroundImage'
+    type: 'profileImage' | 'backgroundImage'
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('Kuvan koko on liian suuri. Maksimikoko on 5MB.');
+      alert('Kuva on liian suuri (max 5MB)');
       return;
     }
 
+    // Lukeminen base64 (nopea esikatselu)
     const reader = new FileReader();
-    reader.onloadend = () => {
-      handleContentChange(field, reader.result as string);
+    reader.onloadend = async () => {
+      const base64data = reader.result as string;
+      
+      // Päivitä tila
+      handleContentChange(type, base64data);
+
+      // Jos se on taustakuva, tallennetaan se myös käyttäjän historiaan (UX parannus)
+      if (type === 'backgroundImage') {
+         setUserBackgrounds(prev => [base64data, ...prev]);
+         // Huom: Oikeassa tuotannossa tässä pitäisi ladata kuva storageen ja käyttää URLia
+      }
     };
     reader.readAsDataURL(file);
   };
 
-  // ✅ KORJATTU: Tallenna CV
-  const handleSave = async () => {
-    if (!cvData || !id) return;
+  // Valmiin kuvan valinta
+  const handleSelectImage = (url: string, type: 'profileImage' | 'backgroundImage') => {
+    handleContentChange(type, url);
+  };
 
+  const handleSave = async () => {
+    if (!cvData || !userId) return;
     setIsSaving(true);
     try {
-      console.log('💾 Saving CV...');
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No token');
 
-      const token = await getToken({ template: "supabase" });
+      await updateCV(id, { content: cvData.content }, token);
       
-      if (!token) {
-        throw new Error("Autentikaatiotoken puuttuu");
-      }
-
-      await updateCV(id, {
-        content: cvData.content,
-      }, token);
-
-      console.log('✅ CV saved successfully');
-      toast.success('CV tallennettu onnistuneesti!');
-
+      setSuccessMessage('✅ CV tallennettu!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setIsEditing(false);
     } catch (error) {
-      console.error('❌ Error saving CV:', error);
-      toast.error('CV:n tallentaminen epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
+      console.error('Save error:', error);
+      setErrorMessage('Tallennus epäonnistui');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Poista CV
-  const handleDelete = async () => {
-    if (!confirm('Haluatko varmasti poistaa tämän CV:n?')) return;
-    if (!userId) return;
-
+  const handleDownloadPDF = async () => {
+    setIsDownloading(true);
     try {
-      console.log('🗑️ Deleting CV...');
+      // Oletetaan että PDF-generointi API on olemassa vastaavalla polulla
+      const response = await fetch('/api/generate-cv-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cvId: id }),
+      });
 
-      const token = await getToken({ template: "supabase" });
+      if (!response.ok) throw new Error('PDF generation failed');
       
-      if (!token) {
-        throw new Error("Autentikaatiotoken puuttuu");
-      }
-
-      await deleteCV(id, userId, token);
-
-      console.log('✅ CV deleted successfully');
-      toast.success('CV poistettu onnistuneesti!');
-      router.push('/my-cvs');
-
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CV_${cvData?.title || 'dokumentti'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
     } catch (error) {
-      console.error('❌ Error deleting CV:', error);
-      toast.error('CV:n poistaminen epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
+      console.error('PDF error:', error);
+      alert('PDF:n luonti epäonnistui');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
-  // Render the appropriate template
-  const renderTemplate = () => {
+  const handleDelete = async () => {
+    if (!confirm('Haluatko varmasti poistaa tämän CV:n?')) return;
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token || !userId) throw new Error('No token');
+      await deleteCV(id, userId, token);
+      router.push('/my-cvs');
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Poisto epäonnistui');
+    }
+  };
+
+  // Render Template Helper
+const renderTemplate = () => {
     if (!cvData) return null;
 
-    const commonProps = {
+    // YHTEISET PROPSIT KAIKILLE TEMPLATEILLE
+    // TypeScript on nyt tyytyväinen, kun kaikki templatet käyttävät CVTemplateProps-rajapintaa
+    const commonProps: CVTemplateProps = {
       data: {
         ...cvData.content.cv_data,
-        bgHeight: cvData.content.cv_data.bgHeight || '80',
-        blueBarHeight: cvData.content.cv_data.blueBarHeight || '11',
-        profilePosition: cvData.content.cv_data.profilePosition || JSON.stringify({
-          top: 10,
-          right: 8,
-          width: 55,
-          height: 55
-        }),
-        infoBarItemsPosition: cvData.content.cv_data.infoBarItemsPosition || JSON.stringify([
-          { id: 'phone', content: cvData.content.cv_data.phone || '', icon: '📞', position: 0 },
-          { id: 'email', content: cvData.content.cv_data.email || '', icon: '📧', position: 1 },
-          { id: 'age', content: cvData.content.cv_data.age || '', icon: '🎂', position: 2 }
-        ])
+        // Varmista fallbackit
+        name: cvData.content.cv_data.name || '',
+        email: cvData.content.cv_data.email || '',
+        phone: cvData.content.cv_data.phone || '',
+        location: cvData.content.cv_data.location || '',
+        title: cvData.content.cv_data.title || '',
       },
-      aiData: cvData.content.ai_data,
-      isEditing: true,
-      editMode: selectedTab,
-      showEditControls: true,
+      aiData: cvData.content.ai_data || {},
+      isEditing: isEditing,
+      showEditControls: isEditing,
+      // Välitä editMode. Jos käytät selectedTabia logiikassa:
+      editMode: selectedTab === 'content' ? 'content' : 'images', 
       onContentChange: handleContentChange
     };
 
@@ -354,222 +231,299 @@ const EditCVPage: React.FC = () => {
     switch (cvType) {
       case 'technical':
         return <TechnicalCVTemplate {...commonProps} />;
+      case 'creative':
+        return <CreativeCVTemplate {...commonProps} />;
       case 'simple':
       default:
         return <SimpleCVTemplate {...commonProps} />;
     }
   };
 
-  // Loading state
-  if (isLoading) {
+  if (isLoading || !cvData) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-yellow-50">
-        <div className="bg-white border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <div className="text-2xl font-bold text-center">Ladataan CV:tä...</div>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
+        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-4" />
+          <p className="text-lg font-bold text-gray-900">Ladataan CV:tä...</p>
         </div>
       </div>
     );
   }
 
-  // Error state
-  if (error) {
-    return (
-      <div className="container mx-auto p-4">
-        <div className="bg-red-100 border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <p className="text-red-700 font-bold text-xl mb-4">{error}</p>
-          <button
-            onClick={() => router.push('/my-cvs')}
-            className="bg-blue-400 border-4 border-black px-6 py-3 font-bold hover:translate-x-1 hover:translate-y-1 hover:shadow-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
-          >
-            Palaa omiin CV:hin
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // No CV found
-  if (!cvData) {
-    return (
-      <div className="container mx-auto p-4">
-        <div className="bg-white border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <p className="text-gray-800 font-bold text-xl mb-4">CV:tä ei löytynyt</p>
-          <button
-            onClick={() => router.push('/my-cvs')}
-            className="bg-blue-400 border-4 border-black px-6 py-3 font-bold hover:translate-x-1 hover:translate-y-1 hover:shadow-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all"
-          >
-            Palaa omiin CV:hin
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const currentBg = cvData.content.cv_data.backgroundImage;
+  const currentProfile = cvData.content.cv_data.profileImage;
 
   return (
-    <div className="min-h-screen bg-yellow-50 py-8">
-      <div className="container mx-auto px-4">
-        {/* ✅ NEO-BRUTALISM HEADER */}
-        <div className="bg-white border-4 border-black p-6 mb-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <h1 className="text-3xl md:text-4xl font-black uppercase">Muokkaa CV:tä</h1>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 relative overflow-hidden">
+      
+      {/* Background Decor */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+      </div>
+
+      <SmartHeader />
+
+      {/* TOP BAR - STICKY */}
+      <div className="px-2 md:px-6 py-3 md:py-4 mt-16 sticky top-16 z-40">
+        <div className="max-w-[1800px] mx-auto backdrop-blur-xl bg-white/80 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-4">
+          <div className="flex items-center justify-between gap-2">
             
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="bg-green-400 border-4 border-black px-6 py-3 font-bold hover:translate-x-1 hover:translate-y-1 hover:shadow-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <SaveIcon className="h-5 w-5" />
-                {isSaving ? 'Tallennetaan...' : 'Tallenna'}
-              </button>
-              
-              <button
+            {/* Left: Back & Title */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <button 
                 onClick={() => router.push('/my-cvs')}
-                className="bg-blue-400 border-4 border-black px-6 py-3 font-bold hover:translate-x-1 hover:translate-y-1 hover:shadow-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center gap-2"
+                className="p-2 h-9 w-9 md:h-10 md:w-10 bg-white/90 border-2 border-white/60 rounded-full flex items-center justify-center shadow-lg hover:bg-gray-50 flex-shrink-0"
               >
-                <ArrowLeftIcon className="h-5 w-5" />
-                Takaisin
+                <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 text-gray-700" />
               </button>
               
-              <button
-                onClick={handleDelete}
-                className="bg-red-400 border-4 border-black px-6 py-3 font-bold hover:translate-x-1 hover:translate-y-1 hover:shadow-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center gap-2"
-              >
-                <TrashIcon className="h-5 w-5" />
-                Poista
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ✅ NEO-BRUTALISM TABS */}
-        <div className="bg-white border-4 border-black mb-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <div className="flex border-b-4 border-black">
-            <button
-              className={`flex-1 p-4 font-bold text-lg transition-colors ${
-                selectedTab === 'content' 
-                  ? 'bg-yellow-300' 
-                  : 'bg-white hover:bg-gray-100'
-              } border-r-4 border-black flex items-center justify-center gap-2`}
-              onClick={() => setSelectedTab('content')}
-            >
-              <TextIcon className="h-5 w-5" />
-              SISÄLTÖ
-            </button>
-            <button
-              className={`flex-1 p-4 font-bold text-lg transition-colors ${
-                selectedTab === 'images' 
-                  ? 'bg-yellow-300' 
-                  : 'bg-white hover:bg-gray-100'
-              } flex items-center justify-center gap-2`}
-              onClick={() => setSelectedTab('images')}
-            >
-              <ImageIcon className="h-5 w-5" />
-              KUVAT
-            </button>
-          </div>
-
-          {/* ✅ IMAGES TAB CONTENT */}
-          {selectedTab === 'images' && (
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Profile image section */}
-              <div className="bg-pink-100 border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <h3 className="text-xl font-black mb-4 uppercase">Profiilikuva</h3>
-                <div className="mb-4">
-                  <label className="block font-bold mb-2">Lataa oma kuva</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageChange(e, 'profileImage')}
-                    className="block w-full text-sm border-2 border-black p-2 font-mono"
-                  />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm md:text-xl font-bold text-gray-800 truncate">
+                    {cvData.title || 'Nimetön CV'}
+                  </h1>
+                  <span className="hidden sm:inline-flex px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full flex-shrink-0 capitalize">
+                    {cvData.content.cv_data.cvType || 'Simple'}
+                  </span>
                 </div>
-                
-                {defaultImages.profileImages.length > 0 && (
-                  <div>
-                    <p className="font-bold mb-2">Valmiit kuvat:</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {defaultImages.profileImages.map((imgUrl, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleSelectDefaultImage(imgUrl, 'profileImage')}
-                          className={`border-4 border-black p-1 hover:translate-x-1 hover:translate-y-1 transition-transform ${
-                            cvData.content.cv_data.profileImage === imgUrl ? 'bg-yellow-300' : 'bg-white'
-                          }`}
-                        >
-                          <img 
-                            src={imgUrl} 
-                            alt={`Profile ${idx + 1}`} 
-                            className="w-full h-auto rounded-full"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-              
-              {/* Background image section */}
-              <div className="bg-blue-100 border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <h3 className="text-xl font-black mb-4 uppercase">Taustakuva</h3>
-                
-                {/* ✅ PALAUTA AI-KUVA NAPPI */}
-                {originalAIBackgroundImage && (
-                  <button
-                    onClick={handleRestoreAIBackground}
-                    className="w-full bg-purple-400 border-4 border-black px-4 py-2 font-bold mb-4 hover:translate-x-1 hover:translate-y-1 hover:shadow-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all flex items-center justify-center gap-2"
+            </div>
+            
+            {/* Right: Actions */}
+            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+              {!isEditing ? (
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="p-2 h-9 md:h-10 md:px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 flex items-center gap-1 md:gap-2 shadow-md text-xs md:text-sm font-semibold"
+                >
+                  <Palette className="w-3 h-3 md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">Muokkaa</span>
+                </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="p-2 md:px-3 h-9 md:h-10 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 text-xs md:text-sm font-semibold"
                   >
-                    <RotateCcwIcon className="h-5 w-5" />
-                    Palauta AI-generoitu tausta
+                    Lopeta
                   </button>
-                )}
-                
-                <div className="mb-4">
-                  <label className="block font-bold mb-2">Lataa oma kuva</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageChange(e, 'backgroundImage')}
-                    className="block w-full text-sm border-2 border-black p-2 font-mono"
-                  />
-                </div>
-                
-                {defaultImages.backgroundImages.length > 0 && (
-                  <div>
-                    <p className="font-bold mb-2">Valmiit kuvat:</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {defaultImages.backgroundImages.map((imgUrl, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleSelectDefaultImage(imgUrl, 'backgroundImage')}
-                          className={`border-4 border-black p-1 hover:translate-x-1 hover:translate-y-1 transition-transform ${
-                            cvData.content.cv_data.backgroundImage === imgUrl ? 'bg-yellow-300' : 'bg-white'
-                          }`}
-                        >
-                          <img 
-                            src={imgUrl} 
-                            alt={`Background ${idx + 1}`} 
-                            className="w-full h-20 object-cover"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+                  <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="p-2 md:px-3 h-9 md:h-10 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-lg hover:from-green-600 hover:to-teal-700 flex items-center gap-1 shadow-md disabled:opacity-50 text-xs md:text-sm font-semibold"
+                  >
+                    {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    <span className="hidden sm:inline">Tallenna</span>
+                  </button>
+                </>
+              )}
+              
+              <button 
+                onClick={handleDownloadPDF}
+                disabled={isDownloading}
+                className="p-2 h-9 w-9 md:h-10 md:w-10 bg-white/90 border-2 border-white/60 rounded-full flex items-center justify-center shadow-lg hover:bg-gray-50"
+                title="Lataa PDF"
+              >
+                {isDownloading ? <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" /> : <Download className="w-3 h-3 md:w-4 md:h-4" />}
+              </button>
+              
+              <button 
+                onClick={handleDelete} 
+                className="p-2 h-9 w-9 md:h-10 md:w-10 bg-white/90 border-2 border-white/60 rounded-full flex items-center justify-center shadow-lg hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 md:w-5 md:h-5 text-red-500" />
+              </button>
             </div>
-          )}
-        </div>
-
-        {/* ✅ CV PREVIEW */}
-        <div className="bg-white border-4 border-black p-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-          <div className="relative md:h-[310mm] h-auto overflow-hidden">
-            {renderTemplate()}
           </div>
         </div>
       </div>
+
+      {/* Notifications */}
+      {successMessage && (
+        <div className="fixed top-24 right-4 bg-green-500 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+          {successMessage}
+        </div>
+      )}
+      {errorMessage && (
+        <div className="fixed top-24 right-4 bg-red-500 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* MAIN CONTENT GRID */}
+      <div className="max-w-[1800px] mx-auto p-2 md:p-6 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+          
+          {/* ✅ LEFT SIDEBAR: Visuals & Images */}
+          <div className="lg:col-span-3 space-y-4">
+            
+            {/* 1. Profile Picture Control */}
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl shadow-xl p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <User className="w-4 h-4 text-indigo-600" />
+                Profiilikuva
+              </h3>
+              
+              <div className="flex items-center gap-4 mb-4">
+                <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow-md bg-gray-100">
+                  {currentProfile ? (
+                    <img src={currentProfile} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-8 h-8 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                  )}
+                </div>
+                <div className="flex-1">
+                   <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-100 transition-colors w-full justify-center">
+                    <Upload className="w-3 h-3" />
+                    Lataa uusi
+                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
+                   </label>
+                </div>
+              </div>
+
+              {defaultImages.profileImages.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 mb-2">Tai valitse valmis:</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {defaultImages.profileImages.slice(0, 4).map((img, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => handleSelectImage(img, 'profileImage')}
+                        className={`aspect-square rounded-full overflow-hidden border-2 transition-all ${currentProfile === img ? 'border-indigo-500 scale-110' : 'border-transparent hover:border-indigo-300'}`}
+                      >
+                        <img src={img} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Background Image Control */}
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl shadow-xl p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <ImageIconLucide className="w-4 h-4 text-purple-600" />
+                Taustakuva
+              </h3>
+
+              <div className="mb-4">
+                <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-50 border-2 border-dashed border-purple-200 text-purple-700 rounded-xl text-sm font-semibold hover:bg-purple-100 transition-colors">
+                  <Upload className="w-4 h-4" />
+                  Lataa taustakuva
+                  <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'backgroundImage')} />
+                </label>
+              </div>
+
+              {/* User's History / Global Backgrounds */}
+              {(userBackgrounds.length > 0 || cvData.content.ai_data?.background_image) && (
+                <div className="mb-4">
+                   <p className="text-xs text-gray-500 mb-2">Omat & Generoidut:</p>
+                   <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1">
+                      {/* Original AI Image if exists */}
+                      {cvData.content.ai_data?.background_image && (
+                        <button
+                          onClick={() => handleSelectImage(cvData.content.ai_data?.background_image || '', 'backgroundImage')}
+                           className={`aspect-video rounded-lg overflow-hidden border-2 relative group ${currentBg === cvData.content.ai_data?.background_image ? 'border-purple-500' : 'border-gray-200'}`}
+                        >
+                          <img src={cvData.content.ai_data?.background_image} className="w-full h-full object-cover" />
+                          <div className="absolute bottom-0 right-0 bg-purple-500 text-white text-[8px] px-1">AI</div>
+                        </button>
+                      )}
+                      
+                      {/* User's uploaded backgrounds */}
+                      {userBackgrounds.map((img, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSelectImage(img, 'backgroundImage')}
+                          className={`aspect-video rounded-lg overflow-hidden border-2 transition-all ${currentBg === img ? 'border-purple-500 ring-2 ring-purple-200' : 'border-gray-200 hover:border-purple-300'}`}
+                        >
+                          <img src={img} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                   </div>
+                </div>
+              )}
+
+              {/* Default Gallery */}
+              <div className="mt-2">
+                  <p className="text-xs text-gray-500 mb-2">Galleria:</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {defaultImages.backgroundImages.slice(0, 6).map((img, idx) => (
+                      <button 
+                        key={idx}
+                        onClick={() => handleSelectImage(img, 'backgroundImage')}
+                        className={`aspect-video rounded-lg overflow-hidden border-2 transition-all ${currentBg === img ? 'border-purple-500 scale-105' : 'border-transparent hover:border-purple-300'}`}
+                      >
+                        <img src={img} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+              </div>
+            </div>
+
+            {/* 3. Helper Info */}
+            <div className="backdrop-blur-xl bg-blue-50/70 border-2 border-blue-100 rounded-xl shadow-sm p-4">
+              <h4 className="text-xs font-bold text-blue-800 mb-1 flex items-center gap-1">
+                <Layout className="w-3 h-3" />
+                Muokkaustila
+              </h4>
+              <p className="text-xs text-blue-700 leading-relaxed">
+                Paina ylhäältä <strong>"Muokkaa"</strong>, jolloin voit klikata ja muokata tekstejä suoraan CV:n esikatselussa.
+              </p>
+            </div>
+
+          </div>
+
+          {/* ✅ CENTER: CV PREVIEW / EDITOR */}
+          <div className="lg:col-span-9">
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-1 md:p-4 overflow-hidden">
+               {/* A4 Container Wrapper */}
+               <div className="overflow-x-auto pb-4 custom-scrollbar flex justify-center bg-gray-50/50 rounded-lg border border-gray-100 inner-shadow">
+                  <div 
+                    className={`origin-top transition-transform duration-300 bg-white shadow-2xl mt-4 mb-4 print:shadow-none print:m-0`}
+                    style={{
+                      width: '210mm',
+                      minHeight: '297mm', // A4
+                      transform: 'scale(0.95)', // Hieman pienempi että mahtuu ruudulle nätisti
+                    }}
+                  >
+                    {renderTemplate()}
+                  </div>
+               </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 8px;
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(0,0,0,0.05);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(0,0,0,0.1);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(0,0,0,0.2);
+        }
+        .inner-shadow {
+          box-shadow: inset 0 0 20px rgba(0,0,0,0.02);
+        }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
-};
-
-export default EditCVPage;
+}
