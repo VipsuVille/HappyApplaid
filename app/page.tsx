@@ -564,61 +564,7 @@ export default function Home() {
     </div>
   </div>
 </div>
-          <div className="mb-16 sm:mb-20 space-y-4 sm:space-y-6">
-            <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-indigo-100 shadow-xl hover:shadow-2xl transition-all">
-              <div className="bg-indigo-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
-                <MessageCircle className="w-7 h-7 text-indigo-600" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
-                {language === "en" ? "AI That Grows With You" : "AI Joka Kasvaa Kanssasi"}
-              </h3>
-              <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">
-                {language === "en"
-                  ? "If our AI needs more info for a specific job, it asks you smart questions. It learns from your answers and saves them to your profile—so you never have to repeat yourself."
-                  : "Jos AI tarvitsee lisätietoja tiettyyn työhön, se kysyy älykkäitä kysymyksiä. Se oppii vastauksistasi ja tallentaa ne profiiliisi – jotta sinun ei tarvitse koskaan toistaa itseäsi."}
-              </p>
-              <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
-                <p className="text-sm font-semibold text-indigo-800 flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4" />
-                  {language === "en" ? "Result:" : "Tulos:"}
-                </p>
-                <p className="text-sm text-indigo-700 mt-1">
-                  {language === "en"
-                    ? "Your profile gets smarter with every application."
-                    : "Profiilisi viisastuu jokaisen hakemuksen myötä."}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-purple-100 shadow-xl hover:shadow-2xl transition-all">
-              <div className="bg-purple-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
-                <Crown className="w-7 h-7 text-purple-600" />
-              </div>
-              <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 flex-wrap">
-                {language === "en" ? "Built-in HR Consultant" : "Sisäänrakennettu HR-Konsultti"}
-                <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full border border-purple-300">Pro</span>
-              </h3>
-              <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">
-                {language === "en"
-                  ? "Our Pro AI reads real recruitment articles and HR guides from our database before writing. It's like having an expert check your application."
-                  : "Pro AI:mme lukee tietokannastamme oikeita rekrytointiartikkeleita ja HR-oppaita ennen kirjoittamista. Kuin asiantuntija tarkistaisi hakemuksesi."}
-              </p>
-              <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100">
-                <p className="text-sm font-semibold text-purple-800 flex items-center gap-2">
-                  <Database className="w-4 h-4" />
-                  {language === "en" ? "RAG Technology:" : "RAG-Teknologia:"}
-                </p>
-                <p className="text-sm text-purple-700 mt-1">
-                  {language === "en"
-                    ? "Retrieval-Augmented Generation ensures professional advice."
-                    : "Retrieval-Augmented Generation varmistaa ammattimaisen neuvonnan."}
-                </p>
-              </div>
-            </div>
-          </div>
-
-      
-          <div className="mb-16 sm:mb-20">
+    <div className="mb-16 sm:mb-20">
              <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-6 sm:mb-8 px-4">
                {language === "en" ? "Everything You Need" : "Kaikki Mitä Tarvitset"}
              </h2>

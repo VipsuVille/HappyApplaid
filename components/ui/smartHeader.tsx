@@ -3,7 +3,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { SignInButton, SignOutButton, useUser } from '@clerk/nextjs';
+import { SignedOut, SignInButton, SignOutButton, useUser } from '@clerk/nextjs';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -108,64 +108,61 @@ export default function SmartHeader({
   // ========================================
   // NOT SIGNED IN - Minimal Header
   // ========================================
-  if (!isSignedIn) {
-    return (
-      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            
-            {/* LOGO */}
-            <Link href="/" className="flex items-center">
-              <div className="relative h-12 w-40 sm:h-14 sm:w-48">
-                <Image
-                  src="/logo.png"
-                  alt="HappyApplaid"
-                  fill
-                  style={{ objectFit: "contain" }}
-                  priority
-                />
-              </div>
-            </Link>
-
-            {/* RIGHT SIDE - Language + Sign In */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              
-              {/* Language Toggle */}
-              <Button
-                onClick={toggleLanguage}
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-1.5 sm:gap-2"
-              >
-                <Languages className="h-4 w-4" />
-                <span className="text-xs sm:text-sm font-medium">
-                  {language === 'en' ? 'FI' : 'EN'}
-                </span>
-              </Button>
-
-              {/* Sign In Button */}
-<SignInButton mode="modal">
-  <Button 
-    size="sm" 
-    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
-    onClick={(e) => {
-      // Varmista että click tapahtuma käsitellään
-      e.preventDefault();
-      e.stopPropagation();
-    }}
-  >
-    <span className="text-sm">
-      {language === 'en' ? 'Sign In' : 'Kirjaudu'}
-    </span>
-  </Button>
-</SignInButton>
+ // ========================================
+// NOT SIGNED IN - Minimal Header
+// ========================================
+if (!isSignedIn) {
+  return (
+    <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          
+          {/* LOGO */}
+          <Link href="/" className="flex items-center">
+            <div className="relative h-12 w-40 sm:h-14 sm:w-48">
+              <Image
+                src="/logo.png"
+                alt="HappyApplaid"
+                fill
+                style={{ objectFit: "contain" }}
+                priority
+              />
             </div>
+          </Link>
+
+          {/* RIGHT SIDE - Language + Sign In */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            
+            {/* Language Toggle */}
+            <Button
+              onClick={toggleLanguage}
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1.5 sm:gap-2"
+            >
+              <Languages className="h-4 w-4" />
+              <span className="text-xs sm:text-sm font-medium">
+                {language === 'en' ? 'FI' : 'EN'}
+              </span>
+            </Button>
+
+            {/* Sign In Button - KORJATTU */}
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button 
+                  size="sm" 
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-sm hover:shadow-md transition-all"
+                >
+                  {language === 'en' ? 'Sign In' : 'Kirjaudu'}
+                </Button>
+              </SignInButton>
+            </SignedOut>
           </div>
         </div>
-      </header>
-    );
-  }
-
+      </div>
+    </header>
+  );
+}
   // ========================================
   // SIGNED IN - Full Navigation
   // ========================================
