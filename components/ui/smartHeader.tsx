@@ -22,6 +22,8 @@ import {
   LogOut,
   Languages,
   ChevronDown,
+  FileBox,
+  Book,
 } from 'lucide-react';
 
 interface SmartHeaderProps {
@@ -62,6 +64,10 @@ export default function SmartHeader({
       label: language === 'en' ? 'Letters' : 'Kirjeet',
       icon: FileEdit,
     },
+{href: '/profile/responses',
+  label: language === 'en' ? "Answers" : 'Vastaukset',
+  icon: Book,
+},
     {
       href: '/profile',
       label: language === 'en' ? 'Profile' : 'Profiili',

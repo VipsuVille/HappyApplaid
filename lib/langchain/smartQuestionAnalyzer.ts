@@ -1,7 +1,7 @@
-// lib/langchain/smartQuestionAnalyzer.ts - 100% FLEXIBLE, ZERO HARDCODING
-
+// lib/langchain/smartQuestionAnalyzer.ts - KOKONAINEN VERSIO
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import crypto from 'crypto';
 
 export interface SmartQuestion {
   id: string;
@@ -19,6 +19,120 @@ export interface QuestionAnalysisResult {
   confidence: number;
   questions: SmartQuestion[];
   reasoning: string;
+}
+
+interface PreviousResponse {
+  question: string;
+  answer: string;
+  category: string;
+  created_at: string;
+}
+
+/**
+ * ✅ GENEROI KYSYMYS-ID (hash)
+ */
+function generateQuestionId(questionText: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(questionText.toLowerCase().trim())
+    .digest('hex')
+    .substring(0, 16);
+}
+
+/**
+ * ✅ HAE AIEMMAT VASTAUKSET KÄYTTÄJÄLTÄ
+ */
+export async function getPreviousResponses(
+  userId: string,
+  category?: string
+): Promise<PreviousResponse[]> {
+  try {
+    const params = new URLSearchParams();
+    if (category) params.append('category', category);
+    
+    // ⚠️ HUOM: Tämä toimii vain server-side
+    // Client-side pitää käyttää eri metodia
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const response = await fetch(
+      `${baseUrl}/api/user-responses?${params.toString()}`,
+      { 
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      console.warn('Failed to fetch previous responses:', response.status);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    return (data.responses || []).map((r: any) => ({
+      question: r.question_text,
+      answer: r.answer,
+      category: r.question_category,
+      created_at: r.created_at
+    }));
+  } catch (error) {
+    console.error('Error fetching previous responses:', error);
+    return [];
+  }
+}
+
+/**
+ * ✅ SEMANTTINEN SIMILARITY (Fuzzy Match)
+ */
+function calculateSimilarity(str1: string, str2: string): number {
+  const s1 = str1.toLowerCase().trim();
+  const s2 = str2.toLowerCase().trim();
+  
+  if (s1 === s2) return 1.0;
+  
+  // Word-based Jaccard similarity
+  const words1 = new Set(s1.split(/\s+/));
+  const words2 = new Set(s2.split(/\s+/));
+  
+  const intersection = new Set([...words1].filter(w => words2.has(w)));
+  const union = new Set([...words1, ...words2]);
+  
+  return intersection.size / union.size;
+}
+
+/**
+ * ✅ TARKISTA ONKO KYSYMYKSEEN JO VASTATTU
+ */
+export function hasExistingAnswer(
+  questionText: string,
+  previousResponses: PreviousResponse[]
+): { found: boolean; answer?: string; similarity?: number } {
+  
+  if (previousResponses.length === 0) {
+    return { found: false };
+  }
+
+  const questionId = generateQuestionId(questionText);
+  
+  for (const response of previousResponses) {
+    const existingId = generateQuestionId(response.question);
+    
+    // 1. Tarkka match (hash)
+    if (existingId === questionId) {
+      console.log(`✅ Exact match found: "${response.question}"`);
+      return { found: true, answer: response.answer, similarity: 1.0 };
+    }
+    
+    // 2. Fuzzy match (85%+ samankaltaisuus)
+    const similarity = calculateSimilarity(questionText, response.question);
+    if (similarity > 0.85) {
+      console.log(`✅ Similar question found (${Math.round(similarity * 100)}%): "${response.question}"`);
+      return { found: true, answer: response.answer, similarity };
+    }
+  }
+  
+  return { found: false };
 }
 
 /**
@@ -41,7 +155,32 @@ export async function analyzeJobAndProfile(input: {
     [key: string]: any;
   };
   language: string;
+  userId?: string; // ✅ LISÄTTY: Mahdollistaa historian haun
 }): Promise<QuestionAnalysisResult> {
+  
+  // ✅ 1. HAE AIEMMAT VASTAUKSET (jos userId annettu)
+  let previousResponses: PreviousResponse[] = [];
+  if (input.userId) {
+    console.log('📚 Fetching previous responses for user:', input.userId);
+    previousResponses = await getPreviousResponses(input.userId);
+    console.log(`📚 Found ${previousResponses.length} previous responses`);
+  }
+  
+  // ✅ 2. RAKENNA KONTEKSTI AIEMMISTA VASTAUKSISTA
+  const historyContext = previousResponses.length > 0
+    ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**PREVIOUS ANSWERS (USER HAS ALREADY ANSWERED THESE):**
+${previousResponses
+  .map(r => `Q: "${r.question}"\nA: "${r.answer}"\n`)
+  .join('\n')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**CRITICAL INSTRUCTION:**
+DO NOT ask questions that are already answered above.
+DO NOT ask similar variations of these questions.
+If you need clarification on an existing answer, reference it directly.`
+    : '';
+
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: "gpt-4o-mini",
@@ -53,12 +192,14 @@ export async function analyzeJobAndProfile(input: {
 
 **CORE PHILOSOPHY:**
 Every job is UNIQUE. Every profile is UNIQUE. Use ZERO assumptions about industries, roles, or requirements.
+${historyContext}
 
 **YOUR MISSION:**
 1. Read THIS SPECIFIC job posting
 2. Understand what THIS SPECIFIC job needs
 3. Check if THIS SPECIFIC profile addresses those needs
 4. Ask questions ONLY for genuine gaps or unclear areas
+5. **NEVER ask questions that have already been answered** (see PREVIOUS ANSWERS above)
 
 **UNIVERSAL PRINCIPLES (apply to ANY job, ANY field):**
 
@@ -91,6 +232,8 @@ Every job is UNIQUE. Every profile is UNIQUE. Use ZERO assumptions about industr
 
 **WHEN NOT TO ASK:**
 - Profile already addresses the requirement clearly
+- **Question is already answered in PREVIOUS ANSWERS section**
+- **Question is semantically similar to an already answered question**
 - Requirement is too minor/peripheral
 - Question would be generic ("tell me about yourself")
 - More than 5 questions needed (overwhelming)
@@ -100,6 +243,7 @@ Every job is UNIQUE. Every profile is UNIQUE. Use ZERO assumptions about industr
 - Predetermined question templates
 - Assumptions based on job titles
 - Generic questions unrelated to THIS specific job
+- Asking questions that have already been answered
 
 **OUTPUT:**
 {{
@@ -142,13 +286,20 @@ Best Project: {bestProjectExample}
 Failure Lesson: {failureLesson}
 Personal Notes: {personalNotes}
 
+**PREVIOUS USER ANSWERS (DO NOT ASK AGAIN):**
+${previousResponses.length > 0 
+  ? previousResponses.map(r => `• ${r.question} → ${r.answer}`).join('\n')
+  : 'No previous answers'
+}
+
 **YOUR TASK:**
 Use semantic AI understanding to:
 1. Understand what THIS job truly needs (not industry stereotypes)
 2. Check if profile addresses those needs
-3. Generate SPECIFIC questions for gaps
-4. Keep questions in {language}
-5. Max 5 questions, prioritize most important
+3. **CHECK if questions are already answered in PREVIOUS ANSWERS**
+4. Generate SPECIFIC questions for gaps ONLY if not already answered
+5. Keep questions in {language}
+6. Max 5 questions, prioritize most important
 
 Return JSON.`]
   ]);
@@ -179,6 +330,27 @@ Return JSON.`]
     if (!jsonMatch) throw new Error('No JSON found');
 
     const analysis: QuestionAnalysisResult = JSON.parse(jsonMatch[0]);
+    
+    // ✅ 3. SUODATA POIS KYSYMYKSET JOIHIN ON JO VASTATTU
+    // (Varmistus, jos AI ei huomannut)
+    if (analysis.questions && previousResponses.length > 0) {
+      const originalCount = analysis.questions.length;
+      
+      analysis.questions = analysis.questions.filter(q => {
+        const existing = hasExistingAnswer(q.question, previousResponses);
+        
+        if (existing.found) {
+          console.log(`⏭️ Skipping already answered question: "${q.question}"`);
+          console.log(`   → Original answer: "${existing.answer?.substring(0, 50)}..."`);
+          return false;
+        }
+        
+        return true;
+      });
+      
+      const filteredCount = analysis.questions.length;
+      console.log(`📝 Questions: ${originalCount} → ${filteredCount} (after filtering)`);
+    }
     
     console.log(`🤔 Flexible Analysis:`);
     console.log(`   Should ask: ${analysis.shouldAskQuestions}`);

@@ -132,6 +132,7 @@ export async function generateCoherentCoverLetter(input: {
   // ✅ LISÄTTY PUUTTUVAT KENTÄT:
   skipQuestions?: boolean;
   answeredQuestions?: Record<string, string>;
+  userId?: string; // ✅ TÄMÄ PUUTTUI!
 }) {
   console.log('🔍 V2: Flexible job-profile analysis (ATS + RAG)...');
   
@@ -139,7 +140,7 @@ export async function generateCoherentCoverLetter(input: {
   if (input.skipQuestions) {
     console.log('⏭️ Skipping question analysis (skipQuestions=true)');
   } else {
-    // ✅ STEP 0: Smart analysis
+    // ✅ STEP 0: Smart analysis - NYT KÄYTTÄÄ userId:tä
     const smartAnalysis = await analyzeJobAndProfile({
       jobDescription: input.jobDescription,
       userProfile: {
@@ -155,9 +156,9 @@ export async function generateCoherentCoverLetter(input: {
         failureLesson: input.failureLesson || "Not specified",
         personalNotes: input.personalNotes || "Not specified",
       },
-      language: input.language || 'finnish'
+      language: input.language || 'finnish',
+      userId: input.userId // ✅ VÄLITÄ userId ANALYZERILLE
     });
-
     // KYSYTÄÄNKÖ?
     if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
       const criticalQuestions = smartAnalysis.questions.filter(

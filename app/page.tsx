@@ -285,7 +285,6 @@ export default function Home() {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
       
           <div className="mb-12 sm:mb-16">
-            {/* Muutos: Poistettu ylimääräinen pyöristys mobiilissa, pidetty responsiivisuus */}
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 p-6 sm:p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl sm:rounded-[2.5rem]"></div>
 
@@ -425,11 +424,8 @@ export default function Home() {
           </div>
 
     
-// Korvaa VIDEO DEMO SECTION kokonaan tällä:
 
-{/* ===================================
-    VIDEO DEMO SECTION - YKSINKERTAISTETTU
-    =================================== */}
+
 <div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">
   <div className="text-center mb-6 sm:mb-8">
     <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 rounded-full mb-4">
@@ -465,9 +461,7 @@ export default function Home() {
   </div>
 </div>
 
-{/* ===================================
-    AI THAT GROWS WITH YOU - PAINOTETTU
-    =================================== */}
+
 <div className="mb-16 sm:mb-20">
   <div className="max-w-4xl mx-auto">
     <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl relative overflow-hidden">
@@ -570,7 +564,6 @@ export default function Home() {
     </div>
   </div>
 </div>
-          {/* Muutos: Poistettu grid-rajoitus isommilla näytöillä ja palautettu perus space-y mobiilissa */}
           <div className="mb-16 sm:mb-20 space-y-4 sm:space-y-6">
             <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-indigo-100 shadow-xl hover:shadow-2xl transition-all">
               <div className="bg-indigo-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
@@ -597,7 +590,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Feature: RAG Expert Knowledge */}
             <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-purple-100 shadow-xl hover:shadow-2xl transition-all">
               <div className="bg-purple-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
                 <Crown className="w-7 h-7 text-purple-600" />
@@ -630,7 +622,6 @@ export default function Home() {
              <h2 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-6 sm:mb-8 px-4">
                {language === "en" ? "Everything You Need" : "Kaikki Mitä Tarvitset"}
              </h2>
-             {/* Muutos: Poistettu grid-rakenne isommilla näytöillä ja käytetty space-y:tä, jotta mobiilissa palikat ovat allekkain ja ovat ihmisläheisempiä */}
              <div className="space-y-4 sm:space-y-6">
                 <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
                    <Target className="w-10 h-10 text-indigo-600 mb-4" />
@@ -645,15 +636,12 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-4 sm:space-y-6">
-                  {/* Muutos: Poistettu grid-rakenne tästäkin kohtaa */}
                   
-                  {/* PDF Export - Lisätty tähän selkeästi, sillä se on toiminnallisuus */}
                   <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
                      <FileText className="w-10 h-10 text-purple-600 mb-4" />
                      <h3 className="font-bold text-lg mb-2">{language === "en" ? "Professional PDF Export" : "Ammattimainen PDF-Vienti"}</h3>
                      <p className="text-sm text-gray-600">{language === "en" ? "Download your CVs and cover letters as professional PDF files for easy sharing." : "Lataa CV:t ja hakukirjeet ammattimaisina PDF-tiedostoina helppoa jakamista varten."}</p>
                   </div>
-                  {/* PDF Export loppuu */}
 
                   <div className="bg-gray-50 p-6 rounded-3xl border border-gray-200 shadow-none relative overflow-hidden group">
                      <div className="absolute top-3 right-3 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider z-10 shadow-sm">
@@ -681,7 +669,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Muutos: Mobiilissa asettelu on nyt 1 sarake, isommilla näytöillä 2-4 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
               <div className="bg-white rounded-2xl sm:rounded-3xl p-6 border-2 border-gray-200 shadow-lg flex flex-col">
                 <h3 className="text-xl font-bold mb-2">{language === "en" ? "Free" : "Ilmainen"}</h3>
@@ -719,7 +706,6 @@ export default function Home() {
                 </SignedOut>
               </div>
 
-              {/* Basic */}
               <div className="bg-white rounded-2xl sm:rounded-3xl p-6 border-2 border-blue-200 shadow-lg flex flex-col">
                 <h3 className="text-xl font-bold mb-2 text-blue-900">Basic</h3>
                 <div className="mb-4">
@@ -751,9 +737,7 @@ export default function Home() {
                 </Link>
               </div>
 
-              {/* Semi-Pro - RECOMMENDED */}
               <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl sm:rounded-3xl p-6 border-2 border-yellow-400 shadow-2xl relative scale-105 z-10 flex flex-col">
-                {/* Muutos: Suosittelemme / Recommended */}
                 <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md whitespace-nowrap">
                   {language === "en" ? "Recommended" : "Suosittelemme"}
                 </div>
@@ -782,7 +766,6 @@ export default function Home() {
                   </Button>
                 </Link>
               </div>
-                    {/* Pro */}
           <div className="bg-white rounded-2xl sm:rounded-3xl p-6 border-2 border-purple-200 shadow-lg flex flex-col">
             <h3 className="text-xl font-bold mb-2 text-purple-900 flex items-center gap-2">
               Pro <Crown className="w-4 h-4 text-purple-600" />
@@ -856,8 +839,6 @@ export default function Home() {
   </div>
     )}
   
-  {/* --- 4. Dashboardin Tiedot Latautuvat (Kirjautunut, mutta ei valmis) --- */}
-  {/* HUOM: Siirretty tähän Landing Pagen returnin jälkeen */}
   if (profileCompleted === null || freemiumLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
@@ -879,7 +860,6 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
       <SmartHeader />
 
-      {/* Profile Prompt Modal */}
       {showProfilePrompt && profileCompleted === false && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="backdrop-blur-xl bg-white/90 border-2 border-white/40 rounded-3xl shadow-2xl p-8 max-w-md w-full relative">
@@ -920,9 +900,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Muutos: Poistettu ylimääräinen pyöristys mobiilissa, pidetty responsiivisuus */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
         <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
             {language === "en"
@@ -940,7 +918,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Upgrade Prompt for Free Users */}
         {!isPremium && hasUsedFreeCv && (
           <div className="mb-8 backdrop-blur-xl bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-300 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
             <Crown className="h-10 w-10 sm:h-12 sm:w-12 text-yellow-600 mx-auto mb-4" />
@@ -965,9 +942,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Quick Actions Grid - Pienet muutokset paddingeihin mobiilissa */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          {/* Create CV Card */}
           {canCreateCV ? (
             <Link href="/create-cv">
               <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl sm:rounded-3xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
@@ -1008,7 +983,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Create Cover Letter Card */}
           <Link href="/create-cover-letter">
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl sm:rounded-3xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
               <FileInput className="h-10 w-10 sm:h-12 sm:w-12 text-green-600 mb-4" />
@@ -1030,7 +1004,6 @@ export default function Home() {
             </div>
           </Link>
 
-          {/* Edit Profile Card */}
           <Link href="/profile">
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl sm:rounded-3xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
               <User className="h-10 w-10 sm:h-12 sm:w-12 text-amber-600 mb-4" />
@@ -1049,7 +1022,6 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Recent Documents - Pienet muutokset paddingeihin mobiilissa */}
         <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
           <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 text-gray-900">
             <Files className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
@@ -1057,7 +1029,6 @@ export default function Home() {
           </h2>
 
           <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
-            {/* CVs Section */}
             <div>
               <Link href="/my-cvs">
                 <div className="flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-xl sm:rounded-2xl hover:bg-indigo-100 transition-all mb-3 sm:mb-4 cursor-pointer">
@@ -1123,7 +1094,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Cover Letters Section */}
             <div>
               <Link href="/my-cover-letters">
                 <div className="flex items-center justify-between p-3 sm:p-4 bg-green-50 rounded-xl sm:rounded-2xl hover:bg-green-100 transition-all mb-3 sm:mb-4 cursor-pointer">
@@ -1197,7 +1167,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="py-8 text-center text-gray-500 border-t border-indigo-100 bg-white/70 backdrop-blur-xl mt-12 mx-4 sm:mx-6 lg:mx-8 rounded-3xl">
         <p className="text-sm">
           © {new Date().getFullYear()} HappyApplaid.{" "}
