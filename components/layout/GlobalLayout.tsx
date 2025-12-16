@@ -7,15 +7,25 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { Toaster } from 'sonner';
 
 export default function GlobalLayout({ children }: { children: React.ReactNode }) {
-    // Siirrä kaikki Providerit, Header ja Toaster tänne.
-    // TÄMÄ TAKAA, ETTÄ NE KAIKKI HYDRATOITUVAT YHDESSÄ CLIENT-PUOLELLA.
     return (
-        <SubscriptionProvider>
-            <LanguageProvider>
-                <SmartHeader />
-                {children}
-                <Toaster position="top-center" />
-            </LanguageProvider>
-        </SubscriptionProvider>
+        // ✅ TÄRKEÄ: YKSI JUURINODI (DIV), JOKA KÄÄRII KAIKEN.
+        <div id="app-root-wrapper" className="min-h-screen flex flex-col">
+            <SubscriptionProvider>
+                <LanguageProvider>
+                    
+                    {/* 1. Globaali Header */}
+                    <SmartHeader />
+                    
+                    {/* 2. Page Content (children) */}
+                    {/* Kääritään children "main"-elementtiin selkeyden vuoksi. */}
+                    <main className="flex-grow">
+                        {children}
+                    </main>
+
+                    {/* 3. Toaster */}
+                    <Toaster position="top-center" />
+                </LanguageProvider>
+            </SubscriptionProvider>
+        </div>
     );
 }
