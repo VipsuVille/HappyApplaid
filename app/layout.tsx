@@ -4,8 +4,6 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from "next/font/google";
 import { Toaster } from 'sonner';
 import "./globals.css";
-import SubscriptionProvider from '@/context/SubscriptionContext';
-import SmartHeader from '@/components/ui/smartHeader';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 const inter = Inter({ subsets: ["latin"] });
 
