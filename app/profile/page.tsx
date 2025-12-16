@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ProfileData } from "@/types";
-import SmartHeader from "@/components/ui/smartHeader";
 
 // --- DESIGN SYSTEM STYLES ---
 const styles = {
@@ -1003,7 +1002,6 @@ const SimplifiedProfilePage: React.FC = () => {
 
   return (
     <>
-      <SmartHeader />
       <div className={styles.wrapper + " pb-20 pt-8"}>
         
         {/* Animated Blobs Background */}

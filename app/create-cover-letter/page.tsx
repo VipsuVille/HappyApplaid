@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import {
   Loader2, Sparkles, Zap, CheckCircle, Crown, AlertCircle, Target, Info, ArrowRight, X
 } from "lucide-react";
-import SmartHeader from "@/components/ui/smartHeader";
 import { useTokens } from "@/hooks/useTokens";
 
 type Language = "finnish" | "english" | "swedish";
@@ -311,7 +310,6 @@ export default function CreateCoverLetterPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
       
-      <SmartHeader />
 
       {/* ✅ KYSYMYSDIALOGI */}
       {showQuestionPrompt && (

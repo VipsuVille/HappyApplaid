@@ -14,7 +14,6 @@ import { HexColorPicker } from 'react-colorful';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify } from 'lucide-react';
-import SmartHeader from '@/components/ui/smartHeader';
 import ATSReport from '@/components/ats-raportti';
 
 interface CoverLetterStyles {
@@ -560,7 +559,6 @@ export default function EditCoverLetterPage() {
   if (!coverLetter) {
     return (
       <div className="min-h-screen">
-        <SmartHeader />
         <div className="container mx-auto py-8 px-4 text-center pt-16">
           {error ? <div className="text-red-500">{error}</div> : <div>Ladataan...</div>}
         </div>
@@ -570,7 +568,6 @@ export default function EditCoverLetterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <SmartHeader />
       <main className="container mx-auto py-6 px-4 pt-20">
         <div className="flex justify-between items-center mb-6">
           <div>

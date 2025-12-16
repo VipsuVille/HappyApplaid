@@ -9,7 +9,6 @@ import {
   Loader2, RefreshCw, Sparkles, Edit3, Palette, Layout,
   AlignLeft, AlignCenter, AlignRight, Zap, CheckCircle, XCircle, Minimize2
 } from 'lucide-react';
-import SmartHeader from '@/components/ui/smartHeader';
 import { fetchCoverLetterById, updateCoverLetter, deleteCoverLetter } from '@/services/coverLetterService-client';
 
 const A4_HEIGHT_PX = 1123;
@@ -435,7 +434,6 @@ export default function EditCoverLetterPage() {
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
       </div>
 
-      <SmartHeader />
       
       {/* TOP BAR */}
       <div className="px-2 md:px-6 py-3 md:py-4 mt-16 sticky top-16 z-40">

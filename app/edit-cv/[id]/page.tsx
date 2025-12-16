@@ -8,7 +8,6 @@ import {
   ImageIcon, Layout, Palette, RefreshCw, Upload,
   User, Image as ImageIconLucide, CheckCircle
 } from 'lucide-react';
-import SmartHeader from '@/components/ui/smartHeader';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { supabase } from '@/lib/supabase-client';
 import { BaseCV, CVTemplateProps, UserFormData } from '@/types';
@@ -262,7 +261,6 @@ const renderTemplate = () => {
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
       </div>
 
-      <SmartHeader />
 
       {/* TOP BAR - STICKY */}
       <div className="px-2 md:px-6 py-3 md:py-4 mt-16 sticky top-16 z-40">

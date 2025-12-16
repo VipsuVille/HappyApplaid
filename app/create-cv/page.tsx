@@ -15,7 +15,6 @@ import {
   Crown,
   AlertCircle,
 } from "lucide-react";
-import SmartHeader from "@/components/ui/smartHeader";
 import { useTokens } from "@/hooks/useTokens";
 
 type CVTemplate = "technical" | "creative" | "simple";
@@ -66,7 +65,7 @@ export default function CreateCVPage() {
       if (!user?.id) return;
       try {
         setFreemiumLoading(true);
-        const response = await fetch("/api/subscription");
+        const response = await fetch('/api/check-subscription');
         if (response.ok) {
           const data = await response.json();
           setFreemiumStatus({
@@ -264,7 +263,6 @@ export default function CreateCVPage() {
 
   return (
     <div>
-      <SmartHeader />
       
       {/* ✅ GENEROINTI ILMOITUS */}
       {isLoading && (

@@ -2,7 +2,6 @@ import { currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { DeleteAccountSection } from "@/components/account/DeleteAccountSection";
 import { getFreemiumStatus } from "@/lib/server/getFreemiumStatus";
-import SmartHeader from "@/components/ui/smartHeader";
 
 export default async function SettingsPage() {
   const user = await currentUser();
@@ -14,7 +13,6 @@ export default async function SettingsPage() {
 
   return (
 <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50 container max-w-5xl mx-auto">
-  <SmartHeader />
 
   <div className="space-y-8  py-8 px-4">
         {/* Otsikko */}
