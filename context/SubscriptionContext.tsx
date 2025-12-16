@@ -117,23 +117,22 @@ function SubscriptionProvider({ children }: { children: React.ReactNode }) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       
       // ✅ Aseta safe defaults errorin sattuessa
-      if (!subscription) {
-        setSubscription({
-          plan_type: 'free',
-          is_premium: false,
-          tokens: 0,
-          has_used_free_cv: false,
-          can_create_cv: true,
-          cv_count: 0,
-          cancel_at_period_end: false,
-          current_period_end: null,
-          status: 'inactive'
-        });
-      }
-    } finally {
+
+      setSubscription({
+      plan_type: 'free',
+      is_premium: false,
+      tokens: 0,
+      has_used_free_cv: false,
+      can_create_cv: true,
+      cv_count: 0,
+      cancel_at_period_end: false,
+      current_period_end: null,
+      status: 'inactive'
+    });
+  } finally {
       setIsLoading(false);
     }
-  }, [userId, clerkLoaded, retryCount, subscription]);
+}, [userId, clerkLoaded, retryCount]); // ✅ HUOM! POISTETTU subscription
 
   // ✅ FETCH kun userId tai Clerk valmistuu
   useEffect(() => {
