@@ -1,5 +1,3 @@
-// components/ui/smartHeader.tsx - TÄYSIN UUSITTU
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -22,80 +20,24 @@ import {
   LogOut,
   Languages,
   ChevronDown,
-  FileBox,
   Book,
 } from 'lucide-react';
 
-interface SmartHeaderProps {
-  isLoading?: boolean;
-  showAuthButtons?: boolean;
-}
 export default function SmartHeader() {
-const { 
-    subscription, 
-    isLoading: isSubscriptionLoading // Nimeä uudelleen törmäyksen välttämiseksi
-  } = useSubscription();  
-  const { user, isSignedIn, isLoaded: isClerkLoaded } = useUser();
-  const { language, toggleLanguage } = useLanguage();
-  const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  // 🔑 PAIKKA 2 (DEBUG): Nyt voit debugata täällä
+  // ✅ KAIKKI HOOKIT KOMPONENTIN ALUSSA (ennen mitään ehtoja!)
+  const { subscription, isLoading: isSubscriptionLoading } = useSubscription();  
+  const { user, isSignedIn, isLoaded: isClerkLoaded } = useUser();
+  const { language, toggleLanguage } = useLanguage();
+  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  if (!isClerkLoaded || isSubscriptionLoading) {
-    // Näytä latausskeleton, jos Clerk ei ole latautunut TAI jos tilausta ladataan
-    return (
-      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        {/* ... (Skeleton-koodisi tähän) ... */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-                <div className="h-8 w-32 bg-gray-200 animate-pulse rounded" />
-                <div className="flex gap-2">
-                    <div className="h-8 w-20 bg-gray-200 animate-pulse rounded" />
-                </div>
-            </div>
-        </div>
-      </header>
-    );
-  }
-
-
+  // ✅ Laske arvot ENNEN early returnia
   const isPremium = subscription?.is_premium || false;
   const tokens = subscription?.tokens || 0;
   const plan = subscription?.plan_type || 'free';
 
-  // Navigation links (only for logged in users)
-  const navLinks = [
-    {
-      href: '/',
-      label: language === 'en' ? 'Home' : 'Etusivu',
-      icon: Home,
-    },
-    {
-      href: '/my-cvs',
-      label: language === 'en' ? 'CVs' : 'CV:t',
-      icon: FileText,
-    },
-    {
-      href: '/my-cover-letters',
-      label: language === 'en' ? 'Letters' : 'Kirjeet',
-      icon: FileEdit,
-    },
-{href: '/profile/responses',
-  label: language === 'en' ? "Answers" : 'Vastaukset',
-  icon: Book,
-},
-    {
-      href: '/profile',
-      label: language === 'en' ? 'Profile' : 'Profiili',
-      icon: UserIcon,
-    },
-  ];
-
-  const isActive = (href: string) => pathname === href;
-  const handleLinkClick = () => setMobileMenuOpen(false);
-
-  // Close dropdowns when clicking outside
+  // ✅ useEffect ENNEN early returnia
   useEffect(() => {
     const handleClickOutside = () => {
       setProfileMenuOpen(false);
@@ -106,80 +48,86 @@ const {
     }
   }, [profileMenuOpen]);
 
-if (!isSignedIn) {
+  // Navigation links
+  const navLinks = [
+    { href: '/', label: language === 'en' ? 'Home' : 'Etusivu', icon: Home },
+    { href: '/my-cvs', label: language === 'en' ? 'CVs' : 'CV:t', icon: FileText },
+    { href: '/my-cover-letters', label: language === 'en' ? 'Letters' : 'Kirjeet', icon: FileEdit },
+    { href: '/profile/responses', label: language === 'en' ? "Answers" : 'Vastaukset', icon: Book },
+    { href: '/profile', label: language === 'en' ? 'Profile' : 'Profiili', icon: UserIcon },
+  ];
+
+  const isActive = (href: string) => pathname === href;
+  const handleLinkClick = () => setMobileMenuOpen(false);
+
+  // ✅ NYT VASTA early return (kun kaikki hookit on kutsuttu)
+  if (!isClerkLoaded || isSubscriptionLoading) {
+    return (
+      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="h-8 w-32 bg-gray-200 animate-pulse rounded" />
+            <div className="flex gap-2">
+              <div className="h-8 w-20 bg-gray-200 animate-pulse rounded" />
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // ========================================
+  // SIGNED OUT
+  // ========================================
+  if (!isSignedIn) {
+    return (
+      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            
+            <Link href="/" className="flex items-center">
+              <div className="relative h-12 w-40 sm:h-14 sm:w-48">
+                <Image src="/logo.png" alt="HappyApplaid" fill style={{ objectFit: "contain" }} priority />
+              </div>
+            </Link>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Button onClick={toggleLanguage} variant="ghost" size="sm" className="flex items-center gap-1.5 sm:gap-2">
+                <Languages className="h-4 w-4" />
+                <span className="text-xs sm:text-sm font-medium">
+                  {language === 'en' ? 'FI' : 'EN'}
+                </span>
+              </Button>
+
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <Button size="sm" className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-sm hover:shadow-md transition-all">
+                    {language === 'en' ? 'Sign In' : 'Kirjaudu'}
+                  </Button>
+                </SignInButton>
+              </SignedOut>
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // ========================================
+  // SIGNED IN
+  // ========================================
   return (
     <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           
-          {/* LOGO */}
-          <Link href="/" className="flex items-center">
-            <div className="relative h-12 w-40 sm:h-14 sm:w-48">
-              <Image
-                src="/logo.png"
-                alt="HappyApplaid"
-                fill
-                style={{ objectFit: "contain" }}
-                priority
-              />
-            </div>
-          </Link>
-
-          {/* RIGHT SIDE - Language + Sign In */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            
-            {/* Language Toggle */}
-            <Button
-              onClick={toggleLanguage}
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-1.5 sm:gap-2"
-            >
-              <Languages className="h-4 w-4" />
-              <span className="text-xs sm:text-sm font-medium">
-                {language === 'en' ? 'FI' : 'EN'}
-              </span>
-            </Button>
-
-            {/* Sign In Button - KORJATTU */}
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button 
-                  size="sm" 
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-sm hover:shadow-md transition-all"
-                >
-                  {language === 'en' ? 'Sign In' : 'Kirjaudu'}
-                </Button>
-              </SignInButton>
-            </SignedOut>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
-  // ========================================
-  // SIGNED IN - Full Navigation
-  // ========================================
-  return (
-<header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-         
-          {/* LOGO */}
           <Link href="/" className="flex items-center flex-shrink-0">
             <div className="relative h-12 w-32 sm:h-14 sm:w-40">
-              <Image
-                src="/logo.png"
-                alt="HappyApplaid"
-                fill
-                style={{ objectFit: "contain" }}
-                priority
-              />
+              <Image src="/logo.png" alt="HappyApplaid" fill style={{ objectFit: "contain" }} priority />
             </div>
           </Link>
 
-          {/* DESKTOP NAVIGATION */}
+          {/* DESKTOP NAV */}
           <nav className="hidden md:flex items-center gap-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
@@ -189,9 +137,7 @@ if (!isSignedIn) {
                     variant="ghost"
                     size="sm"
                     className={`flex items-center gap-2 ${
-                      isActive(link.href)
-                        ? 'text-indigo-600 bg-indigo-50'
-                        : 'text-gray-600 hover:text-indigo-600'
+                      isActive(link.href) ? 'text-indigo-600 bg-indigo-50' : 'text-gray-600 hover:text-indigo-600'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -203,28 +149,21 @@ if (!isSignedIn) {
           </nav>
 
           {/* RIGHT SIDE */}
-            <div className="flex items-center gap-2 sm:gap-3">           
-            {/* Language Toggle (Desktop) */}
-            <Button
-              onClick={toggleLanguage}
-              variant="ghost"
-              size="sm"
-              className="hidden sm:flex items-center gap-2"
-            >
+          <div className="flex items-center gap-2 sm:gap-3">
+            
+            <Button onClick={toggleLanguage} variant="ghost" size="sm" className="hidden sm:flex items-center gap-2">
               <Languages className="h-4 w-4" />
               <span className="text-xs">{language === 'en' ? 'FI' : 'EN'}</span>
             </Button>
 
-            {/* PREMIUM/FREE BADGE (Desktop) */}
-            {!isClerkLoaded && (
+            {/* PREMIUM BADGE - KORJATTU: !isClerkLoaded → isClerkLoaded */}
+            {isClerkLoaded && (
               <>
                 {isPremium ? (
                   <Link href="/pricing">
                     <div className="hidden sm:flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-300 px-3 py-1.5 rounded-full shadow-sm hover:shadow-md transition-all cursor-pointer">
                       <Crown className="h-4 w-4 text-yellow-600" />
-                      <span className="text-xs font-semibold text-yellow-800">
-                        {plan.toUpperCase()}
-                      </span>
+                      <span className="text-xs font-semibold text-yellow-800">{plan.toUpperCase()}</span>
                     </div>
                   </Link>
                 ) : (
@@ -239,7 +178,7 @@ if (!isSignedIn) {
               </>
             )}
 
-            {/* User Menu (Desktop) */}
+            {/* USER MENU */}
             <div className="hidden sm:block relative">
               <button
                 onClick={(e) => {
@@ -276,7 +215,7 @@ if (!isSignedIn) {
               )}
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* MOBILE MENU BUTTON */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -287,39 +226,38 @@ if (!isSignedIn) {
         </div>
 
         {/* MOBILE MENU */}
-       {/* MOBILE MENU */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 py-4 space-y-3">
-           
-            {/* User Info Card */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200">
-              {/* ... (User avatar ja nimi) ... */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-xs text-gray-600 mt-0.5">
-                    {/* 🚨 KORJAUS 2: Lisää lataustilan tarkistus mobiilimenuun */}
-                    {isClerkLoaded ? (
-                        <span className="text-gray-500 font-semibold">
-                            {language === 'en' ? 'Loading status...' : 'Ladataan tilaa...'}
-                        </span>
-                    ) : isPremium ? (
-                    <span className="text-yellow-600 font-semibold">
-                      ⭐ {plan.toUpperCase()}
-                    </span>
-                  ) : (
-                    <Link href="/pricing">
-                      <span className="text-indigo-600 font-semibold cursor-pointer hover:underline">
-                        {language === 'en' ? '🔒 Upgrade' : '🔒 Päivitä'}
-                      </span>
-                    </Link>
-                  )}
-                </p>
-              </div>
-            </div>
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200 py-4 space-y-3">
+            
+            {/* USER INFO */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200">
+              <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-lg font-bold flex-shrink-0">
+                {user?.firstName?.charAt(0) || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  {/* KORJATTU: isClerkLoaded → !isClerkLoaded */}
+                  {!isClerkLoaded ? (
+                    <span className="text-gray-500 font-semibold">
+                      {language === 'en' ? 'Loading status...' : 'Ladataan tilaa...'}
+                    </span>
+                  ) : isPremium ? (
+                    <span className="text-yellow-600 font-semibold">⭐ {plan.toUpperCase()}</span>
+                  ) : (
+                    <Link href="/pricing">
+                      <span className="text-indigo-600 font-semibold cursor-pointer hover:underline">
+                        {language === 'en' ? '🔒 Upgrade' : '🔒 Päivitä'}
+                      </span>
+                    </Link>
+                  )}
+                </p>
+              </div>
+            </div>
 
-            {/* Language Toggle */}
+            {/* LANGUAGE TOGGLE */}
             <button
               onClick={() => {
                 toggleLanguage();
@@ -333,7 +271,7 @@ if (!isSignedIn) {
               </span>
             </button>
 
-            {/* Navigation Links */}
+            {/* NAV LINKS */}
             <div className="space-y-1">
               {navLinks.map((link) => {
                 const Icon = link.icon;
@@ -354,7 +292,7 @@ if (!isSignedIn) {
                 );
               })}
 
-              {/* Settings Link */}
+              {/* SETTINGS */}
               <Link
                 href="/settings"
                 onClick={handleLinkClick}
@@ -369,7 +307,7 @@ if (!isSignedIn) {
               </Link>
             </div>
 
-            {/* Sign Out */}
+            {/* SIGN OUT */}
             <div className="pt-2 border-t border-gray-200">
               <SignOutButton>
                 <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-50 to-pink-50 text-red-600 rounded-2xl hover:from-red-100 hover:to-pink-100 transition-all font-semibold border-2 border-red-200">
@@ -381,14 +319,13 @@ if (!isSignedIn) {
           </div>
         )}
 
-        {/* Loading indicator */}
-        {isClerkLoaded && (
+        {/* LOADING INDICATOR - KORJATTU: isClerkLoaded → !isClerkLoaded */}
+        {!isClerkLoaded && (
           <div className="absolute bottom-0 left-0 w-full h-1">
             <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse" />
           </div>
         )}
       </div>
     </header>
-
   );
 }
