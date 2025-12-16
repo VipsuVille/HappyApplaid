@@ -6,6 +6,7 @@ import { Toaster } from 'sonner';
 import "./globals.css";
 import SubscriptionProvider from '@/context/SubscriptionContext';
 import SmartHeader from '@/components/ui/smartHeader';
+import GlobalLayout from '@/components/layout/GlobalLayout';
 const inter = Inter({ subsets: ["latin"] });
 
 const clerkAppearance = {
@@ -69,16 +70,10 @@ export default function RootLayout({
     <ClerkProvider appearance={clerkAppearance}>
       <html lang="en">
         <body className={`${inter.className} bg-slate-200`}>
-          {/* ✅ KAIKKI PROVIDERIT BODY:N SISÄÄN */}
-          <SubscriptionProvider>
-            <LanguageProvider>
-                {/* 👇 UUSI SIJAINTI: Header on Providers-sisällä, mutta children-ulkopuolella. 
-                    Se renderöi vain kerran ja reagoi vain Clerkin tai Subscriptionin muutoksiin. */}
-                <SmartHeader />
-              {children}
-              <Toaster position="top-center" />
-            </LanguageProvider>
-          </SubscriptionProvider>
+          {/* 🎯 Käytä Client Component -wrapperia */}
+          <GlobalLayout>
+            {children}
+          </GlobalLayout>
         </body>
       </html>
     </ClerkProvider>
