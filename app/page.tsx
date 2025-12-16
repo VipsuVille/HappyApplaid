@@ -33,7 +33,6 @@ import {
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
 import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
-import SmartHeader from "@/components/ui/smartHeader";
 
 interface SubscriptionStatus {
   plan_type: "free" | "basic" | "semi-pro" | "pro";
@@ -268,7 +267,6 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                  <SmartHeader />
 
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
           <div
@@ -804,7 +802,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-      <SmartHeader />
 
       {showProfilePrompt && profileCompleted === false && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
