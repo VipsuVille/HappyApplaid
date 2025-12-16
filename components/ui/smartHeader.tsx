@@ -31,30 +31,44 @@ interface SmartHeaderProps {
   showAuthButtons?: boolean;
 }
 export default function SmartHeader() {
-  // HUOM: Ei propseja {}
 const { 
-    subscription, // Oikea nimi kontekstista (SubscriptionData | null)
-    isLoading     // Oikea nimi kontekstista
-  } = useSubscription();  
+    subscription, 
+    isLoading: isSubscriptionLoading // Nimeä uudelleen törmäyksen välttämiseksi
+  } = useSubscription();  
+  const { user, isSignedIn, isLoaded: isClerkLoaded } = useUser();
+  const { language, toggleLanguage } = useLanguage();
+  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   // 🔑 PAIKKA 2 (DEBUG): Nyt voit debugata täällä
- console.log(
-    '🔑 PAIKKA 2 (SmartHeader): Kontekstista haettu status:', 
-    {
-      isLoading: isLoading,
-      plan: subscription?.plan_type,
-      tokens: subscription?.tokens
-    }
-  );
 
-  if (isLoading || !subscription) {
-    // Voit palauttaa pienen latausindikaattorin tai nullin
-    return null; 
-  }
-  const { user, isSignedIn, isLoaded } = useUser();
-  const { language, toggleLanguage } = useLanguage();
-  const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  if (!isClerkLoaded || isSubscriptionLoading) {
+    // Näytä latausskeleton, jos Clerk ei ole latautunut TAI jos tilausta ladataan
+    return (
+      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        {/* ... (Skeleton-koodisi tähän) ... */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+                <div className="h-8 w-32 bg-gray-200 animate-pulse rounded" />
+                <div className="flex gap-2">
+                    <div className="h-8 w-20 bg-gray-200 animate-pulse rounded" />
+                </div>
+            </div>
+        </div>
+      </header>
+    );
+  }
+
+  // 2. LATAUTUMISEN JÄLKEEN TARKISTAAN, ONKO TILAUSSA DATAA
+  // (Tätä tarvitaan vain, jos tilaus-konteksti voi palauttaa 
+  // isSubscriptionLoading: false, mutta subscription: null 
+  // virheen takia. Normaalisti pitäisi olla valmis.)
+  if (!subscription) {
+    // Palautetaan jotain, jos tilausta ei ole (virhe tai kirjautumattoman tila, jos halutaan)
+    // Tässä tapauksessa, jos ollaan sisällä, pitäisi olla tilaus, joten tämä olisi virhetila.
+    return null; // Tai näytä virheilmoitus
+  }
+
 
 
   const isPremium = subscription?.is_premium || false;
@@ -102,22 +116,6 @@ const {
       return () => document.removeEventListener('click', handleClickOutside);
     }
   }, [profileMenuOpen]);
-
-  // Loading skeleton
-  if (!isLoaded) {
-    return (
-      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="h-8 w-32 bg-gray-200 animate-pulse rounded" />
-            <div className="flex gap-2">
-              <div className="h-8 w-20 bg-gray-200 animate-pulse rounded" />
-            </div>
-          </div>
-        </div>
-      </header>
-    );
-  }
 
 if (!isSignedIn) {
   return (
@@ -229,7 +227,7 @@ if (!isSignedIn) {
             </Button>
 
             {/* PREMIUM/FREE BADGE (Desktop) */}
-            {!isLoading && (
+            {!isClerkLoaded && (
               <>
                 {isPremium ? (
                   <Link href="/pricing">
@@ -313,7 +311,7 @@ if (!isSignedIn) {
                 </p>
                 <p className="text-xs text-gray-600 mt-0.5">
                     {/* 🚨 KORJAUS 2: Lisää lataustilan tarkistus mobiilimenuun */}
-                    {isLoading ? (
+                    {isClerkLoaded ? (
                         <span className="text-gray-500 font-semibold">
                             {language === 'en' ? 'Loading status...' : 'Ladataan tilaa...'}
                         </span>
@@ -395,7 +393,7 @@ if (!isSignedIn) {
         )}
 
         {/* Loading indicator */}
-        {isLoading && (
+        {isClerkLoaded && (
           <div className="absolute bottom-0 left-0 w-full h-1">
             <div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 animate-pulse" />
           </div>
