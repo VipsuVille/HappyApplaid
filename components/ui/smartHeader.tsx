@@ -59,17 +59,6 @@ const {
     );
   }
 
-  // 2. LATAUTUMISEN JÄLKEEN TARKISTAAN, ONKO TILAUSSA DATAA
-  // (Tätä tarvitaan vain, jos tilaus-konteksti voi palauttaa 
-  // isSubscriptionLoading: false, mutta subscription: null 
-  // virheen takia. Normaalisti pitäisi olla valmis.)
-  if (!subscription) {
-    // Palautetaan jotain, jos tilausta ei ole (virhe tai kirjautumattoman tila, jos halutaan)
-    // Tässä tapauksessa, jos ollaan sisällä, pitäisi olla tilaus, joten tämä olisi virhetila.
-    return null; // Tai näytä virheilmoitus
-  }
-
-
 
   const isPremium = subscription?.is_premium || false;
   const tokens = subscription?.tokens || 0;
