@@ -73,21 +73,26 @@ function SubscriptionProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      if (!response.ok) {
-        if (response.status === 401) {
-          console.warn('⚠️ Context: 401 Unauthorized - Clerk not ready yet');
-          
-          // ✅ RETRY jos Clerk ei valmis (max 3 kertaa)
-          if (retryCount < 3) {
-            console.log(`🔄 Retrying in 2s... (attempt ${retryCount + 1}/3)`);
-            setTimeout(() => {
-              setRetryCount(prev => prev + 1);
-            }, 2000);
-          }
-          throw new Error('Authentication not ready');
-        }
-        throw new Error(`HTTP ${response.status}`);
-      }
+     if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('⚠️ Context: 401 Unauthorized - Clerk not ready yet');
+          
+          // ✅ RETRY jos Clerk ei valmis (max 3 kertaa)
+          if (retryCount < 3) {
+            console.log(`🔄 Retrying in 2s... (attempt ${retryCount + 1}/3)`);
+            setTimeout(() => {
+              setRetryCount(prev => prev + 1);
+            }, 2000);
+            
+            // 🚨 KORJAUS 1: ÄLÄ aseta isLoading:false tai setSubscription:free tässä!
+            // Tämä tarkoittaa, että Headeri pysyy lataustilassa, kunnes retry onnistuu.
+            throw new Error('Authentication not ready, retrying'); // Heitä virhe, mutta älä koske finally-lohkoon tässä tapauksessa
+          }
+          // Jos retryt loppuvat, heitä standardi virhe (jolloin finally-lohko asettaa Free-tason)
+          throw new Error('Authentication not ready after max retries');
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
 
       const data = await response.json();
       
@@ -111,27 +116,38 @@ function SubscriptionProvider({ children }: { children: React.ReactNode }) {
       
       setError(null);
       setRetryCount(0); // Reset retry count on success
+setIsLoading(false); // ✅ Aseta isLoading: false ONNISTUESSA
 
-    } catch (err) {
-      console.error('❌ Context: Subscription fetch failed:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+    } catch (err) {
+      
+      // 🚨 UUSI: Jos virhe on "Authentication not ready, retrying", älä tee mitään 
+      // ja anna providerin pysyä isLoading=true tilassa.
+      if (err instanceof Error && err.message.includes('Authentication not ready, retrying')) {
+           console.log('Skipping state update due to pending retry.');
+           // TÄRKEÄÄ: Providerin tila pysyy tässä `isLoading: true, subscription: null`.
+           return; 
+      }
       
-      // ✅ Aseta safe defaults errorin sattuessa
+      // Muut virheet (HTTP-virheet, max retries) käsittely:
+      console.error('❌ Context: Subscription fetch failed:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      
+      // Aseta safe defaults errorin sattuessa
+      setSubscription({
+        plan_type: 'free',
+        is_premium: false,
+        tokens: 0,
+        has_used_free_cv: false,
+        can_create_cv: true,
+        cv_count: 0,
+        cancel_at_period_end: false,
+        current_period_end: null,
+        status: 'inactive'
+      });
 
-      setSubscription({
-      plan_type: 'free',
-      is_premium: false,
-      tokens: 0,
-      has_used_free_cv: false,
-      can_create_cv: true,
-      cv_count: 0,
-      cancel_at_period_end: false,
-      current_period_end: null,
-      status: 'inactive'
-    });
-  } finally {
-      setIsLoading(false);
-    }
+    // 🚨 KORJAUS 2: Aseta `isLoading: false` vasta kun VIRHE on LOPULLINEN
+    setIsLoading(false); 
+  } // Poista `finally` lohko kokonaan, ja siirrä sen sisältö `try`-lohkon loppuun ja `catch`-lohkon loppuun.
 }, [userId, clerkLoaded, retryCount]); // ✅ HUOM! POISTETTU subscription
 
   // ✅ FETCH kun userId tai Clerk valmistuu
