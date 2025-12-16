@@ -30,11 +30,18 @@ interface SmartHeaderProps {
   isLoading?: boolean;
   showAuthButtons?: boolean;
 }
-
-export default function SmartHeader({
+export default function SmartHeader(props: { planType: string, tokens: number, isPremium: boolean} ,{
   isLoading = false,
   showAuthButtons = true,
 }: SmartHeaderProps) {
+console.log(
+    '🔑 PAIKKA 2 (SmartHeader): Vastaanotetut propit:', 
+    {
+      planType: props.planType,
+      tokens: props.tokens,
+      isPremium: props.isPremium
+    }
+  );
   const { user, isSignedIn, isLoaded } = useUser();
   const { language, toggleLanguage } = useLanguage();
   const pathname = usePathname();
