@@ -30,25 +30,32 @@ interface SmartHeaderProps {
   isLoading?: boolean;
   showAuthButtons?: boolean;
 }
-export default function SmartHeader(props: { planType: string, tokens: number, isPremium: boolean} ,{
-  isLoading = false,
-  showAuthButtons = true,
-}: SmartHeaderProps) {
-console.log(
-    '🔑 PAIKKA 2 (SmartHeader): Vastaanotetut propit:', 
+export default function SmartHeader() {
+  // HUOM: Ei propseja {}
+const { 
+    subscription, // Oikea nimi kontekstista (SubscriptionData | null)
+    isLoading     // Oikea nimi kontekstista
+  } = useSubscription();  
+  // 🔑 PAIKKA 2 (DEBUG): Nyt voit debugata täällä
+ console.log(
+    '🔑 PAIKKA 2 (SmartHeader): Kontekstista haettu status:', 
     {
-      planType: props.planType,
-      tokens: props.tokens,
-      isPremium: props.isPremium
+      isLoading: isLoading,
+      plan: subscription?.plan_type,
+      tokens: subscription?.tokens
     }
   );
+
+  if (isLoading || !subscription) {
+    // Voit palauttaa pienen latausindikaattorin tai nullin
+    return null; 
+  }
   const { user, isSignedIn, isLoaded } = useUser();
   const { language, toggleLanguage } = useLanguage();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  const { subscription, isLoading: subscriptionLoading } = useSubscription();
 
   const isPremium = subscription?.is_premium || false;
   const tokens = subscription?.tokens || 0;
@@ -222,7 +229,7 @@ if (!isSignedIn) {
             </Button>
 
             {/* PREMIUM/FREE BADGE (Desktop) */}
-            {!subscriptionLoading && (
+            {!isLoading && (
               <>
                 {isPremium ? (
                   <Link href="/pricing">
@@ -306,7 +313,7 @@ if (!isSignedIn) {
                 </p>
                 <p className="text-xs text-gray-600 mt-0.5">
                     {/* 🚨 KORJAUS 2: Lisää lataustilan tarkistus mobiilimenuun */}
-                    {subscriptionLoading ? (
+                    {isLoading ? (
                         <span className="text-gray-500 font-semibold">
                             {language === 'en' ? 'Loading status...' : 'Ladataan tilaa...'}
                         </span>
