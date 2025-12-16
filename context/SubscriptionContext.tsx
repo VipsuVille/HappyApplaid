@@ -99,7 +99,7 @@ try {
         tokens: data.tokens,
         is_premium: data.is_premium
       });
-
+console.log('✅ Context: Subscription fetched data:', data);
       setSubscription({
         plan_type: data.plan_type || 'free',
         is_premium: data.is_premium || false,
