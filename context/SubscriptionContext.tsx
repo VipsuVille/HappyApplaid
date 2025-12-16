@@ -35,16 +35,14 @@ function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [retryCount, ] = useState(0);
 
   const fetchSubscription = useCallback(async () => {
-    // ✅ ODOTA että Clerk on valmis
     if (!clerkLoaded) {
       console.log('⏳ Context: Waiting for Clerk...');
       return;
     }
 
-    // ✅ Jos ei kirjautunut, aseta free tier
     if (!userId) {
       console.log('👤 Context: Not logged in → Free tier');
       setSubscription({
@@ -61,17 +59,17 @@ function SubscriptionProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return;
     }
-
-    try {
-      console.log(`🔄 Context: Fetching subscription (userId: ${userId}, retry: ${retryCount})`);
-      
-      const response = await fetch('/api/check-subscription', {
-        cache: 'no-store',
-        headers: { 
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
+    setIsLoading(true);
+try {
+      console.log(`🔄 Context: Fetching subscription (userId: ${userId}, retry: ${retryCount})`);
+      
+      const response = await fetch('/api/check-subscription', {
+        cache: 'no-store',
+        headers: { 
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
 
      if (!response.ok) {
         if (response.status === 401) {
@@ -81,7 +79,7 @@ function SubscriptionProvider({ children }: { children: React.ReactNode }) {
           if (retryCount < 3) {
             console.log(`🔄 Retrying in 2s... (attempt ${retryCount + 1}/3)`);
             setTimeout(() => {
-              setRetryCount(prev => prev + 1);
+              ((prev: number) => prev + 1);
             }, 2000);
             
             // 🚨 KORJAUS 1: ÄLÄ aseta isLoading:false tai setSubscription:free tässä!
@@ -115,19 +113,16 @@ function SubscriptionProvider({ children }: { children: React.ReactNode }) {
       });
       
       setError(null);
-      setRetryCount(0); // Reset retry count on success
+      (0); // Reset retry count on success
 setIsLoading(false); // ✅ Aseta isLoading: false ONNISTUESSA
 
     } catch (err) {
       
-      // 🚨 UUSI: Jos virhe on "Authentication not ready, retrying", älä tee mitään 
-      // ja anna providerin pysyä isLoading=true tilassa.
-      if (err instanceof Error && err.message.includes('Authentication not ready, retrying')) {
-           console.log('Skipping state update due to pending retry.');
-           // TÄRKEÄÄ: Providerin tila pysyy tässä `isLoading: true, subscription: null`.
-           return; 
-      }
-      
+// 🚨 KORJAUS 2: Jos virhe on uudelleenyritys, ÄLÄ aseta lopullista tilaa tai isLoading:falsea
+      if (err instanceof Error && err.message.includes('Authentication not ready, retrying')) {
+           console.warn('Skipping state update: Retry scheduled. Context remains loading.');
+           return; // Poistuu funktiosta. isLoading pysyy true.
+      }
       // Muut virheet (HTTP-virheet, max retries) käsittely:
       console.error('❌ Context: Subscription fetch failed:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');

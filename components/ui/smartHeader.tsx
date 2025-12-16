@@ -105,12 +105,6 @@ export default function SmartHeader({
     );
   }
 
-  // ========================================
-  // NOT SIGNED IN - Minimal Header
-  // ========================================
- // ========================================
-// NOT SIGNED IN - Minimal Header
-// ========================================
 if (!isSignedIn) {
   return (
     <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
@@ -167,9 +161,9 @@ if (!isSignedIn) {
   // SIGNED IN - Full Navigation
   // ========================================
   return (
-    <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+<header className="bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-200 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
          
           {/* LOGO */}
           <Link href="/" className="flex items-center flex-shrink-0">
@@ -208,8 +202,7 @@ if (!isSignedIn) {
           </nav>
 
           {/* RIGHT SIDE */}
-          <div className="flex items-center gap-2 sm:gap-3">
-           
+            <div className="flex items-center gap-2 sm:gap-3">           
             {/* Language Toggle (Desktop) */}
             <Button
               onClick={toggleLanguage}
@@ -293,33 +286,37 @@ if (!isSignedIn) {
         </div>
 
         {/* MOBILE MENU */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 py-4 space-y-3">
-           
-            {/* User Info Card */}
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200">
-              <div className="h-12 w-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                {user?.firstName?.charAt(0) || 'U'}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-gray-900 truncate">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-xs text-gray-600 mt-0.5">
-                  {isPremium ? (
-                    <span className="text-yellow-600 font-semibold">
-                      ⭐ {plan.toUpperCase()}
-                    </span>
-                  ) : (
-                    <Link href="/pricing">
-                      <span className="text-indigo-600 font-semibold cursor-pointer hover:underline">
-                        {language === 'en' ? '🔒 Upgrade' : '🔒 Päivitä'}
-                      </span>
-                    </Link>
-                  )}
-                </p>
-              </div>
-            </div>
+       {/* MOBILE MENU */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200 py-4 space-y-3">
+           
+            {/* User Info Card */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200">
+              {/* ... (User avatar ja nimi) ... */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">
+                  {user?.firstName} {user?.lastName}
+                </p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                    {/* 🚨 KORJAUS 2: Lisää lataustilan tarkistus mobiilimenuun */}
+                    {subscriptionLoading ? (
+                        <span className="text-gray-500 font-semibold">
+                            {language === 'en' ? 'Loading status...' : 'Ladataan tilaa...'}
+                        </span>
+                    ) : isPremium ? (
+                    <span className="text-yellow-600 font-semibold">
+                      ⭐ {plan.toUpperCase()}
+                    </span>
+                  ) : (
+                    <Link href="/pricing">
+                      <span className="text-indigo-600 font-semibold cursor-pointer hover:underline">
+                        {language === 'en' ? '🔒 Upgrade' : '🔒 Päivitä'}
+                      </span>
+                    </Link>
+                  )}
+                </p>
+              </div>
+            </div>
 
             {/* Language Toggle */}
             <button
@@ -391,5 +388,6 @@ if (!isSignedIn) {
         )}
       </div>
     </header>
+
   );
 }
