@@ -127,7 +127,9 @@ export async function checkSubscriptionAccess(userId: string, feature: string) {
     .maybeSingle();
 
   if (!data) return false;
-  
+  const isPremium = 
+    data.is_premium === true || // Tämä rivi on turha, jos poistat DB sarakkeen
+    ['pro', 'premium', 'plus', 'semi-pro', 'semipro'].includes(data.plan_type?.toLowerCase());
   const isActive = ['active', 'trialing'].includes(data.status) && 
                   new Date(data.current_period_end) > new Date();
   

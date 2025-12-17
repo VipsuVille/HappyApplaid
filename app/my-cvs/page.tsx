@@ -11,6 +11,7 @@ import CVTemplate from "@/components/cv/CVSimpleTemplate";
 import TechnicalCVTemplate from "@/components/cv/CVTemplateTechnical";
 import CreativeCVTemplate from "@/components/cv/CVCreativeTemplate";
 import CVContainer from "@/components/cv/CVContainer";
+import { unwatchFile } from "fs";
 
 // Tyypitykset
 interface BaseCV {
@@ -404,7 +405,7 @@ export default function MyCVsPage() {
               <div className="h-12 w-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-amber-500/30">
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
-              <div className="text-2xl font-extrabold text-amber-900">Premium</div>
+              <div className="text-2xl font-extrabold text-amber-900">{userId}</div>
               <div className="text-sm text-gray-600">Aktiivinen tilaus</div>
             </div>
           </div>

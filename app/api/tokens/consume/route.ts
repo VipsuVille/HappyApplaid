@@ -25,7 +25,9 @@ export async function POST(request: NextRequest) {
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
-      .in('status', ['active', 'trialing'])
+.eq('is_active', true)
+.in('status', ['active', 'trialing'])
+
       .single();
     
     if (subscriptionError) {
