@@ -31,11 +31,12 @@ export default function SmartHeader() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+if (!subscription?.plan_type) return null; // tai loading
 
   // ✅ Laske arvot ENNEN early returnia
   const isPremium = subscription?.is_premium || false;
   const tokens = subscription?.tokens || 0;
-  const plan = subscription?.plan_type || 'free';
+  const plan = subscription?.plan_type;
 
   // ✅ useEffect ENNEN early returnia
   useEffect(() => {

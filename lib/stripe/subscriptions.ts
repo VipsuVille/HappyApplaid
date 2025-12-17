@@ -61,7 +61,7 @@ export async function createCheckoutSession(userId: string, tier: Tier) {
   return session;
 }
 
-export async function getSubscription(userId: string) {
+export async function getActiveSubscriptionForMiddleware(userId: string) {
   const supabaseAdmin = await getSupabaseAdmin();
   
   if (!userId) {

@@ -2,7 +2,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getSubscription } from '@/lib/stripe/subscriptions'; 
+import { getActiveSubscriptionForMiddleware } from '@/lib/stripe/subscriptions';
 
 interface ClerkPublicMetadata {
   role?: string;
@@ -201,7 +201,7 @@ const csp = [
     ];
 
     if (requiresSubscription.some(route => url.pathname === route)) {
-      const { active } = await getSubscription(userId);
+      const { active } = await getActiveSubscriptionForMiddleware(userId);
       if (!active) {
         return NextResponse.json(
           { error: 'Subscription required' },

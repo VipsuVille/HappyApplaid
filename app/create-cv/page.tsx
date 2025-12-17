@@ -60,16 +60,21 @@ export default function CreateCVPage() {
   const [freemiumLoading, setFreemiumLoading] = useState(true);
 
   // Hae freemium status
+
+
   useEffect(() => {
     const checkFreemiumStatus = async () => {
       if (!user?.id) return;
       try {
         setFreemiumLoading(true);
         const response = await fetch('/api/check-subscription');
+        
         if (response.ok) {
           const data = await response.json();
+          if (!data) return null; // tai loading
+
           setFreemiumStatus({
-            plan_type: data.plan || 'free',
+            plan_type: data.plan,
             is_premium: data.isActive && data.plan !== 'free',
             has_used_free_cv: data.subscription?.has_used_free_cv || false,
             tokens: data.tokens || 0,
