@@ -5,6 +5,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useSubscription } from '@/context/SubscriptionContext';
 import { useUser, SignInButton, SignedOut } from "@clerk/nextjs";
 import {
   FileText,
@@ -45,47 +46,25 @@ interface SubscriptionStatus {
 }
 
 export default function Home() {
-  const [profileCompleted, setProfileCompleted] = useState<boolean | null>(
-    null
-  );
-  const [recentCVs, setRecentCVs] = useState<any[]>([]);
-  const [recentCoverLetters, setRecentCoverLetters] = useState<any[]>([]);
-  const [loadingRecent, setLoadingRecent] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [freemiumStatus, setFreemiumStatus] =
-    useState<SubscriptionStatus | null>(null);
-  const [freemiumLoading, setFreemiumLoading] = useState(true);
-  const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+ const [profileCompleted, setProfileCompleted] = useState<boolean | null>(null);
+const [recentCVs, setRecentCVs] = useState<any[]>([]);
+const [recentCoverLetters, setRecentCoverLetters] = useState<any[]>([]);
+const [loadingRecent, setLoadingRecent] = useState(false);
+const [showWelcome, setShowWelcome] = useState(false);
+const [showOnboarding, setShowOnboarding] = useState(false);
+const [showProfilePrompt, setShowProfilePrompt] = useState(false);
 
+const { subscription, isLoading: subLoading } = useSubscription();
+const tier = subscription?.tier ?? "free";
+const isActive = subscription?.active === true;
+const hasUsedFreeCv = subscription?.has_used_free_cv || false;
+const canCreateCV = subscription?.can_create_cv || false;
+const isPaid = isActive && tier !== "free";
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const { tokens } = useTokens();
 
   const displayName = user?.firstName || null;
-
-  // Hae freemium status
-  useEffect(() => {
-    const checkFreemiumStatus = async () => {
-      if (!isSignedIn || !user?.id) return;
-      try {
-        setFreemiumLoading(true);
-        const response = await fetch("/api/check-subscription");
-        if (response.ok) {
-          const data: SubscriptionStatus = await response.json();
-          setFreemiumStatus(data);
-        }
-      } catch (error) {
-        console.error("Error loading freemium status:", error);
-      } finally {
-        setFreemiumLoading(false);
-      }
-    };
-    if (isLoaded && isSignedIn) {
-      checkFreemiumStatus();
-    }
-  }, [isSignedIn, user?.id, isLoaded]);
-
   // Check first visit
   useEffect(() => {
     const checkFirstVisit = async () => {
@@ -178,61 +157,78 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    const loadRecentDocuments = async () => {
-      if (!isSignedIn || !user?.id || profileCompleted !== true) return;
-      setLoadingRecent(true);
-      try {
-        const cvResponse = await fetch("/api/recent-cvs");
-        if (cvResponse.ok) {
-          const cvData = await cvResponse.json();
-          setRecentCVs(cvData.slice(0, 3));
-        }
-        if (tokens > 0 || freemiumStatus?.is_premium) {
-          const letterResponse = await fetch("/api/recent-cover-letters");
-          if (letterResponse.ok) {
-            const letterData = await letterResponse.json();
-            setRecentCoverLetters(letterData.slice(0, 3));
-          }
-        }
-      } catch (error) {
-        console.error("Error loading recent documents:", error);
-      } finally {
-        setLoadingRecent(false);
-      }
-    };
-    if (
-      isLoaded &&
-      isSignedIn &&
-      profileCompleted === true &&
-      !showWelcome &&
-      !showOnboarding
-    ) {
-      loadRecentDocuments();
-    }
-  }, [
-    isSignedIn,
-    user?.id,
-    profileCompleted,
-    tokens,
-    freemiumStatus,
-    isLoaded,
-    showWelcome,
-    showOnboarding,
-  ]);
+ useEffect(() => {
+  const loadRecentDocuments = async () => {
+    if (!isSignedIn || !user?.id || profileCompleted !== true) return;
 
-  // --- 1. ENSIN: Clerk Loading State ---
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
-        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
-          <div className="text-lg font-bold text-gray-900">
-            {language === "en" ? "Loading..." : "Ladataan..."}
-          </div>
+    setLoadingRecent(true);
+    try {
+      const cvResponse = await fetch("/api/recent-cvs");
+      if (cvResponse.ok) {
+        const cvData = await cvResponse.json();
+        setRecentCVs(cvData.slice(0, 3));
+      }
+
+      // ✅ korvattu freemiumStatus-logiikka
+      if (tokens > 0 || (isActive && tier !== "free")) {
+        const letterResponse = await fetch("/api/recent-cover-letters");
+        if (letterResponse.ok) {
+          const letterData = await letterResponse.json();
+          setRecentCoverLetters(letterData.slice(0, 3));
+        }
+      }
+    } catch (error) {
+      console.error("Error loading recent documents:", error);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  if (
+    isLoaded &&
+    isSignedIn &&
+    profileCompleted === true &&
+    !showWelcome &&
+    !showOnboarding
+  ) {
+    loadRecentDocuments();
+  }
+}, [
+  isSignedIn,
+  user?.id,
+  profileCompleted,
+  tokens,
+  isActive,
+  tier,
+  isLoaded,
+  showWelcome,
+  showOnboarding,
+]);
+
+if (!isLoaded || subLoading) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
+      <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
+        <div className="text-lg font-bold text-gray-900">
+          {language === "en" ? "Loading..." : "Ladataan..."}
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+  // --- 1. ENSIN: Clerk Loading State ---
+ if (!isLoaded || subLoading) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
+      <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
+        <div className="text-lg font-bold text-gray-900">
+          {language === "en" ? "Loading..." : "Ladataan..."}
+        </div>
+      </div>
+    </div>
+  );
+}
 
   // --- 2. Welcome/Onboarding State ---
   if (showWelcome) {
@@ -782,23 +778,6 @@ export default function Home() {
     </div>
   </div>
     )}
-  
-  if (profileCompleted === null || freemiumLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
-        <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
-          <div className="text-lg font-bold text-gray-900">
-            {language === "en" ? "Loading..." : "Ladataan..."}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const isPremium = freemiumStatus?.is_premium || false;
-  const canCreateCV = freemiumStatus?.can_create_cv || false;
-  const hasUsedFreeCv = freemiumStatus?.has_used_free_cv || false;
-  const currentTier = freemiumStatus?.plan_type || "free";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
@@ -850,18 +829,16 @@ export default function Home() {
               ? `Welcome${displayName ? `, ${displayName}` : ""}!`
               : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
           </h1>
-          <p className="text-gray-700 text-base sm:text-lg">
-            {currentTier === "free"
-              ? language === "en"
-                ? "Free user - 1 free CV + 1 general cover letter"
-                : "Ilmainen käyttäjä - 1 ilmainen CV + 1 yleinen hakukirje"
-              : `${currentTier.toUpperCase()}-${
-                  language === "en" ? "user" : "käyttäjä"
-                }`}
-          </p>
+<p className="text-gray-700 text-base sm:text-lg">
+  {tier === "free"
+    ? language === "en"
+      ? "Free user - 1 free CV + 1 general cover letter"
+      : "Ilmainen käyttäjä - 1 ilmainen CV + 1 yleinen hakukirje"
+    : `${tier.toUpperCase()}-${language === "en" ? "user" : "käyttäjä"}`}
+</p>
         </div>
 
-        {!isPremium && hasUsedFreeCv && (
+          {tier === "free" && hasUsedFreeCv && (
           <div className="mb-8 backdrop-blur-xl bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-300 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
             <Crown className="h-10 w-10 sm:h-12 sm:w-12 text-yellow-600 mx-auto mb-4" />
             <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 mb-4">
@@ -894,13 +871,13 @@ export default function Home() {
                   {language === "en" ? "Create CV" : "Luo CV"}
                 </h3>
                 <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                  {isPremium
-                    ? language === "en"
-                      ? "Unlimited ATS-optimized CVs"
-                      : "Rajattomat ATS-optimoidut CV:t"
-                    : language === "en"
-                    ? "Free personality-driven CV (Basic)"
-                    : "Ilmainen persoonallisuusvetoinen CV (Basic)"}
+{isPaid
+  ? language === "en"
+    ? "Unlimited ATS-optimized CVs"
+    : "Rajattomat ATS-optimoidut CV:t"
+  : language === "en"
+  ? "Free personality-driven CV (Basic)"
+  : "Ilmainen persoonallisuusvetoinen CV (Basic)"}
                 </p>
                 <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
                   {language === "en" ? "Create CV" : "Luo CV"}
@@ -933,13 +910,13 @@ export default function Home() {
                 {language === "en" ? "Create Cover Letter" : "Luo Hakukirje"}
               </h3>
               <p className="text-xs sm:text-sm text-gray-600 mb-4">
-                {isPremium
-                  ? language === "en"
-                    ? "Unlimited ATS-optimized letters"
-                    : "Rajattomat ATS-optimoidut kirjeet"
-                  : language === "en"
-                  ? "1 general letter (Basic)"
-                  : "1 yleinen hakukirje (Basic)"}
+{isPaid
+  ? language === "en"
+    ? "Unlimited ATS-optimized letters"
+    : "Rajattomat ATS-optimoidut kirjeet"
+  : language === "en"
+  ? "1 general letter (Basic)"
+  : "1 yleinen hakukirje (Basic)"}
               </p>
               <Button className="w-full bg-gradient-to-r from-green-600 to-emerald-600">
                 {language === "en" ? "Create Letter" : "Luo Kirje"}

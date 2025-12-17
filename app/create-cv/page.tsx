@@ -19,15 +19,7 @@ import { useTokens } from "@/hooks/useTokens";
 
 type CVTemplate = "technical" | "creative" | "simple";
 
-interface SubscriptionStatus {
-  plan_type: "free" | "basic" | "semi-pro" | "pro";
-  is_premium: boolean;
-  has_used_free_cv: boolean;
-  tokens: number;
-  cv_count: number;
-  can_create_cv: boolean;
-  message: string;
-}
+
 
 export default function CreateCVPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -56,43 +48,6 @@ export default function CreateCVPage() {
     getActionCost 
   } = useTokens();
 
-  const [freemiumStatus, setFreemiumStatus] = useState<SubscriptionStatus | null>(null);
-  const [freemiumLoading, setFreemiumLoading] = useState(true);
-
-  // Hae freemium status
-
-
-  useEffect(() => {
-    const checkFreemiumStatus = async () => {
-      if (!user?.id) return;
-      try {
-        setFreemiumLoading(true);
-        const response = await fetch('/api/check-subscription');
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (!data) return null; // tai loading
-
-          setFreemiumStatus({
-            plan_type: data.plan,
-            is_premium: data.isActive && data.plan !== 'free',
-            has_used_free_cv: data.subscription?.has_used_free_cv || false,
-            tokens: data.tokens || 0,
-            cv_count: data.subscription?.cv_count || 0,
-            can_create_cv: data.isActive || !data.subscription?.has_used_free_cv,
-            message: data.subscription?.message || ''
-          });
-        }
-      } catch (error) {
-        console.error("Error loading freemium status:", error);
-      } finally {
-        setFreemiumLoading(false);
-      }
-    };
-    if (userLoaded) {
-      checkFreemiumStatus();
-    }
-  }, [user?.id, userLoaded]);
 
   // Hae profiili
   const loadProfile = async () => {
@@ -151,14 +106,15 @@ export default function CreateCVPage() {
       return;
     }
 
-    // ✅ FREE-käyttäjät: tarkista onko jo käytetty ilmainen CV
-    if (plan_type === 'free' && freemiumStatus?.has_used_free_cv) {
-      toast.error("Olet jo käyttänyt ilmaisen CV:n! Päivitä Premium-tiliin luodaksesi lisää.", {
-        duration: 6000
-      });
-      router.push("/pricing");
-      return;
-    }
+    //  FREE-käyttäjät: tarkista onko jo käytetty ilmainen CV
+if (plan_type === 'free' && !canUseAction('cv_v1').allowed) {
+  toast.error(
+    "Olet jo käyttänyt ilmaisen CV:n! Päivitä Premium-tiliin luodaksesi lisää.",
+    { duration: 6000 }
+  );
+  router.push("/pricing");
+  return;
+}
 
     // ✅ VALIDOI ATS/RAG KÄYTTÖ
     if (useATS && !features.canUseATS) {
@@ -252,7 +208,7 @@ export default function CreateCVPage() {
     }
   };
 
-  if (!userLoaded || profileLoading || freemiumLoading || tokensLoading) {
+if (!userLoaded || profileLoading || tokensLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -263,8 +219,9 @@ export default function CreateCVPage() {
     );
   }
 
-  const isPremium = isActive && plan_type !== 'free';
-  const canCreateCV = freemiumStatus?.can_create_cv || false;
+const isPremium = isActive && plan_type !== 'free';
+const canCreateCV = canUseAction('cv_v1').allowed;
+
 
   return (
     <div>
@@ -544,11 +501,11 @@ export default function CreateCVPage() {
               </Button>
 
               <p className="text-sm text-gray-500 mt-4">
-                {isPremium
-                  ? `${plan_type.toUpperCase()}-taso: ${tokens} tokenia jäljellä`
-                  : freemiumStatus?.has_used_free_cv 
-                    ? "❌ Olet jo käyttänyt ilmaisen CV:n"
-                    : "✅ Ilmainen CV käytettävissä (1x)"}
+        {isPremium
+  ? `${plan_type.toUpperCase()}-taso: ${tokens} tokenia jäljellä`
+  : canCreateCV
+    ? "✅ Ilmainen CV käytettävissä (1x)"
+    : "❌ Olet jo käyttänyt ilmaisen CV:n"}
               </p>
 
               {/* CTA Premium-päivitykseen (jos FREE) */}
