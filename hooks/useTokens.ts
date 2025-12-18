@@ -4,12 +4,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
 
-export type TokenAction = 
-  | 'cv_simple'
-  | 'cv_technical'
-  | 'cv_creative'
-  | 'cover_letter_v1' 
-  | 'cover_letter_v2' 
+export type TokenAction =
+  | 'cv_basic'
+  | 'cv_ats'
+  | 'cv_rag'
+  | 'cover_letter_v1'
+  | 'cover_letter_v2'
   | 'cover_letter_rag';
 
 interface TokenData {

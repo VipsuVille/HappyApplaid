@@ -10,7 +10,8 @@ import {
   calculatePersonalityCompleteness,
   type LangChainCVInput,
 } from "@/lib/profileDataTransform";
-import { ACTION_COSTS, TokenAction } from "@/lib/domain/tokens";
+import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
+import { buildAIContext } from "@/lib/knowledge";
 
 export const maxDuration = 60;
 
@@ -27,14 +28,13 @@ export async function POST(req: Request) {
   const cvType: "simple" | "technical" | "creative" = body.cvType || "simple";
   const forceGenerate = body.forceGenerate === true;
   const jobPosting: string | undefined = body.jobPosting;
+  const enableRAG = body.enableRAG === true;
 
-  // 1️⃣ BACKEND LUKITSEE ACTIONIN
-  const action: TokenAction =
-    cvType === "technical"
-      ? "cv_technical"
-      : cvType === "creative"
-      ? "cv_creative"
-      : "cv_simple";
+  // 1️⃣ MÄÄRITÄ ACTION (Frontend päättää tämän)
+  const action: TokenAction = body.action || 
+    (enableRAG ? 'cv_rag' : jobPosting ? 'cv_ats' : 'cv_basic');
+
+  console.log(`📝 CV Request: ${action} (type: ${cvType})`);
 
   // 2️⃣ SUBSCRIPTION
   const { data: subscription } = await supabaseAdmin
@@ -120,13 +120,27 @@ export async function POST(req: Request) {
     );
   }
 
-  // 5️⃣ GENERATE CV
+  // 5️⃣ RAG CONTEXT (jos käytössä)
+  let ragContext = '';
+  if (enableRAG && tier === 'pro') {
+    console.log('🔍 Fetching RAG context for CV...');
+    ragContext = await buildAIContext({
+      jobDescription: jobPosting || 'General CV',
+      userProfile: dbProfile,
+      enableRAG: true,
+      contentType: 'cv' // ✅ VAIN CV-DOKUMENTIT
+    });
+    console.log(`✅ RAG context loaded: ${ragContext.length} chars`);
+  }
+
+  // 6️⃣ GENERATE CV
   const aiData = await generateCVWithLangChain({
     ...input,
-    jobPosting: tier !== "free" ? jobPosting : undefined,
+    jobPosting: (action === 'cv_ats' || action === 'cv_rag') ? jobPosting : undefined,
+    ragContext: ragContext || undefined, // Lisää RAG context generointiin
   });
 
-  // 6️⃣ SAVE CV
+  // 7️⃣ SAVE CV
   const { data: saved } = await supabaseAdmin
     .from("cvs")
     .insert({
@@ -134,8 +148,13 @@ export async function POST(req: Request) {
       title: `${input.name || "My"} CV - ${cvType}`,
       content: { cv_data: input, ai_data: aiData },
       is_public: false,
-      is_ats_optimized: tier !== "free" && !!jobPosting,
-      job_posting: tier !== "free" ? jobPosting : null,
+      is_ats_optimized: action === 'cv_ats' || action === 'cv_rag',
+      job_posting: (action === 'cv_ats' || action === 'cv_rag') ? jobPosting : null,
+      metadata: {
+        action: action,
+        used_rag: enableRAG,
+        tier: tier
+      }
     })
     .select("id")
     .single();
@@ -144,7 +163,7 @@ export async function POST(req: Request) {
     throw new Error("Failed to save CV");
   }
 
-  // 7️⃣ KULUTA TOKENIT (VASTA ONNISTUMISEN JÄLKEEN)
+  // 8️⃣ KULUTA TOKENIT (VASTA ONNISTUMISEN JÄLKEEN)
   if (tier !== "free" && required > 0) {
     await supabaseAdmin
       .from("subscriptions")
@@ -157,9 +176,13 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     success: true,
-    cvId: saved.id,
+    id: saved.id, // ✅ Tämä pitää olla "id" eikä "cvId"
     tokensUsed: required,
     tokensRemaining: tier !== "free" ? subscription!.tokens - required : 0,
     generationTime: Date.now() - startTime,
+    features: {
+      ats: action === 'cv_ats' || action === 'cv_rag',
+      rag: action === 'cv_rag'
+    }
   });
 }
