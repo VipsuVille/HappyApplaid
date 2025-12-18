@@ -1,4 +1,4 @@
-// lib/stripe/subscriptions.ts
+// lib/stripe/subscriptions.ts - KORJATTU
 'use server';
 
 import { stripe } from '@/lib/stripe';
@@ -14,7 +14,6 @@ export async function createCheckoutSession(userId: string, tier: Tier) {
   
   console.log(`Creating checkout session for user: ${userId}, tier: ${tier}`);
 
-  // Tarkista onko käyttäjällä jo aktiivinen tilaus
   const { data: existingSubscription } = await supabaseAdmin
     .from('subscriptions')
     .select('status')
@@ -26,7 +25,6 @@ export async function createCheckoutSession(userId: string, tier: Tier) {
     throw new Error('User already has an active subscription');
   }
 
-  // Hae oikea price ID tieristä
   const priceId = PRICING[tier].stripePriceId;
   
   if (!priceId) {
@@ -35,7 +33,6 @@ export async function createCheckoutSession(userId: string, tier: Tier) {
 
   console.log(`Using price ID: ${priceId} for tier: ${tier}`);
 
-  // Luo Stripe checkout session
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
     line_items: [
@@ -70,18 +67,26 @@ export async function getActiveSubscriptionForMiddleware(userId: string) {
 
   const { data } = await supabaseAdmin
     .from('subscriptions')
-    .select('status, current_period_end, plan_type')
+    .select('status, current_period_end, plan_type, is_active')
     .eq('user_id', userId)
-    .in('status', ['active', 'trialing'])
     .maybeSingle();
 
   if (!data) {
     return { active: false, tier: null };
   }
 
-  const isActive = Boolean(data) && 
-                  ['active', 'trialing'].includes(data.status) && 
-                  new Date(data.current_period_end) > new Date();
+  // ✅ KORJAUS: Käytä is_active kenttää suoraan
+  // Jos current_period_end puuttuu tai on mennyt, is_active pitäisi olla false
+  const isActive = data.is_active === true && 
+                   ['active', 'trialing'].includes(data.status);
+
+  // Tarkista vielä current_period_end jos se on olemassa
+  if (isActive && data.current_period_end) {
+    const periodEnd = new Date(data.current_period_end);
+    if (isNaN(periodEnd.getTime()) || periodEnd <= new Date()) {
+      return { active: false, tier: null };
+    }
+  }
 
   return { 
     active: isActive,
@@ -93,7 +98,6 @@ export async function getActiveSubscriptionForMiddleware(userId: string) {
  * Tarkistaa tier-kohtaiset ominaisuudet
  */
 export async function getTierFeatures(planType: string) {
-  // Normalisoi tier-nimi
   const normalizedTier = planType.toLowerCase().replace('_', '-');
   
   switch (normalizedTier) {
@@ -117,43 +121,42 @@ export async function getTierFeatures(planType: string) {
       };
   }
 }
+
 export async function checkSubscriptionAccess(userId: string, feature: string) {
   const supabaseAdmin = await getSupabaseAdmin();
   
   const { data } = await supabaseAdmin
     .from('subscriptions')
-    .select('status, current_period_end, plan_type')
+    .select('status, current_period_end, plan_type, is_active')
     .eq('user_id', userId)
     .maybeSingle();
 
   if (!data) return false;
   
-  const isActive = ['active', 'trialing'].includes(data.status) && 
-                  new Date(data.current_period_end) > new Date();
+  const isActive = data.is_active === true && 
+                   ['active', 'trialing'].includes(data.status);
   
   if (!isActive) return false;
   
-  const tierFeatures = getTierFeatures(data.plan_type);
+  const tierFeatures = await getTierFeatures(data.plan_type);
   
-  // Feature-specific restrictions based on tier
   switch (feature) {
     case 'v1_generator':
-      return (await tierFeatures).canUseV1;
+      return tierFeatures.canUseV1;
       
     case 'v2_generator':
     case 'ats_optimization':
-      return (await tierFeatures).canUseV2;
+      return tierFeatures.canUseV2;
       
     case 'rag_knowledge':
-      return (await tierFeatures).canUseRAG;
+      return tierFeatures.canUseRAG;
       
     case 'ats_analysis':
-      return (await tierFeatures).canUseATS;
+      return tierFeatures.canUseATS;
       
     case 'question_generation':
     case 'master_guardian':
     case 'validation':
-      // These are available for all active tiers
       return true;
       
     default:
