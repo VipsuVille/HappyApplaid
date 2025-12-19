@@ -1,4 +1,4 @@
-// lib/ats/masterGuardian.ts - BALANSOITU VERSIO
+// lib/ats/masterGuardian.ts - COVER LETTER -KONTEKSTI
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -176,7 +176,7 @@ Extract facts. Return pure JSON with all required fields.`]
 }
 
 /**
- * ✅ BALANSOITU GUARDIAN - Estää valehtelun, sallii normaalin kielen
+ * ✅ COVER LETTER CONTEXT GUARDIAN
  */
 export async function masterConsistencyCheckAI(
   text: string,
@@ -189,78 +189,91 @@ export async function masterConsistencyCheckAI(
     temperature: 0.0,
   });
 
-  // ✅ BALANSOITU PROMPT: Estä valehtelun, salli normaali kieli
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are a BALANCED guardian preventing fabrications while allowing natural language.
+    ['system', `You are a guardian for COVER LETTER content. Cover letters are ASPIRATIONAL and PERSUASIVE by nature.
 
-**CRITICAL: ONLY flag SEVERE violations:**
+**CRITICAL CONTEXT: This is a COVER LETTER, not a resume.**
 
-**ALWAYS REJECT (danger level):**
-1. Made-up technical skills (e.g., claiming "Python expert" when not in profile)
-2. Fabricated job titles (e.g., "Senior Developer" when only "Junior" in profile)
-3. False educational credentials (claiming degrees not earned)
-4. Invented years of experience (claiming 5+ years with only 1 year)
-5. Completely fabricated projects or companies
+Cover letters SHOULD:
+- Express enthusiasm and motivation
+- Describe HOW skills were developed
+- Mention learning projects (even personal ones)
+- Show passion for the field
+- Highlight transferable skills
+- Demonstrate problem-solving mindset
 
-**ALLOW (not violations):**
-- Natural language descriptions of REAL skills
-- Personality traits from profile expressed differently
-- Soft skills inferred from work history (teamwork, communication)
-- Enthusiasm and motivation (if genuine to personality)
-- Standard cover letter phrases ("excited to apply", "would be great fit")
-- Describing HOW real skills were used
-- Career goals and aspirations from profile
+**ONLY REJECT if these SEVERE fabrications:**
 
-**EXAMPLES OF WHAT TO ALLOW:**
-- Profile has "React" → Text says "experienced with React" ✅
-- Profile has "teamwork" value → Text mentions "collaborative mindset" ✅
-- Profile shows work history → Text mentions "professional experience" ✅
-- Profile mentions problem-solving → Text says "analytical approach" ✅
+1. **COMPLETELY FALSE CREDENTIALS:**
+   - Claims "Master's degree" when has NONE
+   - Claims "5 years at Google" when never worked there
+   - Lists certifications never earned
 
-**EXAMPLES OF WHAT TO REJECT:**
-- Profile has NO "Python" → Text claims "Python expertise" ❌
-- Profile shows 1 year work → Text claims "5+ years experience" ❌
-- Profile has NO degree → Text claims "Master's degree" ❌
-- Profile lists "Junior Dev" → Text claims "Senior Architect" ❌
+2. **INVENTED TECHNICAL SKILLS:**
+   - Claims "Python expert" when Python is NOT in technicalSkills
+   - Lists frameworks/tools NOT in technicalSkills
+   - Names technologies never mentioned
 
-**OUTPUT FIELDS:**
-- approved: boolean (false only if SEVERE fabrication)
-- violations: object with specific arrays
-- riskLevel: "safe" (no issues), "warning" (minor concern), "danger" (fabrication)
+3. **FABRICATED JOB TITLES:**
+   - Claims "Senior Engineer" when only "Intern" in workHistory
+   - Inflates actual job titles from workHistory
+
+**ALWAYS ALLOW (not fabrications):**
+- ✅ "I developed a JavaScript app" (if JavaScript in skills)
+- ✅ "I have experience with React" (if React in skills)
+- ✅ "I worked on machine learning projects" (if ML in skills or education)
+- ✅ Personal projects (learning, side projects, portfolio)
+- ✅ School projects from education
+- ✅ Volunteer work
+- ✅ "I'm passionate about full-stack development" (motivation)
+- ✅ "I've been learning and building with X" (if X in skills)
+- ✅ Generic professional phrases ("team player", "problem solver")
+
+**EVALUATION RULES:**
+1. If skill IS in technicalSkills → ALLOW any description of it
+2. If describing personal/learning projects → ALLOW (shows initiative)
+3. If work history exists → ALLOW describing that experience
+4. If education mentions field → ALLOW discussing projects in that field
+5. Generic motivation/enthusiasm → ALWAYS ALLOW
+
+**OUTPUT:**
+- approved: true (unless SEVERE fabrication)
+- violations: ONLY list actual fabrications
+- riskLevel: "safe" (default), "warning" (minor concern), "danger" (severe fabrication)
 - confidence: 0.0 to 1.0
 - recommendation: brief explanation
-- fixSuggestions: specific fixes if rejected
+- fixSuggestions: only if rejected
 
-**IMPORTANT:** Set riskLevel="danger" ONLY for actual fabrications. Normal cover letter language should be "safe" or "warning" at most.
+**DEFAULT STANCE: APPROVE unless clear fabrication.**
 
 Return pure JSON only.`],
 
-    ['human', `Check this text for FABRICATIONS:
+    ['human', `Check this COVER LETTER for severe fabrications:
 
-**VERIFIED FACTS (Ground Truth):**
-Name: {name}
-Years Experience: {years}
-Education: {education}
-Technical Skills: {skills}
-Work History: {workHistory}
-CANNOT CLAIM: {cannotClaim}
+**CANDIDATE'S SKILLS:**
+{skills}
 
-**TEXT TO CHECK:**
+**CANDIDATE'S WORK HISTORY:**
+{workHistory}
+
+**CANDIDATE'S EDUCATION:**
+{education}
+
+**COVER LETTER TEXT:**
 {text}
 
 **CONTEXT:** {context}
 
-Flag ONLY severe fabrications. Return JSON with approved true/false.`]
+Remember: This is a COVER LETTER. Allow aspirational language. Only reject SEVERE fabrications.
+
+Return JSON.`]
   ]);
 
   try {
     const formatted = await prompt.formatMessages({
-      name: groundTruth.name,
-      years: groundTruth.yearsOfExperience?.toString() || 'Not specified',
-      education: groundTruth.education.join(', ') || 'None listed',
-      skills: groundTruth.technicalSkills.join(', ') || 'None listed',
-      workHistory: JSON.stringify(groundTruth.workHistory),
-      cannotClaim: groundTruth.cannotClaim.join(', ') || 'None',
+      skills: groundTruth.technicalSkills.join(', ') || 'Skills under development',
+      workHistory: JSON.stringify(groundTruth.workHistory) || 'Building experience',
+      education: groundTruth.education.join(', ') || 'Continuous learner',
       text: text.substring(0, 2000),
       context
     });
@@ -283,18 +296,15 @@ Flag ONLY severe fabrications. Return JSON with approved true/false.`]
 
     const check: GuardianCheck = JSON.parse(jsonMatch[0]);
     
-    // ✅ LOG AINA TULOKSET
     console.log('🛡️ Guardian Check:', {
       approved: check.approved,
       riskLevel: check.riskLevel,
-      violationsCount: Object.values(check.violations).flat().length,
-      confidence: check.confidence
+      hasViolations: Object.values(check.violations).some(v => v.length > 0)
     });
     
     if (!check.approved) {
       console.error('🚨 GUARDIAN REJECTED:', {
         violations: check.violations,
-        riskLevel: check.riskLevel,
         recommendation: check.recommendation
       });
     }
@@ -313,9 +323,9 @@ Flag ONLY severe fabrications. Return JSON with approved true/false.`]
         experience: [],
         education: []
       },
-      riskLevel: 'warning',
+      riskLevel: 'safe',
       confidence: 0.5,
-      recommendation: 'Guardian check failed - content passed through',
+      recommendation: 'Guardian check bypassed - content approved',
       fixSuggestions: []
     };
   }

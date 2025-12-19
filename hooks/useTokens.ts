@@ -1,4 +1,4 @@
-// hooks/useTokens.ts
+// hooks/useTokens.ts - PÄIVITETTY
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -10,7 +10,8 @@ export type TokenAction =
   | 'cv_rag'
   | 'cover_letter_v1'
   | 'cover_letter_v2'
-  | 'cover_letter_rag';
+  | 'cover_letter_rag'
+  | 'cover_letter_general'; // ✅ LISÄTTY
 
 interface TokenData {
   tokens: number;
@@ -34,6 +35,7 @@ const TIER_COSTS = {
     cv_technical: 50,
     cv_creative: 50,
     cover_letter_v1: 50,
+    cover_letter_general: 40, // ✅ LISÄTTY
   },
   'semi-pro': {
     cv_simple: 50,
@@ -41,6 +43,7 @@ const TIER_COSTS = {
     cv_creative: 75,
     cover_letter_v1: 50,
     cover_letter_v2: 75,
+    cover_letter_general: 40, // ✅ LISÄTTY
   },
   pro: {
     cv_simple: 50,
@@ -49,6 +52,7 @@ const TIER_COSTS = {
     cover_letter_v1: 50,
     cover_letter_v2: 75,
     cover_letter_rag: 100,
+    cover_letter_general: 40, // ✅ LISÄTTY
   }
 };
 
