@@ -1,4 +1,4 @@
-// lib/ats/masterGuardian.ts - KORJATTU (JSON ei tuplattuja sulkeita)
+// lib/ats/masterGuardian.ts - TEMPLATE ESCAPING KORJATTU
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -48,7 +48,7 @@ export async function extractGroundTruthAI(userProfile: any): Promise<GroundTrut
     temperature: 0.0,
   });
 
-  // ✅ KORJAUS: JSON-esimerkki ilman tuplattuja sulkeita
+  // ✅ KORJAUS: Ei JSON-esimerkkejä promptissa (aiheuttaa LangChain template virheen)
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are a STRICT fact extractor. Your mission is CRITICAL for preventing AI hallucinations.
 
@@ -71,30 +71,19 @@ Extract ONLY verifiable facts from user profile. These are IMMUTABLE TRUTHS that
 - Calculate years from work history dates
 - Mark cannotClaim: things NOT in profile
 
-**OUTPUT FORMAT:**
-{
-  "name": "Exact name from profile",
-  "yearsOfExperience": 2,
-  "education": ["Degree + School from profile"],
-  "currentRole": "Latest job title or null",
-  "technicalSkills": ["ONLY skills from profile"],
-  "languages": ["From languages array"],
-  "corePersonality": {
-    "primary": "From superpower field",
-    "secondary": ["From working_style etc"]
-  },
-  "values": ["From values_example"],
-  "workHistory": [
-    {
-      "role": "Exact position",
-      "duration": "Exact duration",
-      "responsibilities": ["Exact descriptions"]
-    }
-  ],
-  "cannotClaim": ["Skills NOT in profile", "Experience NOT mentioned"]
-}
+**OUTPUT FIELDS REQUIRED:**
+- name: string
+- yearsOfExperience: number or null
+- education: array of strings
+- currentRole: string or null
+- technicalSkills: array of strings (ONLY from skills field)
+- languages: array of strings
+- corePersonality: object with primary string and secondary array
+- values: array of strings
+- workHistory: array of objects with role, duration, responsibilities
+- cannotClaim: array of strings (things NOT in profile)
 
-Return JSON only. No markdown.`],
+Return pure JSON only. No markdown, no backticks.`],
 
     ['human', `Extract GROUND TRUTH from this profile:
 
@@ -111,7 +100,7 @@ Return JSON only. No markdown.`],
 **CAREER GOALS:** {careerGoals}
 **BEST PROJECT:** {bestProject}
 
-Extract facts. Return JSON only.`]
+Extract facts. Return pure JSON with all required fields.`]
   ]);
 
   try {
@@ -142,9 +131,18 @@ Extract facts. Return JSON only.`]
     });
 
     const result = await model.invoke(formatted);
-    const content = typeof result.content === 'string' 
-      ? result.content 
-      : JSON.stringify(result.content);
+    
+    let content: string;
+    if (typeof result.content === 'string') {
+      content = result.content;
+    } else if (Array.isArray(result.content)) {
+      content = result.content.map(c => typeof c === 'string' ? c : JSON.stringify(c)).join('');
+    } else {
+      content = JSON.stringify(result.content);
+    }
+
+    // Poista markdown
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -198,7 +196,7 @@ export async function masterConsistencyCheckAI(
     temperature: 0.0,
   });
 
-  // ✅ KORJAUS: JSON ilman tuplattuja sulkeita
+  // ✅ KORJAUS: Ei JSON-esimerkkejä promptissa
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are THE MASTER GUARDIAN preventing AI hallucinations.
 
@@ -220,23 +218,15 @@ Detect ANY deviation from verified facts. REJECT if ANY fabrication found.
 - If text claims experience NOT verifiable → REJECT
 - Be STRICT - better safe than fabricated
 
-**OUTPUT FORMAT:**
-{
-  "approved": false,
-  "violations": {
-    "factual": ["Specific violation"],
-    "skills": ["Skill mentioned but not in profile"],
-    "experience": ["Experience claimed but not verified"],
-    "education": [],
-    "personality": []
-  },
-  "riskLevel": "danger",
-  "confidence": 0.95,
-  "recommendation": "Brief explanation in user's language",
-  "fixSuggestions": ["Specific fixes"]
-}
+**OUTPUT FIELDS REQUIRED:**
+- approved: boolean
+- violations: object with arrays for factual, skills, experience, education, personality
+- riskLevel: string (safe, warning, or danger)
+- confidence: number (0 to 1)
+- recommendation: string in user's language
+- fixSuggestions: array of strings with specific fixes
 
-Return JSON only.`],
+Return pure JSON only. No markdown, no backticks.`],
 
     ['human', `Check this text against GROUND TRUTH:
 
@@ -253,7 +243,7 @@ CANNOT CLAIM: {cannotClaim}
 
 **CONTEXT:** {context}
 
-STRICT check. Reject if ANY fabrication. Return JSON.`]
+STRICT check. Reject if ANY fabrication. Return pure JSON.`]
   ]);
 
   try {
@@ -269,9 +259,18 @@ STRICT check. Reject if ANY fabrication. Return JSON.`]
     });
 
     const result = await model.invoke(formatted);
-    const content = typeof result.content === 'string' 
-      ? result.content 
-      : JSON.stringify(result.content);
+    
+    let content: string;
+    if (typeof result.content === 'string') {
+      content = result.content;
+    } else if (Array.isArray(result.content)) {
+      content = result.content.map(c => typeof c === 'string' ? c : JSON.stringify(c)).join('');
+    } else {
+      content = JSON.stringify(result.content);
+    }
+
+    // Poista markdown
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON');

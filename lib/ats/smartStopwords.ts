@@ -1,4 +1,4 @@
-// lib/ats/smartStopwords.ts - JSON VIRHE KORJATTU
+// lib/ats/smartStopwords.ts - TEMPLATE ESCAPING KORJATTU
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -21,6 +21,7 @@ export async function filterKeywordsUniversal(
     temperature: 0.0,
   });
 
+  // ✅ KRIITTINEN KORJAUS: Ei JSON-esimerkkejä template-promptissa!
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are a universal ATS keyword validator. Each job is UNIQUE.
 
@@ -42,18 +43,14 @@ Filter keywords to find ONLY those that ATS systems scan for THIS SPECIFIC JOB.
 - Generic verbs
 - Filler words
 
-**CRITICAL: Return ONLY valid JSON, no markdown, no backticks, no extra text.**
+**CRITICAL: Return ONLY valid JSON with these exact fields:**
+- meaningful: array of strings
+- filtered: array of strings  
+- reasoning: object with string keys and values
+- detectedLanguage: string
+- detectedIndustry: string
 
-**OUTPUT FORMAT:**
-{
-  "meaningful": ["keyword1", "keyword2"],
-  "filtered": ["and", "the"],
-  "reasoning": {
-    "keyword1": "Why kept"
-  },
-  "detectedLanguage": "finnish",
-  "detectedIndustry": "tech"
-}`],
+No markdown, no backticks, no extra text. Pure JSON only.`],
 
     ['human', `Filter for THIS job:
 
@@ -63,7 +60,7 @@ Filter keywords to find ONLY those that ATS systems scan for THIS SPECIFIC JOB.
 **KEYWORDS:**
 {keywords}
 
-Return ONLY JSON, no markdown.`]
+Return pure JSON with fields: meaningful, filtered, reasoning, detectedLanguage, detectedIndustry`]
   ]);
 
   try {
@@ -74,7 +71,6 @@ Return ONLY JSON, no markdown.`]
 
     const result = await model.invoke(formatted);
     
-    // ✅ KORJAUS 1: Varmista että content on string
     let content: string;
     if (typeof result.content === 'string') {
       content = result.content;
@@ -84,10 +80,8 @@ Return ONLY JSON, no markdown.`]
       content = JSON.stringify(result.content);
     }
 
-    // ✅ KORJAUS 2: Puhdista markdown-tagit
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
-    // ✅ KORJAUS 3: Tarkempi JSON-haku
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     
     if (!jsonMatch) {
@@ -95,7 +89,6 @@ Return ONLY JSON, no markdown.`]
       throw new Error('No JSON found in AI response');
     }
 
-    // ✅ KORJAUS 4: Varmista että JSON on täydellinen
     const jsonString = jsonMatch[0];
     if (jsonString.length < 20) {
       console.error('❌ JSON too short:', jsonString);
@@ -104,7 +97,6 @@ Return ONLY JSON, no markdown.`]
 
     const parsed = JSON.parse(jsonString);
     
-    // ✅ KORJAUS 5: Validoi rakenne
     if (!parsed.meaningful || !Array.isArray(parsed.meaningful)) {
       console.error('❌ Invalid JSON structure:', parsed);
       throw new Error('Invalid response structure');
@@ -122,9 +114,7 @@ Return ONLY JSON, no markdown.`]
     
   } catch (error) {
     console.error('❌ AI filtering failed:', error);
-    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     
-    // ✅ KORJAUS 6: Parempi fallback
     const fallbackMeaningful = keywords.filter(k => {
       const cleaned = k.trim().toLowerCase();
       const commonStopwords = ['and', 'the', 'or', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'ja', 'tai', 'on', 'ei'];
