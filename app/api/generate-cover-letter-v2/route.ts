@@ -354,16 +354,14 @@ export async function POST(req: Request) {
       'generation'
     );
 
-    if (guardianCheck.riskLevel === 'danger') {
-      console.error('🚨 GUARDIAN REJECTED');
-      
-      return NextResponse.json({
-        error: 'CONSISTENCY_VIOLATION',
-        message: 'Sisältö ei täytä laatuvaatimuksia',
-        violations: guardianCheck.violations,
-        recommendation: guardianCheck.recommendation
-      }, { status: 400 });
-    }
+if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
+  return NextResponse.json({ error: 'FABRICATION_DETECTED' }, { status: 400 });
+}
+
+// Logita varoitukset mutta hyväksy
+if (guardianCheck.riskLevel === 'warning') {
+  console.warn('⚠️ Warning:', guardianCheck.recommendation);
+}
 
     console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
 

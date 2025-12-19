@@ -1,4 +1,4 @@
-// lib/ats/masterGuardian.ts - TEMPLATE ESCAPING KORJATTU
+// lib/ats/masterGuardian.ts - BALANSOITU VERSIO
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -38,9 +38,6 @@ export interface GuardianCheck {
   fixSuggestions: string[];
 }
 
-/**
- * ✅ POIMII GROUND TRUTH PROFIILISTA
- */
 export async function extractGroundTruthAI(userProfile: any): Promise<GroundTruth> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -48,7 +45,6 @@ export async function extractGroundTruthAI(userProfile: any): Promise<GroundTrut
     temperature: 0.0,
   });
 
-  // ✅ KORJAUS: Ei JSON-esimerkkejä promptissa (aiheuttaa LangChain template virheen)
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are a STRICT fact extractor. Your mission is CRITICAL for preventing AI hallucinations.
 
@@ -104,7 +100,6 @@ Extract facts. Return pure JSON with all required fields.`]
   ]);
 
   try {
-    // Parse work_experience and education if they're JSON strings
     let workExp = userProfile.work_experience;
     let edu = userProfile.education;
     
@@ -141,7 +136,6 @@ Extract facts. Return pure JSON with all required fields.`]
       content = JSON.stringify(result.content);
     }
 
-    // Poista markdown
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -163,7 +157,6 @@ Extract facts. Return pure JSON with all required fields.`]
   } catch (error) {
     console.error('❌ AI extraction failed:', error);
     
-    // Minimal fallback
     return {
       name: userProfile.name || '',
       yearsOfExperience: null,
@@ -183,7 +176,7 @@ Extract facts. Return pure JSON with all required fields.`]
 }
 
 /**
- * ✅ MASTER CONSISTENCY CHECK
+ * ✅ BALANSOITU GUARDIAN - Estää valehtelun, sallii normaalin kielen
  */
 export async function masterConsistencyCheckAI(
   text: string,
@@ -196,45 +189,59 @@ export async function masterConsistencyCheckAI(
     temperature: 0.0,
   });
 
-  // ✅ KORJAUS: Ei JSON-esimerkkejä promptissa
+  // ✅ BALANSOITU PROMPT: Estä valehtelun, salli normaali kieli
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are THE MASTER GUARDIAN preventing AI hallucinations.
+    ['system', `You are a BALANCED guardian preventing fabrications while allowing natural language.
 
-**MISSION:**
-Detect ANY deviation from verified facts. REJECT if ANY fabrication found.
+**CRITICAL: ONLY flag SEVERE violations:**
 
-**CRITICAL VIOLATIONS (MUST REJECT):**
-1. Skills NOT in technicalSkills list
-2. Experience NOT in workHistory
-3. Education NOT in education list
-4. Years changed
-5. Job titles inflated
-6. Projects NOT mentioned in profile
-7. Technologies NOT in skills list
+**ALWAYS REJECT (danger level):**
+1. Made-up technical skills (e.g., claiming "Python expert" when not in profile)
+2. Fabricated job titles (e.g., "Senior Developer" when only "Junior" in profile)
+3. False educational credentials (claiming degrees not earned)
+4. Invented years of experience (claiming 5+ years with only 1 year)
+5. Completely fabricated projects or companies
 
-**RULES:**
-- If text mentions skill NOT in ground truth → REJECT
-- If text mentions project NOT in ground truth → REJECT
-- If text claims experience NOT verifiable → REJECT
-- Be STRICT - better safe than fabricated
+**ALLOW (not violations):**
+- Natural language descriptions of REAL skills
+- Personality traits from profile expressed differently
+- Soft skills inferred from work history (teamwork, communication)
+- Enthusiasm and motivation (if genuine to personality)
+- Standard cover letter phrases ("excited to apply", "would be great fit")
+- Describing HOW real skills were used
+- Career goals and aspirations from profile
 
-**OUTPUT FIELDS REQUIRED:**
-- approved: boolean
-- violations: object with arrays for factual, skills, experience, education, personality
-- riskLevel: string (safe, warning, or danger)
-- confidence: number (0 to 1)
-- recommendation: string in user's language
-- fixSuggestions: array of strings with specific fixes
+**EXAMPLES OF WHAT TO ALLOW:**
+- Profile has "React" → Text says "experienced with React" ✅
+- Profile has "teamwork" value → Text mentions "collaborative mindset" ✅
+- Profile shows work history → Text mentions "professional experience" ✅
+- Profile mentions problem-solving → Text says "analytical approach" ✅
 
-Return pure JSON only. No markdown, no backticks.`],
+**EXAMPLES OF WHAT TO REJECT:**
+- Profile has NO "Python" → Text claims "Python expertise" ❌
+- Profile shows 1 year work → Text claims "5+ years experience" ❌
+- Profile has NO degree → Text claims "Master's degree" ❌
+- Profile lists "Junior Dev" → Text claims "Senior Architect" ❌
 
-    ['human', `Check this text against GROUND TRUTH:
+**OUTPUT FIELDS:**
+- approved: boolean (false only if SEVERE fabrication)
+- violations: object with specific arrays
+- riskLevel: "safe" (no issues), "warning" (minor concern), "danger" (fabrication)
+- confidence: 0.0 to 1.0
+- recommendation: brief explanation
+- fixSuggestions: specific fixes if rejected
 
-**GROUND TRUTH:**
+**IMPORTANT:** Set riskLevel="danger" ONLY for actual fabrications. Normal cover letter language should be "safe" or "warning" at most.
+
+Return pure JSON only.`],
+
+    ['human', `Check this text for FABRICATIONS:
+
+**VERIFIED FACTS (Ground Truth):**
 Name: {name}
-Years: {years}
+Years Experience: {years}
 Education: {education}
-Skills: {skills}
+Technical Skills: {skills}
 Work History: {workHistory}
 CANNOT CLAIM: {cannotClaim}
 
@@ -243,18 +250,18 @@ CANNOT CLAIM: {cannotClaim}
 
 **CONTEXT:** {context}
 
-STRICT check. Reject if ANY fabrication. Return pure JSON.`]
+Flag ONLY severe fabrications. Return JSON with approved true/false.`]
   ]);
 
   try {
     const formatted = await prompt.formatMessages({
       name: groundTruth.name,
       years: groundTruth.yearsOfExperience?.toString() || 'Not specified',
-      education: groundTruth.education.join(', ') || 'None',
-      skills: groundTruth.technicalSkills.join(', ') || 'None',
+      education: groundTruth.education.join(', ') || 'None listed',
+      skills: groundTruth.technicalSkills.join(', ') || 'None listed',
       workHistory: JSON.stringify(groundTruth.workHistory),
       cannotClaim: groundTruth.cannotClaim.join(', ') || 'None',
-      text: text.substring(0, 2000), // Limit text length
+      text: text.substring(0, 2000),
       context
     });
 
@@ -269,7 +276,6 @@ STRICT check. Reject if ANY fabrication. Return pure JSON.`]
       content = JSON.stringify(result.content);
     }
 
-    // Poista markdown
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -277,20 +283,27 @@ STRICT check. Reject if ANY fabrication. Return pure JSON.`]
 
     const check: GuardianCheck = JSON.parse(jsonMatch[0]);
     
+    // ✅ LOG AINA TULOKSET
+    console.log('🛡️ Guardian Check:', {
+      approved: check.approved,
+      riskLevel: check.riskLevel,
+      violationsCount: Object.values(check.violations).flat().length,
+      confidence: check.confidence
+    });
+    
     if (!check.approved) {
-      console.error('🚨 MASTER GUARDIAN REJECTED:', {
+      console.error('🚨 GUARDIAN REJECTED:', {
         violations: check.violations,
-        riskLevel: check.riskLevel
+        riskLevel: check.riskLevel,
+        recommendation: check.recommendation
       });
-    } else {
-      console.log('✅ Guardian approved:', check.riskLevel);
     }
     
     return check;
   } catch (error) {
     console.error('❌ Master check failed:', error);
     
-    // Safe fallback - approve but warn
+    // ✅ FALLBACK: Hyväksy jos check epäonnistuu
     return {
       approved: true,
       violations: {
@@ -302,8 +315,8 @@ STRICT check. Reject if ANY fabrication. Return pure JSON.`]
       },
       riskLevel: 'warning',
       confidence: 0.5,
-      recommendation: 'Guardian check failed - manual review recommended',
-      fixSuggestions: ['Verify all claims manually']
+      recommendation: 'Guardian check failed - content passed through',
+      fixSuggestions: []
     };
   }
 }
