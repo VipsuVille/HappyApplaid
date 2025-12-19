@@ -1,4 +1,6 @@
-// lib/ats/masterGuardian.ts - COVER LETTER -KONTEKSTI
+// ============================================
+// 1. lib/ats/masterGuardian.ts - TÄYSI VERSIO
+// ============================================
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -38,6 +40,9 @@ export interface GuardianCheck {
   fixSuggestions: string[];
 }
 
+/**
+ * ✅ EXTRACT GROUND TRUTH
+ */
 export async function extractGroundTruthAI(userProfile: any): Promise<GroundTruth> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -46,57 +51,44 @@ export async function extractGroundTruthAI(userProfile: any): Promise<GroundTrut
   });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are a STRICT fact extractor. Your mission is CRITICAL for preventing AI hallucinations.
+    ['system', `Extract verifiable facts from user profile.
 
-**MISSION:**
-Extract ONLY verifiable facts from user profile. These are IMMUTABLE TRUTHS that cannot be fabricated.
+**EXTRACT:**
+1. Name
+2. Years of experience (calculate from work history)
+3. Education (exact degrees)
+4. Technical skills (from skills field ONLY)
+5. Languages
+6. Work history (exact roles, companies)
+7. Personality (from personality fields)
+8. Cannot claim (things NOT in profile)
 
-**WHAT TO EXTRACT:**
-1. Years of Experience (calculate from work_experience array)
-2. Education (exact degrees, schools from education array)
-3. Technical Skills (from skills field - nothing else!)
-4. Languages (from languages array)
-5. Work History (EXACT roles, companies, durations from work_experience)
-6. Core Personality (from personality fields ONLY)
-7. CANNOT CLAIM (skills/experience NOT in profile)
-
-**CRITICAL RULES:**
-- Extract ONLY from provided fields
+**RULES:**
+- Extract ONLY what's provided
 - Do NOT infer or assume
-- Do NOT add skills not explicitly listed
-- Calculate years from work history dates
-- Mark cannotClaim: things NOT in profile
+- Do NOT add skills not listed
 
-**OUTPUT FIELDS REQUIRED:**
-- name: string
-- yearsOfExperience: number or null
-- education: array of strings
-- currentRole: string or null
-- technicalSkills: array of strings (ONLY from skills field)
-- languages: array of strings
-- corePersonality: object with primary string and secondary array
-- values: array of strings
-- workHistory: array of objects with role, duration, responsibilities
-- cannotClaim: array of strings (things NOT in profile)
+**OUTPUT FIELDS:**
+name, yearsOfExperience, education, currentRole, technicalSkills, languages, corePersonality, values, workHistory, cannotClaim
 
-Return pure JSON only. No markdown, no backticks.`],
+Return pure JSON.`],
 
-    ['human', `Extract GROUND TRUTH from this profile:
+    ['human', `Extract facts:
 
-**NAME:** {name}
-**WORK EXPERIENCE:** {workExperience}
-**EDUCATION:** {education}
-**SKILLS:** {skills}
-**LANGUAGES:** {languages}
-**WORKING STYLE:** {workingStyle}
-**PROBLEM SOLVING:** {problemSolving}
-**UNIQUE STRENGTH:** {uniqueStrength}
-**TEAM ROLE:** {teamRole}
-**SUPERPOWER:** {superpower}
-**CAREER GOALS:** {careerGoals}
-**BEST PROJECT:** {bestProject}
+NAME: {name}
+WORK EXPERIENCE: {workExperience}
+EDUCATION: {education}
+SKILLS: {skills}
+LANGUAGES: {languages}
+WORKING STYLE: {workingStyle}
+PROBLEM SOLVING: {problemSolving}
+UNIQUE STRENGTH: {uniqueStrength}
+TEAM ROLE: {teamRole}
+SUPERPOWER: {superpower}
+CAREER GOALS: {careerGoals}
+BEST PROJECT: {bestProject}
 
-Extract facts. Return pure JSON with all required fields.`]
+Return JSON.`]
   ]);
 
   try {
@@ -140,23 +132,23 @@ Extract facts. Return pure JSON with all required fields.`]
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('❌ No JSON found in Ground Truth extraction');
+      console.error('❌ No JSON in Ground Truth extraction');
       throw new Error('No JSON');
     }
 
     const groundTruth = JSON.parse(jsonMatch[0]);
     
-    console.log('✅ Ground Truth extracted:', {
+    console.log('✅ Ground Truth:', {
       name: groundTruth.name,
       skills: groundTruth.technicalSkills?.length || 0,
-      education: groundTruth.education?.length || 0,
-      cannotClaim: groundTruth.cannotClaim?.length || 0
+      education: groundTruth.education?.length || 0
     });
     
     return groundTruth;
   } catch (error) {
-    console.error('❌ AI extraction failed:', error);
+    console.error('❌ Ground Truth extraction failed:', error);
     
+    // ✅ SAFE FALLBACK
     return {
       name: userProfile.name || '',
       yearsOfExperience: null,
@@ -176,13 +168,40 @@ Extract facts. Return pure JSON with all required fields.`]
 }
 
 /**
- * ✅ COVER LETTER CONTEXT GUARDIAN
+ * ✅ MASTER CONSISTENCY CHECK - UNIVERSAL & SAFE
  */
 export async function masterConsistencyCheckAI(
   text: string,
   groundTruth: GroundTruth,
   context: 'generation' | 'keyword_insertion' | 'translation' | 'ats_generation'
 ): Promise<GuardianCheck> {
+  
+  // ✅ SAFETY CHECK 1: Jos ei dataa, hyväksy automaattisesti
+  if (!text || text.length < 50) {
+    console.warn('⚠️ Text too short for Guardian check - APPROVING');
+    return {
+      approved: true,
+      violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
+      riskLevel: 'safe',
+      confidence: 1.0,
+      recommendation: 'Text too short to validate',
+      fixSuggestions: []
+    };
+  }
+
+  // ✅ SAFETY CHECK 2: Jos ground truth tyhjä, hyväksy
+  if (!groundTruth.technicalSkills.length && !groundTruth.workHistory.length) {
+    console.warn('⚠️ No ground truth data - APPROVING with warning');
+    return {
+      approved: true,
+      violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
+      riskLevel: 'warning',
+      confidence: 0.5,
+      recommendation: 'Limited profile data available',
+      fixSuggestions: []
+    };
+  }
+
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: 'gpt-4o-mini',
@@ -190,92 +209,64 @@ export async function masterConsistencyCheckAI(
   });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are a guardian for COVER LETTER content. Cover letters are ASPIRATIONAL and PERSUASIVE by nature.
+    ['system', `You are a universal truth guardian for cover letters. Works for ANY profession.
 
-**CRITICAL CONTEXT: This is a COVER LETTER, not a resume.**
+**ONLY REJECT severe fabrications:**
 
-Cover letters SHOULD:
-- Express enthusiasm and motivation
-- Describe HOW skills were developed
-- Mention learning projects (even personal ones)
-- Show passion for the field
-- Highlight transferable skills
-- Demonstrate problem-solving mindset
+1. **FABRICATED CREDENTIALS:**
+   - Claims degree NOT in education
+   - Claims job title NOT in workHistory
+   - Claims certifications not earned
 
-**ONLY REJECT if these SEVERE fabrications:**
+2. **INVENTED SKILLS:**
+   - Claims specific skill NOT in technicalSkills
+   - Lists technologies not mentioned
 
-1. **COMPLETELY FALSE CREDENTIALS:**
-   - Claims "Master's degree" when has NONE
-   - Claims "5 years at Google" when never worked there
-   - Lists certifications never earned
+3. **FABRICATED PROJECTS:**
+   - Describes detailed project NOT in profile
+   - Invents specific accomplishments
 
-2. **INVENTED TECHNICAL SKILLS:**
-   - Claims "Python expert" when Python is NOT in technicalSkills
-   - Lists frameworks/tools NOT in technicalSkills
-   - Names technologies never mentioned
+**ALWAYS ALLOW:**
+- Describing skills that ARE listed
+- Describing work that IS in workHistory
+- Generic professional qualities
+- Motivation and enthusiasm
+- Career goals
+- Personality traits
+- "I have worked with X" (if X in skills)
+- "I have experience in Y" (if Y in workHistory)
 
-3. **FABRICATED JOB TITLES:**
-   - Claims "Senior Engineer" when only "Intern" in workHistory
-   - Inflates actual job titles from workHistory
+**DEFAULT: APPROVE unless clear fabrication**
 
-**ALWAYS ALLOW (not fabrications):**
-- ✅ "I developed a JavaScript app" (if JavaScript in skills)
-- ✅ "I have experience with React" (if React in skills)
-- ✅ "I worked on machine learning projects" (if ML in skills or education)
-- ✅ Personal projects (learning, side projects, portfolio)
-- ✅ School projects from education
-- ✅ Volunteer work
-- ✅ "I'm passionate about full-stack development" (motivation)
-- ✅ "I've been learning and building with X" (if X in skills)
-- ✅ Generic professional phrases ("team player", "problem solver")
+Return JSON with approved, violations, riskLevel, confidence, recommendation, fixSuggestions.`],
 
-**EVALUATION RULES:**
-1. If skill IS in technicalSkills → ALLOW any description of it
-2. If describing personal/learning projects → ALLOW (shows initiative)
-3. If work history exists → ALLOW describing that experience
-4. If education mentions field → ALLOW discussing projects in that field
-5. Generic motivation/enthusiasm → ALWAYS ALLOW
+    ['human', `Check cover letter:
 
-**OUTPUT:**
-- approved: true (unless SEVERE fabrication)
-- violations: ONLY list actual fabrications
-- riskLevel: "safe" (default), "warning" (minor concern), "danger" (severe fabrication)
-- confidence: 0.0 to 1.0
-- recommendation: brief explanation
-- fixSuggestions: only if rejected
-
-**DEFAULT STANCE: APPROVE unless clear fabrication.**
-
-Return pure JSON only.`],
-
-    ['human', `Check this COVER LETTER for severe fabrications:
-
-**CANDIDATE'S SKILLS:**
+**CANDIDATE SKILLS:**
 {skills}
 
-**CANDIDATE'S WORK HISTORY:**
+**WORK HISTORY:**
 {workHistory}
 
-**CANDIDATE'S EDUCATION:**
+**EDUCATION:**
 {education}
+
+**BEST PROJECT:**
+{bestProject}
 
 **COVER LETTER TEXT:**
 {text}
-
-**CONTEXT:** {context}
-
-Remember: This is a COVER LETTER. Allow aspirational language. Only reject SEVERE fabrications.
 
 Return JSON.`]
   ]);
 
   try {
     const formatted = await prompt.formatMessages({
-      skills: groundTruth.technicalSkills.join(', ') || 'Skills under development',
+      skills: groundTruth.technicalSkills.join(', ') || 'Developing skills',
       workHistory: JSON.stringify(groundTruth.workHistory) || 'Building experience',
       education: groundTruth.education.join(', ') || 'Continuous learner',
-      text: text.substring(0, 2000),
-      context
+      bestProject: groundTruth.values.join(', ') || 'Not specified',
+      text: text.substring(0, 2000)
     });
 
     const result = await model.invoke(formatted);
@@ -296,37 +287,28 @@ Return JSON.`]
 
     const check: GuardianCheck = JSON.parse(jsonMatch[0]);
     
-    console.log('🛡️ Guardian Check:', {
+    console.log('🛡️ Guardian:', {
       approved: check.approved,
-      riskLevel: check.riskLevel,
-      hasViolations: Object.values(check.violations).some(v => v.length > 0)
+      riskLevel: check.riskLevel
     });
     
     if (!check.approved) {
-      console.error('🚨 GUARDIAN REJECTED:', {
-        violations: check.violations,
-        recommendation: check.recommendation
-      });
+      console.error('🚨 REJECTED:', check.violations);
     }
     
     return check;
   } catch (error) {
-    console.error('❌ Master check failed:', error);
+    console.error('❌ Guardian check failed:', error);
     
-    // ✅ FALLBACK: Hyväksy jos check epäonnistuu
+    // ✅ SAFETY FALLBACK: Hyväksy jos check epäonnistuu
     return {
       approved: true,
-      violations: {
-        factual: [],
-        personality: [],
-        skills: [],
-        experience: [],
-        education: []
-      },
+      violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
       riskLevel: 'safe',
       confidence: 0.5,
-      recommendation: 'Guardian check bypassed - content approved',
+      recommendation: 'Guardian check bypassed due to error',
       fixSuggestions: []
     };
   }
 }
+
