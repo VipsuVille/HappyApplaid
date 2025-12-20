@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter-pdf/route.ts
+// app/api/generate-cover-letter-pdf/route.ts - KORJATTU (kuten CV)
 import { NextRequest, NextResponse } from "next/server";
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
@@ -53,9 +53,10 @@ export async function POST(req: NextRequest) {
 
     const page = await browser.newPage();
 
+    // ✅ A4-VIEWPORT
     await page.setViewport({
-      width: 794,
-      height: 1123,
+      width: 794,  // A4 leveys
+      height: 1123, // A4 korkeus
       deviceScaleFactor: 1,
     });
 
@@ -63,13 +64,13 @@ export async function POST(req: NextRequest) {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
 
-    // ✅ NAVIGOI SIVULLE (kuten CV:ssä)
+    // ✅ NAVIGOI SIVULLE
     await page.goto(letterUrl, {
       waitUntil: "networkidle0",
       timeout: 60000,
     });
 
-    // Odota kuvat
+    // ✅ ODOTA KAIKKI KUVAT (kuten CV:ssä)
     await page.evaluate(() => {
       return Promise.all(
         Array.from(document.images)
@@ -83,14 +84,51 @@ export async function POST(req: NextRequest) {
       );
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // ✅ ODOTA TAUSTAGRAFIIKKAA (kuten CV:ssä)
+    await page.evaluate(() => {
+      return new Promise<void>((resolve) => {
+        const elementsWithBg = document.querySelectorAll("*");
+        const promises: Promise<void>[] = [];
+
+        elementsWithBg.forEach((el) => {
+          const element = el as HTMLElement;
+          const style = window.getComputedStyle(element);
+          const bgImage = style.backgroundImage;
+
+          if (bgImage && bgImage !== "none" && bgImage.includes("url(")) {
+            const promise = new Promise<void>((resolveImg) => {
+              const img = new Image();
+              const url = bgImage.match(/url\(['"]?([^'"]*?)['"]?\)/)?.[1];
+              if (url) {
+                img.onload = img.onerror = () => resolveImg();
+                img.src = url;
+              } else {
+                resolveImg();
+              }
+            });
+            promises.push(promise);
+          }
+        });
+
+        Promise.all(promises).then(() => resolve());
+      });
+    });
+
+    // ✅ LISÄODOTUSAIKA RENDERÖINNILLE (kuten CV:ssä)
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     console.log("🖨️ Generating PDF...");
 
+    // ✅ PDF-ASETUKSET (kuten CV:ssä)
     const pdfBuffer = await page.pdf({
       format: "A4",
-      printBackground: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      printBackground: true, // ✅ KRIITTINEN - Taustakuviot mukaan!
+      margin: {
+        top: "0",
+        right: "0",
+        bottom: "0",
+        left: "0",
+      },
       preferCSSPageSize: false,
     });
 
