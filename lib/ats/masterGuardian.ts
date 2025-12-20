@@ -1,6 +1,7 @@
-// ============================================
-// 1. lib/ats/masterGuardian.ts - TÄYSI VERSIO
-// ============================================
+// ════════════════════════════════════════════════════════════════
+// TIEDOSTO 1: lib/ats/masterGuardian.ts
+// KOPIOI TÄMÄ KOKONAAN → lib/ats/masterGuardian.ts
+// ════════════════════════════════════════════════════════════════
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -40,9 +41,6 @@ export interface GuardianCheck {
   fixSuggestions: string[];
 }
 
-/**
- * ✅ EXTRACT GROUND TRUTH
- */
 export async function extractGroundTruthAI(userProfile: any): Promise<GroundTruth> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -51,32 +49,29 @@ export async function extractGroundTruthAI(userProfile: any): Promise<GroundTrut
   });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `Extract verifiable facts from user profile.
+    ['system', `Extract verifiable facts from user profile. Works for ANY profession.
 
-**EXTRACT:**
+**EXTRACT ONLY:**
 1. Name
-2. Years of experience (calculate from work history)
+2. Years of experience (from work history)
 3. Education (exact degrees)
-4. Technical skills (from skills field ONLY)
+4. Technical/professional skills (from skills field)
 5. Languages
-6. Work history (exact roles, companies)
-7. Personality (from personality fields)
-8. Cannot claim (things NOT in profile)
+6. Work history (roles, companies)
+7. Personality traits (from profile)
+8. Cannot claim (NOT in profile)
 
 **RULES:**
-- Extract ONLY what's provided
-- Do NOT infer or assume
+- Extract ONLY what exists
+- Do NOT infer
 - Do NOT add skills not listed
 
-**OUTPUT FIELDS:**
-name, yearsOfExperience, education, currentRole, technicalSkills, languages, corePersonality, values, workHistory, cannotClaim
-
-Return pure JSON.`],
+Return pure JSON with fields: name, yearsOfExperience, education, currentRole, technicalSkills, languages, corePersonality, values, workHistory, cannotClaim`],
 
     ['human', `Extract facts:
 
 NAME: {name}
-WORK EXPERIENCE: {workExperience}
+WORK: {workExperience}
 EDUCATION: {education}
 SKILLS: {skills}
 LANGUAGES: {languages}
@@ -132,7 +127,7 @@ Return JSON.`]
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('❌ No JSON in Ground Truth extraction');
+      console.error('❌ No JSON in Ground Truth');
       throw new Error('No JSON');
     }
 
@@ -146,9 +141,8 @@ Return JSON.`]
     
     return groundTruth;
   } catch (error) {
-    console.error('❌ Ground Truth extraction failed:', error);
+    console.error('❌ Ground Truth failed:', error);
     
-    // ✅ SAFE FALLBACK
     return {
       name: userProfile.name || '',
       yearsOfExperience: null,
@@ -167,18 +161,14 @@ Return JSON.`]
   }
 }
 
-/**
- * ✅ MASTER CONSISTENCY CHECK - UNIVERSAL & SAFE
- */
 export async function masterConsistencyCheckAI(
   text: string,
   groundTruth: GroundTruth,
   context: 'generation' | 'keyword_insertion' | 'translation' | 'ats_generation'
 ): Promise<GuardianCheck> {
   
-  // ✅ SAFETY CHECK 1: Jos ei dataa, hyväksy automaattisesti
   if (!text || text.length < 50) {
-    console.warn('⚠️ Text too short for Guardian check - APPROVING');
+    console.warn('⚠️ Text too short - APPROVING');
     return {
       approved: true,
       violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
@@ -189,15 +179,14 @@ export async function masterConsistencyCheckAI(
     };
   }
 
-  // ✅ SAFETY CHECK 2: Jos ground truth tyhjä, hyväksy
   if (!groundTruth.technicalSkills.length && !groundTruth.workHistory.length) {
-    console.warn('⚠️ No ground truth data - APPROVING with warning');
+    console.warn('⚠️ No ground truth - APPROVING with warning');
     return {
       approved: true,
       violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
       riskLevel: 'warning',
       confidence: 0.5,
-      recommendation: 'Limited profile data available',
+      recommendation: 'Limited profile data',
       fixSuggestions: []
     };
   }
@@ -209,38 +198,29 @@ export async function masterConsistencyCheckAI(
   });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are a universal truth guardian for cover letters. Works for ANY profession.
+    ['system', `Universal truth guardian for cover letters. Works for ANY profession.
 
 **ONLY REJECT severe fabrications:**
 
-1. **FABRICATED CREDENTIALS:**
-   - Claims degree NOT in education
-   - Claims job title NOT in workHistory
-   - Claims certifications not earned
-
-2. **INVENTED SKILLS:**
-   - Claims specific skill NOT in technicalSkills
-   - Lists technologies not mentioned
-
-3. **FABRICATED PROJECTS:**
-   - Describes detailed project NOT in profile
-   - Invents specific accomplishments
+1. **FALSE CREDENTIALS:** Claims degree/certification NOT in profile
+2. **INVENTED SKILLS:** Claims specific skill NOT in technicalSkills
+3. **FABRICATED PROJECTS:** Describes detailed project NOT in profile
+4. **FALSE JOB TITLES:** Claims title NOT in workHistory
 
 **ALWAYS ALLOW:**
 - Describing skills that ARE listed
 - Describing work that IS in workHistory
-- Generic professional qualities
-- Motivation and enthusiasm
+- Generic qualities (team player, motivated)
+- Enthusiasm and motivation
 - Career goals
-- Personality traits
-- "I have worked with X" (if X in skills)
-- "I have experience in Y" (if Y in workHistory)
+- "I have experience with X" (if X in skills)
+- "I worked on Y" (if Y in workHistory)
 
 **DEFAULT: APPROVE unless clear fabrication**
 
-Return JSON with approved, violations, riskLevel, confidence, recommendation, fixSuggestions.`],
+Return JSON: approved, violations, riskLevel, confidence, recommendation, fixSuggestions`],
 
-    ['human', `Check cover letter:
+    ['human', `Check cover letter for fabrications:
 
 **CANDIDATE SKILLS:**
 {skills}
@@ -254,7 +234,7 @@ Return JSON with approved, violations, riskLevel, confidence, recommendation, fi
 **BEST PROJECT:**
 {bestProject}
 
-**COVER LETTER TEXT:**
+**COVER LETTER:**
 {text}
 
 Return JSON.`]
@@ -262,9 +242,9 @@ Return JSON.`]
 
   try {
     const formatted = await prompt.formatMessages({
-      skills: groundTruth.technicalSkills.join(', ') || 'Developing skills',
+      skills: groundTruth.technicalSkills.join(', ') || 'Developing',
       workHistory: JSON.stringify(groundTruth.workHistory) || 'Building experience',
-      education: groundTruth.education.join(', ') || 'Continuous learner',
+      education: groundTruth.education.join(', ') || 'Learner',
       bestProject: groundTruth.values.join(', ') || 'Not specified',
       text: text.substring(0, 2000)
     });
@@ -298,17 +278,15 @@ Return JSON.`]
     
     return check;
   } catch (error) {
-    console.error('❌ Guardian check failed:', error);
+    console.error('❌ Guardian failed:', error);
     
-    // ✅ SAFETY FALLBACK: Hyväksy jos check epäonnistuu
     return {
       approved: true,
       violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
       riskLevel: 'safe',
       confidence: 0.5,
-      recommendation: 'Guardian check bypassed due to error',
+      recommendation: 'Guardian bypassed due to error',
       fixSuggestions: []
     };
   }
 }
-
