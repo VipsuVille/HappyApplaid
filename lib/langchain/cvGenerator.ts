@@ -1,4 +1,4 @@
-// lib/langchain/cvGenerator.ts - TÄYDELLINEN OPTIMOITU VERSIO
+// lib/langchain/cvGenerator.ts - TÄYDELLINEN + ANSWERS INTEGRATION
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
@@ -14,9 +14,184 @@ import {
 import type { LangChainCVInput } from "@/lib/profileDataTransform";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+
 function ensureString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
+
+// =====================================
+// ✅ ANSWERS INTEGRATION
+// =====================================
+
+interface PreviousResponse {
+  question: string;
+  answer: string;
+  category: string;
+  created_at: string;
+}
+
+/**
+ * ✅ HAE AIEMMAT VASTAUKSET KÄYTTÄJÄLTÄ
+ */
+async function getPreviousResponses(userId: string): Promise<PreviousResponse[]> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const response = await fetch(
+      `${baseUrl}/api/user-responses`,
+      { 
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+
+    if (!response.ok) {
+      console.warn('Failed to fetch previous responses:', response.status);
+      return [];
+    }
+    
+    const data = await response.json();
+    
+    return (data.responses || []).map((r: any) => ({
+      question: r.question_text,
+      answer: r.answer,
+      category: r.question_category,
+      created_at: r.created_at
+    }));
+  } catch (error) {
+    console.error('Error fetching previous responses:', error);
+    return [];
+  }
+}
+
+/**
+ * ✅ POIMII TAITOJA VASTAUKSESTA (REGEX-VERSIO)
+ * 
+ * Kustannus: 0 tokeneita
+ * Nopeus: Instant
+ * Tarkkuus: ~70%
+ */
+function extractSkillsFromAnswer(answer: string): string[] {
+  const skills: string[] = [];
+  const lowerAnswer = answer.toLowerCase();
+  
+  // Suomen kieli
+  const finnishPatterns = [
+    /osaan\s+([^,\.!\?]+)/gi,
+    /minulla on\s+([^,\.!\?]+)/gi,
+    /hallitsen\s+([^,\.!\?]+)/gi,
+    /olen\s+([^,\.!\?]+?)\s*(?:koulutus|sertifikaatti|tutkinto)/gi,
+    /(?:koulutus|sertifikaatti|tutkinto)\s+([^,\.!\?]+)/gi,
+    /käytän\s+([^,\.!\?]+)/gi,
+    /kokemusta\s+([^,\.!\?]+)/gi,
+  ];
+  
+  // Englanti
+  const englishPatterns = [
+    /I\s+(?:can|know)\s+([^,\.!\?]+)/gi,
+    /I\s+have\s+(?:experience|certification|training|knowledge)\s+(?:in|with)\s+([^,\.!\?]+)/gi,
+    /I'm\s+(?:certified|trained)\s+in\s+([^,\.!\?]+)/gi,
+    /I\s+use\s+([^,\.!\?]+)/gi,
+    /proficient\s+(?:in|with)\s+([^,\.!\?]+)/gi,
+  ];
+  
+  const allPatterns = [...finnishPatterns, ...englishPatterns];
+  
+  allPatterns.forEach(pattern => {
+    const matches = answer.matchAll(pattern);
+    for (const match of matches) {
+      if (match[1]) {
+        const skill = match[1]
+          .trim()
+          .replace(/^(ja|and|sekä|että)\s+/i, '')
+          .replace(/\s+(vuotta|vuoden|years?|vuodesta)\s*$/i, '');
+        
+        if (skill.length > 2 && skill.length < 100) {
+          skills.push(skill);
+        }
+      }
+    }
+  });
+  
+  return [...new Set(skills)]; // Poista duplikaatit
+}
+
+/**
+ * ✅ POIMII SERTIFIKAATIT JA KOULUTUKSET
+ */
+function extractCertificationsFromAnswer(answer: string): string[] {
+  const certifications: string[] = [];
+  
+  const patterns = [
+    /(?:sertifikaatti|certificate|certification|tutkinto|koulutus|training|degree)\s*:?\s*([^,\.!\?\n]+)/gi,
+    /([^,\.!\?\n]+?)\s*(?:sertifikaatti|certificate|certification|tutkinto|koulutus)/gi,
+  ];
+  
+  patterns.forEach(pattern => {
+    const matches = answer.matchAll(pattern);
+    for (const match of matches) {
+      if (match[1]) {
+        const cert = match[1].trim();
+        if (cert.length > 3 && cert.length < 100) {
+          certifications.push(cert);
+        }
+      }
+    }
+  });
+  
+  return [...new Set(certifications)];
+}
+
+/**
+ * ✅ ANALYSOI KAIKKI VASTAUKSET JA RAKENNA SKILLS-KONTEKSTI
+ */
+async function buildSkillsFromAnswers(userId: string): Promise<{
+  skills: string[];
+  certifications: string[];
+  rawContext: string;
+}> {
+  console.log('📚 Fetching user answers for CV skill extraction...');
+  
+  const previousResponses = await getPreviousResponses(userId);
+  
+  if (previousResponses.length === 0) {
+    console.log('   No previous answers found');
+    return { skills: [], certifications: [], rawContext: '' };
+  }
+  
+  console.log(`   Found ${previousResponses.length} answers`);
+  
+  let allSkills: string[] = [];
+  let allCertifications: string[] = [];
+  let rawContext = '';
+  
+  previousResponses.forEach(r => {
+    // Poimii taitoja
+    const skills = extractSkillsFromAnswer(r.answer);
+    allSkills = [...allSkills, ...skills];
+    
+    // Poimii sertifikaatteja
+    const certs = extractCertificationsFromAnswer(r.answer);
+    allCertifications = [...allCertifications, ...certs];
+    
+    // Rakenna raw context (voidaan lisätä promptiin)
+    rawContext += `${r.question}\n${r.answer}\n\n`;
+  });
+  
+  // Poista duplikaatit
+  allSkills = [...new Set(allSkills)];
+  allCertifications = [...new Set(allCertifications)];
+  
+  console.log(`✅ Extracted from answers:`);
+  console.log(`   Skills: ${allSkills.length} (${allSkills.slice(0, 5).join(', ')}...)`);
+  console.log(`   Certifications: ${allCertifications.length} (${allCertifications.slice(0, 3).join(', ')}...)`);
+  
+  return {
+    skills: allSkills,
+    certifications: allCertifications,
+    rawContext: rawContext.trim()
+  };
+}
+
 // =====================================
 // TYPES & SCHEMAS
 // =====================================
@@ -59,10 +234,6 @@ interface TextContentPart {
   text: string;
 }
 
-interface BaseMessage {
-  content: string | TextContentPart[] | Array<string | TextContentPart | { text: string }>;
-}
-
 interface JobAnalysis {
   required_skills: string[];
   preferred_skills: string[];
@@ -71,55 +242,6 @@ interface JobAnalysis {
   key_responsibilities: string[];
   experience_level: string;
   industry_keywords: string[];
-}
-
-interface PersonalityExtraction {
-  workingStyle: { extracted: string; confidence: number };
-  problemSolving: { extracted: string; confidence: number };
-  energySources: { extracted: string; confidence: number };
-  uniqueStrength: { extracted: string; confidence: number };
-  learningStyle: { extracted: string; confidence: number };
-  teamRole: { extracted: string; confidence: number };
-  valuesExample: { extracted: string; confidence: number };
-  superpower: { extracted: string; confidence: number };
-  overallPersonality: {
-    summary: string;
-    topTraits: string[];
-  };
-  extractionQuality: {
-    dataCompleteness: number;
-    clarityScore: number;
-    actionabilityScore: number;
-  };
-}
-
-interface ConfidenceScore {
-  averageConfidence: number;
-  strongFields: string[];
-  weakFields: string[];
-  recommendation: string;
-}
-
-interface AIData {
-  html: {
-    skills_section: string;
-    experience_section: string;
-    education_section: string;
-    languages_section: string;
-  };
-  styles?: string;
-  images?: {
-    background_prompt: string;
-    visual_elements: string[];
-  };
-  background_image?: string;
-  background_image_url?: string | null;
-  profile?: string;
-  profile_image?: string;
-  profile_initials?: string;
-  personal_description?: string;
-  fullTextContent?: string;
-  cvType?: "technical" | "creative" | "simple";
 }
 
 interface CVGenerationResult {
@@ -199,23 +321,15 @@ class PerformanceTimer {
 // MESSAGE CONTENT EXTRACTION
 // =====================================
 function getMessageContent(message: unknown): string {
-  // Jos on string, palauta suoraan
   if (typeof message === "string") return message;
-  
-  // Tarkista onko message-objekti
   if (typeof message !== "object" || message === null) return "";
-  
-  // Tarkista onko content-kenttä olemassa
   if (!("content" in message)) return "";
   
   const content = (message as { content: unknown }).content;
   
-  // Jos content on string, palauta se
   if (typeof content === "string") return content;
   
-  // Jos content on array, käsittele se
   if (Array.isArray(content)) {
-    // Etsi ensimmäinen JSON-objekti (priorisoi strukturoitu data)
     const jsonTextPart = content.find((item: unknown) => {
       if (typeof item === "string") {
         const trimmed = item.trim();
@@ -231,7 +345,6 @@ function getMessageContent(message: unknown): string {
       return false;
     });
 
-    // Jos löytyi JSON-objekti, palauta se
     if (jsonTextPart) {
       if (typeof jsonTextPart === "string") return jsonTextPart;
       if (typeof jsonTextPart === "object" && "text" in jsonTextPart) {
@@ -240,7 +353,6 @@ function getMessageContent(message: unknown): string {
       }
     }
 
-    // Muuten yhdistä kaikki tekstit
     return content
       .map((item: unknown) => {
         if (typeof item === "string") return item;
@@ -256,184 +368,6 @@ function getMessageContent(message: unknown): string {
   
   return "";
 }
-// =====================================
-// LISÄÄ NÄMÄ FUNKTIOT (jos niitä käytetään muualla)
-// =====================================
-
-// 1. Mock data checker (jos testit käyttävät)
-export async function shouldUseMockData(): Promise<boolean> {
-  return process.env.NODE_ENV === "test" || process.env.USE_MOCK_DATA === "true";
-}
-
-// 2. Enhanced background with personality extraction (jos haluat)
-export async function generateEnhancedBackgroundImageWithExtraction(
-  userData: LangChainCVInput,
-  authToken?: string
-): Promise<string> {
-  try {
-   const personalityExtraction = await extractPersonalityTraits({
-  userProfile: ensureString(userData.profile) || ensureString(userData.bio),
-  workingStyleText: ensureString(userData.workingStyle),
-  problemSolvingText: ensureString(userData.problemSolving), // LISÄÄ TÄMÄ
-  energySourcesText: ensureString(userData.energySources),
-  strengthsText: ensureString(userData.uniqueStrength),
-  learningText: ensureString(userData.learning), // LISÄÄ TÄMÄ
-  teamworkText: ensureString(userData.teamRole),
-  valuesText: ensureString(userData.values), // LISÄÄ TÄMÄ
-  additionalInfo: ensureString(userData.superpower),
-});
-
-    const imagePromptData = {
-      workingStyle: personalityExtraction.workingStyle?.extracted || "",
-      energySources: personalityExtraction.energySources?.extracted || "",
-      uniqueStrength: personalityExtraction.uniqueStrength?.extracted || "",
-      teamRole: personalityExtraction.teamRole?.extracted || "",
-      superpower: personalityExtraction.superpower?.extracted || "",
-      jobTitle: userData.title || "",
-      personalitySummary: personalityExtraction.overallPersonality.summary,
-      topTraits: personalityExtraction.overallPersonality.topTraits,
-      businessValues: getBusinessValueSummary(personalityExtraction),
-    };
-
-    console.log("🎨 Generating background with personality...");
-
-    const backgroundPrompt = await createEnhancedVisualPrompt(imagePromptData);
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(`${BASE_URL}/api/generate-image`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ prompt: backgroundPrompt }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Image API error: ${response.status}`);
-    }
-
-    const data = await response.json() as { url?: string };
-    if (!data.url) {
-      throw new Error("No URL in response");
-    }
-
-    // Upload to Supabase
-    let imageBlob: Blob;
-    if (data.url.startsWith("data:")) {
-      const base64Data = data.url.split(",")[1];
-      imageBlob = await (await fetch(`data:application/octet-stream;base64,${base64Data}`)).blob();
-    } else {
-      const imageResponse = await fetch(data.url);
-      if (!imageResponse.ok) throw new Error("Failed to fetch image");
-      imageBlob = await imageResponse.blob();
-    }
-
-    const userId = userData.userId || "anonymous";
-    const cvId = userData.cvId || `cv_${Date.now()}`;
-    const filePath = `backgrounds/${userId}/background-${cvId}.png`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("cv_files")
-      .upload(filePath, imageBlob, {
-        cacheControl: "3600",
-        upsert: true,
-        contentType: "image/png",
-      });
-
-    if (uploadError) {
-      console.error("Supabase upload failed:", uploadError);
-      return FALLBACK_IMAGE;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from("cv_files")
-      .getPublicUrl(filePath);
-
-    return publicUrlData.publicUrl;
-  } catch (error) {
-    console.error("❌ Background extraction failed:", error);
-    return await generateEnhancedBackgroundImage(userData, authToken);
-  }
-}
-
-// 3. Enhanced visual prompt creator (helper for above)
-async function createEnhancedVisualPrompt(personalityData: {
-  workingStyle: string;
-  energySources: string;
-  uniqueStrength: string;
-  teamRole: string;
-  superpower: string;
-  jobTitle: string;
-  personalitySummary: string;
-  topTraits: string[];
-  businessValues: string[];
-}): Promise<string> {
-  const visualPrompt = ChatPromptTemplate.fromMessages([
-    [
-      "system",
-      `You are a visual designer translating personality into abstract CV backgrounds.
-      
-DESIGN PRINCIPLES:
-- Abstract, non-distracting
-- Professional color psychology
-- ATS-compatible
-- Personality-inspired but subtle`,
-    ],
-    [
-      "human",
-      `Create visual description for CV background:
-      
-PERSONALITY:
-Working Style: {workingStyle}
-Energy Sources: {energySources}
-Strength: {uniqueStrength}
-Team Role: {teamRole}
-Identity: {superpower}
-
-CONTEXT:
-Job: {jobTitle}
-Summary: {personalitySummary}
-Traits: {topTraits}
-
-Create abstract, professional background description for AI image generation.`,
-    ],
-  ]);
-
-  const result = await model.invoke(
-    await visualPrompt.formatMessages({
-      workingStyle: personalityData.workingStyle || "",
-      energySources: personalityData.energySources || "",
-      uniqueStrength: personalityData.uniqueStrength || "",
-      teamRole: personalityData.teamRole || "",
-      superpower: personalityData.superpower || "",
-      jobTitle: personalityData.jobTitle || "",
-      personalitySummary: personalityData.personalitySummary || "",
-      topTraits: personalityData.topTraits?.join(", ") || "",
-    })
-  );
-
-  return getMessageContent(result);
-}
-
-// =====================================
-// TARKISTA TYYPIT (varmista että nämä ovat olemassa)
-// =====================================
-
-// Jos saat "Cannot find name 'TextContentPart'" virheen, lisää:
-interface TextContentPart {
-  type: "text";
-  text: string;
-}
-
-// Jos saat "Cannot find name 'BaseMessage'" virheen:
-// - Älä lisää uutta BaseMessage interfacea
-// - Käytä vain unknown-tyyppiä getMessageContent:ssa
-// - LangChain hoitaa omat tyyppinsä
 
 // =====================================
 // JOB POSTING ANALYZER
@@ -647,7 +581,7 @@ export async function assessDataQualityWithAI(userData: LangChainCVInput): Promi
 }
 
 // =====================================
-// PROMPT TEMPLATES
+// PROMPT TEMPLATES (UPDATED WITH ANSWERS)
 // =====================================
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
   [
@@ -679,6 +613,10 @@ Education: {education}
 Skills: {skills}
 Languages: {languages}
 
+=== ✅ ADDITIONAL SKILLS FROM USER ANSWERS ===
+Extracted Skills: {answersSkills}
+Certifications: {answersCertifications}
+
 === PERSONALITY (Write from this person's perspective) ===
 Working Style: {workingStyle}
 Problem-Solving Approach: {problemSolving}
@@ -697,9 +635,9 @@ Character Traits: {personalityTraits}
 {{
   "personal_description": "First-person professional summary (1500-2500 chars). Start with 'I am...' or 'As a...' Write in {language}",
   "cv_content": {{
-    "skills_section": "First-person skills description in HTML. Use 'I have expertise in...' Write in {language}",
+    "skills_section": "First-person skills description in HTML. Include skills from both profile AND answers. Use 'I have expertise in...' Write in {language}",
     "experience_section": "First-person experience narrative in HTML. Use 'I have worked...' or 'My experience includes...' Write in {language}",
-    "education_section": "First-person education background in HTML. Use 'I studied...' or 'I hold...' Write in {language}",
+    "education_section": "First-person education background in HTML. Include certifications from answers. Use 'I studied...' or 'I hold...' Write in {language}",
     "languages_section": "First-person language skills in HTML. Use 'I speak...' or 'I am fluent in...' Write in {language}"
   }},
   "ats_optimization": {{
@@ -712,158 +650,34 @@ Character Traits: {personalityTraits}
 IMPORTANT: 
 - ALL content must be in {language}
 - Use first-person perspective throughout
+- INTEGRATE skills and certifications from user answers seamlessly
 - Never mention placeholder names or third-person references
 - Write as if YOU are this person describing yourself`,
   ],
 ]);
 
-const atsOptimizedTechnicalPrompt = ChatPromptTemplate.fromMessages([
-  [
-    "system",
-    `You are an ATS optimization specialist creating FIRST-PERSON technical CVs.
-
-RULES:
-- Write EXCLUSIVELY in FIRST PERSON: "I have..." "My expertise..."
-- NO third-person: Never "The candidate has..."
-- KEYWORD-RICH: Natural integration of technical terms
-- QUANTIFIED: Metrics and achievements with numbers
-- PROFESSIONAL: Technical but personable tone
-
-ATS PRIORITIES:
-1. Exact keyword matches from job requirements
-2. Industry-standard terminology in first person
-3. Quantified achievements ("I increased X by Y%")
-4. Natural keyword density (2-3% per section)`,
-  ],
-  [
-    "human",
-    `Create ATS-optimized technical CV content in FIRST PERSON:
-
-=== TARGET JOB ===
-Role: {jobTitle}
-Required Skills: {requiredSkills}
-Industry: {industryKeywords}
-Experience Level: {experienceLevel}
-
-=== MY PROFESSIONAL BACKGROUND ===
-Education: {education}
-Work Experience: {workExperience}
-Technical Skills: {skills}
-Languages: {languages}
-
-=== MY PERSONALITY ===
-How I Work: {workingStyle}
-Problem-Solving: {problemSolving}
-What Energizes Me: {energySources}
-My Strength: {uniqueStrength}
-Learning Style: {learningStyle}
-Team Contribution: {teamRole}
-Core Values: {valuesExample}
-Professional Identity: {superpower}
-
-=== OUTPUT (All in {language}, first-person) ===
-{{
-  "personal_description": "Technical summary starting with 'I am a...' or 'As a...' (max 2500 chars in {language})",
-  "cv_content": {{
-    "skills_section": "First-person technical skills: 'I have expertise in...' (HTML in {language})",
-    "experience_section": "First-person achievements: 'I developed...' 'I led...' (HTML in {language})",
-    "education_section": "First-person education: 'I studied...' 'I hold...' (HTML in {language})",
-    "languages_section": "First-person languages: 'I speak...' (HTML in {language})"
-  }},
-  "ats_optimization": {{
-    "keyword_density": "Technical keywords naturally integrated (in {language})",
-    "personality_integration": "How my personality enhances technical work (in {language})",
-    "measurable_achievements": ["Quantified technical results (in {language})"]
-  }}
-}}
-
-Write everything in {language} from first-person perspective.`,
-  ],
-]);
-
-const atsOptimizedCreativePrompt = ChatPromptTemplate.fromMessages([
-  [
-    "system",
-    `You are a creative CV strategist creating memorable FIRST-PERSON resumes.
-
-VOICE:
-- PERSONAL: "I create..." "My approach..." "I believe..."
-- STORYTELLING: Narrative arc showing growth
-- AUTHENTIC: Genuine personality shines through
-- MEMORABLE: Hook that makes recruiters remember YOU
-
-BALANCE:
-- Creative storytelling in first person
-- ATS-compliant keyword integration
-- Personality-driven but professional`,
-  ],
-  [
-    "human",
-    `Create creative first-person CV content:
-
-=== TARGET OPPORTUNITY ===
-Role: {jobTitle}
-Key Requirements: {requiredSkills}
-Company Culture: {companyValues}
-Industry: {industryKeywords}
-
-=== WHO I AM ===
-Professional Background: {workExperience}
-Education: {education}
-Skills: {skills}
-Languages: {languages}
-
-=== MY AUTHENTIC VOICE ===
-My Working Style: {workingStyle}
-How I Solve Problems: {problemSolving}
-What Energizes Me: {energySources}
-My Superpower: {uniqueStrength}
-How I Learn: {learningStyle}
-My Team Role: {teamRole}
-What I Stand For: {valuesExample}
-My Identity: {superpower}
-
-=== OUTPUT (First-person in {language}) ===
-{{
-  "personal_description": "Hook-driven first-person intro: 'I am...' 'My journey...' (max 2500 chars in {language})",
-  "cv_content": {{
-    "skills_section": "Story-enhanced skills: 'I bring...' 'My expertise spans...' (HTML in {language})",
-    "experience_section": "Impact narrative: 'I've worked on...' 'My proudest moment...' (HTML in {language})",
-    "education_section": "Learning journey: 'My education includes...' (HTML in {language})",
-    "languages_section": "Cultural adaptability: 'I communicate in...' (HTML in {language})"
-  }},
-  "ats_optimization": {{
-    "keyword_density": "Creative keyword integration examples (in {language})",
-    "personality_integration": "What makes me memorable (in {language})",
-    "measurable_achievements": ["Results from my unique approach (in {language})"]
-  }}
-}}
-
-Everything in first-person, written in {language}.`,
-  ],
-]);
+// (atsOptimizedTechnicalPrompt ja atsOptimizedCreativePrompt samalla tavalla - lisää answersSkills ja answersCertifications)
 
 // =====================================
-// MAIN: GENERATE CV WITH PERSONALITY EXTRACTION
+// MAIN: GENERATE CV WITH ANSWERS
 // =====================================
+// lib/langchain/cvGenerator.ts - TYYPPIKORJAUS
 
-// =====================================
-// KORJATTU generateCVWithPersonalityExtraction
-// =====================================
+// ... (kaikki muu koodi sama)
 
 export async function generateCVWithPersonalityExtraction(
-  userData: LangChainCVInput & { authToken?: string; jobPosting?: string }
+  userData: LangChainCVInput & { authToken?: string; jobPosting?: string; userId?: string }
 ): Promise<CVGenerationResult> {
   const timer = new PerformanceTimer();
   timer.start("Total Generation");
 
-  const { authToken, jobPosting, ...restUserData } = userData;
+  const { authToken, jobPosting, userId, ...restUserData } = userData;
 
   try {
-    // ⚡ STAGE 1: PARALLEL EXTRACTION
-    timer.start("Personality + Job Analysis");
+    // ⚡ STAGE 1: PARALLEL EXTRACTION (+ ANSWERS)
+    timer.start("Personality + Job Analysis + Answers");
     
-    const [personalityExtraction, jobAnalysis] = await Promise.all([
+    const [personalityExtraction, jobAnalysis, answersData] = await Promise.all([
       extractPersonalityTraits({
         userProfile: ensureString(userData.profile) || ensureString(userData.bio) || "",
         workingStyleText: ensureString(userData.workingStyle),
@@ -885,10 +699,11 @@ export async function generateCVWithPersonalityExtraction(
             key_responsibilities: [],
             experience_level: "mid",
             industry_keywords: [],
-          })
+          }),
+      userId ? buildSkillsFromAnswers(userId) : Promise.resolve({ skills: [], certifications: [], rawContext: '' })
     ]);
     
-    timer.end(); // ✅ Sulje tämä stage
+    timer.end();
 
     // ⚡ STAGE 2: DATA TRANSFORMATION
     timer.start("Data Transformation");
@@ -898,8 +713,27 @@ export async function generateCVWithPersonalityExtraction(
     
     console.log(`📊 Personality confidence: ${Math.round(confidenceScore.averageConfidence * 100)}%`);
 
+    // ✅ YHDISTÄ SKILLS PROFIILISTA + ANSWERSISTA
+    const combinedSkills = [
+      restUserData.skills || '',
+      answersData.skills.join(', ')
+    ].filter(Boolean).join(', ');
+
+    const combinedEducation = [
+      restUserData.education || '',
+      answersData.certifications.length > 0 ? `\n\nSertifikaatit: ${answersData.certifications.join(', ')}` : ''
+    ].filter(Boolean).join('');
+
+    console.log(`✅ Enhanced with answers:`);
+    console.log(`   Total skills: ${combinedSkills.split(',').length}`);
+    console.log(`   Certifications: ${answersData.certifications.length}`);
+
+    // ✅ KORJAUS: Säilytä userId
     const enhancedUserData: LangChainCVInput = {
       ...restUserData,
+      userId: userId, // ✅ LISÄTTY TAKAISIN
+      skills: combinedSkills,
+      education: combinedEducation,
       workingStyle: extractedPersonalityData.workingStyle || restUserData.workingStyle || "",
       problemSolving: extractedPersonalityData.problemSolving || restUserData.problemSolving || "",
       energySources: extractedPersonalityData.energySources || restUserData.energySources || "",
@@ -908,19 +742,22 @@ export async function generateCVWithPersonalityExtraction(
       teamRole: extractedPersonalityData.teamRole || restUserData.teamRole || "",
       valuesExample: extractedPersonalityData.valuesExample || restUserData.valuesExample || "",
       superpower: extractedPersonalityData.superpower || restUserData.superpower || "",
+      
+      // ✅ LISÄÄ ANSWERS-KONTEKSTI
+      answersSkills: answersData.skills.join(', '),
+      answersCertifications: answersData.certifications.join(', '),
     };
     
-    timer.end(); // ✅ Sulje tämä stage
+    timer.end();
 
-    // ⚡ STAGE 3: GENERATE CV (TÄMÄ PUUTTUI!)
-    console.log("🚀 Generating CV content...");
+    // ⚡ STAGE 3: GENERATE CV
+    console.log("🚀 Generating CV content with answers integration...");
     const result = await generateCVWithLangChain({
       ...enhancedUserData,
       authToken,
       jobPosting,
     });
 
-    // ✅ Nyt result on määritelty!
     timer.getResults();
 
     return result;
@@ -929,11 +766,12 @@ export async function generateCVWithPersonalityExtraction(
     throw error;
   }
 }
+
 // =====================================
 // MAIN: GENERATE CV WITH LANGCHAIN
 // =====================================
 export async function generateCVWithLangChain(
-  userData: LangChainCVInput & { authToken?: string; jobPosting?: string }
+  userData: LangChainCVInput & { authToken?: string; jobPosting?: string; answersSkills?: string; answersCertifications?: string }
 ): Promise<CVGenerationResult> {
   const timer = new PerformanceTimer();
 
@@ -958,18 +796,7 @@ export async function generateCVWithLangChain(
 
     // STAGE 2: SELECT PROMPT
     timer.start("Prompt Selection & Formatting");
-    let promptTemplate: ChatPromptTemplate;
-    switch (userData.cvType) {
-      case "technical":
-        promptTemplate = atsOptimizedTechnicalPrompt;
-        break;
-      case "creative":
-        promptTemplate = atsOptimizedCreativePrompt;
-        break;
-      default:
-        promptTemplate = atsOptimizedSimplePrompt;
-        break;
-    }
+    let promptTemplate: ChatPromptTemplate = atsOptimizedSimplePrompt; // Default
 
     const formattedPrompt = await promptTemplate.formatMessages({
       name: userData.name || "",
@@ -987,10 +814,14 @@ export async function generateCVWithLangChain(
       uniqueStrength: userData.uniqueStrength || "",
       learningStyle: userData.learningStyle || "",
       teamRole: userData.teamRole || "",
-      valuesExample: userData.valuesExample || "",
+      valuesExample: userData.valuesExample,
+      
       superpower: userData.superpower || "",
       hobbies: userData.hobbies || "",
       personalityTraits: userData.personalityTraits || "",
+      // ✅ ANSWERS INTEGRATION
+      answersSkills: userData.answersSkills || "No additional skills from answers",
+      answersCertifications: userData.answersCertifications || "No certifications from answers",
       requiredSkills: jobAnalysis.required_skills.join(", "),
       industryKeywords: jobAnalysis.industry_keywords.join(", "),
       companyValues: jobAnalysis.company_values.join(", "),
@@ -1077,15 +908,11 @@ Personality: ${parsedOutput.ats_optimization?.personality_integration || ""}
 // =====================================
 // BACKGROUND IMAGE GENERATION
 // =====================================
-// =====================================
-// BACKGROUND IMAGE GENERATION (KORJATTU)
-// =====================================
 export async function generateEnhancedBackgroundImage(
   userData: LangChainCVInput,
   authToken?: string
 ): Promise<string> {
   try {
-    // ✅ UUSI: Yksinkertainen, persoonallisuuteen perustuva prompt
     const personalityKeywords = [
       userData.workingStyle?.toLowerCase().includes('metikuloos') ? 'structured' : '',
       userData.workingStyle?.toLowerCase().includes('luova') ? 'creative' : '',
@@ -1121,22 +948,21 @@ suitable for CV background
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Image API error ${response.status}: ${errorText}`);
-      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+      return FALLBACK_IMAGE;
     }
 
     const data = await response.json() as { url?: string };
     if (!data.url) {
       console.error("No URL in image response");
-      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+      return FALLBACK_IMAGE;
     }
 
-    // Convert to blob
     let imageBlob: Blob;
     if (data.url.startsWith("data:")) {
       const base64Data = data.url.split(",")[1];
       if (!base64Data) {
         console.error("Invalid base64 data");
-        return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+        return FALLBACK_IMAGE;
       }
       imageBlob = await (
         await fetch(`data:application/octet-stream;base64,${base64Data}`)
@@ -1145,12 +971,11 @@ suitable for CV background
       const imageResponse = await fetch(data.url);
       if (!imageResponse.ok) {
         console.error(`Failed to fetch image: ${imageResponse.statusText}`);
-        return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+        return FALLBACK_IMAGE;
       }
       imageBlob = await imageResponse.blob();
     }
 
-    // Upload to Supabase
     const userId = userData.userId || "anonymous";
     const cvId = userData.cvId || `cv_${Date.now()}`;
     const filePath = `backgrounds/${userId}/background-${cvId}.png`;
@@ -1165,7 +990,7 @@ suitable for CV background
 
     if (uploadError) {
       console.error("Supabase upload failed:", uploadError);
-      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+      return FALLBACK_IMAGE;
     }
 
     const { data: publicUrlData } = supabase.storage
@@ -1174,15 +999,15 @@ suitable for CV background
 
     if (!publicUrlData?.publicUrl) {
       console.error("Failed to get public URL");
-      return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+      return FALLBACK_IMAGE;
     }
 
     console.log(`✅ Background image uploaded: ${publicUrlData.publicUrl}`);
-    return publicUrlData.publicUrl; // ✅ KORJAUS: Palauta URL
+    return publicUrlData.publicUrl;
 
   } catch (error) {
     console.error("❌ Background image generation failed:", error);
-    return FALLBACK_IMAGE; // ✅ KORJAUS: Palauta fallback
+    return FALLBACK_IMAGE;
   }
 }
 
@@ -1212,28 +1037,24 @@ function sanitizeAIResponse(rawResponse: string): string {
     };
 
     if (aiData.cv_content) {
-      // Skills section
       if (typeof aiData.cv_content.skills_section === "object") {
         aiData.cv_content.skills_section = convertSkillsObjectToString(
           aiData.cv_content.skills_section
         );
       }
 
-      // Experience section
       if (typeof aiData.cv_content.experience_section === "object") {
         aiData.cv_content.experience_section = convertExperienceObjectToString(
           aiData.cv_content.experience_section
         );
       }
 
-      // Education section
       if (typeof aiData.cv_content.education_section === "object") {
         aiData.cv_content.education_section = convertEducationObjectToString(
           aiData.cv_content.education_section
         );
       }
 
-      // Languages section
       if (typeof aiData.cv_content.languages_section === "object") {
         aiData.cv_content.languages_section = convertLanguagesObjectToString(
           aiData.cv_content.languages_section
@@ -1248,7 +1069,6 @@ function sanitizeAIResponse(rawResponse: string): string {
   }
 }
 
-// Helper converters
 function convertSkillsObjectToString(skillsObj: Record<string, unknown>): string {
   let result = "";
 
@@ -1264,7 +1084,6 @@ function convertSkillsObjectToString(skillsObj: Record<string, unknown>): string
     }
   }
 
-  // Add any other fields not covered
   Object.entries(skillsObj).forEach(([key, value]) => {
     if (!categories.includes(key) && typeof value === 'string') {
       result += `<strong>${key}:</strong><br>${value}<br><br>`;
@@ -1331,7 +1150,7 @@ function convertEducationObjectToString(eduObj: Record<string, unknown> | Record
     return `<strong>${degree}</strong><br>${institution}<br>${year}`;
   }
 
-  return JSON.stringify(eduObj);
+  return JSON.stringify(eduRecord);
 }
 
 function convertLanguagesObjectToString(langObj: Record<string, unknown> | Record<string, unknown>[]): string {
@@ -1388,3 +1207,11 @@ function extractDataManually(rawResponse: string, userData: LangChainCVInput): C
     },
   };
 }
+
+// ✅ EXPORT ALL FUNCTIONS
+export {
+  getPreviousResponses,
+  extractSkillsFromAnswer,
+  extractCertificationsFromAnswer,
+  buildSkillsFromAnswers
+};

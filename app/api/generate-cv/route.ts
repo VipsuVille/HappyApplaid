@@ -136,6 +136,7 @@ export async function POST(req: Request) {
   // 6️⃣ GENERATE CV
   const aiData = await generateCVWithLangChain({
     ...input,
+      userId: userId, // ✅ LISÄÄ TÄMÄ
     jobPosting: (action === 'cv_ats' || action === 'cv_rag') ? jobPosting : undefined,
     ragContext: ragContext || undefined, // Lisää RAG context generointiin
   });

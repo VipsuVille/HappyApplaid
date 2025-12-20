@@ -1,4 +1,4 @@
-// lib/langchain/generalCoverLetterGenerator.ts - YLEINEN ESITTELYKIRJE
+// lib/langchain/generalCoverLetterGenerator.ts - KORJATTU VERSIO
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -6,7 +6,6 @@ import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { buildAIContext } from "@/lib/knowledge";
 
-// ✅ SCHEMA
 const generalCoverLetterSchema = z.object({
   content: z.string().describe("Full cover letter text"),
   title: z.string().describe("Letter title"),
@@ -21,22 +20,14 @@ const generalCoverLetterSchema = z.object({
 type GeneralCoverLetterOutput = z.infer<typeof generalCoverLetterSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(generalCoverLetterSchema);
 
-/**
- * ✅ INPUT INTERFACE
- */
 export interface GeneralCoverLetterInput {
-  // Basic info
   name: string;
   email: string;
   phone: string;
-  
-  // Professional background
   jobTitle?: string;
   workExperience?: string;
   education?: string;
   skills?: string;
-  
-  // Personality (CRITICAL for general letter)
   workingStyle?: string;
   problemSolving?: string;
   energySources?: string;
@@ -45,27 +36,18 @@ export interface GeneralCoverLetterInput {
   teamRole?: string;
   valuesExample?: string;
   superpower?: string;
-  
-  // Goals & Context
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
-  targetIndustry?: string; // Optional: "IT", "Healthcare", etc.
-  targetRole?: string;     // Optional: "Senior Developer", etc.
-  
-  // Settings
+  targetIndustry?: string;
+  targetRole?: string;
   language?: string;
   style?: 'formal' | 'casual';
-  
-  // Advanced (Pro-tier)
   enableRAG?: boolean;
   allowedSkills?: string[];
   forbiddenClaims?: string[];
 }
 
-/**
- * ✅ OUTPUT INTERFACE
- */
 export interface GeneralCoverLetterResult {
   content: string;
   title: string;
@@ -78,9 +60,6 @@ export interface GeneralCoverLetterResult {
   };
 }
 
-/**
- * ✅ MAIN GENERATOR
- */
 export async function generateGeneralCoverLetter(
   input: GeneralCoverLetterInput
 ): Promise<GeneralCoverLetterResult> {
@@ -90,7 +69,7 @@ export async function generateGeneralCoverLetter(
   console.log(`   Style: ${input.style || 'formal'}`);
   console.log(`   RAG: ${input.enableRAG ? '✅' : '❌'}`);
 
-  // ✅ STEP 1: LOAD RAG CONTEXT (if Pro tier)
+  // LOAD RAG CONTEXT
   let knowledgeContext = '';
   
   if (input.enableRAG) {
@@ -120,7 +99,6 @@ export async function generateGeneralCoverLetter(
     }
   }
 
-  // ✅ STEP 2: PREPARE MODEL
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: "gpt-4o-mini",
@@ -131,12 +109,19 @@ export async function generateGeneralCoverLetter(
     ? 'TONE: Conversational, approachable yet professional. Use "I" naturally.'
     : 'TONE: Professional, confident. Use "I" with authority.';
 
-  // ✅ STEP 3: BUILD PROMPT
   const prompt = ChatPromptTemplate.fromMessages([
-    ["system", `You are writing a GENERAL professional introduction letter.
+    ["system", `Olet ammattimainen kirjoittaja joka luo VAKUUTTAVIA yleisiä esittelykirjeitä.
 
-**CONTEXT:**
-This is NOT for a specific job posting. This is a general introduction the candidate can send to multiple employers.
+# ════════════════════════════════════════════════════════════════
+# KONTEKSTI: YLEINEN ESITTELYKIRJE
+# ════════════════════════════════════════════════════════════════
+
+Tämä EI ole hakukirje tiettyyn työpaikkaan.
+Tämä on YLEINEN AMMATILLINEN ESITTELY jota voi lähettää useille työnantajille.
+
+# ════════════════════════════════════════════════════════════════
+# KRIITTINEN PERIAATE: "REPRESENTATION, NOT FABRICATION"
+# ════════════════════════════════════════════════════════════════
 
 ${knowledgeContext ? `
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -149,98 +134,164 @@ ${knowledgeContext}
 ` : ''}
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# GROUND TRUTH - CANDIDATE'S ACTUAL SKILLS
+# GROUND TRUTH - HAKIJAN TODELLISET TAIDOT
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**ALLOWED SKILLS:**
+**SALLITUT TAIDOT (hakijalla on):**
 {allowedSkills}
 
-**FORBIDDEN CLAIMS:**
+**KIELLETYT VÄITTEET (hakijalla EI ole):**
 {forbiddenClaims}
 
-**VERIFICATION:**
-- Use ONLY allowedSkills
-- NEVER invent experience
-- Stay 100% truthful
+**TARKISTUSPROTOKOLLA:**
+- Käytä VAIN sallittuja taitoja
+- ÄLÄ KOSKAAN keksi kokemusta
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MITÄ SAA TEHDÄ (REPRESENTATION)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Jos hakijalla on taito/kokemus listassa:
+
+✅ "Olen kehittänyt [taidon] käytännön työssä"
+   → OK kun taito on allowedSkills-listassa
+
+✅ "Kokemukseni [alalta] on antanut minulle..."
+   → OK kun kokemus on workExperience:ssä
+
+✅ "Hallitsen [työkalun] ja käytän sitä..."
+   → OK kun työkalu on skills-listassa
+
+✅ "Olen työskennellyt projekteissa joissa..."
+   → OK kun workExperience tai bestProject kuvaa työtä
+
+✅ "Vahvuuteni ovat [listatut vahvuudet]"
+   → OK kun vahvuudet ovat profiilissa
+
+✅ "Etsin mahdollisuuksia [tavoite-alalla]"
+   → AINA OK - tavoitteet ovat aina tosia
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# MITÄ EI SAA TEHDÄ (FABRICATION)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ "Kehitin [yksityiskohtainen projekti]..."
+   → EI OK jos ei ole bestProjectExample:ssa
+
+❌ "Työskentelin [yrityksessä] [roolissa]..."
+   → EI OK jos ei ole workExperience:ssä
+
+❌ "Minulla on [tutkinto/sertifikaatti]..."
+   → EI OK jos ei ole education:ssa
+
+❌ "Hallitsen [taidon] jota ei ole mainittu"
+   → EI OK
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# KULTAINEN SÄÄNTÖ
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Jos taito/kokemus on profiilissa:**
+→ Kuvaa sitä VAKUUTTAVASTI
+→ Näytä sen ARVO
+→ Tuo esille SOVELLUKSET
+
+**Jos taitoa/kokemusta EI ole:**
+→ ÄLÄ mainitse sitä
+→ Keskity TODELLISIIN vahvuuksiin
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**YOUR MISSION:**
-Write a compelling general introduction letter that:
-1. Introduces who the candidate is professionally
-2. Highlights core strengths and personality
-3. Explains career goals and motivations
-4. Shows value proposition without targeting specific job
+**TEHTÄVÄ:**
+Kirjoita vakuuttava yleinen esittelykirje joka:
 
-**STRUCTURE:**
-1. OPENING (2-3 sentences)
-   - Professional identity
-   - Current situation/background
+1. **ESITTELEE** hakijan ammatillisesti
+2. **KOROSTAA** todellisia vahvuuksia ja persoonallisuutta
+3. **SELITTÄÄ** uratoiveet ja motivaatiot
+4. **NÄYTTÄÄ** arvon työnantajille
 
-2. CORE STRENGTHS (3-4 sentences)
-   - Key skills and experience
-   - Personality in work context
-   - What makes candidate unique
+**RAKENNE:**
 
-3. CAREER GOALS (2-3 sentences)
-   - What candidate is seeking
-   - Type of work environments
-   - What motivates them
+1. **AVAUS (2-3 lausetta)**
+   - Ammatillinen identiteetti
+   - Nykyinen tilanne/tausta
 
-4. CLOSING (1-2 sentences)
-   - Value proposition summary
-   - Call to action (open to opportunities)
+2. **YDINVAHVUUDET (3-4 lausetta)**
+   - Keskeiset taidot ja kokemus
+   - Persoonallisuus työympäristössä
+   - Mikä tekee hakijasta ainutlaatuisen
 
-**LANGUAGE:** {language}
-**STYLE:** {styleInstructions}
+3. **URATOIVEET (2-3 lausetta)**
+   - Mitä hakija etsii
+   - Millaisia työympäristöjä
+   - Mikä motivoi
 
-**LENGTH:** 280-350 words
+4. **LOPETUS (1-2 lausetta)**
+   - Arvolupauksen yhteenveto
+   - Kutsu toimintaan (avoin mahdollisuuksille)
+
+**KIELI:** {language}
+**TYYLI:** {styleInstructions}
+**PITUUS:** 280-350 sanaa
 
 {format_instructions}`],
 
-    ["human", `Generate GENERAL introduction letter for professional use.
+    ["human", `Luo YLEINEN esittelykirje ammattikäyttöön.
 
-**CANDIDATE:**
-Name: {name}
-Professional Goal: {jobTitle}
-Email: {email}
-Phone: {phone}
+**HAKIJA:**
+Nimi: {name}
+Ammatillinen tavoite: {jobTitle}
+Sähköposti: {email}
+Puhelin: {phone}
 
-**BACKGROUND:**
-Experience: {workExperience}
-Education: {education}
-Skills: {skills}
+**TAUSTA:**
+Kokemus: {workExperience}
+Koulutus: {education}
+Taidot: {skills}
 
 **GROUND TRUTH:**
-ALLOWED: {allowedSkills}
-FORBIDDEN: {forbiddenClaims}
+SALLITTU: {allowedSkills}
+KIELLETTY: {forbiddenClaims}
 
-**PERSONALITY:**
-Working Style: {workingStyle}
-Problem Solving: {problemSolving}
-Energy Sources: {energySources}
-Unique Strength: {uniqueStrength}
-Learning Style: {learningStyle}
-Team Role: {teamRole}
-Values: {valuesExample}
-Professional Identity: {superpower}
+**PERSOONALLISUUS:**
+Työskentelytyyli: {workingStyle}
+Ongelmanratkaisu: {problemSolving}
+Energian lähteet: {energySources}
+Ainutlaatuinen vahvuus: {uniqueStrength}
+Oppimistyyli: {learningStyle}
+Tiimirooli: {teamRole}
+Arvot: {valuesExample}
+Ammatillinen identiteetti: {superpower}
 
-**ASPIRATIONS:**
-Career Goals: {careerGoals}
-Best Achievement: {bestProjectExample}
-Key Learning: {failureLesson}
+**TAVOITTEET:**
+Uratoiveet: {careerGoals}
+Paras saavutus: {bestProjectExample}
+Keskeinen oppiminen: {failureLesson}
 
-**OPTIONAL FOCUS:**
-Target Industry: {targetIndustry}
-Target Role: {targetRole}
+**VALINNAINEN FOKUS:**
+Tavoiteala: {targetIndustry}
+Tavoiterooli: {targetRole}
 
-Write in FIRST PERSON ("I am...", "I have...", "I seek...").
-Write in {language}.
-Return JSON with "content", "title", and "keyHighlights".`]
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# KIRJOITUSOHJEET
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. **KÄYTÄ 1. PERSOONAA**: "Olen...", "Minulla on...", "Etsin..."
+
+2. **EDUSTAMINEN:**
+   - Kuvaa todellisia taitoja VAKUUTTAVASTI
+   - Näytä niiden ARVO työnantajalle
+   - Tuo persoonallisuus ESIIN
+
+3. **EI VALEHTELUA:**
+   - ÄLÄ keksi projekteja
+   - ÄLÄ mainitse koulutusta jota ei ole
+   - ÄLÄ väitä kokemusta jota ei ole
+
+Kirjoita kielellä {language}. Palauta JSON kentillä "content", "title", "keyHighlights".`]
   ]);
 
   try {
-    // ✅ STEP 4: FORMAT & INVOKE
     const formatted = await prompt.formatMessages({
       language: input.language || 'finnish',
       styleInstructions,
@@ -248,24 +299,24 @@ Return JSON with "content", "title", and "keyHighlights".`]
       jobTitle: input.jobTitle || 'Professional',
       email: input.email,
       phone: input.phone,
-      workExperience: input.workExperience || 'Developing professional experience',
-      education: input.education || 'Relevant educational background',
-      skills: input.skills || 'Versatile skill set',
-      allowedSkills: input.allowedSkills?.join(', ') || 'All skills from profile',
-      forbiddenClaims: input.forbiddenClaims?.join(', ') || 'None',
-      workingStyle: input.workingStyle || 'Adaptable',
-      problemSolving: input.problemSolving || 'Analytical',
-      energySources: input.energySources || 'Team collaboration',
-      uniqueStrength: input.uniqueStrength || 'Quick learner',
-      learningStyle: input.learningStyle || 'Hands-on',
-      teamRole: input.teamRole || 'Team player',
-      valuesExample: input.valuesExample || 'Integrity',
-      superpower: input.superpower || 'Reliable professional',
-      careerGoals: input.careerGoals || 'Seeking growth opportunities',
-      bestProjectExample: input.bestProjectExample || 'Consistent delivery',
-      failureLesson: input.failureLesson || 'Continuous improvement',
-      targetIndustry: input.targetIndustry || 'Various industries',
-      targetRole: input.targetRole || 'Professional roles',
+      workExperience: input.workExperience || 'Kehittyvä ammatillinen kokemus',
+      education: input.education || 'Relevantti koulutustausta',
+      skills: input.skills || 'Monipuolinen taitovalikoima',
+      allowedSkills: input.allowedSkills?.join(', ') || 'Kaikki profiilissa olevat taidot',
+      forbiddenClaims: input.forbiddenClaims?.join(', ') || 'Ei rajoituksia',
+      workingStyle: input.workingStyle || 'Mukautuva',
+      problemSolving: input.problemSolving || 'Analyyttinen',
+      energySources: input.energySources || 'Tiimityöskentely',
+      uniqueStrength: input.uniqueStrength || 'Nopea oppija',
+      learningStyle: input.learningStyle || 'Käytännönläheinen',
+      teamRole: input.teamRole || 'Tiimipelaaja',
+      valuesExample: input.valuesExample || 'Rehellisyys',
+      superpower: input.superpower || 'Luotettava ammattilainen',
+      careerGoals: input.careerGoals || 'Etsii kasvumahdollisuuksia',
+      bestProjectExample: input.bestProjectExample || 'Johdonmukainen suoritus',
+      failureLesson: input.failureLesson || 'Jatkuva kehittyminen',
+      targetIndustry: input.targetIndustry || 'Useita aloja',
+      targetRole: input.targetRole || 'Ammatillisia rooleja',
       format_instructions: outputParser.getFormatInstructions(),
     });
 
@@ -274,7 +325,6 @@ Return JSON with "content", "title", and "keyHighlights".`]
       ? result.content
       : JSON.stringify(result.content);
 
-    // ✅ STEP 5: PARSE
     const cleanContent = content
       .replace(/```json/g, '')
       .replace(/```/g, '')
@@ -285,7 +335,6 @@ Return JSON with "content", "title", and "keyHighlights".`]
 
     const parsed: GeneralCoverLetterOutput = await outputParser.parse(jsonMatch[0]);
 
-    // ✅ STEP 6: FORMAT CONTENT
     const formattedContent = (parsed.content || '')
       .replace(/\*\*/g, '')
       .replace(/([^\n])\n([^\n])/g, '$1\n\n$2')
@@ -296,7 +345,7 @@ Return JSON with "content", "title", and "keyHighlights".`]
 
     return {
       content: formattedContent,
-      title: parsed.title || 'Professional Introduction',
+      title: parsed.title || 'Ammatillinen Esittely',
       signature: input.name,
       keyHighlights: parsed.keyHighlights,
     };

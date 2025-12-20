@@ -257,13 +257,16 @@ export function transformDBToLangChain(
 }
 
 export type LangChainCVInput = UserFormData & {
-  userId: string;
+  userId?: string;
   cvId: string;
   cvType: "simple" | "technical" | "creative";
   language: string;
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
+    // ✅ LISÄÄ ANSWERS-KENTÄT
+  answersSkills?: string;
+  answersCertifications?: string;
 };
 
 /**
