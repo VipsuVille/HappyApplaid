@@ -908,6 +908,8 @@ Personality: ${parsedOutput.ats_optimization?.personality_integration || ""}
 // =====================================
 // BACKGROUND IMAGE GENERATION
 // =====================================
+// lib/langchain/cvGenerator.ts - LISÄÄ METADATA TRACKING
+
 export async function generateEnhancedBackgroundImage(
   userData: LangChainCVInput,
   authToken?: string
@@ -978,8 +980,10 @@ suitable for CV background
 
     const userId = userData.userId || "anonymous";
     const cvId = userData.cvId || `cv_${Date.now()}`;
-    const filePath = `backgrounds/${userId}/background-${cvId}.png`;
+    const timestamp = Date.now();
+    const filePath = `backgrounds/${userId}/background-${cvId}-${timestamp}.png`;
 
+    // ✅ UPLOAD IMAGE
     const { error: uploadError } = await supabase.storage
       .from("cv_files")
       .upload(filePath, imageBlob, {
@@ -993,6 +997,7 @@ suitable for CV background
       return FALLBACK_IMAGE;
     }
 
+    // ✅ GET PUBLIC URL
     const { data: publicUrlData } = supabase.storage
       .from("cv_files")
       .getPublicUrl(filePath);
@@ -1000,6 +1005,25 @@ suitable for CV background
     if (!publicUrlData?.publicUrl) {
       console.error("Failed to get public URL");
       return FALLBACK_IMAGE;
+    }
+
+    // ✅ NEW: TALLENNA METADATA default_images-tauluun
+    try {
+      await supabase.from('default_images').insert({
+        user_id: userId,
+        image_type: 'background',
+        file_path: filePath,
+        name: `Generated ${new Date().toLocaleDateString()}`,
+        is_active: true,
+        is_ai_generated: true, // Lisää tämä kenttä tauluun
+        generation_prompt: optimizedPrompt.substring(0, 500), // Tallenna prompt referenssiksi
+        cv_id: cvId // Linkki CV:hen
+      });
+      
+      console.log(`✅ Image metadata saved to default_images`);
+    } catch (metaError) {
+      console.error("⚠️ Failed to save image metadata:", metaError);
+      // Ei kaada prosessia, kuva on jo tallessa
     }
 
     console.log(`✅ Background image uploaded: ${publicUrlData.publicUrl}`);

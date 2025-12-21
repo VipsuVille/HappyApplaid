@@ -1,20 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+//app/edit-cv/[id]/page.tsx
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
-  ImageIcon, Layout, Palette, RefreshCw, Upload,
-  User, Image as ImageIconLucide, CheckCircle
+  Upload, User, Image as ImageIconLucide, Sparkles
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
-import { supabase } from '@/lib/supabase-client';
-import { BaseCV, CVTemplateProps, UserFormData } from '@/types';
+import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
+import { BaseCV, CVTemplateProps } from '@/types';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
 import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
-import { getDefaultImages } from '@/lib/imageUtils';
 
 export default function EditCVPage() {
   const params = useParams();
@@ -28,15 +27,13 @@ export default function EditCVPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
-  // Kuvien hallinta
-  const [userBackgrounds, setUserBackgrounds] = useState<string[]>([]);
-  const [defaultImages, setDefaultImages] = useState<{
-    profileImages: string[];
-    backgroundImages: string[];
+  
+  // ✅ PÄIVITETTY: Käytetään UserImage-tyyppiä
+  const [availableImages, setAvailableImages] = useState<{
+    profileImages: UserImage[];
+    backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
   
-  // Viestit
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -54,22 +51,11 @@ const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
         if (error) throw error;
         if (data) setCvData(data);
 
-        // 2. Lataa default kuvat
-        const defImages = await getDefaultImages();
-        setDefaultImages(defImages);
+        // 2. ✅ UUSI: Lataa KAIKKI saatavilla olevat kuvat (globaalit + käyttäjän omat)
+        const images = await getAllAvailableImagesAction();
+        setAvailableImages(images);
 
-        // 3. Lataa käyttäjän omat taustakuvat Supabasesta
-        const { data: bgFiles } = await supabase.storage
-          .from('cv_files')
-          .list(`backgrounds/${userId}`, { limit: 20, sortBy: { column: 'created_at', order: 'desc' } });
-
-        if (bgFiles) {
-          const urls = bgFiles.map(file => {
-             const { data } = supabase.storage.from('cv_files').getPublicUrl(`backgrounds/${userId}/${file.name}`);
-             return data.publicUrl;
-          });
-          setUserBackgrounds(urls);
-        }
+        console.log(`✅ Loaded ${images.backgroundImages.length} background images (user + default)`);
 
       } catch (err) {
         console.error('Error initializing CV page:', err);
@@ -83,11 +69,9 @@ const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
   }, [id, userId, getToken]);
 
   // --- HANDLERS ---
-
-  // Sisällön päivitys (kutsutaan Template-komponenteista)
-  const handleContentChange = useCallback(<K extends keyof UserFormData>(
+  const handleContentChange = useCallback(<K extends keyof any>(
     key: K, 
-    value: UserFormData[K]
+    value: any
   ) => {
     setCvData(prev => {
       if (!prev) return prev;
@@ -104,7 +88,7 @@ const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
     });
   }, []);
 
-  // Kuvan lataus (Profiili tai Tausta)
+  // Kuvan lataus
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
     type: 'profileImage' | 'backgroundImage'
@@ -117,26 +101,17 @@ const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
       return;
     }
 
-    // Lukeminen base64 (nopea esikatselu)
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64data = reader.result as string;
-      
-      // Päivitä tila
       handleContentChange(type, base64data);
-
-      // Jos se on taustakuva, tallennetaan se myös käyttäjän historiaan (UX parannus)
-      if (type === 'backgroundImage') {
-         setUserBackgrounds(prev => [base64data, ...prev]);
-         // Huom: Oikeassa tuotannossa tässä pitäisi ladata kuva storageen ja käyttää URLia
-      }
     };
     reader.readAsDataURL(file);
   };
 
-  // Valmiin kuvan valinta
-  const handleSelectImage = (url: string, type: 'profileImage' | 'backgroundImage') => {
-    handleContentChange(type, url);
+  // ✅ UUSI: Valitse kuva galleriasta
+  const handleSelectImage = (image: UserImage, type: 'profileImage' | 'backgroundImage') => {
+    handleContentChange(type, image.signedUrl || '');
   };
 
   const handleSave = async () => {
@@ -162,7 +137,6 @@ const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
-      // Oletetaan että PDF-generointi API on olemassa vastaavalla polulla
       const response = await fetch('/api/generate-cv-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,16 +175,12 @@ const [selectedTab, setSelectedTab] = useState<'content' | 'images'>('content');
     }
   };
 
-  // Render Template Helper
-const renderTemplate = () => {
+  const renderTemplate = () => {
     if (!cvData) return null;
 
-    // YHTEISET PROPSIT KAIKILLE TEMPLATEILLE
-    // TypeScript on nyt tyytyväinen, kun kaikki templatet käyttävät CVTemplateProps-rajapintaa
     const commonProps: CVTemplateProps = {
       data: {
         ...cvData.content.cv_data,
-        // Varmista fallbackit
         name: cvData.content.cv_data.name || '',
         email: cvData.content.cv_data.email || '',
         phone: cvData.content.cv_data.phone || '',
@@ -220,8 +190,7 @@ const renderTemplate = () => {
       aiData: cvData.content.ai_data || {},
       isEditing: isEditing,
       showEditControls: isEditing,
-      // Välitä editMode. Jos käytät selectedTabia logiikassa:
-      editMode: selectedTab === 'content' ? 'content' : 'images', 
+      editMode: 'content',
       onContentChange: handleContentChange
     };
 
@@ -261,13 +230,11 @@ const renderTemplate = () => {
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
       </div>
 
-
-      {/* TOP BAR - STICKY */}
+      {/* TOP BAR */}
       <div className="px-2 md:px-6 py-3 md:py-4 mt-16 sticky top-16 z-40">
         <div className="max-w-[1800px] mx-auto backdrop-blur-xl bg-white/80 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-3 md:p-4">
           <div className="flex items-center justify-between gap-2">
             
-            {/* Left: Back & Title */}
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <button 
                 onClick={() => router.push('/my-cvs')}
@@ -288,14 +255,12 @@ const renderTemplate = () => {
               </div>
             </div>
             
-            {/* Right: Actions */}
             <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
               {!isEditing ? (
                 <button 
                   onClick={() => setIsEditing(true)}
                   className="p-2 h-9 md:h-10 md:px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 flex items-center gap-1 md:gap-2 shadow-md text-xs md:text-sm font-semibold"
                 >
-                  <Palette className="w-3 h-3 md:w-4 md:h-4" />
                   <span className="hidden sm:inline">Muokkaa</span>
                 </button>
               ) : (
@@ -353,10 +318,10 @@ const renderTemplate = () => {
       <div className="max-w-[1800px] mx-auto p-2 md:p-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
           
-          {/* ✅ LEFT SIDEBAR: Visuals & Images */}
+          {/* ✅ LEFT SIDEBAR */}
           <div className="lg:col-span-3 space-y-4">
             
-            {/* 1. Profile Picture Control */}
+            {/* 1. Profile Picture */}
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl shadow-xl p-4">
               <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <User className="w-4 h-4 text-indigo-600" />
@@ -380,17 +345,22 @@ const renderTemplate = () => {
                 </div>
               </div>
 
-              {defaultImages.profileImages.length > 0 && (
+              {availableImages.profileImages.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-xs text-gray-500 mb-2">Tai valitse valmis:</p>
+                  <p className="text-xs text-gray-500 mb-2">Valitse valmis:</p>
                   <div className="grid grid-cols-4 gap-2">
-                    {defaultImages.profileImages.slice(0, 4).map((img, idx) => (
+                    {availableImages.profileImages.slice(0, 8).map((img) => (
                       <button 
-                        key={idx}
+                        key={img.id}
                         onClick={() => handleSelectImage(img, 'profileImage')}
-                        className={`aspect-square rounded-full overflow-hidden border-2 transition-all ${currentProfile === img ? 'border-indigo-500 scale-110' : 'border-transparent hover:border-indigo-300'}`}
+                        className={`aspect-square rounded-full overflow-hidden border-2 transition-all relative group ${currentProfile === img.signedUrl ? 'border-indigo-500 scale-110' : 'border-transparent hover:border-indigo-300'}`}
                       >
-                        <img src={img} className="w-full h-full object-cover" />
+                        <img src={img.signedUrl} className="w-full h-full object-cover" />
+                        {img.is_ai_generated && (
+                          <div className="absolute bottom-0 right-0 bg-purple-500 rounded-tl-lg p-0.5">
+                            <Sparkles className="w-2 h-2 text-white" />
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -398,7 +368,7 @@ const renderTemplate = () => {
               )}
             </div>
 
-            {/* 2. Background Image Control */}
+            {/* 2. ✅ PARANNETTU: Background Image Control */}
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl shadow-xl p-4">
               <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <ImageIconLucide className="w-4 h-4 text-purple-600" />
@@ -413,77 +383,64 @@ const renderTemplate = () => {
                 </label>
               </div>
 
-              {/* User's History / Global Backgrounds */}
-              {(userBackgrounds.length > 0 || cvData.content.ai_data?.background_image) && (
-                <div className="mb-4">
-                   <p className="text-xs text-gray-500 mb-2">Omat & Generoidut:</p>
-                   <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-1">
-                      {/* Original AI Image if exists */}
-                      {cvData.content.ai_data?.background_image && (
+              {/* ✅ KAIKKI SAATAVILLA OLEVAT TAUSTAKUVAT */}
+              {availableImages.backgroundImages.length > 0 && (
+                <div className="mb-2">
+                   <div className="flex items-center justify-between mb-2">
+                     <p className="text-xs text-gray-500">Valitse taustakuva:</p>
+                     <span className="text-xs text-purple-600 font-semibold">{availableImages.backgroundImages.length} kuvaa</span>
+                   </div>
+                   <div className="grid grid-cols-3 gap-2 max-h-80 overflow-y-auto p-1 custom-scrollbar">
+                      {availableImages.backgroundImages.map((img) => (
                         <button
-                          onClick={() => handleSelectImage(cvData.content.ai_data?.background_image || '', 'backgroundImage')}
-                           className={`aspect-video rounded-lg overflow-hidden border-2 relative group ${currentBg === cvData.content.ai_data?.background_image ? 'border-purple-500' : 'border-gray-200'}`}
-                        >
-                          <img src={cvData.content.ai_data?.background_image} className="w-full h-full object-cover" />
-                          <div className="absolute bottom-0 right-0 bg-purple-500 text-white text-[8px] px-1">AI</div>
-                        </button>
-                      )}
-                      
-                      {/* User's uploaded backgrounds */}
-                      {userBackgrounds.map((img, idx) => (
-                        <button
-                          key={idx}
+                          key={img.id}
                           onClick={() => handleSelectImage(img, 'backgroundImage')}
-                          className={`aspect-video rounded-lg overflow-hidden border-2 transition-all ${currentBg === img ? 'border-purple-500 ring-2 ring-purple-200' : 'border-gray-200 hover:border-purple-300'}`}
+                          className={`aspect-video rounded-lg overflow-hidden border-2 relative group transition-all ${
+                            currentBg === img.signedUrl 
+                              ? 'border-purple-500 ring-2 ring-purple-200 scale-105' 
+                              : 'border-gray-200 hover:border-purple-300'
+                          }`}
+                          title={img.name}
                         >
-                          <img src={img} className="w-full h-full object-cover" />
+                          <img src={img.signedUrl} className="w-full h-full object-cover" />
+                          
+                          {/* AI Badge */}
+                          {img.is_ai_generated && (
+                            <div className="absolute top-1 right-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                              <Sparkles className="w-2 h-2" />
+                              AI
+                            </div>
+                          )}
+                          
+                          {/* Hover Info */}
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <p className="text-white text-[10px] px-2 text-center">{img.name}</p>
+                          </div>
                         </button>
                       ))}
                    </div>
                 </div>
               )}
 
-              {/* Default Gallery */}
-              <div className="mt-2">
-                  <p className="text-xs text-gray-500 mb-2">Galleria:</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {defaultImages.backgroundImages.slice(0, 6).map((img, idx) => (
-                      <button 
-                        key={idx}
-                        onClick={() => handleSelectImage(img, 'backgroundImage')}
-                        className={`aspect-video rounded-lg overflow-hidden border-2 transition-all ${currentBg === img ? 'border-purple-500 scale-105' : 'border-transparent hover:border-purple-300'}`}
-                      >
-                        <img src={img} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-              </div>
-            </div>
-
-            {/* 3. Helper Info */}
-            <div className="backdrop-blur-xl bg-blue-50/70 border-2 border-blue-100 rounded-xl shadow-sm p-4">
-              <h4 className="text-xs font-bold text-blue-800 mb-1 flex items-center gap-1">
-                <Layout className="w-3 h-3" />
-                Muokkaustila
-              </h4>
-              <p className="text-xs text-blue-700 leading-relaxed">
-                Paina ylhäältä <strong>"Muokkaa"</strong>, jolloin voit klikata ja muokata tekstejä suoraan CV:n esikatselussa.
-              </p>
+              {availableImages.backgroundImages.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-4">
+                  Ei tallennettuja taustakuvia
+                </p>
+              )}
             </div>
 
           </div>
 
-          {/* ✅ CENTER: CV PREVIEW / EDITOR */}
+          {/* CENTER: CV PREVIEW */}
           <div className="lg:col-span-9">
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl md:rounded-2xl shadow-xl p-1 md:p-4 overflow-hidden">
-               {/* A4 Container Wrapper */}
                <div className="overflow-x-auto pb-4 custom-scrollbar flex justify-center bg-gray-50/50 rounded-lg border border-gray-100 inner-shadow">
                   <div 
-                    className={`origin-top transition-transform duration-300 bg-white shadow-2xl mt-4 mb-4 print:shadow-none print:m-0`}
+                    className="origin-top transition-transform duration-300 bg-white shadow-2xl mt-4 mb-4 print:shadow-none print:m-0"
                     style={{
                       width: '210mm',
-                      minHeight: '297mm', // A4
-                      transform: 'scale(0.95)', // Hieman pienempi että mahtuu ruudulle nätisti
+                      minHeight: '297mm',
+                      transform: 'scale(0.95)',
                     }}
                   >
                     {renderTemplate()}
