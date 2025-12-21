@@ -1,4 +1,4 @@
-// app/cover-letter-preview/[id]/page.tsx - KORJATTU (EI HEADERIA)
+// app/cover-letter-preview/[id]/page.tsx - KORJATTU
 "use client";
 
 import { useEffect, useState } from "react";
@@ -263,6 +263,14 @@ export default function CoverLetterPreviewPage() {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
+
+        /* ✅ PRINT STYLES - Varmistaa sinisen palkin tulostuksen */
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
       `}</style>
 
       <div
@@ -274,7 +282,6 @@ export default function CoverLetterPreviewPage() {
           width: "100%",
         }}
       >
-        {/* ✅ EI HEADERIA - VAIN TEMPLATE */}
         <CoverLetterContainer data-template-type="standard" className="mx-auto">
           <CoverLetterTemplate
             data={{

@@ -152,6 +152,31 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
       position: 'relative',
       overflow: 'hidden',
     }}>
+      {/* ✅ VASEN REUNAN DEKORATIIVINEN ELEMENTTI - Ei häiritse ATS:ää */}
+      <div style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: '8mm',
+        background: 'linear-gradient(180deg, #3498db 0%, #2980b9 50%, #3498db 100%)',
+        zIndex: 0,
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+      } as React.CSSProperties} />
+      
+      {/* ✅ HIENOVARAINEN AKSENTTI YLÄREUNASSA */}
+      <div style={{
+        position: 'absolute',
+        left: '8mm',
+        top: 0,
+        right: 0,
+        height: '3mm',
+        background: 'linear-gradient(90deg, #3498db 0%, transparent 100%)',
+        zIndex: 0,
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+      } as React.CSSProperties} />
       {/* ✅ FONTTIEN LATAUS */}
       <link
         href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Merriweather:wght@300;400;700&display=swap"

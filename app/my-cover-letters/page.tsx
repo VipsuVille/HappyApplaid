@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx
+// app/my-cover-letters/page.tsx - PARANNETTU BADGEILLA
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -13,13 +13,13 @@ import {
   Sparkles, 
   TrendingUp, 
   Zap, 
-  Plus 
+  Plus,
+  Database
 } from 'lucide-react';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
 
-// Tyypitykset (sovellettu tarpeen mukaan)
 interface CoverLetter {
   id: string;
   title: string;
@@ -42,7 +42,6 @@ export default function MyCoverLettersPage() {
     letterRefs.current[letterId] = el;
   }, []);
 
-  // ✅ Lataa hakukirjeet
   const loadCoverLetters = async () => {
     if (!userId) {
       setLoading(false);
@@ -73,7 +72,6 @@ export default function MyCoverLettersPage() {
     loadCoverLetters();
   }, [userId]);
 
-  // ✅ Poista hakukirje
   const handleDelete = async (id: string) => {
     if (!confirm('Haluatko varmasti poistaa tämän hakukirjeen?')) return;
 
@@ -85,7 +83,6 @@ export default function MyCoverLettersPage() {
       const { error } = await deleteCoverLetter(id, token);
       if (error) throw error;
       
-      // Päivitä lista ilman uutta hakua
       setCoverLetters(prev => prev.filter(letter => letter.id !== id));
     } catch (error) {
       console.error('Error deleting cover letter:', error);
@@ -95,7 +92,6 @@ export default function MyCoverLettersPage() {
     }
   };
 
-  // ✅ ATS Parannus logiikka
   const handleImproveATS = async (letterId: string) => {
     const letter = coverLetters.find(l => l.id === letterId);
     if (!letter) return;
@@ -130,7 +126,6 @@ export default function MyCoverLettersPage() {
 
       const data = await response.json();
 
-      // Päivitä tietokantaan (yksinkertaistettu tässä esimerkissä, oikeasti API kutsu)
       const updateResponse = await fetch(`/api/cover-letters/${letterId}`, {
         method: 'PATCH',
         headers: {
@@ -164,7 +159,6 @@ export default function MyCoverLettersPage() {
     }
   };
 
-  // ✅ PDF Lataus
   const handleDownloadPDF = async (letterId: string, letterName: string) => {
     setIsDownloading(letterId);
     try {
@@ -196,7 +190,6 @@ export default function MyCoverLettersPage() {
     }
   };
 
-  // ✅ Apufunktiot otsikolle
   const generateSmartTitle = (jobDescription: string, fallback: string = 'Työhakemus'): string => {
     if (!jobDescription || jobDescription.trim().length === 0) return fallback;
     const firstLine = jobDescription.split('\n')[0].trim();
@@ -212,8 +205,6 @@ export default function MyCoverLettersPage() {
     if (cleaned.length > 60) cleaned = cleaned.substring(0, 60).trim() + '...';
     return cleaned || 'Työhakemus';
   };
-
-  // --- RENDERÖINTI ---
 
   if (loading) {
     return (
@@ -248,7 +239,6 @@ export default function MyCoverLettersPage() {
   if (coverLetters.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 relative overflow-hidden">
-         {/* Animated background blobs */}
          <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
           <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
@@ -277,7 +267,6 @@ export default function MyCoverLettersPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
       
-      {/* Animated background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
@@ -286,7 +275,6 @@ export default function MyCoverLettersPage() {
 
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 relative z-10">
         
-        {/* Header */}
         <div className="mb-8">
           <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl shadow-2xl shadow-indigo-500/10 p-6 md:p-8 backdrop-saturate-150 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-blue-100/30 pointer-events-none rounded-3xl"></div>
@@ -322,7 +310,6 @@ export default function MyCoverLettersPage() {
           </div>
         </div>
 
-        {/* Cover Letters Grid */}
         <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-1 gap-8">
           {coverLetters.map((letter) => {
             const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
@@ -330,6 +317,11 @@ export default function MyCoverLettersPage() {
             const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
             const isATSOptimized = !!letter.ai_data?.ats_optimization;
             const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
+            
+            // ✅ Tunnista hakukirjeen tyyppi
+            const isRAG = !!letter.ai_data?.rag_used || !!letter.content?.rag_data;
+            const letterVersion = letter.ai_data?.version || letter.content?.version || 'v1';
+            const generationMethod = letter.ai_data?.generation_method || 'basic';
 
             return (
               <div
@@ -338,7 +330,6 @@ export default function MyCoverLettersPage() {
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
 
-                {/* Delete Button */}
                 <div className="absolute top-3 right-3 z-20">
                   <button
                     onClick={() => handleDelete(letter.id)}
@@ -354,61 +345,77 @@ export default function MyCoverLettersPage() {
                   </button>
                 </div>
 
+                <div
+                  className="relative md:h-[306mm] h-[130mm] w-full overflow-hidden bg-indigo-200/20"
+                  style={{
+                    boxShadow: "inset 0 4px 6px -1px rgba(0, 0, 0, 0.1), inset 0 -4px 6px -1px rgba(0, 0, 0, 0.1)",
+                  }}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-full h-full flex items-center justify-center">
+                      <CoverLetterContainer
+                        ref={setLetterRef(letter.id)}
+                        data-template-type="standard"
+                        className="transform lg:scale-100 md:scale-[0.7] scale-[0.4] origin-center min-w-[210mm] min-h-[297mm] shadow-lg bg-white"
+                      >
+                        <CoverLetterTemplate 
+                          data={letter}
+                          ai_data={letter.ai_data}
+                          isPdfPreview={false}
+                          isEditing={false}
+                        />
+                      </CoverLetterContainer>
+                    </div>
+                  </div>
+                </div>
 
-{/* Preview - Scaled exactly like CV */}
-<div
-  className="relative md:h-[306mm] h-[130mm] w-full overflow-hidden bg-indigo-200/20"
-  style={{
-    boxShadow: "inset 0 4px 6px -1px rgba(0, 0, 0, 0.1), inset 0 -4px 6px -1px rgba(0, 0, 0, 0.1)",
-  }}
->
-  {/* MUUTOS: Palautettu items-center ja poistettu ylimääräiset paddingit */}
-  <div className="absolute inset-0 flex items-center justify-center">
-    <div className="w-full h-full flex items-center justify-center">
-      <CoverLetterContainer
-        ref={setLetterRef(letter.id)}
-        data-template-type="standard"
-        // MUUTOS: Lisätty min-w-[210mm] ja min-h-[297mm] varmistamaan A4-muoto
-        // Palautettu origin-center, jotta se keskittyy nätisti kuten CV
-        className="transform lg:scale-100 md:scale-[0.7] scale-[0.4] origin-center min-w-[210mm] min-h-[297mm] shadow-lg bg-white"
-      >
-        <CoverLetterTemplate 
-          data={letter}
-          ai_data={letter.ai_data}
-          isPdfPreview={false}
-          isEditing={false}
-        />
-      </CoverLetterContainer>
-    </div>
-  </div>
-</div>
-
-                {/* Info & Actions */}
                 <div className="p-5 relative z-10 border-t-2 border-white/40">
                   <div className="flex justify-between items-start mb-4">
-                    <div>
+                    <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900 mb-1">
                         {displayTitle}
                       </h3>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 mb-2">
                         Luotu: {new Date(letter.created_at).toLocaleDateString("fi-FI")}
                       </p>
-                    </div>
-                    
-                    {/* ATS Badge */}
-                    {isATSOptimized && (
-                      <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold shadow-sm ${
-                        atsScore >= 75 ? 'bg-green-100 text-green-700 border border-green-200' :
-                        atsScore >= 50 ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                        'bg-red-100 text-red-700 border border-red-200'
-                      }`}>
-                        <TrendingUp className="w-3 h-3" />
-                        ATS: {atsScore}%
+                      
+                      {/* ✅ Tyyppi badget */}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {isRAG && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-100 text-purple-700 border border-purple-200 shadow-sm">
+                            <Database className="w-3 h-3" />
+                            RAG
+                          </span>
+                        )}
+                        
+                        {isATSOptimized && (
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold shadow-sm ${
+                            atsScore >= 75 ? 'bg-green-100 text-green-700 border border-green-200' :
+                            atsScore >= 50 ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
+                            'bg-red-100 text-red-700 border border-red-200'
+                          }`}>
+                            <TrendingUp className="w-3 h-3" />
+                            ATS: {atsScore}%
+                          </span>
+                        )}
+                        
+                        {!isRAG && !isATSOptimized && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200 shadow-sm">
+                            <FileText className="w-3 h-3" />
+                            {letterVersion.toUpperCase()}
+                          </span>
+                        )}
+                        
+                        {generationMethod === 'advanced' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm">
+                            <Zap className="w-3 h-3" />
+                            Advanced
+                          </span>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* ATS Suggestion Alert */}
                   {needsATSImprovement && (
                     <div className="mb-4 p-3 bg-yellow-50/80 border border-yellow-200 rounded-xl flex items-center justify-between gap-2">
                        <span className="text-xs text-yellow-800 font-medium flex items-center gap-2">
@@ -458,7 +465,6 @@ export default function MyCoverLettersPage() {
           })}
         </div>
 
-        {/* Stats Section */}
         <div className="mt-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-xl shadow-blue-500/10 p-6 backdrop-saturate-150">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
