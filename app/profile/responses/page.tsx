@@ -130,9 +130,11 @@ export default function ResponsesPage() {
                     <div className="flex-1">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${getCategoryColor(response.question_category)}`}>
                         {response.question_category.toUpperCase()}
+                        täällä pitäisi olla teskti
                       </span>
                       <h3 className="text-lg font-bold text-gray-900 mt-3">
                         {response.question_text}
+                        täällä kysymys
                       </h3>
                     </div>
                     <div className="flex gap-2">
