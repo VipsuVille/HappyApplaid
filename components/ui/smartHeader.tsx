@@ -35,33 +35,41 @@ export default function SmartHeader() {
 
   const plan = subscription?.plan_type;
 
+  // 🔒 Sulje profiilimenu klikatessa ulos
   useEffect(() => {
     if (!profileMenuOpen) return;
-    const close = () => setProfileMenuOpen(false);
+
+    const close = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-profile-menu]')) {
+        setProfileMenuOpen(false);
+      }
+    };
+
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, [profileMenuOpen]);
 
   // 🔄 LOADING
   if (!isClerkLoaded || isSubscriptionLoading) {
-    return (
-      <header className="h-16 bg-white/80 backdrop-blur border-b border-gray-200" />
-    );
+    return <header className="h-16 bg-white/80 border-b" />;
   }
 
   // 🚪 SIGNED OUT
   if (!isSignedIn) {
     return (
-      <header className="bg-white/80 backdrop-blur border-b border-gray-200">
+      <header className="bg-white/80 backdrop-blur border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
           <Link href="/">
-            <Image src="/logo.png" alt="HappyApplaid" width={160} height={40} />
+            <Image src="/logo.png" alt="HappyApplaid" width={150} height={40} />
           </Link>
+
           <div className="flex gap-2">
             <Button onClick={toggleLanguage} variant="ghost" size="sm">
               <Languages className="w-4 h-4 mr-1" />
               {language === 'en' ? 'FI' : 'EN'}
             </Button>
+
             <SignedOut>
               <SignInButton mode="modal">
                 <Button size="sm">Sign In</Button>
@@ -83,13 +91,15 @@ export default function SmartHeader() {
   ];
 
   return (
-    <header className="bg-white/80 backdrop-blur border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+    <header className="bg-white/80 backdrop-blur border-b sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center relative">
 
+        {/* LOGO */}
         <Link href="/" className="flex items-center">
           <Image src="/logo.png" alt="HappyApplaid" width={150} height={40} />
         </Link>
 
+        {/* DESKTOP NAV */}
         <nav className="hidden md:flex gap-1">
           {navLinks.map(({ href, label, icon: Icon }) => (
             <Link key={href} href={href}>
@@ -105,12 +115,13 @@ export default function SmartHeader() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
+        {/* RIGHT SIDE */}
+        <div className="flex items-center gap-2 relative">
 
-          {/* TIER BADGE – VAIN JOS ON */}
+          {/* PLAN BADGE */}
           {plan && (
-            <Link href="/pricing">
-              <div className="hidden sm:flex items-center gap-2 bg-yellow-50 border border-yellow-300 px-3 py-1.5 rounded-full">
+            <Link href="/pricing" className="hidden sm:block">
+              <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-300 px-3 py-1.5 rounded-full">
                 <Crown className="w-4 h-4 text-yellow-600" />
                 <span className="text-xs font-semibold text-yellow-800">
                   {plan.toUpperCase()}
@@ -119,33 +130,38 @@ export default function SmartHeader() {
             </Link>
           )}
 
-          <button
-            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full"
-          >
-            <div className="w-6 h-6 bg-indigo-600 text-white rounded-full text-xs flex items-center justify-center">
-              {user?.firstName?.[0] ?? 'U'}
-            </div>
-            <ChevronDown className="w-4 h-4" />
-          </button>
+          {/* PROFILE */}
+          <div data-profile-menu className="relative">
+            <button
+              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+              className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full"
+            >
+              <div className="w-6 h-6 bg-indigo-600 text-white rounded-full text-xs flex items-center justify-center">
+                {user?.firstName?.[0] ?? 'U'}
+              </div>
+              <ChevronDown className="w-4 h-4" />
+            </button>
 
-          {profileMenuOpen && (
-            <div className="absolute right-4 top-16 w-48 bg-white border rounded-lg shadow">
-              <Link href="/settings">
-                <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50">
-                  <Settings className="w-4 h-4 inline mr-2" />
-                  Settings
-                </button>
-              </Link>
-              <SignOutButton>
-                <button className="w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-red-50">
-                  <LogOut className="w-4 h-4 inline mr-2" />
-                  Sign out
-                </button>
-              </SignOutButton>
-            </div>
-          )}
+            {profileMenuOpen && (
+              <div className="absolute right-0 top-12 w-48 bg-white border rounded-lg shadow-md z-50">
+                <Link href="/settings">
+                  <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50">
+                    <Settings className="w-4 h-4 inline mr-2" />
+                    Settings
+                  </button>
+                </Link>
 
+                <SignOutButton>
+                  <button className="w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-red-50">
+                    <LogOut className="w-4 h-4 inline mr-2" />
+                    Sign out
+                  </button>
+                </SignOutButton>
+              </div>
+            )}
+          </div>
+
+          {/* MOBILE TOGGLE */}
           <button
             className="md:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -154,6 +170,26 @@ export default function SmartHeader() {
           </button>
         </div>
       </div>
+
+      {/* MOBILE MENU */}
+      {mobileMenuOpen && (
+        <div className="md:hidden absolute top-16 left-0 right-0 bg-white border-t shadow-lg z-40">
+          <nav className="flex flex-col p-4 gap-2">
+            {navLinks.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <div className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-100">
+                  <Icon className="w-4 h-4" />
+                  <span>{label}</span>
+                </div>
+              </Link>
+            ))}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
