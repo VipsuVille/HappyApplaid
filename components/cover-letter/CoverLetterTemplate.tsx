@@ -1,4 +1,4 @@
-// components/cover-letter/CoverLetterTemplate.tsx
+// components/cover-letter/CoverLetterTemplate.tsx - YKSINKERTAISTETTU
 import React from 'react';
 import DOMPurify from 'dompurify';
 
@@ -20,16 +20,7 @@ interface CoverLetterTemplateProps {
     styles: {
       main_style: string;
     };
-    personality_analysis?: {
-      job_match_score?: number;
-      personality_hooks?: string[];
-      key_differentiators?: string[];
-      data_quality?: {
-        quality: string;
-        score: number;
-        personalityCompleteness: number;
-      };
-    };
+    personality_analysis?: any;
   };
   isEditing?: boolean;
   isPdfPreview?: boolean;
@@ -43,29 +34,15 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
   isPdfPreview = false,
   onContentChange
 }) => {
-  const pageStyle: React.CSSProperties = {
-    width: '210mm',
-    height: '297mm',
-    boxSizing: 'border-box',
-    fontFamily: '"Merriweather", serif',
-    lineHeight: 1.5,
-    backgroundColor: 'white',
-    color: '#333',
-    overflow: 'hidden',
-    position: 'relative',
-  };
-
-  const contentStyle = ai_data?.styles?.main_style || '';
-
   const renderSignature = () => {
-    const name = data.content?.applicant_info?.name || 'Hakija';
-    const email = data.content?.applicant_info?.email || '';
+    const name = data.content?.applicant_info?.name || 
+                 data.content?.applicant_info?.full_name || 
+                 'Hakija';
     const closing = 'Ystävällisin terveisin';
 
     if (isEditing) {
       return (
         <div className="signature-editor mt-8">
-          <h4 className="text-sm text-gray-600 mb-2">Allekirjoitus:</h4>
           <input
             type="text"
             value={name}
@@ -78,42 +55,31 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
     }
 
     return (
-      <div className="signature-section" style={{ marginTop: '40px' }}>
-        <div className="closing-text" style={{ 
-          fontSize: '11pt',
+      <div style={{ marginTop: '30px' }}>
+        <div style={{ 
+          fontSize: '10pt',
           color: '#555',
-          marginBottom: '20px',
-          lineHeight: '1.2'
+          marginBottom: '15px'
         }}>
           {closing}
         </div>
         
-        <div className="signature-line" style={{ 
+        <div style={{ 
           borderBottom: '2px solid #3498db', 
-          width: '230px', 
-          marginBottom: '8px'
-        }}></div>
+          width: '180px', 
+          marginBottom: '8px',
+          WebkitPrintColorAdjust: 'exact',
+          printColorAdjust: 'exact',
+        } as React.CSSProperties}></div>
         
-        <div className="signature-text" style={{ 
+        <div style={{ 
           fontFamily: '"Dancing Script", cursive', 
-          fontSize: '22pt',
+          fontSize: '18pt',
           color: '#2c3e50',
-          marginBottom: '4px',
-          lineHeight: '1.2'
+          fontWeight: 600,
         }}>
           {name}
         </div>
-        
-        {email && (
-          <div style={{
-            fontSize: '10pt',
-            color: '#666',
-            marginTop: '2px',
-            lineHeight: '1.2'
-          }}>
-            {email}
-          </div>
-        )}
       </div>
     );
   };
@@ -137,100 +103,83 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           placeholder="Kirjoita hakukirjeen sisältö tähän..."
         />
       );
-    } else {
-      const bodyContent = data.content.body || '';
-      
-      if (isPdfPreview || typeof window === 'undefined') {
-        return (
-          <div 
-            className="cover-letter-content" 
-            dangerouslySetInnerHTML={{ __html: bodyContent }} 
-          />
-        );
-      }
-      
-      const cleanHtml = DOMPurify.sanitize(bodyContent);
+    }
+
+    const bodyContent = data.content.body || '';
+    
+    if (isPdfPreview || typeof window === 'undefined') {
       return (
         <div 
-          className="cover-letter-content" 
-          dangerouslySetInnerHTML={{ __html: cleanHtml }} 
+          style={{
+            fontFamily: '"Merriweather", serif',
+            fontSize: '10pt',
+            lineHeight: 1.5,
+            whiteSpace: 'pre-wrap',
+          }}
+          dangerouslySetInnerHTML={{ __html: bodyContent }} 
         />
       );
     }
+    
+    const cleanHtml = DOMPurify.sanitize(bodyContent);
+    return (
+      <div 
+        style={{
+          fontFamily: '"Merriweather", serif',
+          fontSize: '10pt',
+          lineHeight: 1.5,
+          whiteSpace: 'pre-wrap',
+        }}
+        dangerouslySetInnerHTML={{ __html: cleanHtml }} 
+      />
+    );
   };
 
   return (
-    <div className="cover-letter-template" style={pageStyle} data-template-type="standard">
+    <div style={{
+      width: '210mm',
+      height: '297mm',
+      boxSizing: 'border-box',
+      fontFamily: '"Merriweather", serif',
+      backgroundColor: 'white',
+      color: '#333',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* ✅ FONTTIEN LATAUS */}
+      <link
+        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;600&display=swap"
+        rel="stylesheet"
+      />
+
+      {/* ✅ GLOBAL STYLES */}
       <style>
         {`
-          @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;700&display=swap');
-          
           @media print {
-            body, .cover-letter-template {
+            body {
               width: 210mm !important;
               height: 297mm !important;
               margin: 0 !important;
-              page-break-after: avoid;
             }
-            .no-print {
-              display: none !important;
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
-          }
-         
-          .cover-letter-content {
-            ${contentStyle}
-            white-space: pre-wrap;
-          }
-
-          /* ✅ POISTETTU SININEN GRADIENT - vain PDF:ssä valkoinen tausta */
-          .cover-letter-template {
-            position: relative;
-            color: #333;
-            ${isPdfPreview ? 'background-color: white;' : 'background-image: linear-gradient(to bottom right, rgba(236, 240, 241, 0.1), rgba(255, 255, 255, 0.8));'}
-          }
-
-          .cover-letter-content h1 {
-            color: #2c3e50;
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 12px;
-            margin-bottom: 30px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
           }
 
           .cover-letter-content p {
-            margin-bottom: 16px;
-            line-height: 1.7;
-            letter-spacing: 0.2px;
-          }
-
-          .signature-section {
-            margin-top: 50px;
-            position: relative;
-          }
-          
-          .signature-text {
-            font-family: 'Dancing Script', cursive;
-            font-size: 1.5rem;
-            color: #2c3e50;
-            font-weight: 600;
-            text-shadow: 0 1px 1px rgba(0,0,0,0.1);
-          }
-          
-          .cover-letter-content h1:after {
-            content: '';
-            display: block;
-            width: 80px;
-            height: 3px;
-            background-color: #e74c3c;
-            position: absolute;
-            left: 0;
-            margin-top: 12px;
+            margin-bottom: 12px;
+            line-height: 1.5;
           }
         `}
       </style>
 
-      <div style={{ padding: '20mm', height: '100%', boxSizing: 'border-box' }}>
+      {/* ✅ PADDING - Optimoitu tilankäyttö */}
+      <div style={{ 
+        padding: '18mm 20mm 15mm 20mm',
+        height: '100%', 
+        boxSizing: 'border-box'
+      }}>
         {isEditing ? (
           <div>
             <h1>
@@ -247,8 +196,26 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           </div>
         ) : (
           <>
-            <h1 className="text-2xl font-bold mb-6">{getJobTitle()}</h1>
-            {renderContent()}
+            {/* ✅ OTSIKKO */}
+            <h1 style={{ 
+              fontSize: '14pt', 
+              fontWeight: '600', 
+              marginBottom: '18px',
+              color: '#2c3e50',
+              borderBottom: '2px solid #3498db',
+              paddingBottom: '8px',
+              WebkitPrintColorAdjust: 'exact',
+              printColorAdjust: 'exact',
+            } as React.CSSProperties}>
+              {getJobTitle()}
+            </h1>
+            
+            {/* ✅ SISÄLTÖ */}
+            <div className="cover-letter-content">
+              {renderContent()}
+            </div>
+            
+            {/* ✅ ALLEKIRJOITUS */}
             {renderSignature()}
           </>
         )}
