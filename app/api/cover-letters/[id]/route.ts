@@ -1,12 +1,12 @@
-// app/api/cover-letters/[id]/route.ts
+// app/api/cover-letters/[id]/route.ts - TARKKA KOPIO CV:stä
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> } // ← Promise!
 ) {
-  const params = await context.params;
+  const params = await context.params; // ← Await tässä!
   const letterId = params.id;
 
   if (!letterId) {
@@ -20,9 +20,9 @@ export async function GET(
     console.log("🔍 API: Fetching cover letter:", letterId);
 
     const { data, error } = await supabaseAdmin
-      .from('cover_letters')
-      .select('*')
-      .eq('id', letterId)
+      .from("cover_letters")
+      .select("*")
+      .eq("id", letterId)
       .maybeSingle();
 
     if (error) {
@@ -64,9 +64,9 @@ export async function PATCH(
   const body = await request.json();
   
   const { data, error } = await supabaseAdmin
-    .from('cover_letters')
+    .from("cover_letters")
     .update(body)
-    .eq('id', letterId)
+    .eq("id", letterId)
     .select()
     .single();
 

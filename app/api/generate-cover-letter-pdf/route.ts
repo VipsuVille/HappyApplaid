@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter-pdf/route.ts - KORJATTU (kuten CV)
+// app/api/generate-cover-letter-pdf/route.ts - TARKKA KOPIO CV:stä
 import { NextRequest, NextResponse } from "next/server";
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
@@ -10,53 +10,25 @@ export async function POST(req: NextRequest) {
     const { letterId } = await req.json();
 
     if (!letterId) {
-      return NextResponse.json(
-        { error: "Letter ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Letter ID is required" }, { status: 400 });
     }
 
-    console.log(`📄 Generating PDF for cover letter: ${letterId}`);
-
-    // ✅ NAVIGOI PREVIEW-SIVULLE (kuten CV:ssä)
+    // ✅ LISÄÄ ?pdf=true parametri (KUTEN CV:SSÄ)
     const letterUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cover-letter-preview/${letterId}?pdf=true`;
 
     console.log(`📄 Navigating to: ${letterUrl}`);
 
-    // ✅ DYNAMIC IMPORT BASED ON ENVIRONMENT
-    const isDev = process.env.NODE_ENV === "development";
-    let browser;
-    
-    if (isDev) {
-      const puppeteer = await import("puppeteer");
-      console.log("🔧 Using local Puppeteer...");
-      
-      browser = await puppeteer.default.launch({
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-        ],
-      });
-    } else {
-      const puppeteer = await import("puppeteer-core");
-      const chromium = await import("@sparticuz/chromium");
-      console.log("🚀 Using Sparticuz Chromium...");
-      
-      browser = await puppeteer.default.launch({
-        args: chromium.default.args,
-        executablePath: await chromium.default.executablePath(),
-        headless: true,
-      });
-    }
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    });
 
     const page = await browser.newPage();
 
-    // ✅ A4-VIEWPORT
     await page.setViewport({
-      width: 794,  // A4 leveys
-      height: 1123, // A4 korkeus
+      width: 794,
+      height: 1123,
       deviceScaleFactor: 1,
     });
 
@@ -64,13 +36,12 @@ export async function POST(req: NextRequest) {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
 
-    // ✅ NAVIGOI SIVULLE
     await page.goto(letterUrl, {
       waitUntil: "networkidle0",
       timeout: 60000,
     });
 
-    // ✅ ODOTA KAIKKI KUVAT (kuten CV:ssä)
+    // ✅ ODOTA KUVAT (TARKKA KOPIO CV:stä)
     await page.evaluate(() => {
       return Promise.all(
         Array.from(document.images)
@@ -84,7 +55,9 @@ export async function POST(req: NextRequest) {
       );
     });
 
-    // ✅ ODOTA TAUSTAGRAFIIKKAA (kuten CV:ssä)
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    // ✅ BACKGROUND IMAGES (TARKKA KOPIO CV:stä)
     await page.evaluate(() => {
       return new Promise<void>((resolve) => {
         const elementsWithBg = document.querySelectorAll("*");
@@ -114,15 +87,12 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    // ✅ LISÄODOTUSAIKA RENDERÖINNILLE (kuten CV:ssä)
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
     console.log("🖨️ Generating PDF...");
 
-    // ✅ PDF-ASETUKSET (kuten CV:ssä)
+    // ✅ PDF-ASETUKSET (TARKKA KOPIO CV:stä)
     const pdfBuffer = await page.pdf({
       format: "A4",
-      printBackground: true, // ✅ KRIITTINEN - Taustakuviot mukaan!
+      printBackground: true,
       margin: {
         top: "0",
         right: "0",
