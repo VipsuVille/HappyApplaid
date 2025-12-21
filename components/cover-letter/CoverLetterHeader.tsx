@@ -1,88 +1,127 @@
-// components/cover-letter/CoverLetterHeader.tsx - YKSINKERTAISTETTU
+// components/cover-letter/CoverLetterHeader.tsx - PARANNETTU
 import React from 'react';
 
 interface CoverLetterHeaderProps {
-  applicantInfo?: {
+  applicantInfo: {
     name?: string;
     full_name?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    postal_code?: string;
   };
   date?: string;
   isEditing?: boolean;
-  onInfoChange?: (field: string, value: string) => void;
+  onContentChange?: (field: string, value: string) => void;
 }
 
 const CoverLetterHeader: React.FC<CoverLetterHeaderProps> = ({
-  applicantInfo = {},
+  applicantInfo,
   date,
   isEditing = false,
-  onInfoChange
+  onContentChange
 }) => {
-  // ✅ KÄYTÄ OIKEAA NIMEÄ - EI DEFAULT-ARVOJA
-  const name = applicantInfo?.name || applicantInfo?.full_name || '';
-  
-  // ✅ SUOMALAINEN PÄIVÄMÄÄRÄ
-  const formattedDate = date || new Date().toLocaleDateString('fi-FI', {
+  const name = applicantInfo?.name || applicantInfo?.full_name || 'Hakija';
+  const currentDate = date || new Date().toLocaleDateString('fi-FI', {
     day: 'numeric',
-    month: 'numeric',
+    month: 'long',
     year: 'numeric'
   });
 
-  // Editoitava versio
   if (isEditing) {
     return (
-      <div className="cover-letter-header mb-4">
+      <div style={{
+        marginBottom: '25mm',
+        fontFamily: '"Merriweather", serif',
+      }}>
         <input
           type="text"
           value={name}
-          onChange={(e) => onInfoChange?.('applicant_info.name', e.target.value)}
-          className="block w-full border-b border-gray-300 focus:border-blue-500 outline-none text-lg font-bold mb-2"
+          onChange={(e) => onContentChange?.('applicant_info.name', e.target.value)}
+          className="w-full border-b-2 border-gray-300 text-2xl font-bold mb-2"
           placeholder="Nimi"
         />
-        <div className="text-right">
-          <input
-            type="text"
-            value={formattedDate}
-            onChange={(e) => onInfoChange?.('date', e.target.value)}
-            className="border-b border-gray-300 focus:border-blue-500 outline-none text-right text-sm"
-            placeholder="Päivämäärä"
-          />
-        </div>
+        <input
+          type="text"
+          value={applicantInfo.email || ''}
+          onChange={(e) => onContentChange?.('applicant_info.email', e.target.value)}
+          className="w-full border-b border-gray-200 text-sm mb-1"
+          placeholder="Sähköposti"
+        />
+        <input
+          type="text"
+          value={applicantInfo.phone || ''}
+          onChange={(e) => onContentChange?.('applicant_info.phone', e.target.value)}
+          className="w-full border-b border-gray-200 text-sm mb-1"
+          placeholder="Puhelin"
+        />
       </div>
     );
   }
 
-  // ✅ NÄYTTÖVERSIO: Vain nimi ja päivämäärä (kuten oikeat hakukirjeet)
   return (
-    <div className="cover-letter-header" style={{ marginBottom: '20px' }}>
-      {/* NIMI - vasemmalle */}
-      <div style={{ 
-        fontSize: '13pt',
-        fontWeight: '600',
+    <div style={{
+      marginBottom: '25mm',
+      fontFamily: '"Merriweather", serif',
+      borderBottom: '2px solid #e5e7eb',
+      paddingBottom: '15px',
+    }}>
+      {/* ✅ NIMI - Korostettu */}
+      <h2 style={{
+        fontSize: '18pt',
+        fontWeight: '700',
         color: '#2c3e50',
-        marginBottom: '6px',
-        letterSpacing: '0.3px'
+        marginBottom: '8px',
+        letterSpacing: '0.3px',
       }}>
         {name}
-      </div>
-      
-      {/* PÄIVÄMÄÄRÄ - oikealle */}
+      </h2>
+
+      {/* ✅ YHTEYSTIEDOT - Siisti layout */}
       <div style={{
-        textAlign: 'right',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '12px',
         fontSize: '10pt',
         color: '#555',
-        marginTop: '4px'
+        marginBottom: '10px',
       }}>
-        {formattedDate}
+        {applicantInfo.email && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#3498db', fontWeight: '600' }}>✉</span>
+            <span>{applicantInfo.email}</span>
+          </div>
+        )}
+        
+        {applicantInfo.phone && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#3498db', fontWeight: '600' }}>☎</span>
+            <span>{applicantInfo.phone}</span>
+          </div>
+        )}
+        
+        {(applicantInfo.address || applicantInfo.city || applicantInfo.postal_code) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#3498db', fontWeight: '600' }}>📍</span>
+            <span>
+              {[applicantInfo.address, applicantInfo.postal_code, applicantInfo.city]
+                .filter(Boolean)
+                .join(', ')}
+            </span>
+          </div>
+        )}
       </div>
-      
-      {/* EROTIN */}
+
+      {/* ✅ PÄIVÄMÄÄRÄ */}
       <div style={{
-        width: '100%',
-        height: '1px',
-        backgroundColor: '#e0e0e0',
+        fontSize: '10pt',
+        color: '#666',
+        fontStyle: 'italic',
         marginTop: '12px',
-        marginBottom: '20px'
-      }}></div>
+      }}>
+        {currentDate}
+      </div>
     </div>
   );
 };

@@ -24,7 +24,7 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
   editMode,
   onContentChange,
 }) => {
-  const [descriptionTop, setDescriptionTop] = useState(30); // mm from top
+  const [descriptionTop, setDescriptionTop] = useState(30);
 
   if (!data) {
     return <div>Ladataan CV:tä...</div>;
@@ -32,43 +32,27 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
 
   const validData: UserFormData = data || ({} as UserFormData);
   const validAiData: AIData = aiData || ({} as AIData);
-// Get background image
-const getBackgroundImageForCV = () => {
-  console.log("🎨 getBackgroundImageForCV called:", {
-    hasBackground: !!validAiData.background_image,
-    prefix: validAiData.background_image?.substring(0, 50) || 'N/A',
-    hasBackgroundUrl: !!validAiData.background_image_url,
-  });
 
-  if (!validAiData.background_image) {
-    console.log("🎨 No background_image found");
-    return null;
-  }
+  const getBackgroundImageForCV = () => {
+    if (!validAiData.background_image) {
+      return null;
+    }
 
-  // ✅ KORJAUS: Tarkista base64 ensin
-  if (validAiData.background_image.startsWith("data:image")) {
-    console.log("🎨 Using base64 background");
+    if (validAiData.background_image.startsWith("data:image")) {
+      return validAiData.background_image;
+    }
+
+    if (validAiData.background_image.startsWith("http")) {
+      return validAiData.background_image;
+    }
+
+    if (validAiData.background_image_url) {
+      return validAiData.background_image_url;
+    }
+
     return validAiData.background_image;
-  }
+  };
 
-  // ✅ Sitten HTTP URL
-  if (validAiData.background_image.startsWith("http")) {
-    console.log("🎨 Using HTTP background");
-    return validAiData.background_image;
-  }
-
-  // ✅ Fallback: background_image_url
-  if (validAiData.background_image_url) {
-    console.log("🎨 Using background_image_url");
-    return validAiData.background_image_url;
-  }
-
-  console.log("🎨 No valid background found, returning original");
-  // ✅ Jos mikään muu ei toimi, palauta alkuperäinen
-  return validAiData.background_image;
-};
-
-  // Get profile image or initials
   const getProfileDisplay = () => {
     if (validData.profileImage) {
       return (
@@ -116,11 +100,10 @@ const getBackgroundImageForCV = () => {
         overflow: "hidden",
       }}
     >
-      {/* ✅ KIINTEÄT PAINIKKEET OIKEAAN REUNAAN (VAIN EDIT-TILASSA) */}
       {isEditing && editMode === "content" && showEditControls && (
         <div
           style={{
-            position: "fixed", // ✅ FIXED = Ei liiku tekstin mukana
+            position: "fixed",
             right: "20px",
             top: "50%",
             transform: "translateY(-50%)",
@@ -154,11 +137,11 @@ const getBackgroundImageForCV = () => {
         </div>
       )}
 
-      {/* Header with Background Image oli aikaisemmin tää linear-gradient(135deg, rgba(59, 130, 246, 0.7), rgba(147, 51, 234, 0.7)), ` url(${backgroundImageUrl})`*/}
+      {/* ✅ KORJATTU: Header 70mm -> 65mm */}
       <div
         className="header-section relative"
         style={{
-          height: "80mm",
+          height: "65mm",
           backgroundImage: backgroundImageUrl
             ? ` url(${backgroundImageUrl})`
             : "linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(147, 51, 234, 0.9))",
@@ -171,12 +154,12 @@ const getBackgroundImageForCV = () => {
           paddingTop: "0mm",
         }}
       >
-        {/* Profile Image */}
+        {/* ✅ KORJATTU: Profile 65mm -> 55mm */}
         <div
           className="profile-image-container"
           style={{
-            width: "65mm",
-            height: "65mm",
+            width: "55mm",
+            height: "55mm",
             borderRadius: "50%",
             overflow: "hidden",
             border: "5px solid white",
@@ -187,12 +170,12 @@ const getBackgroundImageForCV = () => {
         </div>
       </div>
 
-      {/* Name Overlay on Header */}
+      {/* ✅ KORJATTU: Name overlay 25mm -> 20mm */}
       <div
         className="name-overlay"
         style={{
           position: "absolute",
-          top: "25mm",
+          top: "20mm",
           left: "30%",
           transform: "translateX(-50%)",
           textAlign: "center",
@@ -215,7 +198,7 @@ const getBackgroundImageForCV = () => {
         )}
       </div>
 
-      {/* Contact Info Bar */}
+      {/* ✅ KORJATTU: Contact bar 15mm -> 12mm */}
       <div
         className={`contact-bar bg-blue-600 text-white ${
           isEditing && editMode === "content" && showEditControls
@@ -223,7 +206,7 @@ const getBackgroundImageForCV = () => {
             : ""
         }`}
         style={{
-          height: "15mm",
+          height: "12mm",
           display: "flex",
           alignItems: "center",
           justifyContent: isEditing && editMode === "content" && showEditControls
@@ -234,7 +217,6 @@ const getBackgroundImageForCV = () => {
           boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         }}
       >
-        {/* Phone */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.774a11.05 11.05 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.05 18 3 13.95 3 8V5z" />
@@ -254,7 +236,6 @@ const getBackgroundImageForCV = () => {
           )}
         </div>
 
-        {/* Email */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M2.003 5.884L10 10.941l7.997-5.057A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
@@ -275,7 +256,6 @@ const getBackgroundImageForCV = () => {
           )}
         </div>
 
-        {/* Location */}
         <div className="flex items-center gap-2 flex-shrink-0">
           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
             <path
@@ -299,7 +279,6 @@ const getBackgroundImageForCV = () => {
           )}
         </div>
 
-        {/* Job Title */}
         {(validData.title || (isEditing && editMode === "content" && showEditControls)) && (
           <div className="flex items-center gap-2 flex-shrink-0">
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -326,15 +305,15 @@ const getBackgroundImageForCV = () => {
         )}
       </div>
 
-      {/* Main Content Area - Personal Description */}
+      {/* ✅ KORJATTU: Main content top 95+30 -> 77+30, maxHeight 165 -> 185 */}
       <div
         className="main-content"
         style={{
           position: "absolute",
-          top: `${95 + descriptionTop}mm`,
+          top: `${77 + descriptionTop}mm`,
           left: "25mm",
           right: "25mm",
-          maxHeight: "165mm", // ✅ Vähennetty jotta allekirjoitus mahtuu
+          maxHeight: "185mm",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -351,7 +330,7 @@ const getBackgroundImageForCV = () => {
                 className="w-full p-4 border-2 border-gray-300 rounded-xl text-base leading-relaxed shadow-lg"
                 style={{
                   minHeight: "100mm",
-                  maxHeight: "120mm",
+                  maxHeight: "140mm",
                   resize: "vertical",
                 }}
                 placeholder="Henkilökohtainen esittely..."
@@ -360,7 +339,7 @@ const getBackgroundImageForCV = () => {
               <p
                 className="text-base leading-relaxed text-gray-700 text-center"
                 style={{
-                  maxHeight: "120mm",
+                  maxHeight: "140mm",
                   overflow: "hidden",
                 }}
               >
@@ -368,11 +347,11 @@ const getBackgroundImageForCV = () => {
               </p>
             )}
 
-            {/* ✅ KORJATTU: Allekirjoitus - enemmän tilaa */}
+            {/* ✅ KORJATTU: Allekirjoitus padding */}
             <div 
-              className="signature-container mt-8 text-center"
+              className="signature-container mt-6 text-center"
               style={{
-                paddingBottom: "10mm", // ✅ LISÄTILAA ALAREUNAAN
+                paddingBottom: "8mm",
               }}
             >
               {isEditing && editMode === "content" && showEditControls ? (
@@ -383,7 +362,7 @@ const getBackgroundImageForCV = () => {
                   className="text-4xl font-bold text-blue-600 italic px-4 py-2 border-2 border-gray-300 rounded-lg shadow-lg"
                   style={{
                     fontFamily: "Brush Script MT, Dancing Script, cursive",
-                    lineHeight: "1.4", // ✅ ENEMMÄN RIVINVÄLIÄ
+                    lineHeight: "1.4",
                   }}
                   placeholder="Allekirjoitus"
                 />
@@ -396,8 +375,8 @@ const getBackgroundImageForCV = () => {
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                     backgroundClip: "text",
-                    lineHeight: "1.5", // ✅ RIITTÄVÄ KORKEUS g, y, j kirjaimille
-                    paddingBottom: "8px", // ✅ LISÄTILAA ALAREUNAAN
+                    lineHeight: "1.5",
+                    paddingBottom: "6px",
                   }}
                 >
                   {validData.name || ""}
