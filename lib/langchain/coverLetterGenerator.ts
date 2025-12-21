@@ -1,4 +1,4 @@
-// lib/langchain/coverLetterGenerator.ts - V1 KORJATTU VERSIO
+// lib/langchain/coverLetterGenerator.ts - V1 FORMAATTI KORJATTU
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -60,7 +60,7 @@ export async function generateCoverLetterV1(
   
   console.log(`🌍 Kieli: ${languageName} (input: ${input.language})`);
 
-  // ✅ EXTRACT REAL PROJECTS
+  // EXTRACT REAL PROJECTS
   const realProjects = [];
   
   if (input.bestProjectExample && input.bestProjectExample.length > 20) {
@@ -93,41 +93,77 @@ export async function generateCoverLetterV1(
   console.log(`📋 Todellisia projekteja: ${realProjects.length}`);
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `Olet ammattimainen hakukirjeen kirjoittaja. Kirjoitat VAKUUTTAVIA, EDUSTAVIA hakukirjeitä.
+    ['system', `Olet ammattimainen hakukirjeen kirjoittaja. Kirjoitat MODERNEJA, SELKEITÄ hakukirjeitä.
 
 # ════════════════════════════════════════════════════════════════
-# KRIITTINEN PERIAATE: "REPRESENTATION, NOT FABRICATION"
+# KRIITTINEN: MODERNI HAKUKIRJEEN FORMAATTI
+# ════════════════════════════════════════════════════════════════
+
+**HAKUKIRJE SISÄLTÄÄ VAIN:**
+1. Otsikko (työn nimi)
+2. Tervehdys
+3. Leipäteksti (3-4 kappaletta)
+4. Lopetus
+5. Allekirjoitus
+
+**ÄLÄ KOSKAAN KIRJOITA:**
+❌ Hakijan osoitetta
+❌ Hakijan puhelinnumeroa
+❌ Hakijan sähköpostia
+❌ Yrityksen osoitetta
+❌ [Paikkamerkkejä hakasulkeissa]
+❌ Päivämäärää tekstiin (se lisätään automaattisesti)
+
+**KRIITTINEN: NIMEN KÄYTTÖ**
+- Hakijan nimi on: {name}
+- ÄLÄ KOSKAAN kirjoita "Hakija"
+- ÄLÄ KOSKAAN kirjoita "[Your Name]"
+- Käytä AINA nimeä {name}
+
+# ════════════════════════════════════════════════════════════════
+# OIKEA FORMAATTI (ESIMERKKI)
+# ════════════════════════════════════════════════════════════════
+
+Hyvä [Yritys]-tiimi,
+
+[Ensimmäinen kappale - miksi kiinnostaa]
+
+[Toinen kappale - taidot ja kokemus]
+
+[Kolmas kappale - arvo yritykselle]
+
+[Neljäs kappale - lopetus ja kiitos]
+
+Ystävällisin terveisin,
+
+{name}
+
+# ════════════════════════════════════════════════════════════════
+# REPRESENTATION, NOT FABRICATION
 # ════════════════════════════════════════════════════════════════
 
 **HAKUKIRJE EI OLE CV** - Se on MYYNTIPUHE jossa:
 ✅ Tuodaan vahvuudet ELOON kiinnostavasti
 ✅ Kuvataan todellisia taitoja VAKUUTTAVASTI
 ✅ Näytetään ARVO työnantajalle
-❌ EI listata kuivia faktoja kuin CV:ssä
+❌ EI listata kuivia faktoja
 
-**SÄÄNTÖ 1: KIELI (TÄRKEIN)**
+**SÄÄNTÖ 1: KIELI**
 KOHDEKIELI: {languageName}
 - JOKAINEN SANA kielellä: {languageName}
-- Avaus, leipäteksti, lopetus: {languageName}
-- ÄLÄ KOSKAAN sekoita kieliä
 
-**SÄÄNTÖ 2: KÄYTÄ TODELLISTA NIMEÄ**
-- Hakijan nimi: {name}
-- AINA käytä tätä nimeä
-- ÄLÄ kirjoita "[Your Name]" tai paikkamerkkiä
-
-**SÄÄNTÖ 3: EDUSTAMINEN (EI VALEHTELU)**
+**SÄÄNTÖ 2: EDUSTAMINEN (EI VALEHTELU)**
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# MITÄ SAA TEHDÄ (REPRESENTATION)
+# MITÄ SAA TEHDÄ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Jos käyttäjällä on taito/kokemus listassa:
+Jos käyttäjällä on taito/kokemus:
 
 ✅ "Olen kehittänyt ohjelmointitaitojani käytännön projekteissa"
-   → OK kun skills-listassa on "ohjelmointi"
+   → OK kun skills sisältää "ohjelmointi"
 
-✅ "Minulla on kokemusta asiakaspalvelusta ja tiimityöskentelystä"
+✅ "Minulla on kokemusta asiakaspalvelusta"
    → OK kun workExperience sisältää asiakastyötä
 
 ✅ "Olen työskennellyt projektien parissa joissa..."
@@ -136,123 +172,82 @@ Jos käyttäjällä on taito/kokemus listassa:
 ✅ "Hallitsen [taidon] ja olen soveltanut sitä..."
    → OK kun taito on skills-listassa
 
-✅ "Kokemukseni [alalta] on opettanut minulle..."
-   → OK kun workExperience sisältää kyseisen alan
-
 ✅ "Olen innostunut oppimaan lisää [aiheesta]"
-   → AINA OK - motivaatio on aina totta
+   → AINA OK
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# MITÄ EI SAA TEHDÄ (FABRICATION)
+# MITÄ EI SAA TEHDÄ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-❌ "Kehitin automaattisen raportointijärjestelmän joka..."
-   → EI OK jos ei ole realProjects-listassa
+❌ "Kehitin automaattisen järjestelmän joka..."
+   → EI OK jos ei ole realProjects:issa
 
-❌ "Loin 50-käyttäjän verkkosovelluksen React:illa..."
-   → EI OK jos ei ole yksityiskohtia realProjects:issa
+❌ "Loin 50-käyttäjän sovelluksen..."
+   → EI OK jos ei ole yksityiskohtia
 
-❌ "Työskentelin Yritys X:ssä senior-roolissa..."
-   → EI OK jos ei ole workExperience:ssä
-
-❌ "Minulla on [sertifikaatti/tutkinto] jota ei ole mainittu"
-   → EI OK
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# KULTAINEN SÄÄNTÖ
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**Jos taito/kokemus on listassa:**
-→ Voit kuvata sitä KIINNOSTAVASTI ja VAKUUTTAVASTI
-→ Voit selittää miten olet SOVELTANUT sitä
-→ Voit näyttää sen ARVON työnantajalle
-
-**Jos taitoa/kokemusta EI ole listassa:**
-→ ÄLÄ mainitse sitä
-→ ÄLÄ keksi yksityiskohtia
-→ Keskity OLEMASSA OLEVIIN vahvuuksiin
+❌ Mitään yksityiskohtaisia projektikuvauksia jos niitä ei ole annettu
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**RAKENNE (kielellä {languageName}):**
+**RAKENNE (280-350 sanaa):**
 
-1. **AVAUS (2-3 lausetta)**
-   - Miksi juuri TÄMÄ rooli kiinnostaa
-   - Yhteys omaan taustaan/tavoitteisiin
+**KAPPALE 1: AVAUS (2-3 lausetta)**
+- Miksi juuri TÄMÄ rooli kiinnostaa
+- Yhteys omaan taustaan
 
-2. **VAHVUUDET (2-3 kappaletta)**
-   - Todelliset taidot ELÄVINÄ esimerkkeinä
-   - Persoonallisuus työkontekstissa
-   - Konkreettiset tulokset jos mahdollista
+**KAPPALE 2-3: VAHVUUDET (4-6 lausetta)**
+- Todelliset taidot kiinnostavasti
+- Persoonallisuus työssä
+- Konkreettiset esimerkit
 
-3. **ARVO TYÖNANTAJALLE (1-2 kappaletta)**
-   - Mitä tuot yritykselle
-   - Miten taitosi vastaavat tarpeitaan
-   - Miksi juuri sinä
+**KAPPALE 4: LOPETUS (2-3 lausetta)**
+- Innostus roolista
+- Halukkuus keskustella
+- Kiitos
 
-4. **LOPETUS (2-3 lausetta)**
-   - Innostus roolista
-   - Halukkuus keskustella lisää
-   - Kiitos
+Kirjoita PUHTAASTI kielellä {languageName}. Käytä nimeä {name}.`],
 
-**TYYLI:**
-- Vakuuttava mutta aito
-- Innostunut mutta ammattimainen
-- Spesifi mutta luonnollinen
-- 280-350 sanaa
-
-Kirjoita kokonaan kielellä {languageName}. Käytä nimeä {name}.`],
-
-    ['human', `Kirjoita EDUSTAVA hakukirje kielellä {languageName}.
+    ['human', `Kirjoita MODERNI hakukirje kielellä {languageName}.
 
 **TYÖPAIKAN KUVAUS:**
 {jobDescription}
 
-**HAKIJAN PERUSTIEDOT:**
-Nimi: {name}
+**HAKIJAN TIEDOT:**
+NIMI: {name} (KÄYTÄ TÄTÄ, EI "Hakija")
 Taidot: {skills}
 Työkokemus: {workExperience}
 Koulutus: {education}
 
-**TODELLISET PROJEKTIT/SAAVUTUKSET:**
+**TODELLISET PROJEKTIT:**
 {realProjects}
 
-**PERSOONALLISUUS & VAHVUUDET:**
+**PERSOONALLISUUS:**
 - Työskentelytyyli: {workingStyle}
 - Ongelmanratkaisu: {problemSolving}
-- Ainutlaatuinen vahvuus: {uniqueStrength}
+- Vahvuus: {uniqueStrength}
 - Supervoima: {superpower}
-- Energian lähteet: {energySources}
-- Tiimirooli: {teamRole}
 
-**MOTIVAATIO & TAVOITTEET:**
-- Uratoiveet: {careerGoals}
-- Opitut asiat: {failureLesson}
+**MOTIVAATIO:**
+- Tavoitteet: {careerGoals}
 - Arvot: {valuesExample}
 
-**HENKILÖKOHTAISET HUOMIOT (PRIORITEETTI!):**
+**HUOMIOT:**
 {personalNotes}
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# KIRJOITUSOHJEET
+# TÄRKEÄÄ - MUISTA NÄMÄ!
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. **EDUSTAMINEN:**
-   - Kuvaa todellisia taitoja VAKUUTTAVASTI
-   - Näytä niiden ARVO työnantajalle
-   - Tuo persoonallisuus ESIIN aidosti
+1. ÄLÄ kirjoita osoitteita tai yhteystietoja
+2. ÄLÄ kirjoita [hakasulkeita]
+3. KÄYTÄ nimeä {name} (EI "Hakija")
+4. Kirjoita VAIN:
+   - Tervehdys
+   - Leipäteksti (3-4 kappaletta)
+   - Lopetus
+   - Allekirjoitus: "Ystävällisin terveisin,\n\n{name}"
 
-2. **VALEHTELU:**
-   - ÄLÄ keksi projekteja joita ei ole listattu
-   - ÄLÄ mainitse sertifikaatteja joita ei ole
-   - ÄLÄ väitä kokemusta joita ei ole kerrottu
-
-3. **KIELI:**
-   - Kirjoita JOKA SANA kielellä {languageName}
-   - Käytä nimeä {name} allekirjoituksessa
-   - Tarkista että KAIKKI on oikealla kielellä
-
-Luo vakuuttava hakukirje NYT kielellä {languageName}.`]
+Luo hakukirje NYT kielellä {languageName}.`]
   ]);
 
   try {
@@ -272,10 +267,7 @@ Luo vakuuttava hakukirje NYT kielellä {languageName}.`]
       problemSolving: input.problemSolving || 'Looginen',
       uniqueStrength: input.uniqueStrength || 'Sitoutunut',
       superpower: input.superpower || 'Motivoitunut',
-      energySources: input.energySources || 'Yhteistyö',
-      teamRole: input.teamRole || 'Tiimipelaaja',
       careerGoals: input.careerGoals || 'Ammatillinen kasvu',
-      failureLesson: input.failureLesson || 'Jatkuva oppiminen',
       valuesExample: input.valuesExample || 'Rehellisyys',
       personalNotes: input.personalNotes || 'Ei lisätietoja'
     });
@@ -286,35 +278,32 @@ Luo vakuuttava hakukirje NYT kielellä {languageName}.`]
       ? result.content 
       : JSON.stringify(result.content);
 
-    // Fix placeholders
-    if (content.includes('[Your Name]') || content.includes('[Nimi]')) {
-      console.warn('⚠️ Korvataan paikkamerkki');
-      content = content
-        .replace(/\[Your Name\]/g, input.name || 'Hakija')
-        .replace(/\[Nimi\]/g, input.name || 'Hakija')
-        .replace(/\[Nimesi\]/g, input.name || 'Hakija');
-    }
+    // ✅ POISTA KAIKKI PLACEHOLDER-TEKSTIT
+    content = content
+      // Poista [hakasulkeissa] oleva teksti
+      .replace(/\[Osoite\]/g, '')
+      .replace(/\[Puhelinnumero\]/g, '')
+      .replace(/\[Sähköposti\]/g, '')
+      .replace(/\[Paikkakunta\]/g, '')
+      .replace(/\[Päivämäärä\]/g, '')
+      .replace(/\[Your Name\]/g, input.name || '')
+      .replace(/\[Nimi\]/g, input.name || '')
+      .replace(/\[Nimesi\]/g, input.name || '')
+      // Poista "Hakija" jos sitä käytetty
+      .replace(/^Hakija(?=\s|$)/gm, input.name || '')
+      // Poista tyhjät rivit jotka jäävät jäljelle
+      .replace(/\n\s*\n\s*\n/g, '\n\n')
+      .trim();
 
-    // Add signature if missing
-    const signatureFinnish = `\n\nYstävällisin terveisin,\n${input.name || 'Hakija'}`;
-    const signatureEnglish = `\n\nBest regards,\n${input.name || 'Applicant'}`;
+    // ✅ VARMISTA ALLEKIRJOITUS
+    const signatureFinnish = `Ystävällisin terveisin,\n\n${input.name || 'Hakija'}`;
+    const signatureEnglish = `Best regards,\n\n${input.name || 'Applicant'}`;
     
     if (!content.includes(input.name || 'Hakija')) {
-      content += isFinnish ? signatureFinnish : signatureEnglish;
+      content += '\n\n' + (isFinnish ? signatureFinnish : signatureEnglish);
     }
 
     console.log(`✅ Luotu ${content.length} merkkiä kielellä ${languageName}`);
-
-    // Verify language
-    const englishWords = ['I am', 'I have', 'I was', 'my experience', 'developed a', 'created a'];
-    
-    if (isFinnish) {
-      const hasEnglish = englishWords.some(word => content.toLowerCase().includes(word.toLowerCase()));
-      if (hasEnglish) {
-        console.error('❌ KRIITTINEN: Kirje sisältää englantia vaikka kohde on suomi!');
-        console.error('First 200 chars:', content.substring(0, 200));
-      }
-    }
 
     return {
       content,
