@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react';
 import { Loader2, Trash2, Edit2, Save, X, Briefcase, FileText, Calendar, Tag } from 'lucide-react';
 import { toast } from 'sonner';
-import SmartHeader from '@/components/ui/smartHeader';
 
 interface SavedResponse {
   id: string;
@@ -126,7 +125,6 @@ export default function ResponsesPage() {
 
   return (
     <>
-      <SmartHeader />
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 py-12 px-4">
         <div className="max-w-5xl mx-auto">
           
