@@ -322,8 +322,8 @@ if (guardianCheck.riskLevel === 'warning') {
   if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
     console.log(`💾 Saving ${Object.keys(answeredQuestions).length} answers...`);
     
-    const savePromises = Object.entries(answeredQuestions).map(([questionId, answer]) =>
-      saveUserResponse(userId, questionId, answer as string, 'cover_letter_v1', extractedJobTitle)
+    const savePromises = Object.entries(answeredQuestions).map(([question_text, answer]) =>
+      saveUserResponse(userId, question_text, answer as string, 'cover_letter_v1', extractedJobTitle)
     );
 
     const results = await Promise.allSettled(savePromises);
