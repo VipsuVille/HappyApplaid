@@ -1,11 +1,10 @@
-// app/cover-letter-preview/[id]/page.tsx - TARKKA KOPIO CV:stä
+// app/cover-letter-preview/[id]/page.tsx - KORJATTU (EI HEADERIA)
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import CoverLetterContainer from "@/components/cover-letter/CoverLetterContainer";
 import CoverLetterTemplate from "@/components/cover-letter/CoverLetterTemplate";
-import CoverLetterHeader from "@/components/cover-letter/CoverLetterHeader";
 import { supabase } from "@/lib/supabase-client";
 
 export default function CoverLetterPreviewPage() {
@@ -17,45 +16,26 @@ export default function CoverLetterPreviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ TARKKA KOPIO CV:stä
   const convertImageForPDF = async (imageUrl: string): Promise<string> => {
     if (!isPDFGeneration || !imageUrl || imageUrl.startsWith("data:")) {
-      console.log("⏭️ Skipping conversion:", {
-        isPDFGeneration,
-        hasUrl: !!imageUrl,
-        isBase64: imageUrl?.startsWith("data:")
-      });
       return imageUrl;
     }
 
     try {
-      console.log("🔄 Converting image:", imageUrl.substring(0, 100) + "...");
-
       const response = await fetch(
         `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
       );
 
-      console.log("📥 Proxy response status:", response.status);
-
       if (!response.ok) {
-        console.error("❌ Proxy failed:", response.statusText);
         return imageUrl;
       }
 
       const data = await response.json();
       
-      console.log("📦 Proxy response data:", {
-        hasBase64: !!data.base64,
-        base64Length: data.base64?.length || 0,
-        base64Prefix: data.base64?.substring(0, 50) || 'N/A'
-      });
-
       if (data.base64) {
-        console.log("✅ Image converted successfully, length:", data.base64.length);
         return data.base64;
       }
 
-      console.warn("⚠️ No base64 in response");
       return imageUrl;
     } catch (error) {
       console.error("❌ Error converting image:", error);
@@ -78,7 +58,6 @@ export default function CoverLetterPreviewPage() {
           isPDFGeneration ? "(PDF mode)" : "(Normal mode)"
         );
 
-        // ✅ KÄYTÄ API ROUTEA (kuten CV)
         const response = await fetch(`/api/cover-letters/${id}`);
 
         if (!response.ok) {
@@ -92,17 +71,9 @@ export default function CoverLetterPreviewPage() {
           throw new Error("Cover letteriä ei löytynyt");
         }
 
-        console.log("✅ Cover letter ladattu onnistuneesti:", {
-          id: data.id,
-          title: data.title,
-          hasContent: !!data.content,
-        });
-
         let processedLetter = { ...data };
 
-        // ✅ VARMISTA että content-rakenne on olemassa
         if (!processedLetter.content) {
-          console.warn("⚠️ Content puuttuu, luodaan tyhjä rakenne");
           processedLetter.content = {};
         }
 
@@ -110,24 +81,17 @@ export default function CoverLetterPreviewPage() {
           processedLetter.ai_data = {};
         }
 
-        // ✅ PROFIILIKUVA käsittely (jos tarvitaan)
         if (data.content?.profile_image || data.ai_data?.profile_image) {
           let profileUrl = data.content?.profile_image || data.ai_data?.profile_image;
 
-          console.log("👤 Profiilikuva alkuperäinen:", profileUrl?.substring(0, 100) + "...");
-
           if (profileUrl.startsWith("data:image")) {
-            console.log("👤 ✅ Profiilikuva on jo base64");
             if (data.content?.profile_image) {
               processedLetter.content.profile_image = profileUrl;
             } else {
               processedLetter.ai_data.profile_image = profileUrl;
             }
           } else if (profileUrl.startsWith("http")) {
-            console.log("👤 🌐 Profiilikuva on HTTP URL");
-
             if (isPDFGeneration) {
-              console.log("👤 📄 PDF mode - muunnetaan base64:ksi");
               profileUrl = await convertImageForPDF(profileUrl);
             }
 
@@ -137,15 +101,12 @@ export default function CoverLetterPreviewPage() {
               processedLetter.ai_data.profile_image = profileUrl;
             }
           } else {
-            console.log("👤 💾 Profiilikuva on Supabase storage path");
-
             if (isPDFGeneration) {
               const { data: publicUrlData } = supabase.storage
                 .from("cv_files")
                 .getPublicUrl(profileUrl);
 
               if (publicUrlData?.publicUrl) {
-                console.log("👤 🔄 Muunnetaan base64:ksi");
                 profileUrl = await convertImageForPDF(publicUrlData.publicUrl);
               }
             } else {
@@ -157,7 +118,6 @@ export default function CoverLetterPreviewPage() {
                   );
 
                 if (!urlError && signedUrlData?.signedUrl) {
-                  console.log("👤 ✍️ Signed URL luotu");
                   profileUrl = signedUrlData.signedUrl;
                 }
               } catch (urlError) {
@@ -174,10 +134,6 @@ export default function CoverLetterPreviewPage() {
         }
 
         console.log("✅ Cover letter prosessoitu onnistuneesti");
-        console.log("🎨 FINAL COVER LETTER DATA:", {
-          hasContent: !!processedLetter.content,
-          hasBody: !!processedLetter.content?.body,
-        });
 
         setLetter(processedLetter);
       } catch (error) {
@@ -193,7 +149,6 @@ export default function CoverLetterPreviewPage() {
     loadLetter();
   }, [id, isPDFGeneration]);
 
-  // ✅ LOADING (TARKKA KOPIO CV:stä)
   if (loading) {
     return (
       <div
@@ -232,7 +187,6 @@ export default function CoverLetterPreviewPage() {
     );
   }
 
-  // ✅ ERROR (TARKKA KOPIO CV:stä)
   if (error || !letter) {
     return (
       <div
@@ -279,7 +233,6 @@ export default function CoverLetterPreviewPage() {
     );
   }
 
-  // ✅ SUCCESS - RENDERÖI (TARKKA KOPIO CV:stä)
   return (
     <>
       <style jsx global>{`
@@ -321,22 +274,8 @@ export default function CoverLetterPreviewPage() {
           width: "100%",
         }}
       >
+        {/* ✅ EI HEADERIA - VAIN TEMPLATE */}
         <CoverLetterContainer data-template-type="standard" className="mx-auto">
-          <CoverLetterHeader
-            applicantInfo={{
-              name: letter.content?.applicant_info?.name || 
-                    letter.content?.applicant_info?.full_name || 
-                    'Hakija',
-              full_name: letter.content?.applicant_info?.name || 
-                        letter.content?.applicant_info?.full_name || 
-                        'Hakija',
-            }}
-            date={letter.created_at ? 
-              new Date(letter.created_at).toLocaleDateString('fi-FI') : 
-              new Date().toLocaleDateString('fi-FI')
-            }
-            isEditing={false}
-          />
           <CoverLetterTemplate
             data={{
               title: letter.title || 'Hakukirje',

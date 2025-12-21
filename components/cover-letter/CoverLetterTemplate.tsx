@@ -1,4 +1,4 @@
-// components/cover-letter/CoverLetterTemplate.tsx - YKSINKERTAISTETTU
+// components/cover-letter/CoverLetterTemplate.tsx - KORJATTU RAKENNE
 import React from 'react';
 import DOMPurify from 'dompurify';
 
@@ -57,15 +57,16 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
     return (
       <div style={{ marginTop: '30px' }}>
         <div style={{ 
-          fontSize: '10pt',
+          fontSize: '11pt',
           color: '#555',
-          marginBottom: '15px'
+          marginBottom: '16px',
+          fontFamily: '"Merriweather", serif',
         }}>
           {closing}
         </div>
         
         <div style={{ 
-          borderBottom: '2px solid #3498db', 
+          borderBottom: '3px solid #3498db', 
           width: '180px', 
           marginBottom: '8px',
           WebkitPrintColorAdjust: 'exact',
@@ -74,9 +75,10 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         
         <div style={{ 
           fontFamily: '"Dancing Script", cursive', 
-          fontSize: '18pt',
+          fontSize: '22pt',
           color: '#2c3e50',
-          fontWeight: 600,
+          fontWeight: 700,
+          letterSpacing: '0.5px',
         }}>
           {name}
         </div>
@@ -112,9 +114,11 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         <div 
           style={{
             fontFamily: '"Merriweather", serif',
-            fontSize: '10pt',
-            lineHeight: 1.5,
+            fontSize: '11pt',
+            lineHeight: 1.65,
             whiteSpace: 'pre-wrap',
+            color: '#2c3e50',
+            textAlign: 'justify',
           }}
           dangerouslySetInnerHTML={{ __html: bodyContent }} 
         />
@@ -126,9 +130,11 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
       <div 
         style={{
           fontFamily: '"Merriweather", serif',
-          fontSize: '10pt',
-          lineHeight: 1.5,
+          fontSize: '11pt',
+          lineHeight: 1.65,
           whiteSpace: 'pre-wrap',
+          color: '#2c3e50',
+          textAlign: 'justify',
         }}
         dangerouslySetInnerHTML={{ __html: cleanHtml }} 
       />
@@ -142,13 +148,13 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
       boxSizing: 'border-box',
       fontFamily: '"Merriweather", serif',
       backgroundColor: 'white',
-      color: '#333',
+      color: '#2c3e50',
       position: 'relative',
       overflow: 'hidden',
     }}>
       {/* ✅ FONTTIEN LATAUS */}
       <link
-        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Merriweather:wght@300;400;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Merriweather:wght@300;400;700&display=swap"
         rel="stylesheet"
       />
 
@@ -168,17 +174,28 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           }
 
           .cover-letter-content p {
-            margin-bottom: 12px;
-            line-height: 1.5;
+            margin-bottom: 16px;
+            line-height: 1.65;
+            text-indent: 0;
+          }
+
+          .cover-letter-content p:first-of-type {
+            margin-top: 0;
+          }
+
+          .cover-letter-content p:last-of-type {
+            margin-bottom: 0;
           }
         `}
       </style>
 
-      {/* ✅ PADDING - Optimoitu tilankäyttö */}
+      {/* ✅ SISÄLTÖ - VAIN HAKUKIRJE */}
       <div style={{ 
-        padding: '18mm 20mm 15mm 20mm',
+        padding: '20mm 25mm 20mm 25mm',
         height: '100%', 
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         {isEditing ? (
           <div>
@@ -196,22 +213,23 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           </div>
         ) : (
           <>
-            {/* ✅ OTSIKKO */}
+            {/* ✅ OTSIKKO - VAIN JOS ON OTSIKKO */}
             <h1 style={{ 
-              fontSize: '14pt', 
-              fontWeight: '600', 
-              marginBottom: '18px',
+              fontSize: '16pt', 
+              fontWeight: '700', 
+              marginBottom: '20px',
               color: '#2c3e50',
-              borderBottom: '2px solid #3498db',
-              paddingBottom: '8px',
+              borderBottom: '3px solid #3498db',
+              paddingBottom: '10px',
               WebkitPrintColorAdjust: 'exact',
               printColorAdjust: 'exact',
+              letterSpacing: '0.3px',
             } as React.CSSProperties}>
               {getJobTitle()}
             </h1>
             
             {/* ✅ SISÄLTÖ */}
-            <div className="cover-letter-content">
+            <div className="cover-letter-content" style={{ flex: 1, marginBottom: '20px' }}>
               {renderContent()}
             </div>
             
