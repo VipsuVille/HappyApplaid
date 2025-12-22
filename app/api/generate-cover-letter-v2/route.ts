@@ -326,17 +326,17 @@ export async function POST(req: Request) {
     if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
       console.log(`💾 Saving ${Object.keys(answeredQuestions).length} answers to history...`);
       
-      const savePromises = Object.entries(answeredQuestions).map(async ([questionText, answer]) => {
+      const savePromises = Object.entries(answeredQuestions).map(async ([question_text, answer]) => {
         try {
           await saveUserResponse(
             userId,
-            questionText,
+            question_text,
             answer as string,
             'cover_letter_v2',
             extractedJobTitle
           );
         } catch (error) {
-          console.error(`Failed to save answer for "${questionText}":`, error);
+          console.error(`Failed to save answer for "${question_text}":`, error);
         }
       });
 
