@@ -1,4 +1,4 @@
-// app/api/generate-general-cover-letter/route.ts - KORJATTU userId
+// app/api/generate-general-cover-letter/route.ts - KORJATTU
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -66,7 +66,6 @@ async function saveUserResponse(
 }
 
 export async function POST(req: Request) {
-  // ✅ 0. AUTH
   const authData = await auth();
   const userId = authData.userId;
 
@@ -77,10 +76,8 @@ export async function POST(req: Request) {
 
   console.log(`✅ Auth OK: ${userId}`);
 
-  // ✅ 1. MÄÄRITÄ ACTION
   const action: TokenAction = 'cover_letter_general';
 
-  // ✅ 2. HAE SUBSCRIPTION
   const { data: subscription, error: subError } = await supabaseAdmin
     .from('subscriptions')
     .select('plan_type, tokens, status, is_active')
@@ -94,7 +91,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // ✅ 3. TIER + TOKEN VALIDATION
   const tier = subscription.plan_type as 'free' | 'basic' | 'semi-pro' | 'pro';
   const isActive = subscription.is_active === true &&
     ['active', 'trialing'].includes(subscription.status || '');
@@ -127,7 +123,6 @@ export async function POST(req: Request) {
 
   console.log(`✅ Token check passed: ${tier} tier, ${required} tokens required`);
 
-  // ✅ 4. PARSE REQUEST
   try {
     const requestData = await req.json();
 
@@ -138,7 +133,7 @@ export async function POST(req: Request) {
       style,
       targetIndustry,
       targetRole,
-      answeredQuestions,
+      answeredQuestions, // ✅ NYT ARRAY!
       skipQuestions,
     } = requestData;
 
@@ -153,7 +148,7 @@ export async function POST(req: Request) {
     } = requestData;
 
     const shouldSkipQuestions = skipQuestions === true || 
-      (answeredQuestions && Object.keys(answeredQuestions).length > 0);
+      (answeredQuestions && answeredQuestions.length > 0);
 
     console.log(`📝 General cover letter request:`, {
       userId,
@@ -162,18 +157,16 @@ export async function POST(req: Request) {
       targetIndustry: targetIndustry || 'Not specified',
       targetRole: targetRole || 'Not specified',
       hasAnsweredQuestions: !!answeredQuestions,
-      answersCount: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+      answersCount: answeredQuestions?.length || 0,
       skipQuestions: shouldSkipQuestions
     });
 
-    // ✅ 5. TIER FEATURES
     const tierFeatures = await getTierFeatures(tier);
 
     console.log(`🎫 User tier: ${tierFeatures.name}`);
     console.log(`   - V1: ${tierFeatures.canUseV1 ? '✅' : '❌'}`);
     console.log(`   - RAG: ${tierFeatures.canUseRAG ? '✅' : '❌'}`);
 
-    // ✅ 6. GROUND TRUTH
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
@@ -183,7 +176,6 @@ export async function POST(req: Request) {
     const groundTruth = await extractGroundTruthAI(userProfile || {});
     console.log(`🛡️ Ground Truth extracted`);
 
-    // ✅ 7. PREPARE INPUT
     let coverLetterInput;
     if (profileData) {
       const apiFormat = convertProfileToApiFormat(profileData);
@@ -216,8 +208,8 @@ export async function POST(req: Request) {
         enableRAG: tierFeatures.canUseRAG,
         allowedSkills: groundTruth.technicalSkills,
         forbiddenClaims: groundTruth.cannotClaim,
-        userId: userId, // ✅ KRIITTINEN: Välitä userId!
-        skipQuestions: shouldSkipQuestions, // ✅ LISÄÄ skipQuestions
+        userId: userId,
+        skipQuestions: shouldSkipQuestions,
       };
     } else {
       coverLetterInput = {
@@ -237,16 +229,14 @@ export async function POST(req: Request) {
         enableRAG: tierFeatures.canUseRAG,
         allowedSkills: groundTruth.technicalSkills,
         forbiddenClaims: groundTruth.cannotClaim,
-        userId: userId, // ✅ KRIITTINEN: Välitä userId!
-        skipQuestions: shouldSkipQuestions, // ✅ LISÄÄ skipQuestions
+        userId: userId,
+        skipQuestions: shouldSkipQuestions,
       };
     }
 
-    // ✅ 8. GENEROI
     console.log(`📝 Generating general cover letter...`);
     const coverLetterData = await generateGeneralCoverLetter(coverLetterInput);
 
-    // ✅ 8.5 JOS KYSYMYKSIÄ
     if (!coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
       console.log(`❓ AI needs clarification: ${coverLetterData.questions.length} questions`);
       
@@ -263,7 +253,6 @@ export async function POST(req: Request) {
       console.warn(`⚠️ AI kysyi kysymyksiä vaikka skipQuestions=true`);
     }
 
-    // ✅ 9. TARKISTA SISÄLTÖ
     if (!coverLetterData.content || coverLetterData.content.trim().length === 0) {
       console.error('❌ No content generated');
       return NextResponse.json({
@@ -272,7 +261,6 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-    // ✅ 10. MASTER GUARDIAN
     console.log('🛡️ Running Master Guardian...');
 
     const guardianCheck = await masterConsistencyCheckAI(
@@ -294,9 +282,9 @@ export async function POST(req: Request) {
 
     console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
 
-    // ✅ 10.5 TALLENNA VASTAUKSET
-    if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
-      console.log(`💾 Saving ${Object.keys(answeredQuestions).length} answers...`);
+    // ✅ TALLENNA VASTAUKSET - KORJATTU!
+    if (answeredQuestions && answeredQuestions.length > 0) {
+      console.log(`💾 Saving ${answeredQuestions.length} answers...`);
       
       const extractedTitle = generateTitle({
         name: coverLetterInput.name,
@@ -304,16 +292,22 @@ export async function POST(req: Request) {
         targetIndustry: targetIndustry
       });
       
-      const savePromises = Object.entries(answeredQuestions).map(([question_text, answer]) =>
-        saveUserResponse(userId, question_text, answer as string, 'cover_letter_general', extractedTitle)
+      // ✅ OIKEA TAPA: Map array objekteja
+      const savePromises = answeredQuestions.map((item: any) => 
+        saveUserResponse(
+          userId,
+          item.question,  // ✅ OIKEA: Kysymysteksti
+          item.answer,    // ✅ OIKEA: Vastaus
+          'cover_letter_general',
+          extractedTitle
+        )
       );
 
       const results = await Promise.allSettled(savePromises);
       const successCount = results.filter(r => r.status === 'fulfilled').length;
-      console.log(`✅ Saved ${successCount}/${Object.keys(answeredQuestions).length} answers`);
+      console.log(`✅ Saved ${successCount}/${answeredQuestions.length} answers`);
     }
 
-    // ✅ 11. TALLENNA
     const extractedTitle = generateTitle({
       name: coverLetterInput.name,
       targetRole: targetRole,
@@ -386,8 +380,8 @@ export async function POST(req: Request) {
             tier: tierFeatures.name,
             target_industry: targetIndustry || null,
             target_role: targetRole || null,
-            answered_questions: answeredQuestions || {},
-            questions_count: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+            answered_questions: answeredQuestions || [],
+            questions_count: answeredQuestions?.length || 0,
             skip_questions: coverLetterInput.skipQuestions,
             generator_version: 'general-v1'
           }
@@ -408,7 +402,6 @@ export async function POST(req: Request) {
 
     console.log(`✅ General cover letter saved: ${coverLetter.id}`);
 
-    // ✅ 12. KULUTA TOKENIT
     if (tier !== 'free' && isActive && required > 0) {
       console.log(`💰 Consuming ${required} tokens...`);
 
@@ -427,7 +420,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // ✅ 13. PALAUTA SUCCESS
     return NextResponse.json({
       success: true,
       coverLetterId: coverLetter.id,

@@ -1,4 +1,4 @@
-// components/CoverLetterQuestionsModal.tsx - UI KYSYMYKSILLE
+// components/CoverLetterQuestionsModal.tsx - KORJATTU VERSIO
 'use client';
 
 import { useState } from 'react';
@@ -12,6 +12,13 @@ interface AIQuestion {
   priority?: 'high' | 'medium' | 'low';
 }
 
+// ✅ UUSI: Tämä on mitä backend odottaa
+interface AnsweredQuestion {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 interface Props {
   questions: AIQuestion[];
   tempCoverLetterData: {
@@ -22,7 +29,7 @@ interface Props {
     personality_hooks?: string[];
   };
   jobDescription: string;
-  onSubmit: (answers: Record<string, string>) => Promise<void>;
+  onSubmit: (answers: AnsweredQuestion[]) => Promise<void>; // ✅ MUUTETTU: Array!
   onCancel: () => void;
 }
 
@@ -33,6 +40,7 @@ export default function CoverLetterQuestionsModal({
   onSubmit,
   onCancel,
 }: Props) {
+  // ✅ Sisäisesti käytetään Record<string, string> kuten ennen
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +64,18 @@ export default function CoverLetterQuestionsModal({
     setError(null);
 
     try {
-      await onSubmit(answers);
+      // ✅ KRIITTINEN MUUTOS: Muodosta array objekteja
+      const answeredQuestions: AnsweredQuestion[] = questions
+        .filter(q => answers[q.id] && answers[q.id].trim().length > 0)
+        .map(q => ({
+          id: q.id,
+          question: q.question,  // ✅ TALLENNA KYSYMYSTEKSTI!
+          answer: answers[q.id]
+        }));
+
+      console.log('📤 Submitting answers:', answeredQuestions);
+      
+      await onSubmit(answeredQuestions); // ✅ Lähetä array!
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tuntematon virhe');
       setIsSubmitting(false);

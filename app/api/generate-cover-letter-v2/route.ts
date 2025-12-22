@@ -323,28 +323,23 @@ export async function POST(req: Request) {
     }
 
     // TALLENNA VASTAUKSET
-    if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
-      console.log(`💾 Saving ${Object.keys(answeredQuestions).length} answers to history...`);
-      
-      const savePromises = Object.entries(answeredQuestions).map(async ([question_text, answer]) => {
-        try {
-          await saveUserResponse(
-            userId,
-            question_text,
-            answer as string,
-            'cover_letter_v2',
-            extractedJobTitle
-          );
-        } catch (error) {
-          console.error(`Failed to save answer for "${question_text}":`, error);
-        }
-      });
+    if (answeredQuestions && answeredQuestions.length > 0) {
+  console.log(`💾 Saving ${answeredQuestions.length} answers...`);
+  
+  const savePromises = answeredQuestions.map((item: any) => 
+    saveUserResponse(
+      userId,
+      item.question,  // ✅ OIKEA: Kysymysteksti
+      item.answer,    // ✅ OIKEA: Vastaus
+      'cover_letter_v2',
+      extractedJobTitle
+    )
+  );
 
-      const results = await Promise.allSettled(savePromises);
-      const successCount = results.filter(r => r.status === 'fulfilled').length;
-      console.log(`✅ Saved ${successCount}/${Object.keys(answeredQuestions).length} answers`);
-    }
-
+  const results = await Promise.allSettled(savePromises);
+  const successCount = results.filter(r => r.status === 'fulfilled').length;
+  console.log(`✅ Saved ${successCount}/${answeredQuestions.length} answers`);
+}
     // MASTER GUARDIAN
     console.log('🛡️ Running Master Guardian...');
 
@@ -446,8 +441,8 @@ if (guardianCheck.riskLevel === 'warning') {
             style: coverLetterInput.style,
             language: coverLetterInput.language,
             tier: tierFeatures.name,
-            answered_questions: answeredQuestions || {},
-            questions_count: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+          answered_questions: answeredQuestions || [], // ✅ ARRAY!
+  questions_count: answeredQuestions?.length || 0, // ✅ .length
             skip_questions: coverLetterInput.skipQuestions,
             generator_version: 'v2-ats'
           }
