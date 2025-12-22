@@ -12,7 +12,7 @@ interface AIQuestion {
   priority?: 'high' | 'medium' | 'low';
 }
 
-// ✅ UUSI: Tämä on mitä backend odottaa
+// ✅ UUSI: Backend odottaa tätä muotoa
 interface AnsweredQuestion {
   id: string;
   question: string;
@@ -40,7 +40,7 @@ export default function CoverLetterQuestionsModal({
   onSubmit,
   onCancel,
 }: Props) {
-  // ✅ Sisäisesti käytetään Record<string, string> kuten ennen
+  // Sisäisesti käytetään Record<string, string>
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export default function CoverLetterQuestionsModal({
   };
 
   const handleSubmit = async () => {
-    // Tarkista että kaikki high-priority kysymykset vastattu
+    // Tarkista pakolliset
     const unansweredHigh = questions.filter(
       q => q.priority === 'high' && (!answers[q.id] || answers[q.id].length < 20)
     );
