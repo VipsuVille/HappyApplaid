@@ -365,8 +365,8 @@ let action: TokenAction = 'cover_letter_v1';
                                  <p className="font-semibold mb-2">{q.question}</p>
                                  <textarea 
                                     className="w-full border rounded p-2"
-                                    value={answers[q.question] || ''}
-                                    onChange={(e) => setAnswers({...answers, [q.question]: e.target.value})}
+          value={answers[q.id] || ''}  // Käyttää kysymyksen ID:tä avaimena
+onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
                                  />
                              </div>
                         ))}
