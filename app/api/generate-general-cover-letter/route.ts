@@ -1,4 +1,4 @@
-// app/api/generate-general-cover-letter/route.ts - GENERAL COVER LETTER API
+// app/api/generate-general-cover-letter/route.ts - KORJATTU userId
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -8,6 +8,7 @@ import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
 import { getTierFeatures } from "@/lib/stripe/subscriptions";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
+import crypto from 'crypto';
 
 function generateTitle(input: { name: string; targetRole?: string; targetIndustry?: string }): string {
   if (input.targetRole) {
@@ -17,6 +18,51 @@ function generateTitle(input: { name: string; targetRole?: string; targetIndustr
     return `${input.name} - ${input.targetIndustry} Ammattilainen`;
   }
   return `${input.name} - Ammatillinen Esittely`;
+}
+
+function generateQuestionId(questionText: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(questionText.toLowerCase().trim())
+    .digest('hex')
+    .substring(0, 16);
+}
+
+async function saveUserResponse(
+  userId: string,
+  questionText: string,
+  answer: string,
+  context: string,
+  jobTitle: string
+): Promise<boolean> {
+  try {
+    const questionId = generateQuestionId(questionText);
+    
+    const { error } = await supabaseAdmin
+      .from('user_responses')
+      .upsert({
+        user_id: userId,
+        question_id: questionId,
+        question_text: questionText,
+        answer: answer,
+        answer_length: answer.length,
+        question_category: 'cover_letter',
+        asked_in_context: context,
+        job_title_context: jobTitle,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,question_id'
+      });
+
+    if (error) {
+      console.error('Failed to save response:', error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error in saveUserResponse:', error);
+    return false;
+  }
 }
 
 export async function POST(req: Request) {
@@ -92,6 +138,8 @@ export async function POST(req: Request) {
       style,
       targetIndustry,
       targetRole,
+      answeredQuestions,
+      skipQuestions,
     } = requestData;
 
     const {
@@ -104,12 +152,18 @@ export async function POST(req: Request) {
       skills,
     } = requestData;
 
+    const shouldSkipQuestions = skipQuestions === true || 
+      (answeredQuestions && Object.keys(answeredQuestions).length > 0);
+
     console.log(`📝 General cover letter request:`, {
       userId,
       tier,
       hasProfileData: !!profileData,
       targetIndustry: targetIndustry || 'Not specified',
-      targetRole: targetRole || 'Not specified'
+      targetRole: targetRole || 'Not specified',
+      hasAnsweredQuestions: !!answeredQuestions,
+      answersCount: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+      skipQuestions: shouldSkipQuestions
     });
 
     // ✅ 5. TIER FEATURES
@@ -162,6 +216,8 @@ export async function POST(req: Request) {
         enableRAG: tierFeatures.canUseRAG,
         allowedSkills: groundTruth.technicalSkills,
         forbiddenClaims: groundTruth.cannotClaim,
+        userId: userId, // ✅ KRIITTINEN: Välitä userId!
+        skipQuestions: shouldSkipQuestions, // ✅ LISÄÄ skipQuestions
       };
     } else {
       coverLetterInput = {
@@ -181,12 +237,31 @@ export async function POST(req: Request) {
         enableRAG: tierFeatures.canUseRAG,
         allowedSkills: groundTruth.technicalSkills,
         forbiddenClaims: groundTruth.cannotClaim,
+        userId: userId, // ✅ KRIITTINEN: Välitä userId!
+        skipQuestions: shouldSkipQuestions, // ✅ LISÄÄ skipQuestions
       };
     }
 
     // ✅ 8. GENEROI
     console.log(`📝 Generating general cover letter...`);
     const coverLetterData = await generateGeneralCoverLetter(coverLetterInput);
+
+    // ✅ 8.5 JOS KYSYMYKSIÄ
+    if (!coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
+      console.log(`❓ AI needs clarification: ${coverLetterData.questions.length} questions`);
+      
+      return NextResponse.json({
+        success: true,
+        needsMoreInfo: true,
+        questions: coverLetterData.questions,
+        title: coverLetterData.title,
+        reason: 'AI tarvitsee lisätietoja parempaa esittelyä varten'
+      });
+    }
+
+    if (coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
+      console.warn(`⚠️ AI kysyi kysymyksiä vaikka skipQuestions=true`);
+    }
 
     // ✅ 9. TARKISTA SISÄLTÖ
     if (!coverLetterData.content || coverLetterData.content.trim().length === 0) {
@@ -218,6 +293,25 @@ export async function POST(req: Request) {
     }
 
     console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
+
+    // ✅ 10.5 TALLENNA VASTAUKSET
+    if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
+      console.log(`💾 Saving ${Object.keys(answeredQuestions).length} answers...`);
+      
+      const extractedTitle = generateTitle({
+        name: coverLetterInput.name,
+        targetRole: targetRole,
+        targetIndustry: targetIndustry
+      });
+      
+      const savePromises = Object.entries(answeredQuestions).map(([question_text, answer]) =>
+        saveUserResponse(userId, question_text, answer as string, 'cover_letter_general', extractedTitle)
+      );
+
+      const results = await Promise.allSettled(savePromises);
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      console.log(`✅ Saved ${successCount}/${Object.keys(answeredQuestions).length} answers`);
+    }
 
     // ✅ 11. TALLENNA
     const extractedTitle = generateTitle({
@@ -282,7 +376,7 @@ export async function POST(req: Request) {
 
           rag_enabled: tierFeatures.canUseRAG,
 
-          letter_type: 'general', // ✅ MERKKI ETTÄ TÄMÄ ON YLEINEN
+          letter_type: 'general',
 
           key_highlights: coverLetterData.keyHighlights || null,
 
@@ -292,6 +386,9 @@ export async function POST(req: Request) {
             tier: tierFeatures.name,
             target_industry: targetIndustry || null,
             target_role: targetRole || null,
+            answered_questions: answeredQuestions || {},
+            questions_count: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+            skip_questions: coverLetterInput.skipQuestions,
             generator_version: 'general-v1'
           }
         },

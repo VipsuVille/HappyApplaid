@@ -1,7 +1,8 @@
-// lib/langchain/coverLetterGenerator.ts - V1 FORMAATTI KORJATTU
+// lib/langchain/coverLetterGenerator.ts - KORJATTU VERSIO
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer"; // ✅ LISÄÄ TÄMÄ IMPORT
 
 export interface CoverLetterInput {
   jobDescription: string;
@@ -31,6 +32,7 @@ export interface CoverLetterInput {
   forbiddenClaims?: string[];
   groundTruthWarning?: string;
   skipQuestions?: boolean;
+  userId?: string; // ✅ LISÄÄ userId TUKI
 }
 
 export interface CoverLetterOutput {
@@ -47,6 +49,69 @@ export interface CoverLetterOutput {
 export async function generateCoverLetterV1(
   input: CoverLetterInput
 ): Promise<CoverLetterOutput> {
+  
+  // ✅ LISÄÄ TÄMÄ LOHKO ENNEN MODEL-LUONTIA
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // SMART QUESTION ANALYSIS (sama kuin V2:ssa)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  if (!input.skipQuestions) {
+    console.log('🔍 V1: Running smart question analysis...');
+    
+    try {
+      const smartAnalysis = await analyzeJobAndProfile({
+        jobDescription: input.jobDescription,
+        userProfile: {
+          name: input.name || "Not specified",
+          workExperience: input.workExperience || "Not specified",
+          education: input.education || "Not specified",
+          skills: input.skills || "Not specified",
+          workingStyle: input.workingStyle || "Not specified",
+          problemSolving: input.problemSolving || "Not specified",
+          uniqueStrength: input.uniqueStrength || "Not specified",
+          careerGoals: input.careerGoals || "Not specified",
+          bestProjectExample: input.bestProjectExample || "Not specified",
+          failureLesson: input.failureLesson || "Not specified",
+          personalNotes: input.personalNotes || "Not specified",
+        },
+        language: input.language || 'finnish',
+        userId: input.userId // ✅ Välitä userId historiatarkistukseen
+      });
+
+      // KYSYTÄÄNKÖ?
+      if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
+        const criticalQuestions = smartAnalysis.questions.filter(
+          q => q.priority === 'critical'
+        );
+        
+        if (criticalQuestions.length > 0) {
+          console.log(`❓ V1: Found ${criticalQuestions.length} critical questions`);
+          
+          // ✅ PALAUTA KYSYMYKSET (sama formaatti kuin V2)
+          return {
+            content: "",
+            title: "Lisätietoja tarvitaan",
+            signature: input.name,
+            questions: criticalQuestions,
+            job_match_score: 6,
+            personality_hooks: [],
+            key_differentiators: [],
+            data_quality: null
+          };
+        }
+      }
+      
+      console.log('✅ V1: Profile sufficient OR questions skipped');
+    } catch (error) {
+      console.error('⚠️ V1: Question analysis failed, continuing anyway:', error);
+    }
+  } else {
+    console.log('⏭️ V1: Skipping question analysis (skipQuestions=true)');
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // JATKA NORMAALISTI GENEROINTIIN
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -119,24 +184,6 @@ export async function generateCoverLetterV1(
 - ÄLÄ KOSKAAN kirjoita "Hakija"
 - ÄLÄ KOSKAAN kirjoita "[Your Name]"
 - Käytä AINA nimeä {name}
-
-# ════════════════════════════════════════════════════════════════
-# OIKEA FORMAATTI (ESIMERKKI)
-# ════════════════════════════════════════════════════════════════
-
-Hyvä [Yritys]-tiimi,
-
-[Ensimmäinen kappale - miksi kiinnostaa]
-
-[Toinen kappale - taidot ja kokemus]
-
-[Kolmas kappale - arvo yritykselle]
-
-[Neljäs kappale - lopetus ja kiitos]
-
-Ystävällisin terveisin,
-
-{name}
 
 # ════════════════════════════════════════════════════════════════
 # REPRESENTATION, NOT FABRICATION
@@ -234,19 +281,6 @@ Koulutus: {education}
 **HUOMIOT:**
 {personalNotes}
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# TÄRKEÄÄ - MUISTA NÄMÄ!
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-1. ÄLÄ kirjoita osoitteita tai yhteystietoja
-2. ÄLÄ kirjoita [hakasulkeita]
-3. KÄYTÄ nimeä {name} (EI "Hakija")
-4. Kirjoita VAIN:
-   - Tervehdys
-   - Leipäteksti (3-4 kappaletta)
-   - Lopetus
-   - Allekirjoitus: "Ystävällisin terveisin,\n\n{name}"
-
 Luo hakukirje NYT kielellä {languageName}.`]
   ]);
 
@@ -278,9 +312,8 @@ Luo hakukirje NYT kielellä {languageName}.`]
       ? result.content 
       : JSON.stringify(result.content);
 
-    // ✅ POISTA KAIKKI PLACEHOLDER-TEKSTIT
+    // POISTA PLACEHOLDERIT
     content = content
-      // Poista [hakasulkeissa] oleva teksti
       .replace(/\[Osoite\]/g, '')
       .replace(/\[Puhelinnumero\]/g, '')
       .replace(/\[Sähköposti\]/g, '')
@@ -289,13 +322,11 @@ Luo hakukirje NYT kielellä {languageName}.`]
       .replace(/\[Your Name\]/g, input.name || '')
       .replace(/\[Nimi\]/g, input.name || '')
       .replace(/\[Nimesi\]/g, input.name || '')
-      // Poista "Hakija" jos sitä käytetty
       .replace(/^Hakija(?=\s|$)/gm, input.name || '')
-      // Poista tyhjät rivit jotka jäävät jäljelle
       .replace(/\n\s*\n\s*\n/g, '\n\n')
       .trim();
 
-    // ✅ VARMISTA ALLEKIRJOITUS
+    // VARMISTA ALLEKIRJOITUS
     const signatureFinnish = `Ystävällisin terveisin,\n\n${input.name || 'Hakija'}`;
     const signatureEnglish = `Best regards,\n\n${input.name || 'Applicant'}`;
     
