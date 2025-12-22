@@ -1,5 +1,4 @@
-// app/api/generate-cover-letter-v2/route.ts - KORJATTU TOKEN-LOGIIKKA
-
+// app/api/generate-cover-letter-v2/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGeneratorV2";
@@ -10,6 +9,8 @@ import { getTierFeatures } from "@/lib/stripe/subscriptions";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import crypto from 'crypto';
+
+// --- APUFUNKTIOT ---
 
 function extractJobTitleFromDescription(jobDescription: string): string {
   if (!jobDescription) return "Työhakemus";
@@ -59,13 +60,14 @@ async function saveUserResponse(
       console.error('Failed to save response:', error);
       return false;
     }
-
     return true;
   } catch (error) {
     console.error('Error in saveUserResponse:', error);
     return false;
   }
 }
+
+// --- MAIN ROUTE ---
 
 export async function POST(req: Request) {
   // ✅ 0. AUTH
@@ -79,10 +81,10 @@ export async function POST(req: Request) {
 
   console.log(`✅ Auth OK: ${userId}`);
 
-  // ✅ 1. MÄÄRITÄ ACTION (backend lukitsee tämän)
+  // ✅ 1. MÄÄRITÄ ACTION
   const action: TokenAction = 'cover_letter_v2';
 
-  // ✅ 2. HAE SUBSCRIPTION + TOKENIT (ENNEN AI-TYÖTÄ)
+  // ✅ 2. HAE SUBSCRIPTION + TOKENIT
   const { data: subscription, error: subError } = await supabaseAdmin
     .from('subscriptions')
     .select('plan_type, tokens, status, is_active')
@@ -96,12 +98,11 @@ export async function POST(req: Request) {
     );
   }
 
-  // ✅ 3. TIER + TOKEN VALIDATION (TÄRKEIN KOHTA 🔒)
+  // ✅ 3. TIER + TOKEN VALIDATION
   const tier = subscription.plan_type as 'free' | 'basic' | 'semi-pro' | 'pro';
   const isActive = subscription.is_active === true && 
                    ['active', 'trialing'].includes(subscription.status || '');
 
-  // Tarkista onko action sallittu tälle tierille
   const required = ACTION_COSTS[tier]?.[action];
 
   if (required === undefined) {
@@ -116,7 +117,6 @@ export async function POST(req: Request) {
     );
   }
 
-  // Tarkista tokenit (vain paid tierille)
   if (tier !== 'free' && isActive && subscription.tokens < required) {
     return NextResponse.json(
       { 
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
 
   console.log(`✅ Token check passed: ${tier} tier, ${required} tokens required`);
 
-  // ✅ 4. NYT VASTA ALOITETAAN AI-TYÖTÄ
+  // ✅ 4. ALOITETAAN PROSESSI
   try {
     const requestData = await req.json();
 
@@ -141,24 +141,22 @@ export async function POST(req: Request) {
       personalNotes: notes,
       language,
       style,
-      answeredQuestions,
+      answeredQuestions, // ⚠️ TÄMÄ ON ARRAY [{id, question, answer}, ...]
       skipQuestions,
     } = requestData;
 
+    // Fallback muuttujat, jos profileData puuttuu
     const {
-      jobDescription,
-      personalNotes,
       name,
       email,
       phone,
-      jobTitle,
       education,
       workExperience,
       skills,
     } = requestData;
 
-    const finalJobDescription = jobDescription || jobDesc;
-    const finalPersonalNotes = personalNotes || notes;
+    const finalJobDescription = requestData.jobDescription || jobDesc;
+    const finalPersonalNotes = requestData.personalNotes || notes;
 
     if (!finalJobDescription) {
       return NextResponse.json(
@@ -169,19 +167,19 @@ export async function POST(req: Request) {
 
     const extractedJobTitle = extractJobTitleFromDescription(finalJobDescription);
 
+    // KORJAUS 1: Tarkista Arrayn pituus, ei Object.keys
     const shouldSkipQuestions = skipQuestions === true || 
-                                (answeredQuestions && Object.keys(answeredQuestions).length > 0);
+                                (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0);
 
     console.log(`📝 V2 Generate request:`, {
       userId,
       tier,
       action,
       hasAnsweredQuestions: !!answeredQuestions,
-      answersCount: answeredQuestions ? Object.keys(answeredQuestions).length : 0,
+      answersCount: Array.isArray(answeredQuestions) ? answeredQuestions.length : 0,
       skipQuestions: shouldSkipQuestions
     });
 
-    // HAE TIER-OMINAISUUDET
     const tierFeatures = await getTierFeatures(tier);
 
     if (!tierFeatures.canUseV2) {
@@ -196,8 +194,6 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`🎫 User tier: ${tierFeatures.name}`);
-
     // HAE GROUND TRUTH
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
@@ -207,44 +203,50 @@ export async function POST(req: Request) {
 
     const groundTruth = await extractGroundTruthAI(userProfile || {});
     
-    console.log(`🛡️ Ground Truth extracted`);
-
     // TARKISTA ATS-KÄYTTÖ
-    console.log('🔍 Detecting ATS usage...');
     const atsDetection = await detectATSUsageAI(finalJobDescription);
     
-    console.log(`   - Uses ATS: ${atsDetection.usesATS ? '✅' : '❌'}`);
-
-    // MERGE VASTAUKSET
+    // ✅ KORJAUS 2: MERGE VASTAUKSET (Array käsittely)
     let enhancedPersonalNotes = finalPersonalNotes || '';
     
-    if (answeredQuestions && Object.keys(answeredQuestions).length > 0) {
-      console.log(`📝 Integrating ${Object.keys(answeredQuestions).length} answers`);
+    if (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0) {
+      console.log(`📝 Integrating ${answeredQuestions.length} answers`);
       
-      const answersText = Object.entries(answeredQuestions)
-        .map(([questionId, answer]) => `Q: ${questionId}\nA: ${answer}`)
+      // Käytä .map() koska data on array, ei object
+      const answersText = answeredQuestions
+        .map((item: any) => `Kysymys: "${item.question}"\nVastaus: "${item.answer}"`)
         .join('\n\n');
       
       enhancedPersonalNotes = finalPersonalNotes 
-        ? `${finalPersonalNotes}\n\n--- VASTAUKSET ---\n${answersText}`
-        : answersText;
+        ? `${finalPersonalNotes}\n\n--- VASTAUKSET LISÄKYSYMYKSIIN ---\n${answersText}`
+        : `--- VASTAUKSET LISÄKYSYMYKSIIN ---\n${answersText}`;
     }
 
     // PREPARE INPUT
     let coverLetterInput;
+    const commonInput = {
+      jobDescription: finalJobDescription,
+      personalNotes: enhancedPersonalNotes, // Tässä on nyt yhdistetty teksti
+      language: language || "finnish",
+      style: style || "formal",
+      enableRAG: tierFeatures.canUseRAG,
+      allowedSkills: groundTruth.technicalSkills,
+      forbiddenClaims: groundTruth.cannotClaim,
+      skipQuestions: shouldSkipQuestions,
+      answeredQuestions: answeredQuestions || [], // Välitä array sellaisenaan
+      userId: userId
+    };
+
     if (profileData) {
       const apiFormat = convertProfileToApiFormat(profileData);
       coverLetterInput = {
-        jobDescription: finalJobDescription,
-        personalNotes: enhancedPersonalNotes,
+        ...commonInput,
         name: profileData.name,
         email: profileData.email,
         phone: profileData.phone,
         education: apiFormat.education,
         workExperience: apiFormat.workExperience,
         skills: profileData.skills,
-        language: language || "finnish",
-        style: style || "formal",
         workingStyle: profileData.workingStyle,
         problemSolving: profileData.problemSolving,
         energySources: profileData.energySources,
@@ -256,33 +258,16 @@ export async function POST(req: Request) {
         careerGoals: profileData.careerGoals,
         bestProjectExample: profileData.bestProjectExample,
         failureLesson: profileData.failureLesson,
-        
-        enableRAG: tierFeatures.canUseRAG,
-        allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim,
-        skipQuestions: shouldSkipQuestions,
-        answeredQuestions: answeredQuestions || {},
-        userId: userId
       };
     } else {
       coverLetterInput = {
-        jobDescription: finalJobDescription,
-        personalNotes: enhancedPersonalNotes,
+        ...commonInput,
         name,
         email,
         phone,
         education,
         workExperience,
         skills,
-        language: language || "finnish",
-        style: style || "formal",
-        
-        enableRAG: tierFeatures.canUseRAG,
-        allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim,
-        skipQuestions: shouldSkipQuestions,
-        answeredQuestions: answeredQuestions || {},
-        userId: userId
       };
     }
 
@@ -291,7 +276,7 @@ export async function POST(req: Request) {
     
     const coverLetterData = await generateCoherentCoverLetter(coverLetterInput);
 
-    // JOS KYSYMYKSIÄ
+    // JOS AI HALUAA KYSYÄ LISÄÄ (vain jos ei skipattu)
     if (!coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
       console.log(`❓ AI needs clarification: ${coverLetterData.questions.length} questions`);
       
@@ -304,61 +289,47 @@ export async function POST(req: Request) {
       });
     }
 
-    if (coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
-      console.warn(`⚠️ AI kysyi ${coverLetterData.questions.length} kysymystä vaikka skipQuestions=true`);
-    }
-
-    // TARKISTA SISÄLTÖ
     if (!coverLetterData.content || coverLetterData.content.trim().length === 0) {
       console.error('❌ No content generated');
       return NextResponse.json({
         error: 'GENERATION_FAILED',
-        message: 'AI ei generoinut sisältöä',
-        debug: {
-          hasQuestions: !!coverLetterData.questions,
-          questionsCount: coverLetterData.questions?.length || 0,
-          skipQuestions: coverLetterInput.skipQuestions
-        }
+        message: 'AI ei generoinut sisältöä'
       }, { status: 500 });
     }
 
-    // TALLENNA VASTAUKSET
-    if (answeredQuestions && answeredQuestions.length > 0) {
-  console.log(`💾 Saving ${answeredQuestions.length} answers...`);
-  
-  const savePromises = answeredQuestions.map((item: any) => 
-    saveUserResponse(
-      userId,
-      item.question,  // ✅ OIKEA: Kysymysteksti
-      item.answer,    // ✅ OIKEA: Vastaus
-      'cover_letter_v2',
-      extractedJobTitle
-    )
-  );
+    // ✅ KORJAUS 3: TALLENNA VASTAUKSET (Array logic)
+    if (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0) {
+      console.log(`💾 Saving ${answeredQuestions.length} answers...`);
+      
+      const savePromises = answeredQuestions.map((item: any) => 
+        saveUserResponse(
+          userId,
+          item.question, // Nyt saadaan oikea teksti
+          item.answer,   // Ja oikea vastaus
+          'cover_letter_v2',
+          extractedJobTitle
+        )
+      );
 
-  const results = await Promise.allSettled(savePromises);
-  const successCount = results.filter(r => r.status === 'fulfilled').length;
-  console.log(`✅ Saved ${successCount}/${answeredQuestions.length} answers`);
-}
+      const results = await Promise.allSettled(savePromises);
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      console.log(`✅ Saved ${successCount}/${answeredQuestions.length} answers`);
+    }
+
     // MASTER GUARDIAN
     console.log('🛡️ Running Master Guardian...');
-
     const guardianCheck = await masterConsistencyCheckAI(
       coverLetterData.content,
       groundTruth,
       'generation'
     );
 
-if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
-  return NextResponse.json({ error: 'FABRICATION_DETECTED' }, { status: 400 });
-}
-
-// Logita varoitukset mutta hyväksy
-if (guardianCheck.riskLevel === 'warning') {
-  console.warn('⚠️ Warning:', guardianCheck.recommendation);
-}
-
-    console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
+    if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
+      return NextResponse.json({ error: 'FABRICATION_DETECTED' }, { status: 400 });
+    }
+    if (guardianCheck.riskLevel === 'warning') {
+      console.warn('⚠️ Warning:', guardianCheck.recommendation);
+    }
 
     // ATS ANALYYSI
     let atsAnalysis = null;
@@ -368,7 +339,6 @@ if (guardianCheck.riskLevel === 'warning') {
         coverLetterData.content,
         finalJobDescription
       );
-      console.log(`   - ATS Score: ${atsAnalysis.score}/100`);
     }
 
     // ✅ 6. TALLENNA
@@ -390,7 +360,6 @@ if (guardianCheck.riskLevel === 'warning') {
             education: coverLetterInput.education,
             workExperience: coverLetterInput.workExperience,
             skills: coverLetterInput.skills,
-
             ...(profileData && {
               personalityTraits: {
                 workingStyle: profileData.workingStyle,
@@ -413,36 +382,29 @@ if (guardianCheck.riskLevel === 'warning') {
           styles: {
             main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
-          
           tier: tierFeatures.name,
           cost_per_letter: required,
-          
           ground_truth: groundTruth,
-          
           guardian_check: {
             approved: guardianCheck.approved,
             riskLevel: guardianCheck.riskLevel,
             violations: guardianCheck.violations,
             timestamp: new Date().toISOString()
           },
-          
           rag_enabled: tierFeatures.canUseRAG,
-          
           ats_detection: atsDetection,
           ats_analysis: atsAnalysis,
-          
           personality_analysis: {
             key_points: coverLetterData.keyPoints || null,
             has_work_experience: coverLetterData.hasWorkExperience || false,
             job_analysis: coverLetterData.jobAnalysis || null,
           },
-          
           generation_params: {
             style: coverLetterInput.style,
             language: coverLetterInput.language,
             tier: tierFeatures.name,
-          answered_questions: answeredQuestions || [], // ✅ ARRAY!
-  questions_count: answeredQuestions?.length || 0, // ✅ .length
+            answered_questions: answeredQuestions || [],
+            questions_count: Array.isArray(answeredQuestions) ? answeredQuestions.length : 0,
             skip_questions: coverLetterInput.skipQuestions,
             generator_version: 'v2-ats'
           }
@@ -457,16 +419,14 @@ if (guardianCheck.riskLevel === 'warning') {
     }
 
     if (!coverLetter || !coverLetter.id) {
-      console.error('❌ Cover letter ID missing after insert');
       throw new Error('Cover letter saved but ID is missing');
     }
 
     console.log(`✅ V2 Cover letter saved: ${coverLetter.id}`);
 
-    // ✅ 7. KULUTA TOKENIT - VASTA KUN KAIKKI ONNISTUI
+    // ✅ 7. KULUTA TOKENIT
     if (tier !== 'free' && isActive && required > 0) {
       console.log(`💰 Consuming ${required} tokens...`);
-      
       const { error: tokenError } = await supabaseAdmin
         .from('subscriptions')
         .update({ 
@@ -477,9 +437,6 @@ if (guardianCheck.riskLevel === 'warning') {
 
       if (tokenError) {
         console.error('⚠️ Token consumption failed:', tokenError);
-        // Älä pysäytä requestia - kirje on jo luotu
-      } else {
-        console.log(`✅ Tokens consumed. Remaining: ${subscription.tokens - required}`);
       }
     }
 
