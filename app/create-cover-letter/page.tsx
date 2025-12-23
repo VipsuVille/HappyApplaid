@@ -175,11 +175,13 @@ let action: TokenAction = 'cover_letter_v1';
 
   // KÄYTTÄJÄ HALUAA VASTATA (Vain V1/V2 yleensä)
   const handleShowQuestions = () => {
-    setQuestions(pendingQuestions);
-    setShowQuestions(true);
-    setShowQuestionPrompt(false);
-  };
-
+  console.log('❓ Questions received from API:', pendingQuestions);
+  console.log('❓ Sample question:', pendingQuestions[0]);
+  
+  setQuestions(pendingQuestions);
+  setShowQuestions(true);
+  setShowQuestionPrompt(false);
+};
   // KÄYTTÄJÄ HALUAA JATKAA ILMAN
   const handleSkipQuestions = async () => {
     setShowQuestionPrompt(false);
@@ -231,69 +233,82 @@ let action: TokenAction = 'cover_letter_v1';
     }
   };
 
-  const handleAnswerQuestions = async () => {
-    // Sama logiikka kuin alkuperäisessä, vain endpoint check lisätty varmuuden vuoksi
-    const criticalQuestions = questions.filter(q => q.priority === 'critical');
-    const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
-    console.log('🔍 DEBUG: Current answers state:', answers);
-  console.log('🔍 DEBUG: Questions:', questions.map(q => ({ id: q.id, priority: q.priority })));
+ const handleAnswerQuestions = async () => {
+  const criticalQuestions = questions.filter(q => q.priority === 'critical');
+  const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
   
+  console.log('🔍 DEBUG: Current answers state:', answers);
+  console.log('🔍 DEBUG: Questions:', questions.map(q => ({ id: q.id, priority: q.priority, question: q.question })));
   console.log('🔍 DEBUG: Critical questions:', criticalQuestions.length);
-  
   console.log('🔍 DEBUG: Unanswered critical:', unansweredCritical.length);
   
-    if (unansweredCritical.length > 0) {
-      setError('Vastaa kaikkiin pakollisiin kysymyksiin');
-      return;
-    }
+  if (unansweredCritical.length > 0) {
+    setError('Vastaa kaikkiin pakollisiin kysymyksiin');
+    return;
+  }
 
-    setIsGenerating(true);
-    setError(null);
+  setIsGenerating(true);
+  setError(null);
 
-    try {
-      let endpoint = '/api/generate-cover-letter';
-      if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
+  try {
+    let endpoint = '/api/generate-cover-letter';
+    if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
 
-      let action: TokenAction = useRAG ? 'cover_letter_rag' : (selectedVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1');
+    let action: TokenAction = useRAG ? 'cover_letter_rag' : (selectedVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1');
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobDescription,
-          personalNotes,
-          language,
-          style,
-          answeredQuestions: answers,
-          skipQuestions: true,
-          enableRAG: useRAG
-        })
-      });
+    // ✅ KRIITTINEN KORJAUS: Muodosta array objekteja
+    const answeredQuestionsArray = questions
+      .filter(q => answers[q.id] && answers[q.id].trim().length > 0)
+      .map(q => ({
+        id: q.id,
+        question: q.question,  // ✅ OIKEA: Kysymysteksti
+        answer: answers[q.id]
+      }));
 
-      const data = await response.json();
+    console.log('📤 Sending to API:', {
+      endpoint,
+      answersCount: answeredQuestionsArray.length,
+      sampleAnswer: answeredQuestionsArray[0]
+    });
 
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobDescription,
+        personalNotes,
+        language,
+        style,
+        answeredQuestions: answeredQuestionsArray,  // ✅ OIKEA: Array objekteja
+        skipQuestions: true,
+        enableRAG: useRAG
+      })
+    });
 
-      if (data.success && data.coverLetterId) {
-        if (plan_type !== 'free' && isActive) {
-          await consumeTokens(action);
-        }
-        setShowQuestions(false);
-        setQuestions([]);
-        setAnswers({});
-        toast.success('✅ Hakukirje luotu vastausten perusteella!');
-        router.push(`/edit-cover-letter/${data.coverLetterId}`);
-      } else {
-        throw new Error(data.error || 'coverLetterId puuttuu');
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+
+    if (data.success && data.coverLetterId) {
+      if (plan_type !== 'free' && isActive) {
+        await consumeTokens(action);
       }
-
-    } catch (err) {
-      console.error('❌ Error:', err);
-      setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-    } finally {
-      setIsGenerating(false);
+      setShowQuestions(false);
+      setQuestions([]);
+      setAnswers({});
+      toast.success('✅ Hakukirje luotu vastausten perusteella!');
+      router.push(`/edit-cover-letter/${data.coverLetterId}`);
+    } else {
+      throw new Error(data.error || 'coverLetterId puuttuu');
     }
-  };
+
+  } catch (err) {
+    console.error('❌ Error:', err);
+    setError(err instanceof Error ? err.message : 'Tuntematon virhe');
+  } finally {
+    setIsGenerating(false);
+  }
+};
 
   if (!isLoaded || tokensLoading) {
     return (
