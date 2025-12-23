@@ -1,4 +1,4 @@
-// app/create-cv/page.tsx
+// app/create-cv/page.tsx - KORJATTU
 "use client";
 
 import { useState, useEffect } from "react";
@@ -35,6 +35,7 @@ export default function CreateCVPage() {
   const { getToken } = useAuth();
   const router = useRouter();
 
+  // ✅ KÄYTÄ useTokens HOOKIA (sama kuin cover-letter)
   const { 
     tokens, 
     isActive, 
@@ -103,8 +104,17 @@ export default function CreateCVPage() {
       return;
     }
 
-    // ✅ MÄÄRITÄ ACTION (tämä on ainoa totuus)
-    const action: TokenAction = useRAG ? 'cv_rag' : useATS ? 'cv_ats' : 'cv_basic';
+    // ✅ MÄÄRITÄ ACTION
+    let action: TokenAction = 'cv_simple';
+    
+    if (selectedTemplate === 'technical') {
+      action = useRAG ? 'cv_rag' : useATS ? 'cv_ats' : 'cv_technical';
+    } else if (selectedTemplate === 'creative') {
+      action = useRAG ? 'cv_rag' : useATS ? 'cv_ats' : 'cv_creative';
+    } else {
+      // simple
+      action = useRAG ? 'cv_rag' : useATS ? 'cv_ats' : 'cv_simple';
+    }
 
     // ✅ VALIDOI OMINAISUUDET
     if (useATS && !features.canUseATS) {
@@ -114,6 +124,11 @@ export default function CreateCVPage() {
 
     if (useRAG && !features.canUseRAG) {
       toast.error("RAG-tietokanta vaatii Pro-tason");
+      return;
+    }
+
+    if ((selectedTemplate === 'technical' || selectedTemplate === 'creative') && !features.canUseAdvancedTemplates) {
+      toast.error("Professional ja Creative mallit vaativat Premium-tason");
       return;
     }
 
@@ -173,7 +188,7 @@ export default function CreateCVPage() {
         "✅ CV luotu!"
       );
 
-      router.push(`/edit-cv/${result.id}`);
+      router.push(`/edit-cv/${result.cvId}`);
       
     } catch (error) {
       console.error("CV creation failed:", error);
@@ -194,6 +209,7 @@ export default function CreateCVPage() {
     );
   }
 
+  // ✅ KÄYTÄ features JA isActive
   const isPremium = isActive && plan_type !== 'free';
 
   return (
@@ -348,7 +364,7 @@ export default function CreateCVPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Simple CV */}
+              {/* Simple CV - AINA SAATAVILLA */}
               <button
                 onClick={() => setSelectedTemplate("simple")}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
@@ -364,17 +380,20 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600 mb-2">
                   Persoonallinen ja lähestyttävä CV
                 </p>
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-semibold">
+                  Kaikille
+                </span>
               </button>
 
-              {/* Professional CV */}
+              {/* Professional CV - VAATII PREMIUM */}
               <button
-                onClick={() => isPremium && setSelectedTemplate("technical")}
-                disabled={!isPremium}
+                onClick={() => features.canUseAdvancedTemplates && setSelectedTemplate("technical")}
+                disabled={!features.canUseAdvancedTemplates}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                  selectedTemplate === "technical" && isPremium
+                  selectedTemplate === "technical" && features.canUseAdvancedTemplates
                     ? "border-purple-500 bg-purple-50 shadow-xl scale-105"
                     : "border-gray-200 bg-white"
-                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
+                } ${!features.canUseAdvancedTemplates ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
               >
                 <div className="h-16 w-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
                   <Sparkles className="h-8 w-8 text-white" />
@@ -383,7 +402,7 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600 mb-2">
                   Tekninen ja strukturoitu ammattilaisille
                 </p>
-                {!isPremium && (
+                {!features.canUseAdvancedTemplates && (
                   <div className="flex items-center gap-2 text-xs text-amber-600 font-semibold">
                     <Crown className="h-4 w-4" />
                     Premium
@@ -391,15 +410,15 @@ export default function CreateCVPage() {
                 )}
               </button>
 
-              {/* Creative CV */}
+              {/* Creative CV - VAATII PREMIUM */}
               <button
-                onClick={() => isPremium && setSelectedTemplate("creative")}
-                disabled={!isPremium}
+                onClick={() => features.canUseAdvancedTemplates && setSelectedTemplate("creative")}
+                disabled={!features.canUseAdvancedTemplates}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                  selectedTemplate === "creative" && isPremium
+                  selectedTemplate === "creative" && features.canUseAdvancedTemplates
                     ? "border-pink-500 bg-pink-50 shadow-xl scale-105"
                     : "border-gray-200 bg-white"
-                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
+                } ${!features.canUseAdvancedTemplates ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
               >
                 <div className="h-16 w-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center mb-4">
                   <Zap className="h-8 w-8 text-white" />
@@ -408,7 +427,7 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600 mb-2">
                   Luova ja visuaalinen portfolio-CV
                 </p>
-                {!isPremium && (
+                {!features.canUseAdvancedTemplates && (
                   <div className="flex items-center gap-2 text-xs text-amber-600 font-semibold">
                     <Crown className="h-4 w-4" />
                     Premium
@@ -460,7 +479,9 @@ export default function CreateCVPage() {
                     <Sparkles className="h-6 w-6 mr-3" />
                     {useRAG ? `🎯 Luo RAG-CV (${getActionCost('cv_rag')} tok)` : 
                      useATS ? `Luo ATS-CV (${getActionCost('cv_ats')} tok)` : 
-                     `Luo CV (${getActionCost('cv_basic')} tok)`}
+                     selectedTemplate === 'technical' ? `Luo Technical CV (${getActionCost('cv_technical')} tok)` :
+                     selectedTemplate === 'creative' ? `Luo Creative CV (${getActionCost('cv_creative')} tok)` :
+                     `Luo CV (${getActionCost('cv_simple')} tok)`}
                   </div>
                 )}
               </Button>
