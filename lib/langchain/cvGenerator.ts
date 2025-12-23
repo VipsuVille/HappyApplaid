@@ -910,6 +910,8 @@ Personality: ${parsedOutput.ats_optimization?.personality_integration || ""}
 // =====================================
 // lib/langchain/cvGenerator.ts - LISÄÄ METADATA TRACKING
 
+// lib/langchain/cvGenerator.ts - LISÄÄ METADATA TRACKING
+
 export async function generateEnhancedBackgroundImage(
   userData: LangChainCVInput,
   authToken?: string

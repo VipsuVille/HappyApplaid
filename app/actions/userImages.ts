@@ -1,10 +1,19 @@
-'use server';
 // app/actions/userImages.ts
+'use server';
 
 import { auth } from '@clerk/nextjs/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import type { UserImage } from '@/types/images'; // ✅ Importoi täältä
 
+export interface UserImage {
+  id: string;
+  image_type: 'profile' | 'background';
+  file_path: string;
+  name: string;
+  is_active: boolean;
+  is_ai_generated?: boolean;
+  created_at: string;
+  signedUrl?: string;
+}
 
 /**
  * ✅ Hakee käyttäjän omat + generoidut kuvat

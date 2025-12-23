@@ -1,6 +1,5 @@
 'use client';
 
-//app/edit-cv/[id]/page.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
@@ -9,8 +8,7 @@ import {
   Upload, User, Image as ImageIconLucide, Sparkles
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
-import { getAllAvailableImagesAction } from '@/app/actions/userImages';
-import type { UserImage } from '@/types/images'; // ✅ Importoi erillisestä tiedostosta
+import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
 import { BaseCV, CVTemplateProps } from '@/types';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
 import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
