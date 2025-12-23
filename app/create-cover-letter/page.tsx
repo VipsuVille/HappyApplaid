@@ -235,7 +235,13 @@ let action: TokenAction = 'cover_letter_v1';
     // Sama logiikka kuin alkuperäisessä, vain endpoint check lisätty varmuuden vuoksi
     const criticalQuestions = questions.filter(q => q.priority === 'critical');
     const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
-    
+    console.log('🔍 DEBUG: Current answers state:', answers);
+  console.log('🔍 DEBUG: Questions:', questions.map(q => ({ id: q.id, priority: q.priority })));
+  
+  console.log('🔍 DEBUG: Critical questions:', criticalQuestions.length);
+  
+  console.log('🔍 DEBUG: Unanswered critical:', unansweredCritical.length);
+  
     if (unansweredCritical.length > 0) {
       setError('Vastaa kaikkiin pakollisiin kysymyksiin');
       return;
