@@ -12,7 +12,9 @@ export async function GET(req: Request) {
   }
 
   try {
-    const { searchParams } = new URL(req.url);
+      // ✅ Tarkista onko limit URL parametrissa
+  const { searchParams } = new URL(req.url);
+  const limit = searchParams.get('limit') || '1000'; // Oletus 1000
     const category = searchParams.get('category');
     const context = searchParams.get('context');
 
@@ -20,7 +22,8 @@ export async function GET(req: Request) {
       .from('user_responses')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit));
 
     if (category) {
       query = query.eq('question_category', category);

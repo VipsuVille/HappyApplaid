@@ -1,8 +1,11 @@
-// app/profile/responses/page.tsx - PARANNETTU VERSIO
+// app/profile/responses/page.tsx - PARANNETTU VERSIO (Kompakti + Laajennettu)
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Trash2, Edit2, Save, X, Briefcase, FileText, Calendar, Tag } from 'lucide-react';
+import { 
+  Loader2, Trash2, Edit2, Save, X, Briefcase, FileText, Calendar, Tag,
+  Grid3x3, List, Search, ChevronDown, ChevronUp
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SavedResponse {
@@ -16,12 +19,17 @@ interface SavedResponse {
   updated_at: string;
 }
 
+type ViewMode = 'compact' | 'detailed';
+
 export default function ResponsesPage() {
   const [responses, setResponses] = useState<SavedResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('compact'); // ✅ UUSI: Näkymätila
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set()); // ✅ UUSI: Laajennetut kortit
 
   useEffect(() => {
     loadResponses();
@@ -29,7 +37,8 @@ export default function ResponsesPage() {
 
   const loadResponses = async () => {
     try {
-      const res = await fetch('/api/user-responses');
+      // ✅ POISTA RAJOITUS: Hae KAIKKI vastaukset
+      const res = await fetch('/api/user-responses?limit=1000'); // Tai poista limit kokonaan backendistä
       const data = await res.json();
       
       if (data.success) {
@@ -86,6 +95,18 @@ export default function ResponsesPage() {
     }
   };
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
   const getCategoryColor = (category: string) => {
     switch (category) {
       case 'skills': return 'bg-blue-100 text-blue-800 border-blue-200';
@@ -100,15 +121,21 @@ export default function ResponsesPage() {
   const getContextLabel = (context: string) => {
     switch (context) {
       case 'cover_letter_v1': return 'Hakukirje V1';
-      case 'cover_letter_v2': return 'Hakukirje V2 (ATS)';
-      case 'cv_generation': return 'CV Generointi';
+      case 'cover_letter_v2': return 'Hakukirje V2';
+      case 'cover_letter_general': return 'Yleinen Esittely';
+      case 'cv_generation': return 'CV';
       default: return context || 'Tuntematon';
     }
   };
 
-  const filteredResponses = filterCategory === 'all' 
-    ? responses 
-    : responses.filter(r => r.question_category === filterCategory);
+  // ✅ SUODATUS + HAKU
+  const filteredResponses = responses
+    .filter(r => filterCategory === 'all' || r.question_category === filterCategory)
+    .filter(r => 
+      searchQuery === '' || 
+      r.question_text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.answer.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   const categories = ['all', ...Array.from(new Set(responses.map(r => r.question_category)))];
 
@@ -124,205 +151,321 @@ export default function ResponsesPage() {
   }
 
   return (
-    <>
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 py-12 px-4">
-        <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 py-12 px-4">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* HEADER */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            📚 Tallennetut Vastaukset
+          </h1>
+          <p className="text-gray-600 font-medium">
+            AI:n kysymät kysymykset ja sinun vastauksesi
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            {responses.length} {responses.length === 1 ? 'vastaus' : 'vastausta'} • 
+            Näytetään {filteredResponses.length}
+          </p>
+        </div>
+
+        {/* ✅ TOOLBAR: Haku + Näkymävaihto */}
+        <div className="mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
           
-          {/* HEADER */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
-              📚 Tallennetut Vastaukset
-            </h1>
-            <p className="text-gray-600 font-medium">
-              AI:n kysymät kysymykset ja sinun vastauksesi
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              {responses.length} {responses.length === 1 ? 'vastaus' : 'vastausta'} tallennettu
-            </p>
+          {/* Search Bar */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Hae kysymyksistä tai vastauksista..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/70 backdrop-blur-sm border-2 border-white/60 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-200 outline-none"
+            />
           </div>
 
-          {/* FILTER BUTTONS */}
-          {responses.length > 0 && (
-            <div className="mb-6 flex flex-wrap gap-2 justify-center">
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setFilterCategory(cat)}
-                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                    filterCategory === cat
-                      ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                      : 'bg-white/70 text-gray-700 hover:bg-white'
-                  }`}
-                >
-                  {cat === 'all' ? 'Kaikki' : cat.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* View Mode Toggle */}
+          <div className="flex gap-2 bg-white/70 backdrop-blur-sm rounded-xl p-1 border-2 border-white/60">
+            <button
+              onClick={() => setViewMode('compact')}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+                viewMode === 'compact'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-white/50'
+              }`}
+            >
+              <Grid3x3 className="w-4 h-4" />
+              Kompakti
+            </button>
+            <button
+              onClick={() => setViewMode('detailed')}
+              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
+                viewMode === 'detailed'
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                  : 'text-gray-600 hover:bg-white/50'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              Yksityiskohdat
+            </button>
+          </div>
+        </div>
 
-          {/* RESPONSES */}
-          {filteredResponses.length === 0 ? (
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-12 text-center border-2 border-white/60 shadow-xl">
-              <div className="text-6xl mb-4">💭</div>
-              <p className="text-gray-600 text-lg mb-2">
-                {filterCategory === 'all' 
+        {/* FILTER BUTTONS */}
+        {responses.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2 justify-center">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                  filterCategory === cat
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
+                    : 'bg-white/70 text-gray-700 hover:bg-white'
+                }`}
+              >
+                {cat === 'all' ? 'Kaikki' : cat.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ✅ RESPONSES - VALITTU NÄKYMÄ */}
+        {filteredResponses.length === 0 ? (
+          <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-12 text-center border-2 border-white/60 shadow-xl">
+            <div className="text-6xl mb-4">💭</div>
+            <p className="text-gray-600 text-lg mb-2">
+              {searchQuery 
+                ? `Ei tuloksia haulle: "${searchQuery}"`
+                : filterCategory === 'all' 
                   ? 'Ei vielä tallennettuja vastauksia'
                   : `Ei vastauksia kategoriassa: ${filterCategory}`
-                }
-              </p>
-              <p className="text-gray-500 text-sm">
-                AI kysyy kysymyksiä kun luot hakukirjeitä tai CV:itä
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {filteredResponses.map(response => {
-                const wasUpdated = response.updated_at !== response.created_at;
-                
-                return (
-                  <div
-                    key={response.id}
-                    className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border-2 border-white/60 shadow-lg hover:shadow-xl transition-all"
-                  >
-                    {/* HEADER ROW */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        {/* Category Badge */}
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border ${getCategoryColor(response.question_category)}`}>
-                          <Tag className="w-3 h-3" />
-                          {response.question_category.toUpperCase()}
-                        </span>
-                        
-                        {/* Question Text */}
-                        <h3 className="text-lg font-bold text-gray-900 mt-3 leading-tight">
-                          {response.question_text}
-                        </h3>
+              }
+            </p>
+          </div>
+        ) : viewMode === 'compact' ? (
+          /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+             KOMPAKTI NÄKYMÄ - Tiivis, mahtuu paljon ruudulle
+             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredResponses.map(response => {
+              const isExpanded = expandedIds.has(response.id);
+              const isEditing = editingId === response.id;
+
+              return (
+                <div
+                  key={response.id}
+                  className="bg-white/80 backdrop-blur-xl rounded-xl p-4 border-2 border-white/60 shadow-md hover:shadow-lg transition-all"
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-2">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${getCategoryColor(response.question_category)}`}>
+                      <Tag className="w-3 h-3" />
+                      {response.question_category}
+                    </span>
+                    
+                    <div className="flex gap-1">
+                      {isEditing ? (
+                        <>
+                          <button onClick={() => handleSave(response.id)} className="p-1 bg-green-500 text-white rounded hover:bg-green-600" title="Tallenna">
+                            <Save className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => setEditingId(null)} className="p-1 bg-gray-500 text-white rounded hover:bg-gray-600" title="Peruuta">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => handleEdit(response)} className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600" title="Muokkaa">
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          <button onClick={() => handleDelete(response.id)} className="p-1 bg-red-500 text-white rounded hover:bg-red-600" title="Poista">
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Question */}
+                  <h3 className="text-sm font-bold text-gray-900 mb-2 leading-tight line-clamp-2">
+                    {response.question_text}
+                  </h3>
+
+                  {/* Answer - Collapsed/Expanded */}
+                  {isEditing ? (
+                    <textarea
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="w-full p-2 text-sm border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                      rows={3}
+                    />
+                  ) : (
+                    <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 mb-2">
+                      <p className={`text-xs text-gray-700 leading-relaxed ${!isExpanded && 'line-clamp-2'}`}>
+                        {response.answer}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Expand/Collapse Button */}
+                  {response.answer.length > 100 && !isEditing && (
+                    <button
+                      onClick={() => toggleExpand(response.id)}
+                      className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 mb-2"
+                    >
+                      {isExpanded ? (
+                        <>Näytä vähemmän <ChevronUp className="w-3 h-3" /></>
+                      ) : (
+                        <>Näytä enemmän <ChevronDown className="w-3 h-3" /></>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Metadata */}
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div className="flex items-center gap-1">
+                      <FileText className="w-3 h-3" />
+                      {getContextLabel(response.asked_in_context)}
+                    </div>
+                    {response.job_title_context && (
+                      <div className="flex items-center gap-1 truncate">
+                        <Briefcase className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{response.job_title_context}</span>
                       </div>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(response.created_at).toLocaleDateString('fi-FI', { day: 'numeric', month: 'short' })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+             YKSITYISKOHTAINEN NÄKYMÄ - Alkuperäinen tyyli
+             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+          <div className="space-y-6">
+            {filteredResponses.map(response => {
+              const wasUpdated = response.updated_at !== response.created_at;
+              
+              return (
+                <div
+                  key={response.id}
+                  className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border-2 border-white/60 shadow-lg hover:shadow-xl transition-all"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border ${getCategoryColor(response.question_category)}`}>
+                        <Tag className="w-3 h-3" />
+                        {response.question_category.toUpperCase()}
+                      </span>
                       
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 ml-4">
-                        {editingId === response.id ? (
-                          <>
-                            <button
-                              onClick={() => handleSave(response.id)}
-                              className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                              title="Tallenna"
-                            >
-                              <Save className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setEditingId(null)}
-                              className="p-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                              title="Peruuta"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleEdit(response)}
-                              className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                              title="Muokkaa"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(response.id)}
-                              className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                              title="Poista"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 mt-3 leading-tight">
+                        {response.question_text}
+                      </h3>
+                    </div>
+                    
+                    <div className="flex gap-2 ml-4">
+                      {editingId === response.id ? (
+                        <>
+                          <button onClick={() => handleSave(response.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600" title="Tallenna">
+                            <Save className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setEditingId(null)} className="p-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600" title="Peruuta">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => handleEdit(response)} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" title="Muokkaa">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete(response.id)} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600" title="Poista">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {editingId === response.id ? (
+                    <textarea
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="w-full p-4 border-2 border-indigo-300 rounded-xl focus:ring-4 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white"
+                      rows={4}
+                    />
+                  ) : (
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                      <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        {response.answer}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <FileText className="w-3 h-3" />
+                      <span className="font-medium">Konteksti:</span>
+                      <span className="text-gray-700">{getContextLabel(response.asked_in_context)}</span>
                     </div>
 
-                    {/* ANSWER */}
-                    {editingId === response.id ? (
-                      <textarea
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full p-4 border-2 border-indigo-300 rounded-xl focus:ring-4 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white"
-                        rows={4}
-                      />
-                    ) : (
-                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                        <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                          {response.answer}
-                        </p>
+                    {response.job_title_context && (
+                      <div className="flex items-center gap-1">
+                        <Briefcase className="w-3 h-3" />
+                        <span className="font-medium">Työpaikka:</span>
+                        <span className="text-gray-700">{response.job_title_context}</span>
                       </div>
                     )}
 
-                    {/* METADATA ROW */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-4 text-xs text-gray-500">
-                      
-                      {/* Context */}
-                      <div className="flex items-center gap-1">
-                        <FileText className="w-3 h-3" />
-                        <span className="font-medium">Konteksti:</span>
-                        <span className="text-gray-700">{getContextLabel(response.asked_in_context)}</span>
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      <span className="font-medium">Luotu:</span>
+                      <span className="text-gray-700">
+                        {new Date(response.created_at).toLocaleDateString('fi-FI', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
 
-                      {/* Job Title (if exists) */}
-                      {response.job_title_context && (
-                        <div className="flex items-center gap-1">
-                          <Briefcase className="w-3 h-3" />
-                          <span className="font-medium">Työpaikka:</span>
-                          <span className="text-gray-700">{response.job_title_context}</span>
-                        </div>
-                      )}
-
-                      {/* Created Date */}
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        <span className="font-medium">Luotu:</span>
-                        <span className="text-gray-700">
-                          {new Date(response.created_at).toLocaleDateString('fi-FI', {
+                    {wasUpdated && (
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <span className="font-medium">Päivitetty:</span>
+                        <span>
+                          {new Date(response.updated_at).toLocaleDateString('fi-FI', {
                             day: 'numeric',
                             month: 'short',
                             year: 'numeric'
                           })}
                         </span>
                       </div>
-
-                      {/* Updated (if different) */}
-                      {wasUpdated && (
-                        <div className="flex items-center gap-1 text-blue-600">
-                          <span className="font-medium">Päivitetty:</span>
-                          <span>
-                            {new Date(response.updated_at).toLocaleDateString('fi-FI', {
-                              day: 'numeric',
-                              month: 'short',
-                              year: 'numeric'
-                            })}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* INFO BOX */}
-          <div className="mt-8 bg-indigo-50/80 backdrop-blur-sm border-2 border-indigo-200 rounded-2xl p-6">
-            <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
-              <span className="text-xl">💡</span>
-              Miten tämä toimii?
-            </h3>
-            <ul className="text-sm text-indigo-800 space-y-2 ml-6">
-              <li className="list-disc">AI kysyy kysymyksiä kun luot hakukirjeitä tai CV:itä</li>
-              <li className="list-disc">Vastaukset tallentuvat automaattisesti</li>
-              <li className="list-disc">Seuraavalla kerralla AI <strong>ei kysy samaa uudelleen</strong></li>
-              <li className="list-disc">Voit muokata vastauksia milloin tahansa</li>
-              <li className="list-disc">AI käyttää näitä vastauksia myös CV:issä ja hakukirjeissä</li>
-            </ul>
+                </div>
+              );
+            })}
           </div>
+        )}
+
+        {/* INFO BOX */}
+        <div className="mt-8 bg-indigo-50/80 backdrop-blur-sm border-2 border-indigo-200 rounded-2xl p-6">
+          <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
+            <span className="text-xl">💡</span>
+            Miten tämä toimii?
+          </h3>
+          <ul className="text-sm text-indigo-800 space-y-2 ml-6">
+            <li className="list-disc">AI kysyy kysymyksiä kun luot hakukirjeitä tai CV:itä</li>
+            <li className="list-disc">Vastaukset tallentuvat automaattisesti</li>
+            <li className="list-disc">Seuraavalla kerralla AI <strong>ei kysy samaa uudelleen</strong></li>
+            <li className="list-disc">Voit muokata vastauksia milloin tahansa</li>
+            <li className="list-disc">Vaihda <strong>Kompakti</strong>-näkymään nähdäksesi enemmän kerralla</li>
+          </ul>
         </div>
       </div>
-    </>
+    </div>
   );
 }
