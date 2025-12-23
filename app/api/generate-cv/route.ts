@@ -137,7 +137,7 @@ export async function POST(req: Request) {
   const aiData = await generateCVWithLangChain({
     ...input,
       userId: userId, // ✅ LISÄÄ TÄMÄ
-    jobPosting: (action === 'cv_ats' || action === 'cv_rag') ? jobPosting : undefined,
+    jobPosting: (action === 'cv_ats_addon' || action === 'cv_rag_addon') ? jobPosting : undefined,
     ragContext: ragContext || undefined, // Lisää RAG context generointiin
   });
 
@@ -149,8 +149,8 @@ export async function POST(req: Request) {
       title: `${input.name || "My"} CV - ${cvType}`,
       content: { cv_data: input, ai_data: aiData },
       is_public: false,
-      is_ats_optimized: action === 'cv_ats' || action === 'cv_rag',
-      job_posting: (action === 'cv_ats' || action === 'cv_rag') ? jobPosting : null,
+      is_ats_optimized: action === 'cv_ats_addon' || action === 'cv_rag_addon',
+      job_posting: (action === 'cv_ats_addon' || action === 'cv_rag_addon') ? jobPosting : null,
       metadata: {
         action: action,
         used_rag: enableRAG,
@@ -182,8 +182,8 @@ export async function POST(req: Request) {
     tokensRemaining: tier !== "free" ? subscription!.tokens - required : 0,
     generationTime: Date.now() - startTime,
     features: {
-      ats: action === 'cv_ats' || action === 'cv_rag',
-      rag: action === 'cv_rag'
+      ats: action === 'cv_ats_addon' || action === 'cv_rag_addon',
+      rag: action === 'cv_rag_addon'
     }
   });
 }

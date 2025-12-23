@@ -35,7 +35,7 @@ export default function CreateCVPage() {
   const { getToken } = useAuth();
   const router = useRouter();
 
-  // ✅ KÄYTÄ useTokens HOOKIA (sama kuin cover-letter)
+  // ✅ KÄYTÄ useTokens HOOKIA
   const { 
     tokens, 
     isActive, 
@@ -92,6 +92,30 @@ export default function CreateCVPage() {
     }
   }, [isLoading]);
 
+  // ✅ LASKE ACTIONIT & KUSTANNUKSET UI:ta VARTEN (ennen returnia!)
+  const currentActions: TokenAction[] = ['cv_basic'];
+  if (useATS) currentActions.push('cv_ats_addon');
+  if (useRAG) currentActions.push('cv_rag_addon');
+
+  const totalCost = currentActions.reduce(
+    (sum, action) => sum + getActionCost(action),
+    0
+  );
+
+  if (!userLoaded || profileLoading || tokensLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Ladataan...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ KÄYTÄ features JA isActive
+  const isPremium = isActive && plan_type !== 'free';
+
   const generateCVFromProfile = async () => {
     if (!user) {
       toast.error("Kirjaudu sisään luodaksesi CV:n");
@@ -104,17 +128,10 @@ export default function CreateCVPage() {
       return;
     }
 
-    // ✅ MÄÄRITÄ ACTION
-    let action: TokenAction = 'cv_simple';
-    
-    if (selectedTemplate === 'technical') {
-      action = useRAG ? 'cv_rag' : useATS ? 'cv_ats' : 'cv_technical';
-    } else if (selectedTemplate === 'creative') {
-      action = useRAG ? 'cv_rag' : useATS ? 'cv_ats' : 'cv_creative';
-    } else {
-      // simple
-      action = useRAG ? 'cv_rag' : useATS ? 'cv_ats' : 'cv_simple';
-    }
+    // ✅ MÄÄRITÄ ACTIONIT UUDELLEEN funktion sisällä (turvallisuus)
+    let actions: TokenAction[] = ['cv_basic'];
+    if (useATS) actions.push('cv_ats_addon');
+    if (useRAG) actions.push('cv_rag_addon');
 
     // ✅ VALIDOI OMINAISUUDET
     if (useATS && !features.canUseATS) {
@@ -127,37 +144,32 @@ export default function CreateCVPage() {
       return;
     }
 
-    if ((selectedTemplate === 'technical' || selectedTemplate === 'creative') && !features.canUseAdvancedTemplates) {
-      toast.error("Professional ja Creative mallit vaativat Premium-tason");
-      return;
-    }
-
     if (useATS && !jobPosting.trim()) {
       toast.error("Anna työpaikkailmoitus ATS-optimointia varten");
       return;
     }
 
     // ✅ TARKISTA TOKENIT
-    const validation = canUseAction(action);
-    if (!validation.allowed && plan_type !== 'free') {
-      toast.error(validation.reason || 'Ei voi generoida CV:tä');
-      return;
+    for (const action of actions) {
+      const validation = canUseAction(action);
+      if (!validation.allowed && plan_type !== 'free') {
+        toast.error(validation.reason);
+        return;
+      }
     }
-
-    const cost = getActionCost(action);
 
     setIsLoading(true);
     try {
       const token = await getToken({ template: "supabase" });
       if (!token) throw new Error("No auth token");
 
-      console.log("🚀 Generating CV:", { action, cvType: selectedTemplate, cost });
+      console.log("🚀 Generating CV:", { cvType: selectedTemplate, totalCost });
 
       const response = await fetch("/api/generate-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: action, // ✅ LÄHETÄ ACTION
+          action: actions, // ✅ LÄHETÄ ACTION
           cvType: selectedTemplate,
           forceGenerate: false,
           jobPosting: useATS || useRAG ? jobPosting : undefined,
@@ -197,20 +209,6 @@ export default function CreateCVPage() {
       setIsLoading(false);
     }
   };
-
-  if (!userLoaded || profileLoading || tokensLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Ladataan...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ✅ KÄYTÄ features JA isActive
-  const isPremium = isActive && plan_type !== 'free';
 
   return (
     <div>
@@ -280,7 +278,7 @@ export default function CreateCVPage() {
                       <label htmlFor="use-ats" className="font-bold text-gray-900 text-lg cursor-pointer">
                         Käytä ATS-optimointia
                         <span className="ml-2 text-sm bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                          {getActionCost('cv_ats')} tokenia
+                          {getActionCost('cv_ats_addon')} tokenia
                         </span>
                       </label>
                       <p className="text-sm text-gray-600 mt-1">
@@ -319,7 +317,7 @@ export default function CreateCVPage() {
                         Käytä RAG-tietokantaa
                         <Crown className="w-5 h-5 text-amber-600" />
                         <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full font-bold">
-                          PRO - {getActionCost('cv_rag')} tokenia
+                          PRO - {getActionCost('cv_rag_addon')} tokenia
                         </span>
                       </label>
                       <p className="text-sm text-gray-600 mt-1">
@@ -387,13 +385,13 @@ export default function CreateCVPage() {
 
               {/* Professional CV - VAATII PREMIUM */}
               <button
-                onClick={() => features.canUseAdvancedTemplates && setSelectedTemplate("technical")}
-                disabled={!features.canUseAdvancedTemplates}
+                onClick={() => isPremium && setSelectedTemplate("technical")}
+                disabled={!isPremium}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                  selectedTemplate === "technical" && features.canUseAdvancedTemplates
+                  selectedTemplate === "technical" && isPremium
                     ? "border-purple-500 bg-purple-50 shadow-xl scale-105"
                     : "border-gray-200 bg-white"
-                } ${!features.canUseAdvancedTemplates ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
+                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-purple-300"}`}
               >
                 <div className="h-16 w-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4">
                   <Sparkles className="h-8 w-8 text-white" />
@@ -402,7 +400,7 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600 mb-2">
                   Tekninen ja strukturoitu ammattilaisille
                 </p>
-                {!features.canUseAdvancedTemplates && (
+                {!isPremium && (
                   <div className="flex items-center gap-2 text-xs text-amber-600 font-semibold">
                     <Crown className="h-4 w-4" />
                     Premium
@@ -412,13 +410,13 @@ export default function CreateCVPage() {
 
               {/* Creative CV - VAATII PREMIUM */}
               <button
-                onClick={() => features.canUseAdvancedTemplates && setSelectedTemplate("creative")}
-                disabled={!features.canUseAdvancedTemplates}
+                onClick={() => isPremium && setSelectedTemplate("creative")}
+                disabled={!isPremium}
                 className={`p-8 rounded-2xl border-2 transition-all text-left ${
-                  selectedTemplate === "creative" && features.canUseAdvancedTemplates
+                  selectedTemplate === "creative" && isPremium
                     ? "border-pink-500 bg-pink-50 shadow-xl scale-105"
                     : "border-gray-200 bg-white"
-                } ${!features.canUseAdvancedTemplates ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
+                } ${!isPremium ? "opacity-50 cursor-not-allowed" : "hover:border-pink-300"}`}
               >
                 <div className="h-16 w-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl flex items-center justify-center mb-4">
                   <Zap className="h-8 w-8 text-white" />
@@ -427,7 +425,7 @@ export default function CreateCVPage() {
                 <p className="text-sm text-gray-600 mb-2">
                   Luova ja visuaalinen portfolio-CV
                 </p>
-                {!features.canUseAdvancedTemplates && (
+                {!isPremium && (
                   <div className="flex items-center gap-2 text-xs text-amber-600 font-semibold">
                     <Crown className="h-4 w-4" />
                     Premium
@@ -477,11 +475,13 @@ export default function CreateCVPage() {
                 ) : (
                   <div className="flex items-center">
                     <Sparkles className="h-6 w-6 mr-3" />
-                    {useRAG ? `🎯 Luo RAG-CV (${getActionCost('cv_rag')} tok)` : 
-                     useATS ? `Luo ATS-CV (${getActionCost('cv_ats')} tok)` : 
-                     selectedTemplate === 'technical' ? `Luo Technical CV (${getActionCost('cv_technical')} tok)` :
-                     selectedTemplate === 'creative' ? `Luo Creative CV (${getActionCost('cv_creative')} tok)` :
-                     `Luo CV (${getActionCost('cv_simple')} tok)`}
+                    {useRAG && useATS
+                      ? `🎯 Luo RAG+ATS CV (${totalCost} tok)`
+                      : useRAG
+                      ? `🎯 Luo RAG-CV (${totalCost} tok)`
+                      : useATS
+                      ? `Luo ATS-CV (${totalCost} tok)`
+                      : `Luo CV (${totalCost} tok)`}
                   </div>
                 )}
               </Button>

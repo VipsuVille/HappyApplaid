@@ -1,17 +1,13 @@
-// hooks/useTokens.ts - PÄIVITETTY
+// hooks/useTokens.ts - KORJATTU
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
+import { ACTION_COSTS } from '@/lib/domain/tokens';
 
-export type TokenAction =
-  | 'cv_basic'
-  | 'cv_ats'
-  | 'cv_rag'
-  | 'cover_letter_v1'
-  | 'cover_letter_v2'
-  | 'cover_letter_rag'
-  | 'cover_letter_general'; // ✅ LISÄTTY
+// ✅ IMPORTOI TokenAction lib/domain/tokens.ts:stä (SINGLE SOURCE OF TRUTH)
+export type { TokenAction } from '@/lib/domain/tokens';
+const TIER_COSTS = ACTION_COSTS;
 
 interface TokenData {
   tokens: number;
@@ -27,34 +23,6 @@ interface TokenData {
   current_period_end: string | null;
   status: string;
 }
-
-const TIER_COSTS = {
-  free: {},
-  basic: {
-    cv_simple: 50,
-    cv_technical: 50,
-    cv_creative: 50,
-    cover_letter_v1: 50,
-    cover_letter_general: 40, // ✅ LISÄTTY
-  },
-  'semi-pro': {
-    cv_simple: 50,
-    cv_technical: 75,
-    cv_creative: 75,
-    cover_letter_v1: 50,
-    cover_letter_v2: 75,
-    cover_letter_general: 40, // ✅ LISÄTTY
-  },
-  pro: {
-    cv_simple: 50,
-    cv_technical: 75,
-    cv_creative: 100,
-    cover_letter_v1: 50,
-    cover_letter_v2: 75,
-    cover_letter_rag: 100,
-    cover_letter_general: 40, // ✅ LISÄTTY
-  }
-};
 
 const TIER_FEATURES = {
   free: { canUseV1: false, canUseV2: false, canUseRAG: false, canUseATS: false },
@@ -158,7 +126,7 @@ export function useTokens() {
     await fetchPromise;
   }, [userId, isSignedIn, isLoaded]);
 
-  const consumeTokens = async (action: TokenAction): Promise<boolean> => {
+  const consumeTokens = async (action: string): Promise<boolean> => {
     if (!userId || !tokenData) return false;
 
     try {
@@ -193,7 +161,7 @@ export function useTokens() {
     }
   };
 
-  const canUseAction = (action: TokenAction) => {
+  const canUseAction = (action: string) => {
     if (!tokenData) return { allowed: false, reason: 'Ladataan...' };
 
     // FREE: EI TOKEN-TARKISTUSTA
@@ -230,6 +198,6 @@ export function useTokens() {
     consumeTokens,
     fetchTokens: () => fetchTokens(true),
     canUseAction,
-    getActionCost: (action: TokenAction) => tokenData ? ((TIER_COSTS[tokenData.plan_type] as any)[action] || 0) : 0,
+    getActionCost: (action: string) => tokenData ? ((TIER_COSTS[tokenData.plan_type] as any)[action] || 0) : 0,
   };
 }

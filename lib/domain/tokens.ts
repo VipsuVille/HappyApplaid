@@ -2,8 +2,9 @@
 
 export type TokenAction = 
   | 'cv_basic'              // Perus-CV ilman jobPostingia
-  | 'cv_ats'                // CV + jobPosting optimointi
-  | 'cv_rag'                // CV + RAG tietokanta
+  | 'cv_ats_addon'
+  | 'cv_rag_addon'
+                // CV + RAG tietokanta
   | 'cover_letter_v1'       // Perus hakukirje (job-specific)
   | 'cover_letter_v2'       // ATS-optimoitu hakukirje
   | 'cover_letter_rag'      // RAG-optimoitu hakukirje
@@ -20,15 +21,15 @@ export const ACTION_COSTS: Record<PlanType, Partial<Record<TokenAction, number>>
   },
   'semi-pro': {
     cv_basic: 200,
-    cv_ats: 300,
+    cv_ats_addon: 300,
     cover_letter_v1: 50,
     cover_letter_v2: 75,
     cover_letter_general: 40, // ✅ Sama hinta
   },
   pro: {
     cv_basic: 200,
-    cv_ats: 300,
-    cv_rag: 500,
+    cv_ats_addon: 300,
+    cv_rag_addon: 500,
     cover_letter_v1: 50,
     cover_letter_v2: 75,
     cover_letter_rag: 100,
@@ -38,7 +39,7 @@ export const ACTION_COSTS: Record<PlanType, Partial<Record<TokenAction, number>>
 
 // Helper: Tarkista vaatiiko action tier-tason
 export function requiresTier(action: TokenAction): 'free' | 'basic' | 'semi-pro' | 'pro' {
-  if (action === 'cv_rag' || action === 'cover_letter_rag') return 'pro';
-  if (action === 'cv_ats' || action === 'cover_letter_v2') return 'semi-pro';
+  if (action === 'cv_rag_addon' || action === 'cover_letter_rag') return 'pro';
+  if (action === 'cv_ats_addon' || action === 'cover_letter_v2') return 'semi-pro';
   return 'basic';
 }
