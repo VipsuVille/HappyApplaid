@@ -168,16 +168,13 @@ export async function POST(req: Request) {
 
     let aiData;
     try {
-      aiData = await generateCVWithPersonalityExtraction(
-        {
-          ...input,
-          jobPosting:
-            action === "cv_ats_addon" || action === "cv_rag_addon"
-              ? jobPosting
-              : undefined,
-        },
-        { signal: controller.signal }
-      );
+      aiData = await generateCVWithPersonalityExtraction({
+  ...input,
+  jobPosting:
+    action === "cv_ats_addon" || action === "cv_rag_addon"
+      ? jobPosting
+      : undefined,
+});
     } catch (err) {
       return NextResponse.json(
         { error: "CV_GENERATION_TIMEOUT" },

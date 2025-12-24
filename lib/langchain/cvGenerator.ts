@@ -14,6 +14,14 @@ import {
 import type { LangChainCVInput } from "@/lib/profileDataTransform";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+type ExtendedLangChainCVInput = LangChainCVInput & {
+  userId?: string;
+  cvId?: string;
+  jobPosting?: string;
+  authToken?: string;
+  answersSkills?: string;
+  answersCertifications?: string;
+};
 
 function ensureString(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -666,7 +674,7 @@ IMPORTANT:
 // ... (kaikki muu koodi sama)
  
 export async function generateCVWithPersonalityExtraction(
-  userData: ExtendedLangChainCVInput // ✅ Käytä laajennettua tyyppiä
+  userData: ExtendedLangChainCVInput // ✅ Käytä laajennettua tyyppiä0
 ): Promise<CVGenerationResult> {
   const timer = new PerformanceTimer();
   timer.start("Total Generation");
