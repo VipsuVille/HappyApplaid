@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - KORJATTU VERSIO (DOKUMENTTI 4 POHJALTA)
+// app/api/generate-cv/route.ts - KORJATTU: OTTAA PROFIILIN BODYSTÄ
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/profileDataTransform";
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { buildAIContext } from "@/lib/knowledge";
+import { convertProfileToApiFormat } from "@/types";
 
 export const maxDuration = 60;
 
@@ -27,6 +28,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
 
+    console.log(`✅ Auth OK: ${userId}`);
+
     // Parse request body
     let body;
     try {
@@ -39,16 +42,30 @@ export async function POST(req: Request) {
       );
     }
 
-    const cvType: "simple" | "technical" | "creative" = body.cvType || "simple";
-    const forceGenerate = body.forceGenerate === true;
-    const jobPosting: string | undefined = body.jobPosting;
-    const enableRAG = body.enableRAG === true;
+    const {
+      profileData, // ✅ UUSI: Profiili bodystä (kuten cover letterissä)
+      cvType = "simple",
+      forceGenerate = false,
+      jobPosting,
+      enableRAG = false,
+      answeredQuestions,
+      skipQuestions,
+    } = body;
 
     // 1️⃣ MÄÄRITÄ ACTION (Frontend päättää tämän)
     const action: TokenAction = body.action || 
       (enableRAG ? 'cv_rag_addon' : jobPosting ? 'cv_ats_addon' : 'cv_basic');
 
-    console.log(`📝 CV Request: action=${action}, type=${cvType}, enableRAG=${enableRAG}`);
+    console.log(`📝 CV Request:`, {
+      userId,
+      action,
+      cvType,
+      hasProfileData: !!profileData,
+      hasJobPosting: !!jobPosting,
+      enableRAG,
+      hasAnsweredQuestions: !!answeredQuestions,
+      answersCount: answeredQuestions?.length || 0,
+    });
 
     // 2️⃣ SUBSCRIPTION
     const { data: subscription, error: subError } = await supabaseAdmin
@@ -67,8 +84,10 @@ export async function POST(req: Request) {
 
     const planType = (subscription?.plan_type || 'free') as 'free' | 'basic' | 'semi-pro' | 'pro';
     const currentTokens = subscription?.tokens || 0;
+    const isActive = subscription?.is_active === true &&
+      ['active', 'trialing'].includes(subscription?.status || '');
 
-    console.log(`💳 Subscription: ${planType}, tokens: ${currentTokens}`);
+    console.log(`💳 Subscription: ${planType}, tokens: ${currentTokens}, active: ${isActive}`);
 
     // ---------------- FREE TIER ----------------
     if (planType === "free") {
@@ -102,7 +121,7 @@ export async function POST(req: Request) {
         );
       }
 
-      if (currentTokens < required) {
+      if (isActive && currentTokens < required) {
         console.log(`❌ Not enough tokens: ${currentTokens} < ${required}`);
         return NextResponse.json(
           { error: "NOT_ENOUGH_TOKENS", required, available: currentTokens },
@@ -111,26 +130,94 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3️⃣ FETCH PROFILE
-    console.log("📚 Fetching user profile...");
-    const { data: dbProfile, error: profileError } = await supabaseAdmin
-      .from("user_profiles")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
+    console.log(`✅ Token check passed: ${required} tokens required`);
 
-    if (profileError || !dbProfile) {
-      console.error("❌ Profile not found:", profileError);
-      return NextResponse.json(
-        { error: "PROFILE_REQUIRED", redirectTo: "/profile" },
-        { status: 404 }
-      );
+    // ========================================
+    // 3️⃣ ✅ BUILD INPUT FROM profileData (KUTEN COVER LETTER)
+    // ========================================
+    
+    let input: LangChainCVInput;
+    
+    if (profileData) {
+      // ✅ KÄYTÄ BODYSTÄ TULLUTTA PROFIILIA
+      console.log("📋 Using profile from request body");
+      
+      const apiFormat = convertProfileToApiFormat(profileData);
+      
+      input = {
+        userId: userId,
+        cvId: `cv_${Date.now()}`,
+        cvType: cvType,
+        language: body.language || "finnish",
+        
+        // Basic info
+        name: profileData.name,
+        email: profileData.email,
+        phone: profileData.phone,
+        location: profileData.location,
+        title: profileData.jobTitle,
+        introText: profileData.profileSummary,
+        
+        // Professional
+        education: apiFormat.education,
+        workExperience: apiFormat.workExperience,
+        skills: profileData.skills,
+        languages: profileData.languages,
+        
+        // Personality
+        workingStyle: profileData.workingStyle,
+        problemSolving: profileData.problemSolving,
+        energySources: profileData.energySources,
+        uniqueStrength: profileData.uniqueStrength,
+        learningStyle: profileData.learningStyle,
+        teamRole: profileData.teamRole,
+        valuesExample: profileData.valuesExample,
+        superpower: profileData.superpower,
+        
+        // Career
+        careerGoals: profileData.careerGoals,
+        bestProjectExample: profileData.bestProjectExample,
+        failureLesson: profileData.failureLesson,
+        
+        // Images
+        profileImage: profileData.profileImage,
+        backgroundImage: profileData.backgroundImage,
+        
+        // Optional
+        hobbies: profileData.hobbies,
+        age: profileData.age,
+        linkedIn: profileData.linkedin,
+      };
+      
+    } else {
+      // ❌ FALLBACK: Yritä hakea tietokannasta (vanha tapa)
+      console.log("📚 Falling back to database profile fetch");
+      
+      const { data: dbProfile, error: profileError } = await supabaseAdmin
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+      if (profileError || !dbProfile) {
+        console.error("❌ Profile not found in database:", profileError);
+        return NextResponse.json(
+          { 
+            error: "PROFILE_REQUIRED", 
+            message: "Profiilia ei löydy. Lataa sivu uudelleen.",
+            redirectTo: "/profile"
+          },
+          { status: 404 }
+        );
+      }
+      
+      input = transformDBToLangChain(dbProfile, cvType);
+      input.userId = userId;
     }
 
-    // 4️⃣ TRANSFORM + VALIDATE
-    console.log("🔄 Transforming profile data...");
-    const input: LangChainCVInput = transformDBToLangChain(dbProfile, cvType);
+    console.log(`✅ Profile loaded for: ${input.name}`);
 
+    // 4️⃣ VALIDATE
     if (cvType === "simple") {
       const completeness = calculatePersonalityCompleteness(input);
       console.log(`📊 Personality completeness: ${completeness.completeness.toFixed(1)}%`);
@@ -155,18 +242,20 @@ export async function POST(req: Request) {
     // 5️⃣ RAG CONTEXT (jos käytössä)
     let ragContext = '';
     if (enableRAG && tier === 'pro') {
-      console.log('🔍 Fetching RAG context for CV...');
+      console.log('🔍 Building RAG context...');
       try {
+        // Käytä profiilia joko bodystä tai DB:stä
+        const profileForRAG = profileData || input;
+        
         ragContext = await buildAIContext({
           jobDescription: jobPosting || 'General CV',
-          userProfile: dbProfile,
+          userProfile: profileForRAG,
           enableRAG: true,
           contentType: 'cv'
         });
-        console.log(`✅ RAG context loaded: ${ragContext.length} chars`);
+        console.log(`✅ RAG context: ${ragContext.length} chars`);
       } catch (ragError) {
         console.error("⚠️ RAG context failed:", ragError);
-        // Continue without RAG
       }
     }
 
@@ -176,7 +265,6 @@ export async function POST(req: Request) {
     try {
       aiData = await generateCVWithPersonalityExtraction({
         ...input,
-        userId: userId,
         jobPosting: (action === 'cv_ats_addon' || action === 'cv_rag_addon') ? jobPosting : undefined,
         ragContext: ragContext || undefined,
       });
@@ -199,6 +287,8 @@ export async function POST(req: Request) {
       );
     }
 
+    console.log("✅ CV content generated");
+
     // 7️⃣ SAVE CV
     console.log("💾 Saving CV to database...");
     const { data: saved, error: saveError } = await supabaseAdmin
@@ -220,7 +310,9 @@ export async function POST(req: Request) {
           action: action,
           used_rag: enableRAG,
           tier: tier,
-          generation_time: Date.now() - startTime
+          generation_time: Date.now() - startTime,
+          has_answered_questions: !!answeredQuestions,
+          questions_count: answeredQuestions?.length || 0
         }
       })
       .select("id")
@@ -236,15 +328,14 @@ export async function POST(req: Request) {
 
     console.log(`✅ CV saved with id: ${saved.id}`);
 
-    // 8️⃣ KULUTA TOKENIT (VASTA ONNISTUMISEN JÄLKEEN)
+    // 8️⃣ UPDATE TOKENS & USAGE
     if (tier === "free") {
-      // Mark free CV as used
       await supabaseAdmin.from("free_usage").upsert({
         user_id: userId,
         used_free_cv: true,
       });
       console.log("✅ Free CV usage marked");
-    } else if (required > 0) {
+    } else if (isActive && required > 0) {
       const { error: tokenError } = await supabaseAdmin
         .from("subscriptions")
         .update({
@@ -265,8 +356,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      id: saved.id, // ✅ Palauta "id" eikä "cvId"
-      cvId: saved.id, // ✅ Myös "cvId" yhteensopivuutta varten
+      id: saved.id,
+      cvId: saved.id,
       tokensUsed: required,
       tokensRemaining: tier !== "free" ? currentTokens - required : 0,
       generationTime: totalTime,
