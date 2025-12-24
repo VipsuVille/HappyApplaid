@@ -265,20 +265,11 @@ export type LangChainCVInput = UserFormData & {
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
-  
-  // ✅ CV Generation lisäkentät
   authToken?: string;
   jobPosting?: string;
   backgroundImage?: string;
-  
-  // ✅ Answers integration kentät
   answersSkills?: string;
   answersCertifications?: string;
-  
-  // ✅ RAG context
-  ragContext?: string;
-  
-  // ✅ Profile/Bio kentät (vaihtoehtoiset nimet samalle datalle)
   bio?: string;
   profile?: string;
 };

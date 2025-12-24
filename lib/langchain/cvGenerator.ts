@@ -664,9 +664,9 @@ IMPORTANT:
 // lib/langchain/cvGenerator.ts - TYYPPIKORJAUS
 
 // ... (kaikki muu koodi sama)
-
+ 
 export async function generateCVWithPersonalityExtraction(
-  userData: LangChainCVInput & { authToken?: string; jobPosting?: string; userId?: string }
+  userData: ExtendedLangChainCVInput // ✅ Käytä laajennettua tyyppiä
 ): Promise<CVGenerationResult> {
   const timer = new PerformanceTimer();
   timer.start("Total Generation");
@@ -728,10 +728,10 @@ export async function generateCVWithPersonalityExtraction(
     console.log(`   Total skills: ${combinedSkills.split(',').length}`);
     console.log(`   Certifications: ${answersData.certifications.length}`);
 
-    // ✅ KORJAUS: Säilytä userId
-    const enhancedUserData: LangChainCVInput = {
+    // ✅ KORJAUS: Rakenna ExtendedLangChainCVInput oikein
+    const enhancedUserData: ExtendedLangChainCVInput = {
       ...restUserData,
-      userId: userId, // ✅ LISÄTTY TAKAISIN
+      userId: userId, // ✅ Nyt tyyppi tukee tätä
       skills: combinedSkills,
       education: combinedEducation,
       workingStyle: extractedPersonalityData.workingStyle || restUserData.workingStyle || "",
@@ -752,21 +752,21 @@ export async function generateCVWithPersonalityExtraction(
 
     // ⚡ STAGE 3: GENERATE CV
     console.log("🚀 Generating CV content with answers integration...");
-    const result = await generateCVWithLangChain({
-      ...enhancedUserData,
-      authToken,
-      jobPosting,
-    });
+    const result = await generateCVWithLangChain(enhancedUserData);
 
     timer.getResults();
 
     return result;
   } catch (error) {
     console.error("❌ CV generation failed:", error);
-    throw error;
+    // ✅ KORJAUS: Palauta oikea virhe JSON-muodossa
+    throw new Error(
+      error instanceof Error 
+        ? error.message 
+        : "CV generation failed with unknown error"
+    );
   }
 }
-
 // =====================================
 // MAIN: GENERATE CV WITH LANGCHAIN
 // =====================================
