@@ -1,9 +1,9 @@
-// app/api/generate-cv/route.ts
+// app/api/generate-cv/route.ts - KORJATTU VERSIO (DOKUMENTTI 4 POHJALTA)
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { generateCVWithLangChain } from "@/lib/langchain/cvGenerator";
-import { supabaseAdmin } from "@/lib/supabase";
+import { generateCVWithPersonalityExtraction } from "@/lib/langchain/cvGenerator";
+import { supabase as supabaseAdmin } from "@/lib/supabase";
 import {
   transformDBToLangChain,
   validateProfileForCVType,
@@ -17,173 +17,280 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const startTime = Date.now();
+  console.log("🚀 Starting CV generation...");
 
-  // 0️⃣ AUTH
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
+  try {
+    // 0️⃣ AUTH
+    const { userId } = await auth();
+    if (!userId) {
+      console.error("❌ Unauthorized: No userId");
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    }
 
-  const body = await req.json();
-  const cvType: "simple" | "technical" | "creative" = body.cvType || "simple";
-  const forceGenerate = body.forceGenerate === true;
-  const jobPosting: string | undefined = body.jobPosting;
-  const enableRAG = body.enableRAG === true;
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error("❌ Failed to parse request body:", parseError);
+      return NextResponse.json(
+        { error: "INVALID_REQUEST_BODY" },
+        { status: 400 }
+      );
+    }
 
-  // 1️⃣ MÄÄRITÄ ACTION (Frontend päättää tämän)
-  const action: TokenAction = body.action || 
-    (enableRAG ? 'cv_rag' : jobPosting ? 'cv_ats' : 'cv_basic');
+    const cvType: "simple" | "technical" | "creative" = body.cvType || "simple";
+    const forceGenerate = body.forceGenerate === true;
+    const jobPosting: string | undefined = body.jobPosting;
+    const enableRAG = body.enableRAG === true;
 
-  console.log(`📝 CV Request: ${action} (type: ${cvType})`);
+    // 1️⃣ MÄÄRITÄ ACTION (Frontend päättää tämän)
+    const action: TokenAction = body.action || 
+      (enableRAG ? 'cv_rag_addon' : jobPosting ? 'cv_ats_addon' : 'cv_basic');
 
-  // 2️⃣ SUBSCRIPTION
-  const { data: subscription } = await supabaseAdmin
-    .from("subscriptions")
-    .select("plan_type, tokens, status, is_active")
-    .eq("user_id", userId)
-    .maybeSingle();
+    console.log(`📝 CV Request: action=${action}, type=${cvType}, enableRAG=${enableRAG}`);
 
-  // ---------------- FREE ----------------
-  if (!subscription || subscription.plan_type === "free") {
-    const { data: usage } = await supabaseAdmin
-      .from("free_usage")
-      .select("used_free_cv")
+    // 2️⃣ SUBSCRIPTION
+    const { data: subscription, error: subError } = await supabaseAdmin
+      .from("subscriptions")
+      .select("plan_type, tokens, status, is_active")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (usage?.used_free_cv) {
+    if (subError) {
+      console.error("❌ Subscription fetch failed:", subError);
       return NextResponse.json(
-        { error: "FREE_CV_ALREADY_USED" },
-        { status: 403 }
+        { error: "SUBSCRIPTION_CHECK_FAILED" },
+        { status: 500 }
       );
     }
 
-    await supabaseAdmin.from("free_usage").upsert({
-      user_id: userId,
-      used_free_cv: true,
-    });
-  }
+    const planType = (subscription?.plan_type || 'free') as 'free' | 'basic' | 'semi-pro' | 'pro';
+    const currentTokens = subscription?.tokens || 0;
 
-  // ---------------- PAID ----------------
-  let tier: "free" | "basic" | "semi-pro" | "pro" = "free";
-  let required = 0;
+    console.log(`💳 Subscription: ${planType}, tokens: ${currentTokens}`);
 
-  if (subscription && subscription.plan_type !== "free") {
-    tier = subscription.plan_type as any;
-    required = ACTION_COSTS[tier]?.[action] ?? 0;
+    // ---------------- FREE TIER ----------------
+    if (planType === "free") {
+      const { data: usage } = await supabaseAdmin
+        .from("free_usage")
+        .select("used_free_cv")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-    if (required === undefined) {
-      return NextResponse.json(
-        { error: "ACTION_NOT_ALLOWED", tier, action },
-        { status: 403 }
-      );
-    }
-
-    if (subscription.tokens < required) {
-      return NextResponse.json(
-        { error: "NOT_ENOUGH_TOKENS", required },
-        { status: 403 }
-      );
-    }
-  }
-
-  // 3️⃣ FETCH PROFILE
-  const { data: dbProfile } = await supabaseAdmin
-    .from("user_profiles")
-    .select("*")
-    .eq("user_id", userId)
-    .single();
-
-  if (!dbProfile) {
-    return NextResponse.json(
-      { error: "PROFILE_REQUIRED", redirectTo: "/profile" },
-      { status: 404 }
-    );
-  }
-
-  // 4️⃣ TRANSFORM + VALIDATE
-  const input: LangChainCVInput = transformDBToLangChain(dbProfile, cvType);
-
-  if (cvType === "simple") {
-    calculatePersonalityCompleteness(input);
-  }
-
-  const validation = validateProfileForCVType(input, cvType);
-  if (!validation.isValid && !forceGenerate) {
-    return NextResponse.json(
-      {
-        error: "DATA_VALIDATION_FAILED",
-        missing: validation.missingCritical,
-        suggestions: validation.suggestions,
-      },
-      { status: 422 }
-    );
-  }
-
-  // 5️⃣ RAG CONTEXT (jos käytössä)
-  let ragContext = '';
-  if (enableRAG && tier === 'pro') {
-    console.log('🔍 Fetching RAG context for CV...');
-    ragContext = await buildAIContext({
-      jobDescription: jobPosting || 'General CV',
-      userProfile: dbProfile,
-      enableRAG: true,
-      contentType: 'cv' // ✅ VAIN CV-DOKUMENTIT
-    });
-    console.log(`✅ RAG context loaded: ${ragContext.length} chars`);
-  }
-
-  // 6️⃣ GENERATE CV
-  const aiData = await generateCVWithLangChain({
-    ...input,
-      userId: userId, // ✅ LISÄÄ TÄMÄ
-    jobPosting: (action === 'cv_ats_addon' || action === 'cv_rag_addon') ? jobPosting : undefined,
-    ragContext: ragContext || undefined, // Lisää RAG context generointiin
-  });
-
-  // 7️⃣ SAVE CV
-  const { data: saved } = await supabaseAdmin
-    .from("cvs")
-    .insert({
-      user_id: userId,
-      title: `${input.name || "My"} CV - ${cvType}`,
-      content: { cv_data: input, ai_data: aiData },
-      is_public: false,
-      is_ats_optimized: action === 'cv_ats_addon' || action === 'cv_rag_addon',
-      job_posting: (action === 'cv_ats_addon' || action === 'cv_rag_addon') ? jobPosting : null,
-      metadata: {
-        action: action,
-        used_rag: enableRAG,
-        tier: tier
+      if (usage?.used_free_cv && !forceGenerate) {
+        console.log("❌ Free CV already used");
+        return NextResponse.json(
+          { error: "FREE_CV_ALREADY_USED" },
+          { status: 403 }
+        );
       }
-    })
-    .select("id")
-    .single();
-
-  if (!saved) {
-    throw new Error("Failed to save CV");
-  }
-
-  // 8️⃣ KULUTA TOKENIT (VASTA ONNISTUMISEN JÄLKEEN)
-  if (tier !== "free" && required > 0) {
-    await supabaseAdmin
-      .from("subscriptions")
-      .update({
-        tokens: subscription!.tokens - required,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
-  }
-
-  return NextResponse.json({
-    success: true,
-    id: saved.id, // ✅ Tämä pitää olla "id" eikä "cvId"
-    tokensUsed: required,
-    tokensRemaining: tier !== "free" ? subscription!.tokens - required : 0,
-    generationTime: Date.now() - startTime,
-    features: {
-      ats: action === 'cv_ats_addon' || action === 'cv_rag_addon',
-      rag: action === 'cv_rag_addon'
     }
-  });
+
+    // ---------------- PAID TIERS ----------------
+    let tier: "free" | "basic" | "semi-pro" | "pro" = planType;
+    let required = 0;
+
+    if (planType !== "free") {
+      required = ACTION_COSTS[tier]?.[action] ?? 0;
+
+      if (required === undefined) {
+        console.log(`❌ Action not allowed: ${action} for tier ${tier}`);
+        return NextResponse.json(
+          { error: "ACTION_NOT_ALLOWED", tier, action },
+          { status: 403 }
+        );
+      }
+
+      if (currentTokens < required) {
+        console.log(`❌ Not enough tokens: ${currentTokens} < ${required}`);
+        return NextResponse.json(
+          { error: "NOT_ENOUGH_TOKENS", required, available: currentTokens },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 3️⃣ FETCH PROFILE
+    console.log("📚 Fetching user profile...");
+    const { data: dbProfile, error: profileError } = await supabaseAdmin
+      .from("user_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single();
+
+    if (profileError || !dbProfile) {
+      console.error("❌ Profile not found:", profileError);
+      return NextResponse.json(
+        { error: "PROFILE_REQUIRED", redirectTo: "/profile" },
+        { status: 404 }
+      );
+    }
+
+    // 4️⃣ TRANSFORM + VALIDATE
+    console.log("🔄 Transforming profile data...");
+    const input: LangChainCVInput = transformDBToLangChain(dbProfile, cvType);
+
+    if (cvType === "simple") {
+      const completeness = calculatePersonalityCompleteness(input);
+      console.log(`📊 Personality completeness: ${completeness.completeness.toFixed(1)}%`);
+    }
+
+    const validation = validateProfileForCVType(input, cvType);
+    console.log(`✅ Validation score: ${validation.score}/100`);
+
+    if (!validation.isValid && !forceGenerate) {
+      console.log("❌ Validation failed:", validation.missingCritical);
+      return NextResponse.json(
+        {
+          error: "DATA_VALIDATION_FAILED",
+          missing: validation.missingCritical,
+          suggestions: validation.suggestions,
+          score: validation.score,
+        },
+        { status: 422 }
+      );
+    }
+
+    // 5️⃣ RAG CONTEXT (jos käytössä)
+    let ragContext = '';
+    if (enableRAG && tier === 'pro') {
+      console.log('🔍 Fetching RAG context for CV...');
+      try {
+        ragContext = await buildAIContext({
+          jobDescription: jobPosting || 'General CV',
+          userProfile: dbProfile,
+          enableRAG: true,
+          contentType: 'cv'
+        });
+        console.log(`✅ RAG context loaded: ${ragContext.length} chars`);
+      } catch (ragError) {
+        console.error("⚠️ RAG context failed:", ragError);
+        // Continue without RAG
+      }
+    }
+
+    // 6️⃣ GENERATE CV
+    console.log("🎨 Starting CV generation...");
+    let aiData;
+    try {
+      aiData = await generateCVWithPersonalityExtraction({
+        ...input,
+        userId: userId,
+        jobPosting: (action === 'cv_ats_addon' || action === 'cv_rag_addon') ? jobPosting : undefined,
+        ragContext: ragContext || undefined,
+      });
+    } catch (genError) {
+      console.error("❌ CV generation failed:", genError);
+      return NextResponse.json(
+        { 
+          error: "CV_GENERATION_FAILED",
+          message: genError instanceof Error ? genError.message : "Unknown error"
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!aiData) {
+      console.error("❌ CV generation returned null");
+      return NextResponse.json(
+        { error: "CV_GENERATION_RETURNED_NULL" },
+        { status: 500 }
+      );
+    }
+
+    // 7️⃣ SAVE CV
+    console.log("💾 Saving CV to database...");
+    const { data: saved, error: saveError } = await supabaseAdmin
+      .from("cvs")
+      .insert({
+        user_id: userId,
+        title: `${input.name || "My"} CV - ${cvType}`,
+        personal_description: aiData.personal_description,
+        html: aiData.html,
+        background_image: aiData.background_image,
+        profile_image: input.profileImage || null,
+        profile_initials: aiData.profile_initials,
+        full_text_content: aiData.fullTextContent,
+        cv_type: cvType,
+        is_public: false,
+        is_ats_optimized: action === 'cv_ats_addon' || action === 'cv_rag_addon',
+        job_posting: (action === 'cv_ats_addon' || action === 'cv_rag_addon') ? jobPosting : null,
+        metadata: {
+          action: action,
+          used_rag: enableRAG,
+          tier: tier,
+          generation_time: Date.now() - startTime
+        }
+      })
+      .select("id")
+      .single();
+
+    if (saveError || !saved) {
+      console.error("❌ Failed to save CV:", saveError);
+      return NextResponse.json(
+        { error: "CV_SAVE_FAILED", details: saveError?.message },
+        { status: 500 }
+      );
+    }
+
+    console.log(`✅ CV saved with id: ${saved.id}`);
+
+    // 8️⃣ KULUTA TOKENIT (VASTA ONNISTUMISEN JÄLKEEN)
+    if (tier === "free") {
+      // Mark free CV as used
+      await supabaseAdmin.from("free_usage").upsert({
+        user_id: userId,
+        used_free_cv: true,
+      });
+      console.log("✅ Free CV usage marked");
+    } else if (required > 0) {
+      const { error: tokenError } = await supabaseAdmin
+        .from("subscriptions")
+        .update({
+          tokens: currentTokens - required,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+
+      if (tokenError) {
+        console.error("⚠️ Failed to update tokens:", tokenError);
+      } else {
+        console.log(`✅ Tokens consumed: ${required} (${currentTokens} → ${currentTokens - required})`);
+      }
+    }
+
+    const totalTime = Date.now() - startTime;
+    console.log(`🎉 CV generation complete in ${totalTime}ms`);
+
+    return NextResponse.json({
+      success: true,
+      id: saved.id, // ✅ Palauta "id" eikä "cvId"
+      cvId: saved.id, // ✅ Myös "cvId" yhteensopivuutta varten
+      tokensUsed: required,
+      tokensRemaining: tier !== "free" ? currentTokens - required : 0,
+      generationTime: totalTime,
+      features: {
+        ats: action === 'cv_ats_addon' || action === 'cv_rag_addon',
+        rag: action === 'cv_rag_addon',
+        personality: true
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Unexpected error in CV generation:", error);
+    
+    if (error instanceof Error) {
+      console.error("Error stack:", error.stack);
+    }
+    
+    return NextResponse.json(
+      { 
+        error: "INTERNAL_SERVER_ERROR",
+        message: "An unexpected error occurred",
+        details: error instanceof Error ? error.message : "Unknown error"
+      },
+      { status: 500 }
+    );
+  }
 }

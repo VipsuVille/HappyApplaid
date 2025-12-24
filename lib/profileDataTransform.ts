@@ -256,17 +256,31 @@ export function transformDBToLangChain(
   return langchainInput;
 }
 
+// ✅ PÄIVITETTY LangChainCVInput - SISÄLTÄÄ KAIKKI TARVITTAVAT KENTÄT
 export type LangChainCVInput = UserFormData & {
   userId?: string;
-  cvId: string;
-  cvType: "simple" | "technical" | "creative";
-  language: string;
+  cvId?: string;
+  cvType?: "simple" | "technical" | "creative";
+  language?: string;
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
-    // ✅ LISÄÄ ANSWERS-KENTÄT
+  
+  // ✅ CV Generation lisäkentät
+  authToken?: string;
+  jobPosting?: string;
+  backgroundImage?: string;
+  
+  // ✅ Answers integration kentät
   answersSkills?: string;
   answersCertifications?: string;
+  
+  // ✅ RAG context
+  ragContext?: string;
+  
+  // ✅ Profile/Bio kentät (vaihtoehtoiset nimet samalle datalle)
+  bio?: string;
+  profile?: string;
 };
 
 /**

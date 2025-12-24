@@ -1,4 +1,4 @@
-// app/create-cv/page.tsx - LOPULLINEN (Plan-Type Pohjainen)
+// app/create-cv/page.tsx - LOPULLINEN (PRICING-integraatio)
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import type { TokenAction } from "@/lib/domain/tokens";
+import { PRICING } from "@/lib/pricing";
 
 type CVTemplate = "technical" | "creative" | "simple";
 
@@ -130,12 +131,12 @@ export default function CreateCVPage() {
 
     // ✅ VALIDOI OMINAISUUDET (Sama kuin cover-letter)
     if (useATS && !features.canUseATS) {
-      toast.error("ATS-optimointi vaatii Semi-Pro tai Pro -tason");
+      toast.error(`ATS-optimointi vaatii ${PRICING['semi-pro'].name} tai ${PRICING.pro.name} -tason`);
       return;
     }
 
     if (useRAG && !features.canUseRAG) {
-      toast.error("RAG-tietokanta vaatii Pro-tason");
+      toast.error(`RAG-tietokanta vaatii ${PRICING.pro.name}-tason`);
       return;
     }
 
@@ -176,7 +177,7 @@ export default function CreateCVPage() {
         const errorData = await response.json();
         
         if (errorData.error === "FREE_CV_ALREADY_USED") {
-          toast.error("Olet jo käyttänyt ilmaisen CV:n! Aktivoi tilaus.", 
+          toast.error(`Olet jo käyttänyt ilmaisen CV:n! Aktivoi ${PRICING.basic.name}-tilaus.`, 
             { duration: 8000 });
           router.push("/pricing");
           return;
@@ -233,29 +234,40 @@ export default function CreateCVPage() {
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
         <div className="max-w-5xl mx-auto">
           
-          {/* Header */}
+          {/* Header - KÄYTTÄÄ PRICING-TIETOJA */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
               Luo Ammattimainen CV
             </h1>
-            <p className="text-lg text-gray-600">
+            <p className="text-lg text-gray-600 mb-2">
               {plan_type === 'pro'
-                ? "Pro-taso: Kaikki ominaisuudet käytössäsi"
+                ? `${PRICING.pro.name}-taso: Kaikki ominaisuudet käytössäsi`
                 : plan_type === 'semi-pro'
-                ? "Semi-Pro: ATS-optimointi käytössä"
+                ? `${PRICING['semi-pro'].name}: ATS-optimointi käytössä`
                 : plan_type === 'basic'
-                ? "Basic: Rajattomat perus CV:t"
-                : "Aloita ilmaiseksi tai aktivoi tilaus"}
+                ? `${PRICING.basic.name}: Rajattomat perus CV:t`
+                : `${PRICING.free.name}: ${PRICING.free.features[0]}`}
             </p>
+            {isActive && (
+              <p className="text-sm text-gray-500">
+                {tokens} tokenia jäljellä • {PRICING[plan_type].monthly}€/kk
+              </p>
+            )}
           </div>
 
-          {/* ATS/RAG TOGGLET */}
+          {/* ATS/RAG TOGGLET - PARANNETTU INFO */}
           {(features.canUseATS || features.canUseRAG) && (
             <div className="mb-12 bg-white rounded-3xl p-8 border-2 border-indigo-200 shadow-lg">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-                <Target className="h-7 w-7 text-indigo-600" />
-                Optimointiominaisuudet
-              </h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                  <Target className="h-7 w-7 text-indigo-600" />
+                  Optimointiominaisuudet
+                </h3>
+                <div className="text-sm text-gray-600 flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-amber-600" />
+                  {plan_type === 'pro' ? PRICING.pro.name : PRICING['semi-pro'].name} -taso aktiivinen
+                </div>
+              </div>
               
               <div className="space-y-6">
                 
@@ -273,7 +285,7 @@ export default function CreateCVPage() {
                       <label htmlFor="use-ats" className="font-bold text-gray-900 text-lg cursor-pointer">
                         Käytä ATS-optimointia
                         <span className="ml-2 text-sm bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                          {getActionCost('cv_ats_addon')} tokenia
+                          +{getActionCost('cv_ats_addon')} tokenia
                         </span>
                       </label>
                       <p className="text-sm text-gray-600 mt-1">
@@ -312,7 +324,7 @@ export default function CreateCVPage() {
                         Käytä RAG-tietokantaa
                         <Crown className="w-5 h-5 text-amber-600" />
                         <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full font-bold">
-                          PRO - {getActionCost('cv_rag_addon')} tokenia
+                          {PRICING.pro.name} • +{getActionCost('cv_rag_addon')} tokenia
                         </span>
                       </label>
                       <p className="text-sm text-gray-600 mt-1">
@@ -477,11 +489,11 @@ export default function CreateCVPage() {
 
               <p className="text-sm text-gray-500 mt-4">
                 {isActive
-                  ? `${plan_type.toUpperCase()}-taso: ${tokens} tokenia jäljellä`
+                  ? `${PRICING[plan_type].name}: ${tokens} tokenia jäljellä`
                   : "Vaatii tilauksen"}
               </p>
 
-              {/* CTA päivitykseen */}
+              {/* CTA päivitykseen - KÄYTTÄÄ PRICING-TIETOJA */}
               {!isActive && (
                 <div className="mt-8 p-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white">
                   <h4 className="text-xl font-bold mb-2">
@@ -490,13 +502,32 @@ export default function CreateCVPage() {
                   <p className="mb-4 text-indigo-100">
                     Aktivoi tilaus ja saat pääsyn kaikkiin ominaisuuksiin
                   </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 text-sm">
+                    <div className="bg-white/10 backdrop-blur rounded-lg p-3">
+                      <p className="font-bold mb-1">{PRICING.basic.name}</p>
+                      <p className="text-xs text-indigo-100">{PRICING.basic.features[0]}</p>
+                      <p className="text-lg font-bold mt-1">{PRICING.basic.monthly}€/kk</p>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur rounded-lg p-3 border-2 border-white/40">
+                      <p className="font-bold mb-1">{PRICING['semi-pro'].name} ⭐</p>
+                      <p className="text-xs text-indigo-100">+ ATS-optimointi</p>
+                      <p className="text-lg font-bold mt-1">{PRICING['semi-pro'].monthly}€/kk</p>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur rounded-lg p-3">
+                      <p className="font-bold mb-1">{PRICING.pro.name}</p>
+                      <p className="text-xs text-indigo-100">+ RAG-tietokanta</p>
+                      <p className="text-lg font-bold mt-1">{PRICING.pro.monthly}€/kk</p>
+                    </div>
+                  </div>
+
                   <Button
                     onClick={() => router.push("/pricing")}
                     variant="outline"
-                    className="bg-white text-indigo-600 hover:bg-indigo-50 border-0"
+                    className="bg-white text-indigo-600 hover:bg-indigo-50 border-0 w-full"
                   >
                     <Crown className="h-5 w-5 mr-2" />
-                    Katso hinnat
+                    Vertaa hintoja ja ominaisuuksia
                   </Button>
                 </div>
               )}
