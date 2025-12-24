@@ -1,4 +1,4 @@
-// app/create-cv/page.tsx - LOPULLINEN (PRICING-integraatio)
+// app/create-cv/page.tsx - KORJATTU: Lähettää profileData
 "use client";
 
 import { useState, useEffect } from "react";
@@ -35,7 +35,6 @@ export default function CreateCVPage() {
   const { getToken } = useAuth();
   const router = useRouter();
 
-  // ✅ SAMAT HOOKIT KUIN COVER-LETTER
   const { 
     tokens, 
     isActive, 
@@ -52,8 +51,7 @@ export default function CreateCVPage() {
 
     try {
       setProfileLoading(true);
-      const token = await getToken({ template: "supabase" });
-      if (!token) return;
+      console.log('📋 Loading profile for:', user.id); // ✅ DEBUG
       
       const response = await fetch(`/api/user-profile/${user.id}`, {
         method: "GET",
@@ -62,12 +60,22 @@ export default function CreateCVPage() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Profile loaded:', { // ✅ DEBUG
+          hasName: !!data.name,
+          hasEmail: !!data.email,
+          workExpCount: data.work_experience?.length || 0,
+          keys: Object.keys(data)
+        });
         setProfileData(data);
       } else if (response.status === 404) {
+        console.warn('⚠️ Profile not found (404)');
+        setProfileData(null);
+      } else {
+        console.error('❌ Profile fetch failed:', response.status);
         setProfileData(null);
       }
     } catch (error) {
-      console.error("Error loading profile:", error);
+      console.error("❌ Error loading profile:", error);
       setProfileData(null);
     } finally {
       setProfileLoading(false);
@@ -91,7 +99,6 @@ export default function CreateCVPage() {
     }
   }, [isLoading]);
 
-  // ✅ LASKE ACTIONIT & KUSTANNUKSET UI:ta VARTEN
   const currentActions: TokenAction[] = ['cv_basic'];
   if (useATS) currentActions.push('cv_ats_addon');
   if (useRAG) currentActions.push('cv_rag_addon');
@@ -124,12 +131,12 @@ export default function CreateCVPage() {
       return;
     }
 
-    // ✅ MÄÄRITÄ ACTIONIT UUDELLEEN (turvallisuus)
+    // ✅ MÄÄRITÄ ACTIONIT
     let actions: TokenAction[] = ['cv_basic'];
     if (useATS) actions.push('cv_ats_addon');
     if (useRAG) actions.push('cv_rag_addon');
 
-    // ✅ VALIDOI OMINAISUUDET (Sama kuin cover-letter)
+    // ✅ VALIDOI OMINAISUUDET
     if (useATS && !features.canUseATS) {
       toast.error(`ATS-optimointi vaatii ${PRICING['semi-pro'].name} tai ${PRICING.pro.name} -tason`);
       return;
@@ -145,7 +152,7 @@ export default function CreateCVPage() {
       return;
     }
 
-    // ✅ TARKISTA TOKENIT (Sama kuin cover-letter)
+    // ✅ TARKISTA TOKENIT
     for (const action of actions) {
       const validation = canUseAction(action);
       if (!validation.allowed && plan_type !== 'free') {
@@ -159,22 +166,41 @@ export default function CreateCVPage() {
       const token = await getToken({ template: "supabase" });
       if (!token) throw new Error("No auth token");
 
-      console.log("🚀 Generating CV:", { cvType: selectedTemplate, totalCost });
+      // ✅ DEBUG: Mitä lähetetään
+      console.log("🚀 Sending CV request:", {
+        cvType: selectedTemplate,
+        actions: actions,
+        totalCost: totalCost,
+        hasProfileData: !!profileData, // ✅ Pitäisi olla true
+        profileKeys: profileData ? Object.keys(profileData) : [],
+        profileName: profileData?.name,
+        workExpCount: profileData?.work_experience?.length || 0
+      });
 
       const response = await fetch("/api/generate-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // ✅ KRIITTINEN KORJAUS: Lähetä profileData
+          profileData: profileData,
+          
+          // CV asetukset
           action: actions,
           cvType: selectedTemplate,
+          language: "finnish",
+          
+          // Optionaaliset
           forceGenerate: false,
           jobPosting: useATS || useRAG ? jobPosting : undefined,
-          enableRAG: useRAG
+          enableRAG: useRAG,
         }),
       });
 
+      console.log('📡 Response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ API Error:', errorData);
         
         if (errorData.error === "FREE_CV_ALREADY_USED") {
           toast.error(`Olet jo käyttänyt ilmaisen CV:n! Aktivoi ${PRICING.basic.name}-tilaus.`, 
@@ -183,12 +209,16 @@ export default function CreateCVPage() {
           return;
         }
 
+        if (errorData.error === "PROFILE_REQUIRED") {
+          toast.error("Profiilia ei löydy. Lataa sivu uudelleen tai täytä profiili.");
+          return;
+        }
+
         throw new Error(errorData.error || "CV generation failed");
       }
 
       const result = await response.json();
-      
-      // ✅ Backend kuluttaa tokenit automaattisesti
+      console.log('✅ CV created:', result);
       
       toast.success(
         useRAG ? "🎯 RAG-optimoitu CV luotu!" :
@@ -196,10 +226,11 @@ export default function CreateCVPage() {
         "✅ CV luotu!"
       );
 
-      router.push(`/edit-cv/${result.cvId}`);
+      // ✅ Käytä result.id tai result.cvId (backend palauttaa molemmat)
+      router.push(`/edit-cv/${result.id || result.cvId}`);
       
     } catch (error) {
-      console.error("CV creation failed:", error);
+      console.error("❌ CV creation failed:", error);
       toast.error(error instanceof Error ? error.message : "CV:n luonti epäonnistui");
     } finally {
       setIsLoading(false);
@@ -234,7 +265,7 @@ export default function CreateCVPage() {
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
         <div className="max-w-5xl mx-auto">
           
-          {/* Header - KÄYTTÄÄ PRICING-TIETOJA */}
+          {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
               Luo Ammattimainen CV
@@ -255,7 +286,7 @@ export default function CreateCVPage() {
             )}
           </div>
 
-          {/* ATS/RAG TOGGLET - PARANNETTU INFO */}
+          {/* ATS/RAG TOGGLET */}
           {(features.canUseATS || features.canUseRAG) && (
             <div className="mb-12 bg-white rounded-3xl p-8 border-2 border-indigo-200 shadow-lg">
               <div className="flex items-center justify-between mb-6">
@@ -360,7 +391,7 @@ export default function CreateCVPage() {
             </div>
           )}
 
-          {/* Template Selection - KAIKKI SAATAVILLA */}
+          {/* Template Selection */}
           <div className="mb-12">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
@@ -493,7 +524,7 @@ export default function CreateCVPage() {
                   : "Vaatii tilauksen"}
               </p>
 
-              {/* CTA päivitykseen - KÄYTTÄÄ PRICING-TIETOJA */}
+              {/* CTA päivitykseen */}
               {!isActive && (
                 <div className="mt-8 p-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white">
                   <h4 className="text-xl font-bold mb-2">
