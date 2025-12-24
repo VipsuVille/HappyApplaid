@@ -141,8 +141,29 @@ export async function POST(req: Request) {
     if (profileData) {
       // ✅ KÄYTÄ BODYSTÄ TULLUTTA PROFIILIA
       console.log("📋 Using profile from request body");
+      console.log("📊 Profile data keys:", Object.keys(profileData));
+      console.log("📊 Education type:", typeof profileData.education, Array.isArray(profileData.education));
+      console.log("📊 Work exp type:", typeof profileData.work_experience, Array.isArray(profileData.work_experience));
       
-      const apiFormat = convertProfileToApiFormat(profileData);
+      // ✅ SAFE: Varmista että arrayt ovat oikeasti arraita
+      const safeProfileData = {
+        ...profileData,
+        education: Array.isArray(profileData.education) ? profileData.education : [],
+        work_experience: Array.isArray(profileData.work_experience) ? profileData.work_experience : [],
+        workExperience: Array.isArray(profileData.workExperience) ? profileData.workExperience : [],
+      };
+      
+      let apiFormat;
+      try {
+        apiFormat = convertProfileToApiFormat(safeProfileData);
+      } catch (convertError) {
+        console.error("❌ convertProfileToApiFormat failed:", convertError);
+        // Fallback: Käytä raakadataa
+        apiFormat = {
+          education: safeProfileData.education,
+          workExperience: safeProfileData.work_experience || safeProfileData.workExperience,
+        };
+      }
       
       input = {
         userId: userId,
@@ -151,43 +172,51 @@ export async function POST(req: Request) {
         language: body.language || "finnish",
         
         // Basic info
-        name: profileData.name,
-        email: profileData.email,
-        phone: profileData.phone,
-        location: profileData.location,
-        title: profileData.jobTitle,
-        introText: profileData.profileSummary,
+        name: profileData.name || profileData.full_name || "",
+        email: profileData.email || "",
+        phone: profileData.phone || "",
+        location: profileData.location || "",
+        title: profileData.job_title || profileData.jobTitle || "",
+        introText: profileData.profile_summary || profileData.profileSummary || "",
         
-        // Professional
-        education: apiFormat.education,
-        workExperience: apiFormat.workExperience,
-        skills: profileData.skills,
-        languages: profileData.languages,
+        // Professional (käytä stringejä jos on, muuten arraita)
+        education: typeof apiFormat.education === 'string' ? apiFormat.education : JSON.stringify(apiFormat.education || []),
+        workExperience: typeof apiFormat.workExperience === 'string' ? apiFormat.workExperience : JSON.stringify(apiFormat.workExperience || []),
+        skills: profileData.skills || "",
+        languages: profileData.languages || "",
         
         // Personality
-        workingStyle: profileData.workingStyle,
-        problemSolving: profileData.problemSolving,
-        energySources: profileData.energySources,
-        uniqueStrength: profileData.uniqueStrength,
-        learningStyle: profileData.learningStyle,
-        teamRole: profileData.teamRole,
-        valuesExample: profileData.valuesExample,
-        superpower: profileData.superpower,
+        workingStyle: profileData.working_style || profileData.workingStyle || "",
+        problemSolving: profileData.problem_solving || profileData.problemSolving || "",
+        energySources: profileData.energy_sources || profileData.energySources || "",
+        uniqueStrength: profileData.unique_strength || profileData.uniqueStrength || "",
+        learningStyle: profileData.learning_style || profileData.learningStyle || "",
+        teamRole: profileData.team_role || profileData.teamRole || "",
+        valuesExample: profileData.values_example || profileData.valuesExample || "",
+        superpower: profileData.superpower || "",
         
         // Career
-        careerGoals: profileData.careerGoals,
-        bestProjectExample: profileData.bestProjectExample,
-        failureLesson: profileData.failureLesson,
+        careerGoals: profileData.career_goals || profileData.careerGoals || "",
+        bestProjectExample: profileData.best_project_example || profileData.bestProjectExample || "",
+        failureLesson: profileData.failure_lesson || profileData.failureLesson || "",
         
         // Images
-        profileImage: profileData.profileImage,
-        backgroundImage: profileData.backgroundImage,
+        profileImage: profileData.profile_image || profileData.profileImage || "",
+        backgroundImage: profileData.background_image || profileData.backgroundImage || "",
         
         // Optional
-        hobbies: profileData.hobbies,
-        age: profileData.age,
-        linkedIn: profileData.linkedin,
+        hobbies: profileData.hobbies || "",
+        age: profileData.age || "",
+        linkedIn: profileData.linkedin || "",
       };
+      
+      console.log("✅ Input built from profileData:", {
+        hasName: !!input.name,
+        hasEducation: !!input.education,
+        hasWorkExp: !!input.workExperience,
+        educationType: typeof input.education,
+        workExpType: typeof input.workExperience
+      });
       
     } else {
       // ❌ FALLBACK: Yritä hakea tietokannasta (vanha tapa)
