@@ -96,50 +96,67 @@ export async function POST(req: Request) {
     console.log(`✅ Token check passed (${required} tokens)`);
 
     // 5️⃣ BUILD INPUT (LIGHTWEIGHT)
-    let input: LangChainCVInput;
+    // 5️⃣ BUILD INPUT (LIGHTWEIGHT)
+let input: LangChainCVInput;
 
-    if (profileData) {
-      console.log("📋 Using profile from request body");
-      
-      const apiProfile = convertProfileToApiFormat(profileData);
+if (profileData) {
+  console.log("📋 Using profile from request body");
+  
+  // ✅ KORJAUS: Turvallisin tapa
+  let educationStr = "";
+  let workExperienceStr = "";
+  
+  try {
+    const apiProfile = convertProfileToApiFormat(profileData);
+    educationStr = apiProfile?.education || "";
+    workExperienceStr = apiProfile?.workExperience || "";
+  } catch (convertError) {
+    console.error("⚠️ convertProfileToApiFormat failed:", convertError);
+    // Fallback: käytä raakadataa
+    educationStr = typeof profileData.education === 'string' 
+      ? profileData.education 
+      : JSON.stringify(profileData.education || []);
+    workExperienceStr = typeof profileData.workExperience === 'string' 
+      ? profileData.workExperience 
+      : JSON.stringify(profileData.workExperience || []);
+  }
 
-      input = {
-        userId,
-        cvId: `cv_${Date.now()}`,
-        cvType,
-        language,
+  input = {
+    userId,
+    cvId: `cv_${Date.now()}`,
+    cvType,
+    language,
 
-        name: profileData.name || "",
-        email: profileData.email || "",
-        phone: profileData.phone || "",
-        location: profileData.location || "",
-        title: profileData.job_title || "",
-        introText: profileData.profile_summary || "",
+    name: profileData.name || "",
+    email: profileData.email || "",
+    phone: profileData.phone || "",
+    location: profileData.location || "",
+    title: profileData.job_title || profileData.jobTitle || "",
+    introText: profileData.profile_summary || profileData.profileSummary || "",
 
-        education: apiProfile.education || "",
-        workExperience: apiProfile.workExperience || "",
-        skills: profileData.skills || "",
-        languages: profileData.languages || "",
+    education: educationStr,
+    workExperience: workExperienceStr,
+    skills: profileData.skills || "",
+    languages: profileData.languages || "",
 
-        workingStyle: profileData.workingStyle || "",
-        problemSolving: profileData.problemSolving || "",
-        energySources: profileData.energySources || "",
-        uniqueStrength: profileData.uniqueStrength || "",
-        learningStyle: profileData.learningStyle || "",
-        teamRole: profileData.teamRole || "",
-        valuesExample: profileData.valuesExample || "",
-        superpower: profileData.superpower || "",
+    workingStyle: profileData.workingStyle || profileData.working_style || "",
+    problemSolving: profileData.problemSolving || profileData.problem_solving || "",
+    energySources: profileData.energySources || profileData.energy_sources || "",
+    uniqueStrength: profileData.uniqueStrength || profileData.unique_strength || "",
+    learningStyle: profileData.learningStyle || profileData.learning_style || "",
+    teamRole: profileData.teamRole || profileData.team_role || "",
+    valuesExample: profileData.valuesExample || profileData.values_example || "",
+    superpower: profileData.superpower || "",
 
-        careerGoals: profileData.careerGoals || "",
-        bestProjectExample: profileData.bestProjectExample || "",
-        failureLesson: profileData.failureLesson || "",
+    careerGoals: profileData.careerGoals || profileData.career_goals || "",
+    bestProjectExample: profileData.bestProjectExample || profileData.best_project_example || "",
+    failureLesson: profileData.failureLesson || profileData.failure_lesson || "",
 
-        profileImage: profileData.profileImage || undefined,
-        
-        // ✅ LISÄÄ JOBPOSTING JA AUTHTOKEN (TÄRKEÄ!)
-        jobPosting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : undefined,
-        authToken: undefined, // Token ei tule bodystä
-      };
+    profileImage: profileData.profileImage || profileData.profile_image || undefined,
+    
+    jobPosting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : undefined,
+    authToken: undefined,
+  };
     } else {
       console.log("📚 Falling back to database");
       
