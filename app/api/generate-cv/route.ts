@@ -1,24 +1,74 @@
 // app/api/generate-cv/route.ts - KORJATTU VERSIO
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { generateCVWithPersonalityExtraction } from "@/lib/langchain/cvGenerator";
+import { generateCVSafely } from "@/lib/langchain/cvGeneratorFixed";
 import { supabase as supabaseAdmin } from "@/lib/supabase";
-import {
-  transformDBToLangChain,
-  validateProfileForCVType,
-  type LangChainCVInput,
-} from "@/lib/profileDataTransform";
+import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
+import crypto from 'crypto';
 
 export const maxDuration = 60;
 
+/**
+ * ✅ TALLENNA VASTAUKSET
+ */
+function generateQuestionId(questionText: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(questionText.toLowerCase().trim())
+    .digest('hex')
+    .substring(0, 16);
+}
+
+async function saveUserResponse(
+  userId: string,
+  questionText: string,
+  answer: string,
+  cvType: string
+): Promise<boolean> {
+  try {
+    const questionId = generateQuestionId(questionText);
+    
+    const { error } = await supabaseAdmin
+      .from('user_responses')
+      .upsert({
+        user_id: userId,
+        question_id: questionId,
+        question_text: questionText,
+        answer: answer,
+        answer_length: answer.length,
+        question_category: 'cv',
+        asked_in_context: `cv_${cvType}`,
+        job_title_context: cvType,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,question_id'
+      });
+
+    if (error) {
+      console.error('Failed to save CV response:', error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Error in saveUserResponse:', error);
+    return false;
+  }
+}
+
+/**
+ * ✅ MAIN ROUTE
+ */
 export async function POST(req: Request) {
   const startTime = Date.now();
-  console.log("🚀 CV Generation API started");
+  console.log("🚀 CV Generation API (Safe Mode)");
 
   try {
-    // 1️⃣ AUTH
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 1. AUTH
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
@@ -32,43 +82,51 @@ export async function POST(req: Request) {
       jobPosting,
       enableRAG = false,
       language = "finnish",
+      answeredQuestions,
+      skipQuestions,
     } = body;
 
-    const action: TokenAction =
-      body.action ??
-      (enableRAG ? "cv_rag_addon" : jobPosting ? "cv_ats_addon" : "cv_basic");
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 2. MÄÄRITÄ ACTION & TOKEN COST
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    const action: TokenAction = enableRAG 
+      ? "cv_rag_addon" 
+      : jobPosting 
+        ? "cv_ats_addon" 
+        : "cv_basic";
 
-    console.log(`📝 Request: ${action}, type: ${cvType}, hasProfile: ${!!profileData}`);
+    console.log(`📝 Request: ${action}, type: ${cvType}`);
 
-    // 2️⃣ SUBSCRIPTION (FAST)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 3. HAE SUBSCRIPTION
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
       .select("plan_type, tokens, status, is_active")
       .eq("user_id", userId)
       .maybeSingle();
 
-    const tier = (subscription?.plan_type || "free") as
-      | "free"
-      | "basic"
-      | "semi-pro"
-      | "pro";
-
+    const tier = (subscription?.plan_type || "free") as "free" | "basic" | "semi-pro" | "pro";
     const currentTokens = subscription?.tokens || 0;
-    const isActive =
-      subscription?.is_active === true &&
+    const isActive = subscription?.is_active === true && 
       ["active", "trialing"].includes(subscription?.status || "");
 
     console.log(`💳 Subscription: ${tier}, tokens: ${currentTokens}, active: ${isActive}`);
 
-    // 3️⃣ FREE TIER LIMIT
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 4. FREE TIER CHECK
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     if (tier === "free") {
-      const { data } = await supabaseAdmin
+      const { data: freeUsage } = await supabaseAdmin
         .from("free_usage")
         .select("used_free_cv")
         .eq("user_id", userId)
         .maybeSingle();
 
-      if (data?.used_free_cv && !forceGenerate) {
+      if (freeUsage?.used_free_cv && !forceGenerate) {
         return NextResponse.json(
           { error: "FREE_CV_ALREADY_USED" },
           { status: 403 }
@@ -76,7 +134,10 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4️⃣ TOKEN CHECK
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 5. TOKEN CHECK
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     let required = 0;
     if (tier !== "free") {
       required = ACTION_COSTS[tier]?.[action] ?? 0;
@@ -95,70 +156,67 @@ export async function POST(req: Request) {
 
     console.log(`✅ Token check passed (${required} tokens)`);
 
-    // 5️⃣ BUILD INPUT (LIGHTWEIGHT)
-    // 5️⃣ BUILD INPUT (LIGHTWEIGHT)
-let input: LangChainCVInput;
-
-if (profileData) {
-  console.log("📋 Using profile from request body");
-  
-  // ✅ KORJAUS: Turvallisin tapa
-  let educationStr = "";
-  let workExperienceStr = "";
-  
-  try {
-    const apiProfile = convertProfileToApiFormat(profileData);
-    educationStr = apiProfile?.education || "";
-    workExperienceStr = apiProfile?.workExperience || "";
-  } catch (convertError) {
-    console.error("⚠️ convertProfileToApiFormat failed:", convertError);
-    // Fallback: käytä raakadataa
-    educationStr = typeof profileData.education === 'string' 
-      ? profileData.education 
-      : JSON.stringify(profileData.education || []);
-    workExperienceStr = typeof profileData.workExperience === 'string' 
-      ? profileData.workExperience 
-      : JSON.stringify(profileData.workExperience || []);
-  }
-
-  input = {
-    userId,
-    cvId: `cv_${Date.now()}`,
-    cvType,
-    language,
-
-    name: profileData.name || "",
-    email: profileData.email || "",
-    phone: profileData.phone || "",
-    location: profileData.location || "",
-    title: profileData.job_title || profileData.jobTitle || "",
-    introText: profileData.profile_summary || profileData.profileSummary || "",
-
-    education: educationStr,
-    workExperience: workExperienceStr,
-    skills: profileData.skills || "",
-    languages: profileData.languages || "",
-
-    workingStyle: profileData.workingStyle || profileData.working_style || "",
-    problemSolving: profileData.problemSolving || profileData.problem_solving || "",
-    energySources: profileData.energySources || profileData.energy_sources || "",
-    uniqueStrength: profileData.uniqueStrength || profileData.unique_strength || "",
-    learningStyle: profileData.learningStyle || profileData.learning_style || "",
-    teamRole: profileData.teamRole || profileData.team_role || "",
-    valuesExample: profileData.valuesExample || profileData.values_example || "",
-    superpower: profileData.superpower || "",
-
-    careerGoals: profileData.careerGoals || profileData.career_goals || "",
-    bestProjectExample: profileData.bestProjectExample || profileData.best_project_example || "",
-    failureLesson: profileData.failureLesson || profileData.failure_lesson || "",
-
-    profileImage: profileData.profileImage || profileData.profile_image || undefined,
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 6. BUILD INPUT
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    jobPosting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : undefined,
-    authToken: undefined,
-  };
+    let input: LangChainCVInput;
+
+    if (profileData) {
+      console.log("📋 Using profile from request");
+      
+      let educationStr = "";
+      let workExperienceStr = "";
+      
+      try {
+        const apiProfile = convertProfileToApiFormat(profileData);
+        educationStr = apiProfile?.education || "";
+        workExperienceStr = apiProfile?.workExperience || "";
+      } catch (convertError) {
+        console.error("⚠️ convertProfileToApiFormat failed:", convertError);
+        educationStr = typeof profileData.education === 'string' 
+          ? profileData.education 
+          : JSON.stringify(profileData.education || []);
+        workExperienceStr = typeof profileData.workExperience === 'string' 
+          ? profileData.workExperience 
+          : JSON.stringify(profileData.workExperience || []);
+      }
+
+      input = {
+        userId,
+        cvId: `cv_${Date.now()}`,
+        cvType,
+        language,
+
+        name: profileData.name || "",
+        email: profileData.email || "",
+        phone: profileData.phone || "",
+        location: profileData.location || "",
+        title: profileData.job_title || profileData.jobTitle || "",
+        introText: profileData.profile_summary || profileData.profileSummary || "",
+
+        education: educationStr,
+        workExperience: workExperienceStr,
+        skills: profileData.skills || "",
+        languages: profileData.languages || "",
+
+        workingStyle: profileData.workingStyle || profileData.working_style || "",
+        problemSolving: profileData.problemSolving || profileData.problem_solving || "",
+        energySources: profileData.energySources || profileData.energy_sources || "",
+        uniqueStrength: profileData.uniqueStrength || profileData.unique_strength || "",
+        learningStyle: profileData.learningStyle || profileData.learning_style || "",
+        teamRole: profileData.teamRole || profileData.team_role || "",
+        valuesExample: profileData.valuesExample || profileData.values_example || "",
+        superpower: profileData.superpower || "",
+
+        careerGoals: profileData.careerGoals || profileData.career_goals || "",
+        bestProjectExample: profileData.bestProjectExample || profileData.best_project_example || "",
+        failureLesson: profileData.failureLesson || profileData.failure_lesson || "",
+
+        profileImage: profileData.profileImage || profileData.profile_image || undefined,
+      };
     } else {
-      console.log("📚 Falling back to database");
+      console.log("📚 Loading from database");
       
       const { data } = await supabaseAdmin
         .from("user_profiles")
@@ -175,65 +233,77 @@ if (profileData) {
 
       input = transformDBToLangChain(data, cvType);
       input.userId = userId;
-      input.jobPosting = (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : undefined;
     }
 
     console.log(`✅ Profile loaded: ${input.name}`);
 
-    // 6️⃣ FAST VALIDATION
-    if (!forceGenerate) {
-      const validation = validateProfileForCVType(input, cvType);
-      if (validation.score < 30) {
-        return NextResponse.json(
-          {
-            error: "DATA_VALIDATION_FAILED",
-            score: validation.score,
-            missing: validation.missingCritical,
-          },
-          { status: 422 }
-        );
-      }
-    }
-
-    // 7️⃣ LLM GENERATION - ✅ EI TIMEOUTIA TÄSSÄ, SE ON JO LANGCHAINISSÄ
-    console.log(`⏱️ Starting generation (${Date.now() - startTime}ms elapsed)`);
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 7. KYSYTÄÄNKÖ (tai ohitetaanko)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    let aiData;
-    try {
-      // ✅ KORJAUS: Älä wraappaa timeoutiin, koska se on jo cvGeneratorissa
-      aiData = await generateCVWithPersonalityExtraction(input);
-    } catch (genError) {
-      console.error("❌ Generation failed:", genError);
-      return NextResponse.json(
-        { 
-          error: "CV_GENERATION_FAILED",
-          message: genError instanceof Error ? genError.message : "Unknown error"
-        },
-        { status: 500 }
-      );
+    const shouldSkipQuestions = skipQuestions === true || 
+      (answeredQuestions && answeredQuestions.length > 0);
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 8. GENEROI CV (SAFE MODE)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    console.log(`🤖 Generating CV (safe mode)...`);
+    
+    const result = await generateCVSafely({
+      ...input,
+      jobPosting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : undefined,
+      enableRAG: enableRAG,
+      skipQuestions: shouldSkipQuestions,
+      answeredQuestions: answeredQuestions || [],
+    });
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 9. JOS KYSYTTÄVÄÄ → PALAUTA KYSYMYKSET
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    if (result.needsMoreInfo && result.questions && result.questions.length > 0) {
+      console.log(`❓ Returning ${result.questions.length} questions`);
+      
+      return NextResponse.json({
+        success: true,
+        needsMoreInfo: true,
+        questions: result.questions,
+        reason: 'CV tarvitsee lisätietoja laadukkaan sisällön luomiseen'
+      });
     }
 
-    if (!aiData) {
-      return NextResponse.json(
-        { error: "CV_GENERATION_RETURNED_NULL" },
-        { status: 500 }
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 10. TALLENNA VASTAUKSET (jos annettiin)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    if (answeredQuestions && answeredQuestions.length > 0) {
+      console.log(`💾 Saving ${answeredQuestions.length} answers...`);
+      
+      const savePromises = answeredQuestions.map((item: any) => 
+        saveUserResponse(userId, item.question, item.answer, cvType)
       );
+
+      const results = await Promise.allSettled(savePromises);
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      console.log(`✅ Saved ${successCount}/${answeredQuestions.length} answers`);
     }
 
-    console.log(`✅ Content generated (${Date.now() - startTime}ms)`);
-
-    // 8️⃣ SAVE CV
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 11. TALLENNA CV
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     const { data: saved, error: saveError } = await supabaseAdmin
       .from("cvs")
       .insert({
         user_id: userId,
         title: `${input.name || "My"} CV - ${cvType}`,
-        personal_description: aiData.personal_description,
-        html: aiData.html,
-        background_image: aiData.background_image,
+        personal_description: result.personal_description,
+        html: result.html,
+        background_image: result.background_image || "",
         profile_image: input.profileImage || null,
-        profile_initials: aiData.profile_initials,
-        full_text_content: aiData.fullTextContent,
+        profile_initials: result.profile_initials,
+        full_text_content: result.fullTextContent,
         cv_type: cvType,
         is_public: false,
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
@@ -242,6 +312,10 @@ if (profileData) {
           action: action,
           tier: tier,
           generation_time: Date.now() - startTime,
+          ground_truth_check: result.ground_truth_check,
+          rag_enabled: enableRAG,
+          answered_questions: answeredQuestions || [],
+          questions_count: answeredQuestions?.length || 0
         }
       })
       .select("id")
@@ -257,7 +331,10 @@ if (profileData) {
 
     console.log(`✅ CV saved: ${saved.id}`);
 
-    // 9️⃣ UPDATE TOKENS
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 12. KULUTA TOKENIT
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     if (tier === "free") {
       await supabaseAdmin.from("free_usage").upsert({
         user_id: userId,
@@ -276,6 +353,10 @@ if (profileData) {
     const totalTime = Date.now() - startTime;
     console.log(`🎉 Complete in ${totalTime}ms`);
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 13. PALAUTA SUCCESS
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
     return NextResponse.json({
       success: true,
       id: saved.id,
@@ -285,14 +366,16 @@ if (profileData) {
       generationTime: totalTime,
       features: {
         ats: action === "cv_ats_addon" || action === "cv_rag_addon",
-        personality: true
-      }
+        personality: true,
+        rag: enableRAG,
+        ground_truth_verified: true
+      },
+      guardianCheck: result.ground_truth_check
     });
 
   } catch (error) {
     console.error("❌ Unexpected error:", error);
     
-    // ✅ KORJAUS: Tulosta koko virhe lokiin
     if (error instanceof Error) {
       console.error("Error stack:", error.stack);
       console.error("Error message:", error.message);
