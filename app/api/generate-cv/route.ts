@@ -1,8 +1,6 @@
-// app/api/generate-cv/route.ts - KORJATUT IMPORTIT
+// app/api/generate-cv/route.ts - KORJATTU TIETOKANTARAKENTEESEEN
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-
-// ✅ KORJATUT POLUT - kaikki alkavat @/lib/
 import { generateCVSafely } from "@/lib/langchain/cvGenerator";
 import { supabase as supabaseAdmin } from "@/lib/supabase";
 import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
@@ -292,32 +290,77 @@ export async function POST(req: Request) {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 11. TALLENNA CV
+    // 11. TALLENNA CV - KORJATTU TIETOKANTARAKENTEESEEN
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
+    console.log("💾 Saving CV to database...");
+    
+    // Rakenna cv_data (vanha rakenne)
+    const cv_data = {
+      name: input.name,
+      email: input.email,
+      phone: input.phone,
+      location: input.location,
+      title: input.title,
+      education: input.education,
+      workExperience: input.workExperience,
+      skills: input.skills,
+      languages: input.languages,
+    };
+    
+    // Rakenna ai_data (AI-generoidut osat)
+    const ai_data = {
+      personal_description: result.personal_description,
+      html: result.html,
+      fullTextContent: result.fullTextContent,
+      ats_data: result.ats_data,
+      job_analysis: result.job_analysis,
+      ground_truth_check: result.ground_truth_check,
+    };
+    
+    // Rakenna content (yhdistetty näkymä)
+    const content = {
+      cv_type: cvType,
+      personal_description: result.personal_description,
+      sections: result.html,
+      full_text: result.fullTextContent,
+    };
+
     const { data: saved, error: saveError } = await supabaseAdmin
       .from("cvs")
       .insert({
         user_id: userId,
         title: `${input.name || "My"} CV - ${cvType}`,
-        personal_description: result.personal_description,
-        html: result.html,
+        
+        // ✅ Käytä olemassa olevia JSONB-kenttiä
+        cv_data: cv_data,
+        ai_data: ai_data,
+        content: content,
+        
+        // ✅ Olemassa olevat TEXT-kentät
         background_image: result.background_image || "",
         profile_image: input.profileImage || null,
-        profile_initials: result.profile_initials,
-        full_text_content: result.fullTextContent,
-        cv_type: cvType,
+        profile_initials: result.profile_initials || "",
+        
+        // ✅ Boolean-kentät
         is_public: false,
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
+        
+        // ✅ Job posting
         job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
+        
+        // ✅ Metadata
         metadata: {
           action: action,
           tier: tier,
+          cv_type: cvType,
+          language: language,
           generation_time: Date.now() - startTime,
           ground_truth_check: result.ground_truth_check,
           rag_enabled: enableRAG,
           answered_questions: answeredQuestions || [],
-          questions_count: answeredQuestions?.length || 0
+          questions_count: answeredQuestions?.length || 0,
+          created_at: new Date().toISOString()
         }
       })
       .select("id")
