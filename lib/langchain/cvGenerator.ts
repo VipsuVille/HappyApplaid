@@ -3,13 +3,12 @@ import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
-import { FALLBACK_IMAGE } from "../utils";
 import { supabase } from "@/lib/supabase";
 import {
   extractPersonalityTraits,
   convertToLegacyFormat,
   getPersonalityConfidenceScore,
-} from "./personalityExtractor";
+} from "@/lib/langchain/personalityExtractor";
 import type { LangChainCVInput } from "@/lib/profileDataTransform";
 import { 
   extractGroundTruthAI, 
@@ -17,7 +16,10 @@ import {
   type GroundTruth 
 } from "@/lib/ats/masterGuardian";
 import { buildAIContext } from "@/lib/knowledge";
-import { analyzeCVData, mergeCVAnswers } from "./cvQuestionAnalyzer";
+import { analyzeCVData, mergeCVAnswers } from "@/lib/langchain/cvQuestionAnalyzer";
+
+// ✅ FALLBACK IMAGE - määritellään tässä jos ei ole muualla
+const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect fill='%23f0f0f0' width='800' height='600'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='24' fill='%23999' text-anchor='middle' dy='.3em'%3EBackground Image%3C/text%3E%3C/svg%3E";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
@@ -839,7 +841,54 @@ ${parsedOutput.cv_content.languages_section}
 }
 
 // ════════════════════════════════════════════════════════════════
-// LEGACY EXPORT
+// SAFE WRAPPER (for API routes)
+// ════════════════════════════════════════════════════════════════
+
+export async function generateCVSafely(
+  userData: CVGeneratorInput
+): Promise<CVGenerationResult> {
+  try {
+    return await generateCVWithPersonalityExtraction(userData);
+  } catch (error) {
+    console.error("❌ generateCVSafely caught error:", error);
+    
+    // Return minimal fallback result instead of throwing
+    return {
+      personal_description: `${userData.name || "Professional"} - CV Generation Failed`,
+      html: {
+        skills_section: `<p>Error generating skills section</p>`,
+        experience_section: `<p>Error generating experience section</p>`,
+        education_section: `<p>Error generating education section</p>`,
+        languages_section: `<p>Error generating languages section</p>`,
+      },
+      background_image: FALLBACK_IMAGE,
+      profile_initials: generateInitials(userData.name || ""),
+      fullTextContent: "CV generation encountered an error",
+      ats_data: null,
+      job_analysis: {
+        required_skills: [],
+        preferred_skills: [],
+        soft_skills: [],
+        company_values: [],
+        key_responsibilities: [],
+        experience_level: "mid",
+        industry_keywords: [],
+      },
+      ground_truth_check: {
+        approved: false,
+        riskLevel: "error",
+        violations: { error: error instanceof Error ? error.message : "Unknown error" }
+      },
+      images: {
+        background_prompt: '',
+        visual_elements: []
+      }
+    };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// LEGACY EXPORT (backward compatibility)
 // ════════════════════════════════════════════════════════════════
 
 export async function generateCVWithLangChain(
