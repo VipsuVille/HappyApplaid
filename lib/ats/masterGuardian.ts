@@ -1,45 +1,67 @@
-// ════════════════════════════════════════════════════════════════
-// TIEDOSTO 1: lib/ats/masterGuardian.ts
-// KOPIOI TÄMÄ KOKONAAN → lib/ats/masterGuardian.ts
-// ════════════════════════════════════════════════════════════════
+// lib/ats/masterGuardian.ts - TÄYDELLINEN KORJATTU VERSIO
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 
+// ════════════════════════════════════════════════════════════════
+// TYPES
+// ════════════════════════════════════════════════════════════════
+
 export interface GroundTruth {
-  name: string;
-  yearsOfExperience: number | null;
-  education: string[];
-  currentRole: string | null;
   technicalSkills: string[];
-  languages: string[];
-  corePersonality: {
-    primary: string;
-    secondary: string[];
-  };
-  values: string[];
-  workHistory: Array<{
-    role: string;
-    duration: string;
-    responsibilities: string[];
-  }>;
+  softSkills: string[];
+  education: string[];
+  certifications: string[];
+  workHistory: string[];
+  achievements: string[];
   cannotClaim: string[];
+  personalityTraits: string[];
+  careerLevel: 'entry' | 'mid' | 'senior' | 'expert';
+  yearsOfExperience: number;
 }
 
-export interface GuardianCheck {
+export interface GuardianCheckResult {
   approved: boolean;
-  violations: {
-    factual: string[];
-    personality: string[];
-    skills: string[];
-    experience: string[];
-    education: string[];
-  };
   riskLevel: 'safe' | 'warning' | 'danger';
-  confidence: number;
+  violations: {
+    [key: string]: any;
+  };
   recommendation: string;
-  fixSuggestions: string[];
+  flags: string[];
 }
+
+// ════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════
+
+function getMessageContent(message: unknown): string {
+  if (typeof message === "string") return message;
+  if (typeof message !== "object" || message === null) return "";
+  if (!("content" in message)) return "";
+  
+  const content = (message as { content: unknown }).content;
+  if (typeof content === "string") return content;
+  
+  if (Array.isArray(content)) {
+    return content
+      .map((item: unknown) => {
+        if (typeof item === "string") return item;
+        if (typeof item === "object" && item !== null && "text" in item) {
+          const textItem = item as { text: unknown };
+          if (typeof textItem.text === "string") return textItem.text;
+        }
+        return "";
+      })
+      .filter((text) => text.length > 0)
+      .join(" ");
+  }
+  
+  return "";
+}
+
+// ════════════════════════════════════════════════════════════════
+// EXTRACT GROUND TRUTH
+// ════════════════════════════════════════════════════════════════
 
 export async function extractGroundTruthAI(userProfile: any): Promise<GroundTruth> {
   const model = new ChatOpenAI({
@@ -51,27 +73,26 @@ export async function extractGroundTruthAI(userProfile: any): Promise<GroundTrut
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `Extract verifiable facts from user profile. Works for ANY profession.
 
-**EXTRACT ONLY:**
-1. Name
-2. Years of experience (from work history)
-3. Education (exact degrees)
-4. Technical/professional skills (from skills field)
-5. Languages
-6. Work history (roles, companies)
-7. Personality traits (from profile)
-8. Cannot claim (NOT in profile)
+Return JSON with these exact fields:
+{
+  "technicalSkills": string[],
+  "softSkills": string[],
+  "education": string[],
+  "certifications": string[],
+  "workHistory": string[],
+  "achievements": string[],
+  "cannotClaim": string[],
+  "personalityTraits": string[],
+  "careerLevel": "entry" | "mid" | "senior" | "expert",
+  "yearsOfExperience": number
+}
 
-**RULES:**
-- Extract ONLY what exists
-- Do NOT infer
-- Do NOT add skills not listed
+Extract ONLY what exists. Do NOT infer or add skills not listed.`],
 
-Return pure JSON with fields: name, yearsOfExperience, education, currentRole, technicalSkills, languages, corePersonality, values, workHistory, cannotClaim`],
-
-    ['human', `Extract facts:
+    ['human', `Extract facts from profile:
 
 NAME: {name}
-WORK: {workExperience}
+WORK EXPERIENCE: {workExperience}
 EDUCATION: {education}
 SKILLS: {skills}
 LANGUAGES: {languages}
@@ -83,24 +104,14 @@ SUPERPOWER: {superpower}
 CAREER GOALS: {careerGoals}
 BEST PROJECT: {bestProject}
 
-Return JSON.`]
+Return JSON only, no markdown.`]
   ]);
 
   try {
-    let workExp = userProfile.work_experience;
-    let edu = userProfile.education;
-    
-    if (typeof workExp === 'string') {
-      try { workExp = JSON.parse(workExp); } catch { workExp = []; }
-    }
-    if (typeof edu === 'string') {
-      try { edu = JSON.parse(edu); } catch { edu = []; }
-    }
-
     const formatted = await prompt.formatMessages({
       name: userProfile.name || 'Not specified',
-      workExperience: JSON.stringify(workExp || []),
-      education: JSON.stringify(edu || []),
+      workExperience: userProfile.work_experience || 'Not specified',
+      education: userProfile.education || 'Not specified',
       skills: userProfile.skills || 'Not specified',
       languages: userProfile.languages || 'Not specified',
       workingStyle: userProfile.working_style || 'Not specified',
@@ -113,180 +124,191 @@ Return JSON.`]
     });
 
     const result = await model.invoke(formatted);
+    const content = getMessageContent(result);
     
-    let content: string;
-    if (typeof result.content === 'string') {
-      content = result.content;
-    } else if (Array.isArray(result.content)) {
-      content = result.content.map(c => typeof c === 'string' ? c : JSON.stringify(c)).join('');
-    } else {
-      content = JSON.stringify(result.content);
-    }
-
-    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    // Clean markdown
+    const cleaned = content
+      .replace(/```json\s*/g, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    
+    // Extract JSON
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('❌ No JSON in Ground Truth');
-      throw new Error('No JSON');
+      throw new Error('No JSON found in response');
     }
 
-    const groundTruth = JSON.parse(jsonMatch[0]);
+    const groundTruth = JSON.parse(jsonMatch[0]) as GroundTruth;
     
-    console.log('✅ Ground Truth:', {
-      name: groundTruth.name,
-      skills: groundTruth.technicalSkills?.length || 0,
-      education: groundTruth.education?.length || 0
+    // Validate structure
+    if (!groundTruth.technicalSkills || !Array.isArray(groundTruth.technicalSkills)) {
+      throw new Error('Invalid ground truth structure');
+    }
+    
+    console.log('✅ Ground Truth extracted:', {
+      name: userProfile.name,
+      skills: groundTruth.technicalSkills.length,
+      education: groundTruth.education.length,
+      careerLevel: groundTruth.careerLevel
     });
     
     return groundTruth;
+    
   } catch (error) {
-    console.error('❌ Ground Truth failed:', error);
+    console.error('❌ Ground Truth extraction failed:', error);
+    
+    // ✅ SAFE FALLBACK
+    const fallbackSkills = (userProfile.skills || '')
+      .split(',')
+      .map((s: string) => s.trim())
+      .filter(Boolean);
     
     return {
-      name: userProfile.name || '',
-      yearsOfExperience: null,
+      technicalSkills: fallbackSkills,
+      softSkills: [],
       education: [],
-      currentRole: null,
-      technicalSkills: (userProfile.skills || '').split(',').map((s: string) => s.trim()).filter(Boolean),
-      languages: [],
-      corePersonality: {
-        primary: userProfile.superpower || 'Professional',
-        secondary: []
-      },
-      values: [],
+      certifications: [],
       workHistory: [],
-      cannotClaim: []
+      achievements: [],
+      cannotClaim: [],
+      personalityTraits: [userProfile.superpower || 'Professional'].filter(Boolean),
+      careerLevel: 'mid',
+      yearsOfExperience: 0
     };
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// CONSISTENCY CHECK
+// ════════════════════════════════════════════════════════════════
+
 export async function masterConsistencyCheckAI(
-  text: string,
-  groundTruth: GroundTruth,
-  context: 'generation' | 'keyword_insertion' | 'translation' | 'ats_generation'
-): Promise<GuardianCheck> {
+  generatedContent: string,
+  groundTruth: GroundTruth | null,
+  stage: 'generation' | 'edit'
+): Promise<GuardianCheckResult> {
   
-  if (!text || text.length < 50) {
-    console.warn('⚠️ Text too short - APPROVING');
+  // ✅ NULL CHECK
+  if (!groundTruth) {
+    console.warn('⚠️ Guardian: No ground truth, approving with warning');
     return {
       approved: true,
-      violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
       riskLevel: 'safe',
-      confidence: 1.0,
-      recommendation: 'Text too short to validate',
-      fixSuggestions: []
+      violations: {},
+      recommendation: 'No ground truth available - manual review recommended',
+      flags: ['no_ground_truth']
     };
   }
-
-  if (!groundTruth.technicalSkills.length && !groundTruth.workHistory.length) {
-    console.warn('⚠️ No ground truth - APPROVING with warning');
+  
+  // ✅ EMPTY CONTENT CHECK
+  if (!generatedContent || generatedContent.trim().length < 50) {
+    console.warn('⚠️ Guardian: Content too short, approving');
     return {
       approved: true,
-      violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
-      riskLevel: 'warning',
-      confidence: 0.5,
-      recommendation: 'Limited profile data',
-      fixSuggestions: []
+      riskLevel: 'safe',
+      violations: {},
+      recommendation: 'Content too short to validate',
+      flags: ['short_content']
     };
   }
-
-  const model = new ChatOpenAI({
-    openAIApiKey: process.env.OPENAI_API_KEY!,
-    modelName: 'gpt-4o-mini',
-    temperature: 0.0,
-  });
-
-  const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `Universal truth guardian for cover letters. Works for ANY profession.
-
-**ONLY REJECT severe fabrications:**
-
-1. **FALSE CREDENTIALS:** Claims degree/certification NOT in profile
-2. **INVENTED SKILLS:** Claims specific skill NOT in technicalSkills
-3. **FABRICATED PROJECTS:** Describes detailed project NOT in profile
-4. **FALSE JOB TITLES:** Claims title NOT in workHistory
-
-**ALWAYS ALLOW:**
-- Describing skills that ARE listed
-- Describing work that IS in workHistory
-- Generic qualities (team player, motivated)
-- Enthusiasm and motivation
-- Career goals
-- "I have experience with X" (if X in skills)
-- "I worked on Y" (if Y in workHistory)
-
-**DEFAULT: APPROVE unless clear fabrication**
-
-Return JSON: approved, violations, riskLevel, confidence, recommendation, fixSuggestions`],
-
-    ['human', `Check cover letter for fabrications:
-
-**CANDIDATE SKILLS:**
-{skills}
-
-**WORK HISTORY:**
-{workHistory}
-
-**EDUCATION:**
-{education}
-
-**BEST PROJECT:**
-{bestProject}
-
-**COVER LETTER:**
-{text}
-
-Return JSON.`]
-  ]);
+  
+  // ✅ ENSURE SAFE GROUND TRUTH
+  const safeGroundTruth: GroundTruth = {
+    technicalSkills: groundTruth.technicalSkills || [],
+    softSkills: groundTruth.softSkills || [],
+    education: groundTruth.education || [],
+    certifications: groundTruth.certifications || [],
+    workHistory: groundTruth.workHistory || [],
+    achievements: groundTruth.achievements || [],
+    cannotClaim: groundTruth.cannotClaim || [],
+    personalityTraits: groundTruth.personalityTraits || [],
+    careerLevel: groundTruth.careerLevel || 'mid',
+    yearsOfExperience: groundTruth.yearsOfExperience || 0
+  };
 
   try {
-    const formatted = await prompt.formatMessages({
-      skills: groundTruth.technicalSkills.join(', ') || 'Developing',
-      workHistory: JSON.stringify(groundTruth.workHistory) || 'Building experience',
-      education: groundTruth.education.join(', ') || 'Learner',
-      bestProject: groundTruth.values.join(', ') || 'Not specified',
-      text: text.substring(0, 2000)
+    const model = new ChatOpenAI({
+      openAIApiKey: process.env.OPENAI_API_KEY!,
+      modelName: "gpt-4o-mini",
+      temperature: 0.1,
     });
 
-    const result = await model.invoke(formatted);
+    const prompt = `You are a CV fact-checker. Check for severe fabrications only.
+
+GROUND TRUTH (verified user data):
+- Technical Skills: ${safeGroundTruth.technicalSkills.join(', ') || 'None listed'}
+- Education: ${safeGroundTruth.education.join(', ') || 'None listed'}
+- Work History: ${safeGroundTruth.workHistory.join('; ') || 'None listed'}
+- CANNOT CLAIM: ${safeGroundTruth.cannotClaim.join(', ') || 'None'}
+
+GENERATED CV CONTENT:
+${generatedContent.substring(0, 2000)}
+
+ONLY REJECT if content contains:
+1. Skills NOT in technicalSkills list
+2. Education NOT in education list
+3. Work experience NOT in workHistory
+4. Anything in cannotClaim list
+
+APPROVE if content:
+- Describes listed skills
+- Mentions listed education
+- References listed work history
+- Uses generic qualities (motivated, team player)
+
+Return JSON:
+{
+  "approved": boolean,
+  "riskLevel": "safe" | "warning" | "danger",
+  "violations": {
+    "fabricatedSkills": [],
+    "fabricatedEducation": [],
+    "fabricatedExperience": []
+  },
+  "recommendation": string,
+  "flags": []
+}`;
+
+    const result = await model.invoke(prompt);
+    const content = getMessageContent(result);
     
-    let content: string;
-    if (typeof result.content === 'string') {
-      content = result.content;
-    } else if (Array.isArray(result.content)) {
-      content = result.content.map(c => typeof c === 'string' ? c : JSON.stringify(c)).join('');
-    } else {
-      content = JSON.stringify(result.content);
+    // Clean and parse
+    const cleaned = content
+      .replace(/```json\s*/g, '')
+      .replace(/```\s*/g, '')
+      .trim();
+    
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON in Guardian response');
     }
 
-    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parsed = JSON.parse(jsonMatch[0]) as GuardianCheckResult;
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON');
-
-    const check: GuardianCheck = JSON.parse(jsonMatch[0]);
-    
-    console.log('🛡️ Guardian:', {
-      approved: check.approved,
-      riskLevel: check.riskLevel
+    console.log(`🛡️ Guardian ${stage}:`, {
+      approved: parsed.approved,
+      risk: parsed.riskLevel,
+      violationCount: Object.values(parsed.violations || {}).flat().length
     });
-    
-    if (!check.approved) {
-      console.error('🚨 REJECTED:', check.violations);
+
+    if (!parsed.approved) {
+      console.error('🚨 REJECTED by Guardian:', parsed.violations);
     }
-    
-    return check;
+
+    return parsed;
+
   } catch (error) {
-    console.error('❌ Guardian failed:', error);
+    console.error('❌ Guardian check failed:', error);
     
+    // ✅ SAFE FALLBACK: Approve but flag for manual review
     return {
       approved: true,
-      violations: { factual: [], personality: [], skills: [], experience: [], education: [] },
-      riskLevel: 'safe',
-      confidence: 0.5,
-      recommendation: 'Guardian bypassed due to error',
-      fixSuggestions: []
+      riskLevel: 'warning',
+      violations: { 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      recommendation: 'Guardian check failed - manual review recommended',
+      flags: ['guardian_error']
     };
   }
 }

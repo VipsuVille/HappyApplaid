@@ -360,6 +360,12 @@ export interface BaseCV {
   created_at: string;
   is_ats_optimized?: boolean;
   job_posting?: string;
+  metadata?: {
+    cv_type?: string;
+    tier?: string;
+    action?: string;
+    [key: string]: any;
+  };
 }
 
 export type ProfileToUserFormDataConverter = (

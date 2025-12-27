@@ -563,7 +563,7 @@ export async function generateCVWithPersonalityExtraction(
     
     timer.start("Personality + Ground Truth + Job + RAG");
     
-    const [personalityExtraction, groundTruth, jobAnalysis, knowledgeContext] = await Promise.all([
+    const [personalityExtraction, groundTruthRaw, jobAnalysis, knowledgeContext] = await Promise.all([
       extractPersonalityTraits({
         userProfile: ensureString(enhancedUserData.profile) || "",
         workingStyleText: ensureString(enhancedUserData.workingStyle),
@@ -614,6 +614,20 @@ export async function generateCVWithPersonalityExtraction(
     ]);
     
     timer.end();
+    
+    // ✅ VARMISTA ETTÄ groundTruth EI OLE NULL
+    const groundTruth: GroundTruth = groundTruthRaw || {
+      technicalSkills: [],
+      softSkills: [],
+      education: [],
+      certifications: [],
+      workHistory: [],
+      achievements: [],
+      cannotClaim: [],
+      personalityTraits: [],
+      careerLevel: 'mid',
+      yearsOfExperience: 0
+    };
     
     const extractedPersonalityData = convertToLegacyFormat(personalityExtraction);
     const confidenceScore = getPersonalityConfidenceScore(personalityExtraction);

@@ -27,7 +27,6 @@ export default function EditCVPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
-  // ✅ PÄIVITETTY: Käytetään UserImage-tyyppiä
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[];
     backgroundImages: UserImage[];
@@ -45,16 +44,14 @@ export default function EditCVPage() {
         const token = await getToken({ template: 'supabase' });
         if (!token) throw new Error('No authentication token');
 
-        // 1. Lataa CV
         const { data, error } = await fetchCVById(id, userId, token);
         if (error) throw error;
         if (data) setCvData(data);
 
-        // 2. ✅ UUSI: Lataa KAIKKI saatavilla olevat kuvat (globaalit + käyttäjän omat)
         const images = await getAllAvailableImagesAction();
         setAvailableImages(images);
 
-        console.log(`✅ Loaded ${images.backgroundImages.length} background images (user + default)`);
+        console.log(`✅ Loaded ${images.backgroundImages.length} background images`);
 
       } catch (err) {
         console.error('Error initializing CV page:', err);
@@ -87,7 +84,6 @@ export default function EditCVPage() {
     });
   }, []);
 
-  // Kuvan lataus
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
     type: 'profileImage' | 'backgroundImage'
@@ -108,7 +104,6 @@ export default function EditCVPage() {
     reader.readAsDataURL(file);
   };
 
-  // ✅ UUSI: Valitse kuva galleriasta
   const handleSelectImage = (image: UserImage, type: 'profileImage' | 'backgroundImage') => {
     handleContentChange(type, image.signedUrl || '');
   };
@@ -174,26 +169,57 @@ export default function EditCVPage() {
     }
   };
 
+  // --- RENDER TEMPLATE FUNCTION ---
   const renderTemplate = () => {
     if (!cvData) return null;
 
     const commonProps: CVTemplateProps = {
       data: {
-        ...cvData.content.cv_data,
-        name: cvData.content.cv_data.name || '',
-        email: cvData.content.cv_data.email || '',
-        phone: cvData.content.cv_data.phone || '',
-        location: cvData.content.cv_data.location || '',
-        title: cvData.content.cv_data.title || '',
+        name: cvData.content?.cv_data?.name || cvData.title?.split(' - ')[0] || '',
+        email: cvData.content?.cv_data?.email || '',
+        phone: cvData.content?.cv_data?.phone || '',
+        location: cvData.content?.cv_data?.location || '',
+        language: cvData.content?.cv_data?.language || 'finnish',
+        
+        education: cvData.content?.cv_data?.education || '',
+        workExperience: cvData.content?.cv_data?.workExperience || '',
+        skills: cvData.content?.cv_data?.skills || '',
+        languages: cvData.content?.cv_data?.languages || '',
+        
+        userId: cvData.user_id,
+        cvId: cvData.id,
+        
+        title: cvData.content?.cv_data?.title || '',
+        introText: cvData.content?.cv_data?.introText || '',
+        backgroundImage: cvData.content?.cv_data?.backgroundImage || cvData.content?.ai_data?.background_image || '',
+        profileImage: cvData.content?.cv_data?.profileImage || cvData.content?.ai_data?.profile_image || '',
+        
+        workingStyle: cvData.content?.cv_data?.workingStyle || '',
+        problemSolving: cvData.content?.cv_data?.problemSolving || '',
+        energySources: cvData.content?.cv_data?.energySources || '',
+        uniqueStrength: cvData.content?.cv_data?.uniqueStrength || '',
+        learningStyle: cvData.content?.cv_data?.learningStyle || '',
+        teamRole: cvData.content?.cv_data?.teamRole || '',
+        valuesExample: cvData.content?.cv_data?.valuesExample || '',
+        superpower: cvData.content?.cv_data?.superpower || '',
+        
+        careerGoals: cvData.content?.cv_data?.careerGoals || '',
+        bestProjectExample: cvData.content?.cv_data?.bestProjectExample || '',
+        failureLesson: cvData.content?.cv_data?.failureLesson || '',
+        
+        cvType: (cvData.content?.cv_data?.cvType || 
+                  cvData.content?.ai_data?.cvType || 
+                  cvData.metadata?.cv_type || 
+                  'simple') as 'technical' | 'creative' | 'simple',
       },
-      aiData: cvData.content.ai_data || {},
+      aiData: cvData.content?.ai_data || {},
       isEditing: isEditing,
       showEditControls: isEditing,
       editMode: 'content',
       onContentChange: handleContentChange
     };
 
-    const cvType = cvData.content.cv_data.cvType || cvData.content.ai_data?.cvType || 'simple';
+    const cvType = commonProps.data.cvType;
 
     switch (cvType) {
       case 'technical':
@@ -206,6 +232,7 @@ export default function EditCVPage() {
     }
   };
 
+  // --- LOADING STATE ---
   if (isLoading || !cvData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
@@ -217,9 +244,11 @@ export default function EditCVPage() {
     );
   }
 
-  const currentBg = cvData.content.cv_data.backgroundImage;
-  const currentProfile = cvData.content.cv_data.profileImage;
+  // --- EXTRACT CURRENT IMAGES ---
+  const currentBg = cvData.content?.cv_data?.backgroundImage || cvData.content?.ai_data?.background_image || '';
+  const currentProfile = cvData.content?.cv_data?.profileImage || cvData.content?.ai_data?.profile_image || '';
 
+  // --- MAIN RENDER ---
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 relative overflow-hidden">
       
@@ -248,7 +277,7 @@ export default function EditCVPage() {
                     {cvData.title || 'Nimetön CV'}
                   </h1>
                   <span className="hidden sm:inline-flex px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full flex-shrink-0 capitalize">
-                    {cvData.content.cv_data.cvType || 'Simple'}
+                    {cvData.content?.cv_data?.cvType || 'Simple'}
                   </span>
                 </div>
               </div>
@@ -317,10 +346,10 @@ export default function EditCVPage() {
       <div className="max-w-[1800px] mx-auto p-2 md:p-6 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
           
-          {/* ✅ LEFT SIDEBAR */}
+          {/* LEFT SIDEBAR */}
           <div className="lg:col-span-3 space-y-4">
             
-            {/* 1. Profile Picture */}
+            {/* Profile Picture */}
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl shadow-xl p-4">
               <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <User className="w-4 h-4 text-indigo-600" />
@@ -354,7 +383,7 @@ export default function EditCVPage() {
                         onClick={() => handleSelectImage(img, 'profileImage')}
                         className={`aspect-square rounded-full overflow-hidden border-2 transition-all relative group ${currentProfile === img.signedUrl ? 'border-indigo-500 scale-110' : 'border-transparent hover:border-indigo-300'}`}
                       >
-                        <img src={img.signedUrl} className="w-full h-full object-cover" />
+                        <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
                         {img.is_ai_generated && (
                           <div className="absolute bottom-0 right-0 bg-purple-500 rounded-tl-lg p-0.5">
                             <Sparkles className="w-2 h-2 text-white" />
@@ -367,7 +396,7 @@ export default function EditCVPage() {
               )}
             </div>
 
-            {/* 2. ✅ PARANNETTU: Background Image Control */}
+            {/* Background Image */}
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-xl shadow-xl p-4">
               <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <ImageIconLucide className="w-4 h-4 text-purple-600" />
@@ -382,7 +411,6 @@ export default function EditCVPage() {
                 </label>
               </div>
 
-              {/* ✅ KAIKKI SAATAVILLA OLEVAT TAUSTAKUVAT */}
               {availableImages.backgroundImages.length > 0 && (
                 <div className="mb-2">
                    <div className="flex items-center justify-between mb-2">
@@ -401,9 +429,8 @@ export default function EditCVPage() {
                           }`}
                           title={img.name}
                         >
-                          <img src={img.signedUrl} className="w-full h-full object-cover" />
+                          <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
                           
-                          {/* AI Badge */}
                           {img.is_ai_generated && (
                             <div className="absolute top-1 right-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[8px] px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                               <Sparkles className="w-2 h-2" />
@@ -411,7 +438,6 @@ export default function EditCVPage() {
                             </div>
                           )}
                           
-                          {/* Hover Info */}
                           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                             <p className="text-white text-[10px] px-2 text-center">{img.name}</p>
                           </div>
