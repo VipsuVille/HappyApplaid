@@ -354,11 +354,12 @@ export async function POST(req: Request) {
         profile_image: input.profileImage || null,
         profile_initials: result.profile_initials,
         full_text_content: result.fullTextContent,
-        cv_type: cvType,
+        // ✅ POISTETTU: cv_type (ei ole tietokannassa)
         is_public: false,
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
         job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
         metadata: {
+          cv_type: cvType, // ✅ SIIRRETTY metadata:aan
           action: action,
           tier: tier,
           generation_time: Date.now() - startTime,
