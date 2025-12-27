@@ -1,13 +1,9 @@
-// lib/langchain/cvGenerator.ts
-// ✅ PUHDAS GENERAATTORI - EI TIETOKANTAA
-// ✅ Ei Supabase-importteja
-// ✅ Ei tallennuslogiikkaa
-// ✅ Palauttaa vain datan
-
+// lib/langchain/cvGenerator.ts - COMPLETE FIXED VERSION
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
+import { supabase } from "@/lib/supabase";
 import {
   extractPersonalityTraits,
   convertToLegacyFormat,
@@ -22,7 +18,7 @@ import {
 import { buildAIContext } from "@/lib/knowledge";
 import { analyzeCVData, mergeCVAnswers } from "@/lib/langchain/cvQuestionAnalyzer";
 
-// ✅ FALLBACK IMAGE
+// ✅ FALLBACK IMAGE - määritellään tässä jos ei ole muualla
 const FALLBACK_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600'%3E%3Crect fill='%23f0f0f0' width='800' height='600'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='24' fill='%23999' text-anchor='middle' dy='.3em'%3EBackground Image%3C/text%3E%3C/svg%3E";
 
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -136,20 +132,27 @@ interface CVGenerationResult {
 
 function toLangChainInput(input: CVGeneratorInput): LangChainCVInput {
   const base: Partial<LangChainCVInput> = {
+    // Identity
     userId: input.userId,
     cvId: input.cvId,
     name: input.name,
     email: input.email,
     phone: input.phone,
     location: input.location,
+    
+    // CV Settings
     cvType: input.cvType,
     language: input.language,
     title: input.title,
     introText: input.introText,
+    
+    // Professional (strings, not arrays)
     education: input.education,
     workExperience: input.workExperience,
     skills: input.skills,
     languages: input.languages,
+    
+    // Personality
     workingStyle: input.workingStyle,
     problemSolving: input.problemSolving,
     energySources: input.energySources,
@@ -158,6 +161,8 @@ function toLangChainInput(input: CVGeneratorInput): LangChainCVInput {
     teamRole: input.teamRole,
     valuesExample: input.valuesExample,
     superpower: input.superpower,
+    
+    // Additional
     careerGoals: input.careerGoals,
     bestProjectExample: input.bestProjectExample,
     failureLesson: input.failureLesson,
@@ -166,6 +171,8 @@ function toLangChainInput(input: CVGeneratorInput): LangChainCVInput {
     hobbies: input.hobbies,
     profile: input.profile,
     bio: input.bio,
+    
+    // Extended
     jobPosting: input.jobPosting,
     authToken: input.authToken,
   };
@@ -341,7 +348,7 @@ export async function generateEnhancedBackgroundImage(
   authToken?: string
 ): Promise<string> {
   try {
-    const optimizedPrompt = "Abstract minimal professional background, soft gradient, clean design, no text";
+    const optimizedPrompt = `Abstract minimal professional background, soft gradient, clean design, no text`;
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
@@ -357,8 +364,53 @@ export async function generateEnhancedBackgroundImage(
     const data = await response.json() as { url?: string };
     if (!data.url) return FALLBACK_IMAGE;
 
-    return data.url;
+    let imageBlob: Blob;
+    if (data.url.startsWith("data:")) {
+      const base64Data = data.url.split(",")[1];
+      if (!base64Data) return FALLBACK_IMAGE;
+      imageBlob = await (await fetch(`data:application/octet-stream;base64,${base64Data}`)).blob();
+    } else {
+      const imageResponse = await fetch(data.url);
+      if (!imageResponse.ok) return FALLBACK_IMAGE;
+      imageBlob = await imageResponse.blob();
+    }
 
+    const userId = userData.userId || "anonymous";
+    const cvId = userData.cvId || `cv_${Date.now()}`;
+    const filePath = `backgrounds/${userId}/bg-${cvId}-${Date.now()}.png`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("cv_files")
+      .upload(filePath, imageBlob, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: "image/png",
+      });
+
+    if (uploadError) return FALLBACK_IMAGE;
+
+    const { data: publicUrlData } = supabase.storage
+      .from("cv_files")
+      .getPublicUrl(filePath);
+
+    if (!publicUrlData?.publicUrl) return FALLBACK_IMAGE;
+
+    try {
+      await supabase.from('default_images').insert({
+        user_id: userId,
+        image_type: 'background',
+        file_path: filePath,
+        name: `Generated ${new Date().toLocaleDateString()}`,
+        is_active: true,
+        is_ai_generated: true,
+        generation_prompt: optimizedPrompt,
+        cv_id: cvId
+      });
+    } catch (metaError) {
+      console.error("⚠️ Metadata save failed:", metaError);
+    }
+
+    return publicUrlData.publicUrl;
   } catch (error) {
     console.error("❌ Background generation failed:", error);
     return FALLBACK_IMAGE;
@@ -372,7 +424,7 @@ export async function generateEnhancedBackgroundImage(
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating FIRST-PERSON CVs for ALL backgrounds.
 
-{knowledgeContext}
+${'{knowledgeContext}'}
 
 # GROUND TRUTH
 VERIFIED SKILLS: {verifiedSkills}
@@ -407,7 +459,7 @@ Write in {language}. Return JSON.`]
 const atsOptimizedTechnicalPrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating TECHNICAL CVs.
 
-{knowledgeContext}
+${'{knowledgeContext}'}
 
 # GROUND TRUTH
 VERIFIED SKILLS: {verifiedSkills}
@@ -438,7 +490,7 @@ Write in {language}. Return JSON.`]
 const atsOptimizedCreativePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating CREATIVE CVs.
 
-{knowledgeContext}
+${'{knowledgeContext}'}
 
 # GROUND TRUTH
 VERIFIED SKILLS: {verifiedSkills}
@@ -466,7 +518,7 @@ Write in {language}. Return JSON.`]
 ]);
 
 // ════════════════════════════════════════════════════════════════
-// MAIN FUNCTION - PUHDAS GENERAATTORI
+// MAIN FUNCTION
 // ════════════════════════════════════════════════════════════════
 
 export async function generateCVWithPersonalityExtraction(
@@ -563,7 +615,7 @@ export async function generateCVWithPersonalityExtraction(
     
     timer.start("Personality + Ground Truth + Job + RAG");
     
-    const [personalityExtraction, groundTruthRaw, jobAnalysis, knowledgeContext] = await Promise.all([
+    const [personalityExtraction, groundTruth, jobAnalysis, knowledgeContext] = await Promise.all([
       extractPersonalityTraits({
         userProfile: ensureString(enhancedUserData.profile) || "",
         workingStyleText: ensureString(enhancedUserData.workingStyle),
@@ -614,20 +666,6 @@ export async function generateCVWithPersonalityExtraction(
     ]);
     
     timer.end();
-    
-    // ✅ VARMISTA ETTÄ groundTruth EI OLE NULL
-    const groundTruth: GroundTruth = groundTruthRaw || {
-      technicalSkills: [],
-      softSkills: [],
-      education: [],
-      certifications: [],
-      workHistory: [],
-      achievements: [],
-      cannotClaim: [],
-      personalityTraits: [],
-      careerLevel: 'mid',
-      yearsOfExperience: 0
-    };
     
     const extractedPersonalityData = convertToLegacyFormat(personalityExtraction);
     const confidenceScore = getPersonalityConfidenceScore(personalityExtraction);
@@ -756,7 +794,7 @@ ${parsedOutput.cv_content.experience_section}
     timer.end();
     
     // ═══════════════════════════════════════════════════════════
-    // FINAL ASSEMBLY - PALAUTETAAN VAIN DATA
+    // FINAL ASSEMBLY
     // ═══════════════════════════════════════════════════════════
     
     const fullTextContent = `
@@ -803,24 +841,34 @@ ${parsedOutput.cv_content.languages_section}
 }
 
 // ════════════════════════════════════════════════════════════════
-// SAFE WRAPPER
+// SAFE WRAPPER (for API routes) - WITH TIMEOUT
 // ════════════════════════════════════════════════════════════════
 
 export async function generateCVSafely(
   userData: CVGeneratorInput
 ): Promise<CVGenerationResult> {
   try {
-    return await generateCVWithPersonalityExtraction(userData);
+    // ✅ TIMEOUT PROTECTION: 55 sekuntia (Vercel timeout on 60s)
+    const timeoutPromise = new Promise<CVGenerationResult>((_, reject) => {
+      setTimeout(() => reject(new Error('CV generation timeout (55s)')), 55000);
+    });
+    
+    const generationPromise = generateCVWithPersonalityExtraction(userData);
+    
+    // Race: kumpaa valmistuu ensin
+    return await Promise.race([generationPromise, timeoutPromise]);
+    
   } catch (error) {
     console.error("❌ generateCVSafely caught error:", error);
     
+    // Return minimal fallback result instead of throwing
     return {
       personal_description: `${userData.name || "Professional"} - CV Generation Failed`,
       html: {
-        skills_section: "<p>Error generating skills section</p>",
-        experience_section: "<p>Error generating experience section</p>",
-        education_section: "<p>Error generating education section</p>",
-        languages_section: "<p>Error generating languages section</p>",
+        skills_section: `<p>Error generating skills section</p>`,
+        experience_section: `<p>Error generating experience section</p>`,
+        education_section: `<p>Error generating education section</p>`,
+        languages_section: `<p>Error generating languages section</p>`,
       },
       background_image: FALLBACK_IMAGE,
       profile_initials: generateInitials(userData.name || ""),

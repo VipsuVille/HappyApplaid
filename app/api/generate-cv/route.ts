@@ -340,7 +340,7 @@ export async function POST(req: Request) {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 12. TALLENNA CV
+    // 12. TALLENNA CV (OIKEA TAULURAKENNE)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     const { data: saved, error: saveError } = await supabaseAdmin
@@ -348,22 +348,42 @@ export async function POST(req: Request) {
       .insert({
         user_id: userId,
         title: `${input.name || "My"} CV - ${cvType}`,
-        personal_description: result.personal_description,
-        html: result.html,
+        
+        // ✅ OIKEA RAKENNE: Kaikki data JSON-kenttiin
+        cv_data: {
+          personal_description: result.personal_description,
+          background_image: result.background_image || "",
+          profile_image: input.profileImage || null,
+          profile_initials: result.profile_initials,
+          full_text_content: result.fullTextContent,
+        },
+        
+        content: {
+          html: result.html, // HTML-osiot tänne
+          personal_description: result.personal_description,
+        },
+        
+        ai_data: {
+          cv_type: cvType,
+          ats_optimization: result.ats_data,
+          job_analysis: result.job_analysis,
+          ground_truth_check: result.ground_truth_check,
+          images: result.images,
+        },
+        
+        // Suorat kentät
         background_image: result.background_image || "",
         profile_image: input.profileImage || null,
         profile_initials: result.profile_initials,
-        full_text_content: result.fullTextContent,
-        // ✅ POISTETTU: cv_type (ei ole tietokannassa)
         is_public: false,
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
         job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
+        
         metadata: {
-          cv_type: cvType, // ✅ SIIRRETTY metadata:aan
+          cv_type: cvType,
           action: action,
           tier: tier,
           generation_time: Date.now() - startTime,
-          ground_truth_check: result.ground_truth_check,
           rag_enabled: enableRAG,
           answered_questions: answeredQuestions || [],
           questions_count: answeredQuestions?.length || 0
