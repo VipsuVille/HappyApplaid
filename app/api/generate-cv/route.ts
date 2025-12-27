@@ -7,6 +7,7 @@ import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileData
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
 import crypto from 'crypto';
+import { supabaseAdmin } from "@/lib/supabase";
 
 export const maxDuration = 60;
 
