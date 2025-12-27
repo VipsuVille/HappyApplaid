@@ -1,12 +1,24 @@
-// app/api/generate-cv/route.ts - KORJATTU TIETOKANTARAKENTEESEEN
+// app/api/generate-cv/route.ts - KORJATTU VERSIO
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@supabase/supabase-js";
 import { generateCVSafely } from "@/lib/langchain/cvGenerator";
-import { supabase as supabaseAdmin } from "@/lib/supabase";
 import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
 import crypto from 'crypto';
+
+// ✅ SERVICE ROLE CLIENT (OHITTAA RLS)
+const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+);
 
 export const maxDuration = 60;
 
@@ -58,7 +70,7 @@ async function saveUserResponse(
 }
 
 /**
- * ✅ MAIN ROUTE
+ * ✅ MAIN ROUTE - KÄYTTÄÄ VAIN SERVICE ROLEA
  */
 export async function POST(req: Request) {
   const startTime = Date.now();
@@ -66,7 +78,7 @@ export async function POST(req: Request) {
 
   try {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 1. AUTH
+    // 1. AUTH (Clerk)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     const { userId } = await auth();
@@ -99,7 +111,7 @@ export async function POST(req: Request) {
     console.log(`📝 Request: ${action}, type: ${cvType}`);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 3. HAE SUBSCRIPTION
+    // 3. HAE SUBSCRIPTION (SERVICE ROLE)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     const { data: subscription } = await supabaseAdmin
@@ -216,7 +228,7 @@ export async function POST(req: Request) {
         profileImage: profileData.profileImage || profileData.profile_image || undefined,
       };
     } else {
-      console.log("📚 Loading from database");
+      console.log("📚 Loading from database (SERVICE ROLE)");
       
       const { data } = await supabaseAdmin
         .from("user_profiles")
@@ -245,7 +257,7 @@ export async function POST(req: Request) {
       (answeredQuestions && answeredQuestions.length > 0);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 8. GENEROI CV (SAFE MODE)
+    // 8. GENEROI CV (SAFE MODE) - EI DB:TÄ TÄÄLLÄ
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     console.log(`🤖 Generating CV (safe mode)...`);
@@ -290,12 +302,12 @@ export async function POST(req: Request) {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 11. TALLENNA CV - KORJATTU TIETOKANTARAKENTEESEEN
+    // 11. TALLENNA CV - VAIN TÄÄLLÄ, EI GENERAATTORISSA
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    console.log("💾 Saving CV to database...");
+    console.log("💾 Saving CV to database (SERVICE ROLE)...");
     
-    // Rakenna cv_data (vanha rakenne)
+    // Rakenna cv_data
     const cv_data = {
       name: input.name,
       email: input.email,
@@ -308,7 +320,7 @@ export async function POST(req: Request) {
       languages: input.languages,
     };
     
-    // Rakenna ai_data (AI-generoidut osat)
+    // Rakenna ai_data
     const ai_data = {
       personal_description: result.personal_description,
       html: result.html,
@@ -318,7 +330,7 @@ export async function POST(req: Request) {
       ground_truth_check: result.ground_truth_check,
     };
     
-    // Rakenna content (yhdistetty näkymä)
+    // Rakenna content
     const content = {
       cv_type: cvType,
       personal_description: result.personal_description,
@@ -332,24 +344,19 @@ export async function POST(req: Request) {
         user_id: userId,
         title: `${input.name || "My"} CV - ${cvType}`,
         
-        // ✅ Käytä olemassa olevia JSONB-kenttiä
         cv_data: cv_data,
         ai_data: ai_data,
         content: content,
         
-        // ✅ Olemassa olevat TEXT-kentät
         background_image: result.background_image || "",
         profile_image: input.profileImage || null,
         profile_initials: result.profile_initials || "",
         
-        // ✅ Boolean-kentät
         is_public: false,
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
         
-        // ✅ Job posting
         job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
         
-        // ✅ Metadata
         metadata: {
           action: action,
           tier: tier,
@@ -377,7 +384,7 @@ export async function POST(req: Request) {
     console.log(`✅ CV saved: ${saved.id}`);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 12. KULUTA TOKENIT
+    // 12. KULUTA TOKENIT (SERVICE ROLE)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     if (tier === "free") {
