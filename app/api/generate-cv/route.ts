@@ -1,26 +1,39 @@
 // app/api/generate-cv/route.ts - KORJATTU VERSIO
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { generateCVSafely } from "@/lib/langchain/cvGenerator";
 import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
 import crypto from 'crypto';
-
-// ✅ SERVICE ROLE CLIENT (OHITTAA RLS)
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
+import { supabaseAdmin } from "@/lib/supabase";
 
 export const maxDuration = 60;
+
+// ✅ LAZY-LOAD SUPABASE ADMIN (build-time safe)
+let supabaseAdminInstance: SupabaseClient | null = null;
+
+function getSupabaseAdmin(): SupabaseClient {
+  if (!supabaseAdminInstance) {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Missing Supabase environment variables");
+    }
+    
+    supabaseAdminInstance = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+  }
+  
+  return supabaseAdminInstance;
+}
 
 /**
  * ✅ TALLENNA VASTAUKSET
@@ -77,6 +90,9 @@ export async function POST(req: Request) {
   console.log("🚀 CV Generation API (Safe Mode)");
 
   try {
+    // ✅ Hae supabase vasta runtime-aikana
+    const supabaseAdmin = getSupabaseAdmin();
+    
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // 1. AUTH (Clerk)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

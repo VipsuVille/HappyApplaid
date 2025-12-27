@@ -372,7 +372,7 @@ export async function generateEnhancedBackgroundImage(
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating FIRST-PERSON CVs for ALL backgrounds.
 
-$\{'{knowledgeContext}'}
+{knowledgeContext}
 
 # GROUND TRUTH
 VERIFIED SKILLS: {verifiedSkills}
@@ -407,7 +407,7 @@ Write in {language}. Return JSON.`]
 const atsOptimizedTechnicalPrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating TECHNICAL CVs.
 
-$\{'{knowledgeContext}'}
+{knowledgeContext}
 
 # GROUND TRUTH
 VERIFIED SKILLS: {verifiedSkills}
@@ -438,7 +438,7 @@ Write in {language}. Return JSON.`]
 const atsOptimizedCreativePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating CREATIVE CVs.
 
-$\{'{knowledgeContext}'}
+{knowledgeContext}
 
 # GROUND TRUTH
 VERIFIED SKILLS: {verifiedSkills}
