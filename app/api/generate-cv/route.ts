@@ -7,7 +7,6 @@ import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileData
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
 import crypto from 'crypto';
-import { supabaseAdmin } from "@/lib/supabase";
 
 export const maxDuration = 60;
 
@@ -16,20 +15,26 @@ let supabaseAdminInstance: SupabaseClient | null = null;
 
 function getSupabaseAdmin(): SupabaseClient {
   if (!supabaseAdminInstance) {
-    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    // ✅ Käytä NEXT_PUBLIC_ versiota jos tavallinen puuttuu
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!url || !key) {
+      console.error('❌ Missing env vars:', {
+        NEXT_PUBLIC_SUPABASE_URL: !!url,
+        SUPABASE_SERVICE_ROLE_KEY: !!key
+      });
       throw new Error("Missing Supabase environment variables");
     }
     
-    supabaseAdminInstance = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
+    supabaseAdminInstance = createClient(url, key, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
       }
-    );
+    });
+    
+    console.log('✅ Supabase Admin initialized');
   }
   
   return supabaseAdminInstance;
