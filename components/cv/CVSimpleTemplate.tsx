@@ -22,33 +22,31 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
   const name = data?.name || "Nimi puuttuu";
   const title = data?.title || "Ammattinimike puuttuu";
 
-  // --- KUVANLOGIIKKA (LAAJENNETTU) ---
-  // Etsitään profiilikuvaa kaikista mahdollisista paikoista
-  const profileImg = 
-    data?.photo || 
-    data?.profileImage || 
-    (data as any)?.profile_image || 
-    aiData?.profile_image || 
-    "";
-  
-  // Etsitään taustakuvaa kaikista mahdollisista paikoista
-  const rawBgImg = 
-    data?.backgroundImage || 
-    (data as any)?.background_image || 
-    aiData?.background_image || 
-    aiData?.background_image_url || 
-    "";
+ // --- KUVANLOGIIKKA (LAAJENNETTU) ---
+// Etsitään profiilikuvaa kaikista mahdollisista paikoista, myös cover letterin tyylisestä rakenteesta
+const profileImg = 
+  data?.profileImage || 
+  (data as any)?.photo || 
+  (data as any)?.content?.applicant_info?.profile_image || 
+  (data as any)?.content?.applicant_info?.photo || 
+  aiData?.profile_image || 
+  "";
 
-  // Muotoillaan taustatyyli turvallisesti
-  const bgStyle = rawBgImg 
-    ? { 
-        backgroundImage: `url("${rawBgImg}")`,
-        backgroundColor: "transparent" 
-      } 
-    : { 
-        backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" 
-      };
+// Taustakuvan haku
+const rawBgImg = 
+  data?.backgroundImage || 
+  (data as any)?.content?.background_image || 
+  aiData?.background_image || 
+  aiData?.background_image_url || 
+  "";
 
+// Varmistetaan että URL on puhdas (välillä AI palauttaa URL:n lainausmerkeissä)
+const cleanBgUrl = rawBgImg?.replace(/['"]/g, '');
+const cleanProfileUrl = profileImg?.replace(/['"]/g, '');
+
+const bgStyle = cleanBgUrl 
+  ? { backgroundImage: `url("${cleanBgUrl}")` } 
+  : { backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" };
   const handleChange = (field: keyof UserFormData, value: string) => {
     if (onContentChange) onContentChange(field, value);
   };
