@@ -322,12 +322,21 @@ export interface UserFormData {
 }
 
 export interface AIData {
-  html: {
+  // Kentät html-objektin sisällä (vanha rakenne)
+  html?: {
     skills_section: string;
     experience_section: string;
     education_section: string;
     languages_section: string;
   };
+  
+  // ✅ LISÄÄ NÄMÄ: Kentät suoraan juuressa (uusi/litteä rakenne)
+  // Näin 'validAiData.education_section' toimii suoraan Templatessa
+  skills_section?: string;
+  experience_section?: string;
+  education_section?: string;
+  languages_section?: string;
+
   styles?: string;
   images?: {
     background_prompt: string;

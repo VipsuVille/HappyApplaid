@@ -346,7 +346,46 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
                 {validAiData.personal_description}
               </p>
             )}
+{/* --- LISÄÄ TÄMÄ KOODI PERSONAL DESCRIPTIONIN JÄLKEEN --- */}
 
+{/* Kokemus ja koulutus -osiot */}
+<div className="sections-container w-full mt-8 space-y-8">
+  {validAiData.experience_section && (
+    <div className="cv-section">
+      <h3 className="text-xl font-bold text-blue-600 border-b-2 border-blue-100 mb-3 pb-1 uppercase tracking-wider text-center">
+        Työkokemus
+      </h3>
+      <div 
+        className="prose prose-sm max-w-none text-gray-700"
+        dangerouslySetInnerHTML={{ __html: validAiData.experience_section }}
+      />
+    </div>
+  )}
+
+  {validAiData.education_section && (
+    <div className="cv-section">
+      <h3 className="text-xl font-bold text-blue-600 border-b-2 border-blue-100 mb-3 pb-1 uppercase tracking-wider text-center">
+        Koulutus
+      </h3>
+      <div 
+        className="prose prose-sm max-w-none text-gray-700"
+        dangerouslySetInnerHTML={{ __html: validAiData.education_section }}
+      />
+    </div>
+  )}
+
+  {validAiData.skills_section && (
+    <div className="cv-section">
+      <h3 className="text-xl font-bold text-blue-600 border-b-2 border-blue-100 mb-3 pb-1 uppercase tracking-wider text-center">
+        Osaaminen
+      </h3>
+      <div 
+        className="prose prose-sm max-w-none text-gray-700"
+        dangerouslySetInnerHTML={{ __html: validAiData.skills_section }}
+      />
+    </div>
+  )}
+</div>
             {/* ✅ KORJATTU: Allekirjoitus padding */}
             <div 
               className="signature-container mt-6 text-center"

@@ -353,20 +353,18 @@ const { data: saved, error: saveError } = await supabaseAdmin
     // ✅ KORJATTU RAKENNE: Käyttöliittymäsi lukee 'content' kentän sisältä 
     // cv_data ja ai_data avaimet (BaseCV tyypin mukaan)
     content: {
-      cv_data: {
-        ...input, // Kaikki käyttäjän alkuperäiset tiedot
-        personal_description: result.personal_description,
-        profile_initials: result.profile_initials,
-      },
-      ai_data: {
-        html: result.html,
-        ats_optimization: result.ats_data,
-        job_analysis: result.job_analysis,
-        ground_truth_check: result.ground_truth_check,
-        images: result.images,
-        fullTextContent: result.fullTextContent,
-        cvType: cvType,
-      }
+    cv_data: {
+      ...input,
+      // Varmistetaan että nämä ovat mukana
+      personal_description: result.personal_description,
+    },
+    ai_data: {
+      ...result.html, // Tämä purkaa skills_section, experience_section jne.
+      personal_description: result.personal_description,
+      profile_initials: result.profile_initials,
+      fullTextContent: result.fullTextContent,
+      cvType: cvType,
+    }
     },
     
     // Nämä ovat hyödyllisiä hakuja/listauksia varten (metadata)
