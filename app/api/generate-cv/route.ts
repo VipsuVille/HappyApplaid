@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateCVSafely } from "@/lib/langchain/cvGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
-import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
+ import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
 import crypto from 'crypto';
@@ -343,55 +343,51 @@ export async function POST(req: Request) {
     // 12. TALLENNA CV (OIKEA TAULURAKENNE)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    const { data: saved, error: saveError } = await supabaseAdmin
-      .from("cvs")
-      .insert({
-        user_id: userId,
-        title: `${input.name || "My"} CV - ${cvType}`,
-        
-        // ✅ OIKEA RAKENNE: Kaikki data JSON-kenttiin
-        cv_data: {
-          personal_description: result.personal_description,
-          background_image: result.background_image || "",
-          profile_image: input.profileImage || null,
-          profile_initials: result.profile_initials,
-          full_text_content: result.fullTextContent,
-        },
-        
-        content: {
-          html: result.html, // HTML-osiot tänne
-          personal_description: result.personal_description,
-        },
-        
-        ai_data: {
-          cv_type: cvType,
-          ats_optimization: result.ats_data,
-          job_analysis: result.job_analysis,
-          ground_truth_check: result.ground_truth_check,
-          images: result.images,
-        },
-        
-        // Suorat kentät
-        background_image: result.background_image || "",
-        profile_image: input.profileImage || null,
+    // Etsi tämä kohta route.ts tiedostostasi
+const { data: saved, error: saveError } = await supabaseAdmin
+  .from("cvs")
+  .insert({
+    user_id: userId,
+    title: `${input.name || "My"} CV - ${cvType}`,
+    
+    // ✅ KORJATTU RAKENNE: Käyttöliittymäsi lukee 'content' kentän sisältä 
+    // cv_data ja ai_data avaimet (BaseCV tyypin mukaan)
+    content: {
+      cv_data: {
+        ...input, // Kaikki käyttäjän alkuperäiset tiedot
+        personal_description: result.personal_description,
         profile_initials: result.profile_initials,
-        is_public: false,
-        is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
-        job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
-        
-        metadata: {
-          cv_type: cvType,
-          action: action,
-          tier: tier,
-          generation_time: Date.now() - startTime,
-          rag_enabled: enableRAG,
-          answered_questions: answeredQuestions || [],
-          questions_count: answeredQuestions?.length || 0
-        }
-      })
-      .select("id")
-      .single();
-
+      },
+      ai_data: {
+        html: result.html,
+        ats_optimization: result.ats_data,
+        job_analysis: result.job_analysis,
+        ground_truth_check: result.ground_truth_check,
+        images: result.images,
+        fullTextContent: result.fullTextContent,
+        cvType: cvType,
+      }
+    },
+    
+    // Nämä ovat hyödyllisiä hakuja/listauksia varten (metadata)
+    background_image: result.background_image || "",
+    profile_image: input.profileImage || null,
+    profile_initials: result.profile_initials,
+    is_public: false,
+    is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
+    job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
+    
+    metadata: {
+      cv_type: cvType,
+      action: action,
+      tier: tier,
+      generation_time: Date.now() - startTime,
+      rag_enabled: enableRAG,
+      ground_truth_status: result.ground_truth_check?.approved ? "approved" : "rejected"
+    }
+  })
+  .select("id")
+  .single();
     if (saveError || !saved) {
       console.error("❌ Save failed:", saveError);
       return NextResponse.json(

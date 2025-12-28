@@ -277,7 +277,11 @@ export default function MyCVsPage() {
         {/* CVs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-1 gap-8">
           {cvs.map((cv) => {
-            const templateType = cv.content?.cv_data?.cvType || cv.content?.ai_data?.cvType || "simple";
+            const cvData = cv.content?.cv_data || (cv as any).cv_data;
+const aiData = cv.content?.ai_data || (cv as any).ai_data;
+const rawContent = typeof cv.content === 'string' ? JSON.parse(cv.content) : cv.content;
+
+const templateType = cvData?.cvType || aiData?.cv_type || "simple"
             let TemplateComponent;
             
             switch (templateType) {
