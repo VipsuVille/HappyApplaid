@@ -15,40 +15,54 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
   data,
   aiData,
   isEditing,
-  showEditControls,
   onContentChange,
 }) => {
-  // --- NIMI JA TITTELI ---
-  const name = data?.name || "Nimi puuttuu";
-  const title = data?.title || "Ammattinimike puuttuu";
+  // ✅ KUVANSIIVOUS: Erottele base64 ja HTTP-URLit
+  const cleanImageUrl = (rawUrl: string | undefined): string => {
+    if (!rawUrl) return "";
 
- // --- KUVANLOGIIKKA (LAAJENNETTU) ---
-// Etsitään profiilikuvaa kaikista mahdollisista paikoista, myös cover letterin tyylisestä rakenteesta
-const profileImg = 
-  data?.profileImage || 
-  (data as any)?.photo || 
-  (data as any)?.content?.applicant_info?.profile_image || 
-  (data as any)?.content?.applicant_info?.photo || 
-  aiData?.profile_image || 
-  "";
+    // Jos URL sisältää "data:image", pura se ulos
+    const base64Match = rawUrl.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)/);
+    if (base64Match) {
+      console.log("🖼️ Base64-kuva löydetty ja puhdistettu");
+      return base64Match[1];
+    }
 
-// Taustakuvan haku
-const rawBgImg = 
-  data?.backgroundImage || 
-  (data as any)?.content?.background_image || 
-  aiData?.background_image || 
-  aiData?.background_image_url || 
-  "";
+    // Jos on HTTP-URL (ei sisällä "data:image"), käytä sellaisenaan
+    if (rawUrl.startsWith("http")) {
+      console.log("🌐 HTTP-kuva:", rawUrl.substring(0, 80));
+      return rawUrl;
+    }
 
-// Varmistetaan että URL on puhdas (välillä AI palauttaa URL:n lainausmerkeissä)
-const cleanBgUrl = rawBgImg?.replace(/['"]/g, '');
-const cleanProfileUrl = profileImg?.replace(/['"]/g, '');
+    console.warn("⚠️ Tuntematon kuvamuoto:", rawUrl.substring(0, 50));
+    return "";
+  };
 
-const bgStyle = cleanBgUrl 
-  ? { backgroundImage: `url("${cleanBgUrl}")` } 
-  : { backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" };
-  const handleChange = (field: keyof UserFormData, value: string) => {
-    if (onContentChange) onContentChange(field, value);
+  const profileImg = cleanImageUrl(
+    data?.profileImage || 
+    (data as any)?.photo || 
+    aiData?.profile_image || 
+    ""
+  );
+
+  const bgImg = cleanImageUrl(
+    data?.backgroundImage || 
+    aiData?.background_image || 
+    aiData?.background_image_url || 
+    ""
+  );
+
+  const name = data?.name || "Nimi";
+  const title = data?.title || "Ammattinimike";
+
+  // ✅ AI-SISÄLLÖN VARMISTUS
+  const getAIContent = (field: keyof AIData): string => {
+    const content = aiData?.[field];
+    if (typeof content === "string" && content.trim()) {
+      return content;
+    }
+    console.warn(`⚠️ AI-kenttä '${field}' on tyhjä tai virheellinen`);
+    return "";
   };
 
   return (
@@ -62,42 +76,78 @@ const bgStyle = cleanBgUrl
       }}
     >
       {/* 1. HEADER & TAUSTAKUVA */}
-<div className="relative bg-indigo-900" style={{ height: "70mm" }}>
-  {/* Käytetään img-tagia taustakuvalle CSS:n sijaan varmuuden vuoksi */}
-  {cleanBgUrl ? (
-    <img 
-      src={cleanBgUrl} 
-      className="absolute inset-0 w-full h-full object-cover" 
-      alt=""
-      crossOrigin="anonymous" 
-    />
-  ) : (
-    <div 
-      className="absolute inset-0" 
-      style={{ backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" }} 
-    />
-  )}
-  
-  <div className="absolute inset-0 bg-black/20" />
+      <div className="relative bg-indigo-900" style={{ height: "70mm" }}>
+        {/* Käytetään img-tagia taustakuvalle CSS:n sijaan varmuuden vuoksi */}
+        {bgImg ? (
+          <img 
+            src={bgImg} 
+            className="absolute inset-0 w-full h-full object-cover" 
+            alt=""
+            crossOrigin="anonymous"
+            onError={(e) => {
+              console.error("❌ Taustakuva ei lataudu:", bgImg.substring(0, 100));
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div 
+            className="absolute inset-0" 
+            style={{ backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" }} 
+          />
+        )}
+        
+        <div className="absolute inset-0 bg-black/20" />
 
-  {/* Profiilikuva - Varmista että URL on olemassa */}
-  <div 
-    className="absolute -bottom-10 right-12 z-20 w-[50mm] h-[50mm] rounded-full border-[6px] border-white overflow-hidden shadow-xl bg-gray-100"
-  >
-    {cleanProfileUrl ? (
-      <img 
-        src={cleanProfileUrl} 
-        className="w-full h-full object-cover" 
-        alt="Profiili"
-        crossOrigin="anonymous"
-      />
-    ) : (
-      <div className="w-full h-full flex items-center justify-center text-gray-300 text-4xl font-bold">
-        {name.substring(0,1)}
+        <div className="absolute bottom-10 left-12 text-white z-10">
+          {isEditing ? (
+            <div className="flex flex-col gap-2">
+              <input
+                className="bg-white/20 border border-white/40 text-4xl font-bold px-2 py-1 rounded outline-none"
+                value={data?.name || ""}
+                onChange={(e) => onContentChange?.("name", e.target.value)}
+                placeholder="Nimesi"
+              />
+              <input
+                className="bg-white/20 border border-white/40 text-xl px-2 py-1 rounded outline-none"
+                value={data?.title || ""}
+                onChange={(e) => onContentChange?.("title", e.target.value)}
+                placeholder="Ammattinimike"
+              />
+            </div>
+          ) : (
+            <>
+              <h1 className="text-5xl font-extrabold tracking-tight drop-shadow-lg">
+                {name}
+              </h1>
+              <p className="text-2xl opacity-95 mt-2 font-light">
+                {title}
+              </p>
+            </>
+          )}
+        </div>
+
+        {/* Profiilikuva - Varmista että URL on olemassa */}
+        <div 
+          className="absolute -bottom-10 right-12 z-20 w-[50mm] h-[50mm] rounded-full border-[6px] border-white overflow-hidden shadow-xl bg-gray-100"
+        >
+          {profileImg ? (
+            <img 
+              src={profileImg} 
+              className="w-full h-full object-cover" 
+              alt="Profiili"
+              crossOrigin="anonymous"
+              onError={(e) => {
+                console.error("❌ Profiilikuva ei lataudu:", profileImg.substring(0, 100));
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-300 text-4xl font-bold">
+              {name.substring(0,1)}
+            </div>
+          )}
+        </div>
       </div>
-    )}
-  </div>
-</div>
 
       {/* 2. YHTEYSTIEDOT */}
       <div className="bg-[#1a202c] text-white py-4 px-12 mt-0 flex items-center gap-8 text-sm">
@@ -119,6 +169,7 @@ const bgStyle = cleanBgUrl
       <div className="px-12 py-16 grid grid-cols-12 gap-12">
         <div className="col-span-12 flex flex-col gap-10">
           
+          {/* PROFIILI */}
           <section>
             <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">Profiili</h2>
             {isEditing ? (
@@ -130,39 +181,48 @@ const bgStyle = cleanBgUrl
               />
             ) : (
               <p className="text-gray-700 leading-relaxed text-lg italic border-l-4 border-blue-100 pl-6">
-                {aiData?.personal_description || "Ei kuvausta saatavilla."}
+                {getAIContent("personal_description") || "Ei kuvausta saatavilla."}
               </p>
             )}
           </section>
 
           <div className="grid grid-cols-1 gap-12">
-            {aiData?.experience_section && (
+            {/* TYÖKOKEMUS */}
+            {getAIContent("experience_section") && (
               <section>
-                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Työkokemus</h2>
+                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+                  Työkokemus
+                </h2>
                 <div 
                   className="prose prose-sm max-w-none text-gray-800"
-                  dangerouslySetInnerHTML={{ __html: aiData.experience_section }}
+                  dangerouslySetInnerHTML={{ __html: getAIContent("experience_section") }}
                 />
               </section>
             )}
 
             <div className="grid grid-cols-2 gap-12">
-              {aiData?.education_section && (
+              {/* KOULUTUS */}
+              {getAIContent("education_section") && (
                 <section>
-                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Koulutus</h2>
+                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+                    Koulutus
+                  </h2>
                   <div 
                     className="prose prose-sm max-w-none text-gray-800"
-                    dangerouslySetInnerHTML={{ __html: aiData.education_section }}
+                    dangerouslySetInnerHTML={{ __html: getAIContent("education_section") }}
                   />
                 </section>
               )}
 
-              {aiData?.skills_section && (
+              {/* OSAAMINEN */}
+              {getAIContent("skills_section") && (
                 <section>
-                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Osaaminen</h2>
+                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+                    Osaaminen
+                  </h2>
                   <div 
                     className="prose prose-sm max-w-none text-gray-800"
-                    dangerouslySetInnerHTML={{ __html: aiData.skills_section }}
+                    dangerouslySetInnerHTML={{ __html: getAIContent("skills_section") }}
                   />
                 </section>
               )}
