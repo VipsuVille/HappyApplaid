@@ -18,33 +18,44 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
   showEditControls,
   onContentChange,
 }) => {
-  // --- TURVALLINEN DATAN HAKU ---
-  // Haetaan nimi useasta mahdollisesta paikasta, jotta sivu ei kaadu
-  const name = data?.name  || "Nimi puuttuu";
+  // --- NIMI JA TITTELI ---
+  const name = data?.name || "Nimi puuttuu";
   const title = data?.title || "Ammattinimike puuttuu";
 
-  // --- KUVANLOGIIKKA ---
-  const profileImg = data?.profileImage || aiData?.profile_image || "";
+  // --- KUVANLOGIIKKA (LAAJENNETTU) ---
+  // Etsitään profiilikuvaa kaikista mahdollisista paikoista
+  const profileImg = 
+    data?.photo || 
+    data?.profileImage || 
+    (data as any)?.profile_image || 
+    aiData?.profile_image || 
+    "";
   
-  // Taustakuva voi olla backgroundImage (käyttäjän valinta) tai background_image (AI)
-  const rawBgImg = data?.backgroundImage || 
-                   aiData?.background_image || 
-                   aiData?.background_image_url || 
-                   "";
+  // Etsitään taustakuvaa kaikista mahdollisista paikoista
+  const rawBgImg = 
+    data?.backgroundImage || 
+    (data as any)?.background_image || 
+    aiData?.background_image || 
+    aiData?.background_image_url || 
+    "";
 
-  // Käärittävä lainausmerkkeihin url(""), jotta SVG-koodi ei riko CSS-tyyliä
+  // Muotoillaan taustatyyli turvallisesti
   const bgStyle = rawBgImg 
-    ? { backgroundImage: `url("${rawBgImg}")` } 
-    : { backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" };
+    ? { 
+        backgroundImage: `url("${rawBgImg}")`,
+        backgroundColor: "transparent" 
+      } 
+    : { 
+        backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" 
+      };
 
-  // Helper-funktio tekstimuutoksille
   const handleChange = (field: keyof UserFormData, value: string) => {
     if (onContentChange) onContentChange(field, value);
   };
 
   return (
     <div
-      className="cv-paper bg-white mx-auto relative overflow-hidden"
+      className="cv-paper bg-white mx-auto relative overflow-hidden shadow-2xl"
       style={{
         width: "210mm",
         minHeight: "297mm",
@@ -62,10 +73,8 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
           ...bgStyle
         }}
       >
-        {/* Tumma kerros, jotta teksti erottuu taustasta */}
         <div className="absolute inset-0 bg-black/20" />
 
-        {/* Nimi ja Titteli */}
         <div className="absolute bottom-10 left-12 text-white z-10">
           {isEditing ? (
             <div className="flex flex-col gap-2">
@@ -94,7 +103,7 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
           )}
         </div>
 
-        {/* PROFIILIKUVA */}
+        {/* PROFIILIKUVA - Korjattu renderöinti */}
         <div 
           className="absolute -bottom-10 right-12 z-20"
           style={{
@@ -108,7 +117,13 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
           }}
         >
           {profileImg ? (
-            <img src={profileImg} alt="Profiili" className="w-full h-full object-cover" />
+            <img 
+              src={profileImg} 
+              alt="Profiili" 
+              className="w-full h-full object-cover"
+              // Lisätään onError, jotta viallinen URL ei jätä tyhjää
+              onError={(e) => (e.currentTarget.style.display = 'none')} 
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-300">
                <span className="text-4xl font-bold">{name.substring(0,2).toUpperCase()}</span>
@@ -117,28 +132,26 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
         </div>
       </div>
 
-      {/* 2. YHTEYSTIEDOT (Musta palkki) */}
+      {/* 2. YHTEYSTIEDOT */}
       <div className="bg-[#1a202c] text-white py-4 px-12 mt-0 flex items-center gap-8 text-sm">
         <div className="flex items-center gap-2">
-           <span className="opacity-60 text-xs">PUH:</span>
-           <span>{data?.phone || "Lisää numero"}</span>
+           <span className="opacity-60 text-xs uppercase">Puh:</span>
+           <span>{data?.phone || "—"}</span>
         </div>
         <div className="flex items-center gap-2">
-           <span className="opacity-60 text-xs">EMAIL:</span>
-           <span>{data?.email || "Lisää sähköposti"}</span>
+           <span className="opacity-60 text-xs uppercase">Email:</span>
+           <span>{data?.email || "—"}</span>
         </div>
         <div className="flex items-center gap-2">
-           <span className="opacity-60 text-xs">SIJAINTI:</span>
-           <span>{data?.location || "Paikkakunta"}</span>
+           <span className="opacity-60 text-xs uppercase">Sijainti:</span>
+           <span>{data?.location || "—"}</span>
         </div>
       </div>
 
       {/* 3. SISÄLTÖALUE */}
       <div className="px-12 py-16 grid grid-cols-12 gap-12">
-        
         <div className="col-span-12 flex flex-col gap-10">
           
-          {/* Profiiliteksti */}
           <section>
             <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">Profiili</h2>
             {isEditing ? (
@@ -155,9 +168,7 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
             )}
           </section>
 
-          {/* Kokemus / HTML osiot */}
           <div className="grid grid-cols-1 gap-12">
-            
             {aiData?.experience_section && (
               <section>
                 <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Työkokemus</h2>
@@ -191,13 +202,11 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
             </div>
           </div>
 
-          {/* ALLEKIRJOITUS */}
-          <div className="mt-8">
+          <div className="mt-8 border-t pt-8">
             <p className="text-4xl text-blue-700 opacity-80" style={{ fontFamily: "'Brush Script MT', cursive" }}>
               {name}
             </p>
           </div>
-
         </div>
       </div>
     </div>
