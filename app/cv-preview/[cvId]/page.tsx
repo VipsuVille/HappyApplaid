@@ -18,6 +18,28 @@ export default function CVPreviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ✅ KUVAN URL-KÄSITTELY: Tunnista Base64, HTTP-URL tai tiedostonimi
+  const getImageUrl = (imageData: string | null | undefined): string => {
+    if (!imageData) return "";
+    
+    // ✅ Jos data alkaa "data:image", se on Base64 → käytä sellaisenaan
+    if (imageData.startsWith('data:image')) {
+      console.log("🖼️ Using Base64 image");
+      return imageData;
+    }
+    
+    // ✅ Jos alkaa "http", se on jo valmis URL → käytä sellaisenaan
+    if (imageData.startsWith('http')) {
+      console.log("🌐 Using existing HTTP URL");
+      return imageData;
+    }
+    
+    // ✅ Muuten oletetaan että se on tiedostonimi → rakenna Supabase PUBLIC URL
+    const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${imageData}`;
+    console.log("📁 Built public Storage URL:", publicUrl.substring(0, 100) + "...");
+    return publicUrl;
+  };
+
   // Funktio kuvien muuntamiseen PDF:ää varten
   const convertImageForPDF = async (imageUrl: string): Promise<string> => {
     if (!isPDFGeneration || !imageUrl || imageUrl.startsWith("data:")) {
@@ -30,7 +52,7 @@ export default function CVPreviewPage() {
     }
 
     try {
-      console.log("🔄 Converting image:", imageUrl.substring(0, 100) + "...");
+      console.log("🔄 Converting image for PDF:", imageUrl.substring(0, 100) + "...");
 
       const response = await fetch(
         `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
@@ -120,120 +142,63 @@ export default function CVPreviewPage() {
           processedCV.content.ai_data = {};
         }
 
-        // TAUSTAKUVA käsittely
-        if (data.content?.ai_data?.background_image) {
-          let backgroundUrl = data.content.ai_data.background_image;
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // TAUSTAKUVA KÄSITTELY
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let backgroundUrl = data.content?.ai_data?.background_image || "";
 
+        if (backgroundUrl) {
           console.log("🖼️ Taustakuva alkuperäinen:", backgroundUrl.substring(0, 100) + "...");
 
-          // ✅ TARKISTA: Onko jo base64?
-          if (backgroundUrl.startsWith("data:image")) {
-            console.log("🖼️ ✅ Taustakuva on jo base64");
-            processedCV.content.ai_data.background_image = backgroundUrl;
+          // ✅ Käsittele getImageUrl-funktiolla
+          backgroundUrl = getImageUrl(backgroundUrl);
+
+          // ✅ PDF-mode: Muunna base64:ksi
+          if (isPDFGeneration && backgroundUrl && !backgroundUrl.startsWith("data:")) {
+            console.log("🖼️ 📄 PDF mode - muunnetaan base64:ksi");
+            backgroundUrl = await convertImageForPDF(backgroundUrl);
           }
-          // ✅ TARKISTA: Onko HTTP URL?
-          else if (backgroundUrl.startsWith("http")) {
-            console.log("🖼️ 🌐 Taustakuva on HTTP URL");
 
-            if (isPDFGeneration) {
-              console.log("🖼️ 📄 PDF mode - muunnetaan base64:ksi");
-              backgroundUrl = await convertImageForPDF(backgroundUrl);
-            }
-
-            processedCV.content.ai_data.background_image = backgroundUrl;
-          }
-          // ✅ Muuten Supabase storage path
-          else {
-            console.log("🖼️ 💾 Taustakuva on Supabase storage path");
-            
-            const { data: publicUrlData } = supabase.storage
-              .from("cv_files")
-              .getPublicUrl(backgroundUrl);
-
-            backgroundUrl = publicUrlData?.publicUrl || "";
-
-            if (isPDFGeneration && backgroundUrl) {
-              console.log("🖼️ 🔄 Muunnetaan base64:ksi");
-              backgroundUrl = await convertImageForPDF(backgroundUrl);
-            }
-
-            processedCV.content.ai_data.background_image = backgroundUrl;
-          }
+          processedCV.content.ai_data.background_image = backgroundUrl;
         } else {
           console.log("🖼️ ℹ️ Ei taustakuvaa");
         }
 
-        // PROFIILIKUVA käsittely
-        if (data.content?.cv_data?.profileImage) {
-          let profileUrl = data.content.cv_data.profileImage;
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // PROFIILIKUVA KÄSITTELY
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let profileUrl = data.content?.cv_data?.profileImage || "";
 
+        if (profileUrl) {
           console.log("👤 Profiilikuva alkuperäinen:", profileUrl.substring(0, 100) + "...");
 
-          // ✅ TARKISTA: Onko jo base64?
-          if (profileUrl.startsWith("data:image")) {
-            console.log("👤 ✅ Profiilikuva on jo base64, käytetään sellaisenaan");
-            processedCV.content.cv_data.profileImage = profileUrl;
-          } 
-          // ✅ TARKISTA: Onko HTTP URL (ei Supabase path)?
-          else if (profileUrl.startsWith("http")) {
-            console.log("👤 🌐 Profiilikuva on HTTP URL");
-            
-            if (isPDFGeneration) {
-              console.log("👤 📄 PDF mode - muunnetaan base64:ksi");
-              profileUrl = await convertImageForPDF(profileUrl);
-            }
-            
-            processedCV.content.cv_data.profileImage = profileUrl;
+          // ✅ Käsittele getImageUrl-funktiolla
+          profileUrl = getImageUrl(profileUrl);
+
+          // ✅ PDF-mode: Muunna base64:ksi
+          if (isPDFGeneration && profileUrl && !profileUrl.startsWith("data:")) {
+            console.log("👤 📄 PDF mode - muunnetaan base64:ksi");
+            profileUrl = await convertImageForPDF(profileUrl);
           }
-          // ✅ Muuten oletetaan Supabase storage path
-          else {
-            console.log("👤 💾 Profiilikuva on Supabase storage path");
-            
-            if (isPDFGeneration) {
-              // PDF mode: Käytä julkista URL:ia ja muunna base64:ksi
-              const { data: publicUrlData } = supabase.storage
-                .from("cv_files")
-                .getPublicUrl(profileUrl);
 
-              if (publicUrlData?.publicUrl) {
-                console.log("👤 🔄 Muunnetaan Supabase kuva base64:ksi");
-                profileUrl = await convertImageForPDF(publicUrlData.publicUrl);
-              }
-            } else {
-              // Normal mode: Käytä signed URL:ia
-              try {
-                const { data: signedUrlData, error: urlError } =
-                  await supabase.storage.from("cv_files").createSignedUrl(
-                    profileUrl,
-                    7 * 24 * 60 * 60 // 7 päivää
-                  );
-
-                if (!urlError && signedUrlData?.signedUrl) {
-                  console.log("👤 ✍️ Signed URL luotu");
-                  profileUrl = signedUrlData.signedUrl;
-                } else {
-                  console.warn("⚠️ Signed URL epäonnistui:", urlError);
-                }
-              } catch (urlError) {
-                console.warn("⚠️ URL:n haku epäonnistui:", urlError);
-              }
-            }
-
-            processedCV.content.cv_data.profileImage = profileUrl;
-          }
+          processedCV.content.cv_data.profileImage = profileUrl;
         } else {
           console.log("👤 ℹ️ Ei profiilikuvaa");
         }
 
-        console.log("✅ CV prosessoitu onnistuneesti");
-        // Lisää tämä juuri ennen setCv(processedCV):
-console.log("🎨 FINAL CV DATA:", {
-  hasBackgroundImage: !!processedCV.content.ai_data.background_image,
-  backgroundImagePrefix: processedCV.content.ai_data.background_image?.substring(0, 100) || "N/A",
-  hasProfileImage: !!processedCV.content.cv_data.profileImage,
-  profileImagePrefix: processedCV.content.cv_data.profileImage?.substring(0, 100) || "N/A",
-});
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // LOPULLINEN TARKISTUS
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        console.log("🎨 FINAL CV DATA:", {
+          hasBackgroundImage: !!processedCV.content.ai_data.background_image,
+          backgroundImagePrefix: processedCV.content.ai_data.background_image?.substring(0, 100) || "N/A",
+          backgroundImageType: processedCV.content.ai_data.background_image?.startsWith('data:') ? 'Base64' : 'URL',
+          hasProfileImage: !!processedCV.content.cv_data.profileImage,
+          profileImagePrefix: processedCV.content.cv_data.profileImage?.substring(0, 100) || "N/A",
+          profileImageType: processedCV.content.cv_data.profileImage?.startsWith('data:') ? 'Base64' : 'URL',
+        });
 
+        console.log("✅ CV prosessoitu onnistuneesti");
         setCv(processedCV);
       } catch (error) {
         console.error("❌ Virhe CV:n latauksessa:", error);
