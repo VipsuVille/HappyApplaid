@@ -1,11 +1,13 @@
-// app/api/generate-cv/route.ts - KORJATTU VERSIO (CV SISÄLTÖ VALIDOINTI)
+// app/api/generate-cv/route.ts - KORJATTU: Kysymyslogiikka + Guardian
+
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateCVSafely } from "@/lib/langchain/cvGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
- import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
+import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
+import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
 import crypto from 'crypto';
 
 export const maxDuration = 60;
@@ -54,27 +56,35 @@ async function saveUserResponse(
   }
 }
 
-// ✅ UUSI: Validoi CV-sisältö ennen tallennusta
+// ✅ VALIDOI CV-SISÄLTÖ (varmista että ei ole tyhjä/virheellinen)
 function validateCVContent(result: any): { isValid: boolean; reason?: string } {
-  // Tarkista että HTML-sisältö ei ole tyhjä
   if (!result.html) {
     return { isValid: false, reason: 'HTML missing' };
   }
 
   const { skills_section, experience_section, education_section, languages_section } = result.html;
 
-  // Tarkista että ainakin yksi osio sisältää jotain
-  const hasContent = 
-    (skills_section && skills_section.length > 10) ||
-    (experience_section && experience_section.length > 10) ||
-    (education_section && education_section.length > 10) ||
-    (languages_section && languages_section.length > 10);
+  // Tarkista että sisältö ei ole "Error generating..."
+  const sections = [skills_section, experience_section, education_section, languages_section];
+  const hasErrors = sections.some(section => 
+    section && section.toLowerCase().includes('error generating')
+  );
 
-  if (!hasContent) {
-    return { isValid: false, reason: 'All sections empty' };
+  if (hasErrors) {
+    return { isValid: false, reason: 'Sections contain error messages' };
   }
 
-  // Tarkista että personal_description ei ole tyhjä
+  // Tarkista että ainakin yksi osio sisältää jotain
+  const hasContent = 
+    (skills_section && skills_section.length > 20) ||
+    (experience_section && experience_section.length > 20) ||
+    (education_section && education_section.length > 20) ||
+    (languages_section && languages_section.length > 20);
+
+  if (!hasContent) {
+    return { isValid: false, reason: 'All sections empty or too short' };
+  }
+
   if (!result.personal_description || result.personal_description.length < 20) {
     return { isValid: false, reason: 'Personal description too short' };
   }
@@ -82,9 +92,29 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
   return { isValid: true };
 }
 
+// ✅ PUHDISTA KUVA-URL
+function cleanImageForStorage(url: string | null | undefined): string | null {
+  if (!url) return null;
+  
+  // Jos on jo base64, palauta sellaisenaan
+  if (url.startsWith("data:image")) {
+    return url;
+  }
+  
+  // Jos sisältää "data:image" keskellä tekstiä, pura se ulos
+  const base64Match = url.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)/);
+  if (base64Match) {
+    console.log("🖼️ Puhdistettu kuva-URL");
+    return base64Match[1];
+  }
+  
+  // Muuten palauta HTTP-URL sellaisenaan
+  return url;
+}
+
 export async function POST(req: Request) {
   const startTime = Date.now();
-  console.log("🚀 CV Generation API (Safe Mode)");
+  console.log("🚀 CV Generation API (Safe Mode with Questions)");
 
   try {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -104,8 +134,8 @@ export async function POST(req: Request) {
       jobPosting,
       enableRAG = false,
       language = "finnish",
-      answeredQuestions,
-      skipQuestions,
+      answeredQuestions,  // ✅ KYSYMYSTEN VASTAUKSET
+      skipQuestions,       // ✅ OHITA KYSYMYKSET
     } = body;
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -236,6 +266,13 @@ export async function POST(req: Request) {
         failureLesson: profileData.failureLesson || profileData.failure_lesson || "",
 
         profileImage: profileData.profileImage || profileData.profile_image || undefined,
+        
+        jobPosting: jobPosting || undefined,
+        enableRAG: enableRAG,
+        
+        // ✅ VÄLITÄ KYSYMYSASETUKSET
+        skipQuestions: skipQuestions === true || (answeredQuestions && answeredQuestions.length > 0),
+        answeredQuestions: answeredQuestions || []
       };
     } else {
       console.log("📚 Loading from database");
@@ -255,33 +292,24 @@ export async function POST(req: Request) {
 
       input = transformDBToLangChain(data, cvType);
       input.userId = userId;
+      input.jobPosting = jobPosting;
+      input.enableRAG = enableRAG;
+      input.skipQuestions = skipQuestions === true || (answeredQuestions && answeredQuestions.length > 0);
+      input.answeredQuestions = answeredQuestions || [];
     }
 
     console.log(`✅ Profile loaded: ${input.name}`);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 7. KYSYTÄÄNKÖ (tai ohitetaanko)
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
-    const shouldSkipQuestions = skipQuestions === true || 
-      (answeredQuestions && answeredQuestions.length > 0);
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 8. GENEROI CV (SAFE MODE)
+    // 7. GENEROI CV (KYSYMYKSET TAI SISÄLTÖ)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     console.log(`🤖 Generating CV (safe mode)...`);
     
-    const result = await generateCVSafely({
-      ...input,
-      jobPosting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : undefined,
-      enableRAG: enableRAG,
-      skipQuestions: shouldSkipQuestions,
-      answeredQuestions: answeredQuestions || [],
-    });
+    const result = await generateCVSafely(input);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 9. JOS KYSYTTÄVÄÄ → PALAUTA KYSYMYKSET (EI TALLENNA!)
+    // 8. JOS KYSYTTÄVÄÄ → PALAUTA KYSYMYKSET (EI TALLENNA!)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     if (result.needsMoreInfo && result.questions && result.questions.length > 0) {
@@ -296,7 +324,7 @@ export async function POST(req: Request) {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 10. ✅ UUSI: VALIDOI SISÄLTÖ ENNEN TALLENNUSTA
+    // 9. ✅ VALIDOI SISÄLTÖ
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     const validation = validateCVContent(result);
@@ -324,7 +352,50 @@ export async function POST(req: Request) {
     console.log('✅ CV content validation passed');
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 11. TALLENNA VASTAUKSET (jos annettiin)
+    // 10. ✅ MASTER GUARDIAN CHECK
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
+    console.log('🛡️ Running Master Guardian...');
+    
+    const { data: userProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    const groundTruth = await extractGroundTruthAI(userProfile || {});
+    console.log(`✅ Ground Truth extracted`);
+    
+    // Yhdistä kaikki CV-tekstit Guardian-tarkistusta varten
+    const fullCVText = `
+      ${result.personal_description || ''}
+      ${result.html?.skills_section || ''}
+      ${result.html?.experience_section || ''}
+      ${result.html?.education_section || ''}
+      ${result.html?.languages_section || ''}
+    `.trim();
+    
+    const guardianCheck = await masterConsistencyCheckAI(
+      fullCVText,
+      groundTruth,
+      'generation'
+    );
+
+    if (guardianCheck.riskLevel === 'danger') {
+      console.error('🚨 GUARDIAN REJECTED CV');
+
+      return NextResponse.json({
+        error: 'CONSISTENCY_VIOLATION',
+        message: 'CV ei täytä laatuvaatimuksia - sisältö on epäjohdonmukaista',
+        violations: guardianCheck.violations,
+        recommendation: guardianCheck.recommendation
+      }, { status: 400 });
+    }
+
+    console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 11. TALLENNA VASTAUKSET
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     if (answeredQuestions && answeredQuestions.length > 0) {
@@ -340,52 +411,66 @@ export async function POST(req: Request) {
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 12. TALLENNA CV (OIKEA TAULURAKENNE)
+    // 12. ✅ PUHDISTA KUVAT ENNEN TALLENNUSTA
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    // Etsi tämä kohta route.ts tiedostostasi
-const { data: saved, error: saveError } = await supabaseAdmin
-  .from("cvs")
-  .insert({
-    user_id: userId,
-    title: `${input.name || "My"} CV - ${cvType}`,
+    const cleanProfileImage = cleanImageForStorage(input.profileImage);
+    const cleanBackgroundImage = cleanImageForStorage(result.background_image);
+
+    console.log("🖼️ Image URLs cleaned");
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // 13. TALLENNA CV
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
-    // ✅ KORJATTU RAKENNE: Käyttöliittymäsi lukee 'content' kentän sisältä 
-    // cv_data ja ai_data avaimet (BaseCV tyypin mukaan)
-    content: {
-    cv_data: {
-      ...input,
-      // Varmistetaan että nämä ovat mukana
-      personal_description: result.personal_description,
-    },
-    ai_data: {
-      ...result.html, // Tämä purkaa skills_section, experience_section jne.
-      personal_description: result.personal_description,
-      profile_initials: result.profile_initials,
-      fullTextContent: result.fullTextContent,
-      cvType: cvType,
-    }
-    },
-    
-    // Nämä ovat hyödyllisiä hakuja/listauksia varten (metadata)
-    background_image: result.background_image || "",
-    profile_image: input.profileImage || null,
-    profile_initials: result.profile_initials,
-    is_public: false,
-    is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
-    job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
-    
-    metadata: {
-      cv_type: cvType,
-      action: action,
-      tier: tier,
-      generation_time: Date.now() - startTime,
-      rag_enabled: enableRAG,
-      ground_truth_status: result.ground_truth_check?.approved ? "approved" : "rejected"
-    }
-  })
-  .select("id")
-  .single();
+    const { data: saved, error: saveError } = await supabaseAdmin
+      .from("cvs")
+      .insert({
+        user_id: userId,
+        title: `${input.name || "My"} CV - ${cvType}`,
+        
+        content: {
+          cv_data: {
+            ...input,
+            profileImage: cleanProfileImage,
+            backgroundImage: cleanBackgroundImage,
+            personal_description: result.personal_description,
+          },
+          ai_data: {
+            ...result.html,
+            personal_description: result.personal_description,
+            profile_initials: result.profile_initials,
+            fullTextContent: result.fullTextContent,
+            cvType: cvType,
+            background_image: cleanBackgroundImage,
+          }
+        },
+        
+        background_image: cleanBackgroundImage || "",
+        profile_image: cleanProfileImage || null,
+        profile_initials: result.profile_initials,
+        is_public: false,
+        is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
+        job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
+        
+        metadata: {
+          cv_type: cvType,
+          action: action,
+          tier: tier,
+          generation_time: Date.now() - startTime,
+          rag_enabled: enableRAG,
+          ground_truth_status: guardianCheck.approved ? "approved" : "rejected",
+          guardian_check: {
+            approved: guardianCheck.approved,
+            riskLevel: guardianCheck.riskLevel,
+            violations: guardianCheck.violations,
+            timestamp: new Date().toISOString()
+          }
+        }
+      })
+      .select("id")
+      .single();
+
     if (saveError || !saved) {
       console.error("❌ Save failed:", saveError);
       return NextResponse.json(
@@ -397,7 +482,7 @@ const { data: saved, error: saveError } = await supabaseAdmin
     console.log(`✅ CV saved: ${saved.id}`);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 13. KULUTA TOKENIT
+    // 14. KULUTA TOKENIT
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     if (tier === "free") {
@@ -419,46 +504,35 @@ const { data: saved, error: saveError } = await supabaseAdmin
     console.log(`🎉 Complete in ${totalTime}ms`);
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // 14. PALAUTA SUCCESS
+    // 15. PALAUTA SUCCESS
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     return NextResponse.json({
       success: true,
-      id: saved.id,
       cvId: saved.id,
+      id: saved.id,
+      message: "CV generated successfully",
       tokensUsed: required,
       tokensRemaining: tier !== "free" ? currentTokens - required : 0,
       generationTime: totalTime,
+      guardianCheck: {
+        approved: guardianCheck.approved,
+        riskLevel: guardianCheck.riskLevel,
+        hasWarnings: guardianCheck.riskLevel === 'warning'
+      },
       features: {
         ats: action === "cv_ats_addon" || action === "cv_rag_addon",
         personality: true,
         rag: enableRAG,
         ground_truth_verified: true
-      },
-      guardianCheck: result.ground_truth_check,
-      // ✅ Debug info
-      contentValidation: {
-        personalDescriptionLength: result.personal_description?.length || 0,
-        sectionsGenerated: {
-          skills: (result.html?.skills_section?.length || 0) > 10,
-          experience: (result.html?.experience_section?.length || 0) > 10,
-          education: (result.html?.education_section?.length || 0) > 10,
-          languages: (result.html?.languages_section?.length || 0) > 10
-        }
       }
     });
 
   } catch (error) {
     console.error("❌ Unexpected error:", error);
-    
-    if (error instanceof Error) {
-      console.error("Error stack:", error.stack);
-      console.error("Error message:", error.message);
-    }
-    
     return NextResponse.json(
       { 
-        error: "INTERNAL_SERVER_ERROR",
+        error: "GENERATION_FAILED",
         message: error instanceof Error ? error.message : "Unknown error"
       },
       { status: 500 }
