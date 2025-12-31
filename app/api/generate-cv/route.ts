@@ -305,6 +305,7 @@ export async function POST(req: Request) {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
     console.log(`🤖 Generating CV (safe mode)...`);
+    console.log(`   - skipQuestions: ${input.skipQuestions}`);
     
     const result = await generateCVSafely(input);
 
