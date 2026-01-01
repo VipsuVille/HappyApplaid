@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - COMPLETE FIXED VERSION
+// app/api/generate-cv/route.ts - COMPLETE FINAL VERSION
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -60,7 +60,9 @@ async function saveUserResponse(
   }
 }
 
-// ✅ KORJATTU: A4-pituuden validointi lisätty
+/**
+ * Validoi CV:n sisällön laadun ja A4-pituuden
+ */
 function validateCVContent(result: any): { isValid: boolean; reason?: string } {
   if (!result.html) {
     return { isValid: false, reason: 'HTML missing' };
@@ -94,7 +96,7 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
     return { isValid: false, reason: 'Personal description too short' };
   }
 
-  // ✅ UUSI: TARKISTA A4-PITUUS (arvio)
+  // ✅ TARKISTA A4-PITUUS (arvio)
   const totalChars = 
     (result.personal_description?.length || 0) +
     (skills_section?.length || 0) +
@@ -102,40 +104,54 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
     (education_section?.length || 0) +
     (languages_section?.length || 0);
 
-  // ✅ A4-estimaatti: ~3500 merkkiä = 1 sivu (riippuu fontista)
+  // A4-estimaatti: ~3500 merkkiä = 1 sivu
   if (totalChars > 4500) {
     console.warn(`⚠️ CV might be too long: ${totalChars} chars (recommended max ~3500)`);
-    // ÄLÄ hylkää, vain varoita
   }
 
   return { isValid: true };
 }
 
-// ✅ KORJATTU: Tukee KAIKKIA kuvamuotoja
+/**
+ * Puhdista ja validoi kuva-URL
+ * Tukee: Base64, HTTP URL, Supabase path
+ */
 function cleanImageForStorage(url: string | null | undefined): string | null {
-  if (!url) return null;
-  
-  // ✅ Jos Supabase URL, palauta sellaisenaan
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    console.log("🖼️ Image is HTTP/HTTPS URL");
-    return url;
+  if (!url || url.trim() === '') {
+    return null;
   }
   
-  // ✅ Jos Base64, palauta sellaisenaan
-  if (url.startsWith("data:image")) {
-    console.log("🖼️ Image is Base64");
-    return url;
+  const trimmed = url.trim();
+  
+  // ✅ 1. HTTP/HTTPS URL → Palauta sellaisenaan
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    console.log("🖼️ Image is HTTP URL:", trimmed.substring(0, 80));
+    return trimmed;
   }
   
-  // Jos jotain muuta, yritä etsiä Base64
-  const base64Match = url.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)/);
+  // ✅ 2. BASE64 DATA URI → Validoi ja palauta
+  if (trimmed.startsWith("data:image")) {
+    // Tarkista että Base64 on validi
+    const parts = trimmed.split(',');
+    if (parts.length === 2 && parts[1].length > 100) {
+      console.log("🖼️ Valid Base64 image (length:", trimmed.length, ")");
+      return trimmed;
+    } else {
+      console.warn("⚠️ Invalid Base64 format");
+      return null;
+    }
+  }
+  
+  // ✅ 3. Yritä etsiä Base64 stringistä
+  const base64Match = trimmed.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]{100,})/);
   if (base64Match) {
-    console.log("🖼️ Extracted Base64 from string");
+    console.log("🖼️ Extracted Base64 from dirty string");
     return base64Match[1];
   }
   
-  console.log("🖼️ Image format unknown, returning as-is");
-  return url;
+  // ❌ 4. Tuntematon muoto
+  console.warn("⚠️ Unknown image format:", trimmed.substring(0, 100));
+  return null;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -147,11 +163,19 @@ export async function POST(req: Request) {
   console.log("🚀 CV Generation API (Safe Mode with Questions)");
 
   try {
+    // ════════════════════════════════════════════════════════════════
+    // AUTHENTICATION
+    // ════════════════════════════════════════════════════════════════
+    
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // PARSE REQUEST
+    // ════════════════════════════════════════════════════════════════
+    
     const body = await req.json();
     const {
       profileData,
@@ -164,7 +188,7 @@ export async function POST(req: Request) {
       skipQuestions,
     } = body;
 
-    // ✅ KORJAUS: OIKEA skipQuestions logiikka
+    // ✅ KORJAUS: Oikea skipQuestions logiikka
     const shouldSkipQuestions = skipQuestions === true || 
       (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0);
 
@@ -182,7 +206,7 @@ export async function POST(req: Request) {
         ? "cv_ats_addon" 
         : "cv_basic";
 
-    console.log(`🔍 Request: ${action}, type: ${cvType}`);
+    console.log(`🔍 Action: ${action}, Type: ${cvType}`);
 
     // ════════════════════════════════════════════════════════════════
     // TOKEN VALIDATION
@@ -199,8 +223,9 @@ export async function POST(req: Request) {
     const isActive = subscription?.is_active === true && 
       ["active", "trialing"].includes(subscription?.status || "");
 
-    console.log(`💳 Subscription: ${tier}, tokens: ${currentTokens}, active: ${isActive}`);
+    console.log(`💳 Subscription: ${tier}, Tokens: ${currentTokens}, Active: ${isActive}`);
 
+    // Free tier check
     if (tier === "free") {
       const { data: freeUsage } = await supabaseAdmin
         .from("free_usage")
@@ -216,6 +241,7 @@ export async function POST(req: Request) {
       }
     }
 
+    // Token balance check
     let required = 0;
     if (tier !== "free") {
       required = ACTION_COSTS[tier]?.[action] ?? 0;
@@ -232,7 +258,7 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log(`✅ Token check passed (${required} tokens)`);
+    console.log(`✅ Token check passed (${required} tokens required)`);
 
     // ════════════════════════════════════════════════════════════════
     // PREPARE INPUT
@@ -300,7 +326,7 @@ export async function POST(req: Request) {
         answeredQuestions: answeredQuestions || []
       };
     } else {
-      console.log("📚 Loading from database");
+      console.log("📚 Loading profile from database");
       
       const { data } = await supabaseAdmin
         .from("user_profiles")
@@ -350,14 +376,13 @@ export async function POST(req: Request) {
     const validation = validateCVContent(result);
     
     if (!validation.isValid) {
-      console.error(`❌ CV content validation failed: ${validation.reason}`);
-      
-      // ✅ DEBUG INFO
-      console.error('❌ CV sections state:');
-      console.error('   - Skills:', result.html?.skills_section?.substring(0, 50));
-      console.error('   - Experience:', result.html?.experience_section?.substring(0, 50));
-      console.error('   - Education:', result.html?.education_section?.substring(0, 50));
-      console.error('   - Languages:', result.html?.languages_section?.substring(0, 50));
+      console.error(`❌ CV validation failed: ${validation.reason}`);
+      console.error('   Sections state:', {
+        skills: result.html?.skills_section?.length || 0,
+        experience: result.html?.experience_section?.length || 0,
+        education: result.html?.education_section?.length || 0,
+        languages: result.html?.languages_section?.length || 0
+      });
       
       return NextResponse.json({
         error: "CV_GENERATION_INCOMPLETE",
@@ -391,7 +416,7 @@ export async function POST(req: Request) {
       .single();
 
     const groundTruth = await extractGroundTruthAI(userProfile || {});
-    console.log(`✅ Ground Truth extracted`);
+    console.log(`✅ Ground Truth extracted: ${groundTruth.technicalSkills.length} skills`);
     
     const fullCVText = `
       ${result.personal_description || ''}
@@ -407,16 +432,15 @@ export async function POST(req: Request) {
       'generation'
     );
 
-    // ✅ ÄLÄ hylkää automaattisesti, VAIN VAROITA
+    // ✅ Varoita mutta älä hylkää
     if (guardianCheck.riskLevel === 'danger') {
       console.warn('🚨 GUARDIAN WARNING (not blocking):', guardianCheck.recommendation);
-      console.warn('⚠️ Continuing despite Guardian warning');
     }
 
-    console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
+    console.log(`✅ Guardian check: ${guardianCheck.riskLevel}`);
 
     // ════════════════════════════════════════════════════════════════
-    // SAVE ANSWERS
+    // SAVE ANSWERED QUESTIONS
     // ════════════════════════════════════════════════════════════════
 
     if (answeredQuestions && answeredQuestions.length > 0) {
@@ -432,18 +456,18 @@ export async function POST(req: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // CLEAN IMAGES
+    // CLEAN AND VALIDATE IMAGES
     // ════════════════════════════════════════════════════════════════
 
     const cleanProfileImage = cleanImageForStorage(input.profileImage);
     const cleanBackgroundImage = cleanImageForStorage(result.background_image);
 
     console.log("🖼️ Images after cleaning:");
-    console.log("   - Profile:", cleanProfileImage ? "✅" : "❌");
-    console.log("   - Background:", cleanBackgroundImage ? "✅" : "❌");
+    console.log("   - Profile:", cleanProfileImage ? `✅ (${cleanProfileImage.substring(0, 30)}...)` : "❌");
+    console.log("   - Background:", cleanBackgroundImage ? `✅ (${cleanBackgroundImage.substring(0, 30)}...)` : "❌");
 
     // ════════════════════════════════════════════════════════════════
-    // SAVE CV
+    // SAVE CV TO DATABASE
     // ════════════════════════════════════════════════════════════════
 
     const { data: saved, error: saveError } = await supabaseAdmin
@@ -480,10 +504,11 @@ export async function POST(req: Request) {
             fullTextContent: result.fullTextContent,
             cvType: cvType,
             background_image: cleanBackgroundImage,
+            profile_image: cleanProfileImage,
           }
         },
         
-        // ✅ TÄRKEÄ: Tallenna MYÖS root-tasolle (templatea varten)
+        // ✅ TALLENNA MYÖS ROOT-TASOLLE (backward compatibility)
         background_image: cleanBackgroundImage || "",
         profile_image: cleanProfileImage || null,
         profile_initials: result.profile_initials,
@@ -503,6 +528,12 @@ export async function POST(req: Request) {
             riskLevel: guardianCheck.riskLevel,
             violations: guardianCheck.violations,
             timestamp: new Date().toISOString()
+          },
+          images_saved: {
+            profile: !!cleanProfileImage,
+            background: !!cleanBackgroundImage,
+            profile_type: cleanProfileImage?.startsWith('data:') ? 'base64' : 'url',
+            background_type: cleanBackgroundImage?.startsWith('data:') ? 'base64' : 'url'
           }
         }
       })
@@ -528,6 +559,7 @@ export async function POST(req: Request) {
         user_id: userId,
         used_free_cv: true,
       });
+      console.log('✅ Free CV marked as used');
     } else if (isActive && required > 0) {
       await supabaseAdmin
         .from("subscriptions")
@@ -536,10 +568,11 @@ export async function POST(req: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
+      console.log(`✅ Consumed ${required} tokens (${currentTokens - required} remaining)`);
     }
 
     const totalTime = Date.now() - startTime;
-    console.log(`🎉 Complete in ${totalTime}ms`);
+    console.log(`🎉 CV generation complete in ${totalTime}ms`);
 
     // ════════════════════════════════════════════════════════════════
     // RETURN SUCCESS
@@ -567,7 +600,7 @@ export async function POST(req: Request) {
     });
 
   } catch (error) {
-    console.error("❌ Unexpected error:", error);
+    console.error("❌ Unexpected error in CV generation:", error);
     return NextResponse.json(
       { 
         error: "GENERATION_FAILED",

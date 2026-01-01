@@ -17,99 +17,162 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
   isEditing,
   onContentChange,
 }) => {
-  // ✅ YKSINKERTAINEN: Älä muokkaa kuvia, ne tulevat jo valmiina CVPreviewPagesta
-  // TypeScript-turvallisuus: Varmista että arvot ovat stringejä
-  const profileImg = (data?.photo || data?.profileImage || "") as string;
-  const bgImg = (data?.backgroundImage || aiData?.background_image || "") as string;
+  
+  // ════════════════════════════════════════════════════════════════
+  // IMAGE HANDLING: 5 SOURCES (priority order)
+  // ════════════════════════════════════════════════════════════════
+  
+  /**
+   * Get profile image from multiple sources
+   * Priority: data.profileImage > data.photo > aiData.profile_image > aiData.html.profile_image
+   */
+  const getProfileImage = (): string | null => {
+    const sources = [
+      data?.profileImage,
+      data?.photo,
+      aiData?.profile_image,
+    ];
+    
+    for (const src of sources) {
+      if (!src) continue;
+      
+      const srcStr = String(src).trim();
+      
+      // ✅ Valid Base64
+      if (srcStr.startsWith('data:image')) {
+        console.log('✅ Profile: Base64 found');
+        return srcStr;
+      }
+      
+      // ✅ Valid HTTP URL
+      if (srcStr.startsWith('http://') || srcStr.startsWith('https://')) {
+        console.log('✅ Profile: HTTP URL found');
+        return srcStr;
+      }
+    }
+    
+    console.warn('⚠️ No valid profile image found');
+    return null;
+  };
+  
+  /**
+   * Get background image from multiple sources
+   * Priority: data.backgroundImage > aiData.background_image > aiData.background_image_url > aiData.html.background_image
+   */
+  const getBackgroundImage = (): string | null => {
+    const sources = [
+      data?.backgroundImage,
+      aiData?.background_image,
+      aiData?.background_image_url,
+    ];
+    
+    for (const src of sources) {
+      if (!src) continue;
+      
+      const srcStr = String(src).trim();
+      
+      // ✅ Valid Base64
+      if (srcStr.startsWith('data:image')) {
+        console.log('✅ Background: Base64 found');
+        return srcStr;
+      }
+      
+      // ✅ Valid HTTP URL
+      if (srcStr.startsWith('http://') || srcStr.startsWith('https://')) {
+        console.log('✅ Background: HTTP URL found');
+        return srcStr;
+      }
+    }
+    
+    console.warn('⚠️ No valid background image found');
+    return null;
+  };
+
+  const profileImg = getProfileImage();
+  const bgImage = getBackgroundImage();
 
   const name = data?.name || "Nimi";
   const title = data?.title || "Ammattinimike";
-const getBackgroundImage = () => {
-  // ✅ 1. Tarkista ai_data.background_image (uusi)
-  const bg = aiData?.background_image || aiData?.background_image_url;
-  
-  // ✅ 2. Tarkista data.backgroundImage (vanha)
-  const dataBg = data?.backgroundImage;
-  
-  // ✅ 3. Palauta ensimmäinen validi URL
-  const finalBg = bg || dataBg;
-  
-  if (finalBg && (finalBg.startsWith('http') || finalBg.startsWith('data:'))) {
-    return finalBg;
-  }
-  
-  return null;
-};
 
-const bgImage = getBackgroundImage();
-  // ✅ AI-SISÄLLÖN VARMISTUS: Piilota virheviestit ja tyhjät kentät
- const getAIContent = (field: keyof AIData): string => {
-  // ✅ YRI ENSIN: Suoraan juuresta (uusi muoto)
-  let content = aiData?.[field];
+  // ════════════════════════════════════════════════════════════════
+  // AI CONTENT HANDLING: 2 FORMATS (html.X or X)
+  // ════════════════════════════════════════════════════════════════
   
-  // ✅ JOS EI LÖYDY: Kokeile html-objektista (vanha muoto)
-  if (!content && aiData?.html) {
-    content = aiData.html[field as keyof typeof aiData.html];
-  }
+  /**
+   * Get AI-generated content from either format
+   * Priority: aiData.field > aiData.html.field
+   */
+  const getAIContent = (field: keyof AIData): string => {
+    // TRY: Direct access (new format)
+    let content = aiData?.[field];
     
-  if (typeof content === "string" && content.trim()) {
-    // ❌ Piilota virheviestit
-    if (content.toLowerCase().includes("error generating")) {
-      console.warn(`⚠️ Virheviesti kentässä '${field}', piilotetaan`);
-      return "";
+    // FALLBACK: html object (old format)
+    if (!content && aiData?.html) {
+      content = aiData.html[field as keyof typeof aiData.html];
     }
     
-    // ❌ Piilota liian lyhyet tekstit (alle 20 merkkiä)
-    if (content.trim().length < 20) {
-      console.warn(`⚠️ Liian lyhyt sisältö kentässä '${field}'`);
-      return "";
+    if (typeof content === "string" && content.trim()) {
+      // ❌ Hide error messages
+      if (content.toLowerCase().includes("error generating")) {
+        console.warn(`⚠️ Error message in '${field}', hiding`);
+        return "";
+      }
+      
+      // ❌ Hide too short content (< 20 chars)
+      if (content.trim().length < 20) {
+        console.warn(`⚠️ Content too short in '${field}'`);
+        return "";
+      }
+      
+      return content;
     }
     
-    return content;
-  }
-  
-  return "";
-};
+    return "";
+  };
+
   return (
     <div
       className="cv-paper bg-white mx-auto relative overflow-hidden shadow-2xl"
       style={{
         width: "210mm",
         minHeight: "297mm",
+        maxHeight: "297mm",
         fontFamily: "'Inter', 'Helvetica', sans-serif",
         color: "#1a202c",
       }}
     >
-      {/* 1. HEADER & TAUSTAKUVA */}
-     <div
-  className="relative bg-indigo-900"
-  style={{
-    height: "70mm",
-    backgroundImage: bgImage ? `url(${bgImage})` : undefined,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-  }}
->
-        {bgImg ? (
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 1. HEADER & BACKGROUND IMAGE */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      <div className="relative bg-indigo-900" style={{ height: "70mm" }}>
+        {/* BACKGROUND IMAGE */}
+        {bgImage ? (
           <img 
-            src={bgImg} 
+            src={bgImage} 
             className="absolute inset-0 w-full h-full object-cover" 
             alt=""
-            crossOrigin="anonymous"
             onError={(e) => {
-              console.error("❌ Taustakuva ei lataudu:", bgImg.substring(0, 100));
+              console.error("❌ Background image failed to load:", bgImage.substring(0, 100));
               e.currentTarget.style.display = 'none';
+            }}
+            onLoad={() => {
+              console.log("✅ Background image loaded successfully");
             }}
           />
         ) : (
           <div 
             className="absolute inset-0" 
-            style={{ backgroundImage: "linear-gradient(135deg, #1e40af, #7e22ce)" }} 
+            style={{ 
+              background: "linear-gradient(135deg, #1e40af 0%, #7e22ce 100%)" 
+            }} 
           />
         )}
         
+        {/* OVERLAY */}
         <div className="absolute inset-0 bg-black/20" />
 
+        {/* NAME AND TITLE */}
         <div className="absolute bottom-10 left-12 text-white z-10">
           {isEditing ? (
             <div className="flex flex-col gap-2">
@@ -138,7 +201,7 @@ const bgImage = getBackgroundImage();
           )}
         </div>
 
-        {/* PROFIILIKUVA */}
+        {/* PROFILE IMAGE */}
         <div 
           className="absolute -bottom-10 right-12 z-20 w-[50mm] h-[50mm] rounded-full border-[6px] border-white overflow-hidden shadow-xl bg-gray-100"
         >
@@ -147,21 +210,26 @@ const bgImage = getBackgroundImage();
               src={profileImg} 
               className="w-full h-full object-cover" 
               alt="Profiili"
-              crossOrigin="anonymous"
               onError={(e) => {
-                console.error("❌ Profiilikuva ei lataudu:", typeof profileImg === 'string' ? profileImg.substring(0, 100) : profileImg);
+                console.error("❌ Profile image failed to load:", profileImg.substring(0, 100));
                 e.currentTarget.style.display = 'none';
+              }}
+              onLoad={() => {
+                console.log("✅ Profile image loaded successfully");
               }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-300 text-4xl font-bold">
-              {name.substring(0,1)}
+            <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl font-bold bg-gray-200">
+              {name.substring(0, 2).toUpperCase()}
             </div>
           )}
         </div>
       </div>
 
-      {/* 2. YHTEYSTIEDOT */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 2. CONTACT INFORMATION BAR */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
       <div className="bg-[#1a202c] text-white py-4 px-12 mt-0 flex items-center gap-8 text-sm">
         <div className="flex items-center gap-2">
           <span className="opacity-60 text-xs uppercase">Puh:</span>
@@ -177,11 +245,14 @@ const bgImage = getBackgroundImage();
         </div>
       </div>
 
-      {/* 3. SISÄLTÖALUE */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* 3. CONTENT AREA */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
       <div className="px-12 py-16 grid grid-cols-12 gap-12">
         <div className="col-span-12 flex flex-col gap-10">
           
-          {/* PROFIILI - Näytetään aina jos on sisältöä */}
+          {/* PROFILE DESCRIPTION */}
           {getAIContent("personal_description") && (
             <section>
               <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">
@@ -203,61 +274,64 @@ const bgImage = getBackgroundImage();
           )}
 
           <div className="grid grid-cols-1 gap-12">
-        {getAIContent("experience_section") && (
-  <section>
-    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-      Työkokemus
-    </h2>
-    <div 
-      className="prose prose-sm max-w-none text-gray-800"
-      dangerouslySetInnerHTML={{ __html: getAIContent("experience_section") }}
-    />
-  </section>
-)}
+            
+            {/* WORK EXPERIENCE */}
+            {getAIContent("experience_section") && (
+              <section>
+                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+                  Työkokemus
+                </h2>
+                <div 
+                  className="prose prose-sm max-w-none text-gray-800"
+                  dangerouslySetInnerHTML={{ __html: getAIContent("experience_section") }}
+                />
+              </section>
+            )}
 
             <div className="grid grid-cols-2 gap-12">
-              {/* KOULUTUS */}
-          {getAIContent("education_section") && (
-  <section>
-    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-      Koulutus
-    </h2>
-    <div 
-      className="prose prose-sm max-w-none text-gray-800"
-      dangerouslySetInnerHTML={{ __html: getAIContent("education_section") }}
-    />
-  </section>
-)}
+              
+              {/* EDUCATION */}
+              {getAIContent("education_section") && (
+                <section>
+                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+                    Koulutus
+                  </h2>
+                  <div 
+                    className="prose prose-sm max-w-none text-gray-800"
+                    dangerouslySetInnerHTML={{ __html: getAIContent("education_section") }}
+                  />
+                </section>
+              )}
 
-              {/* OSAAMINEN */}
-{getAIContent("skills_section") && (
-  <section>
-    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-      Osaaminen
-    </h2>
-    <div 
-      className="prose prose-sm max-w-none text-gray-800"
-      dangerouslySetInnerHTML={{ __html: getAIContent("skills_section") }}
-    />
-  </section>
-)}
+              {/* SKILLS */}
+              {getAIContent("skills_section") && (
+                <section>
+                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+                    Osaaminen
+                  </h2>
+                  <div 
+                    className="prose prose-sm max-w-none text-gray-800"
+                    dangerouslySetInnerHTML={{ __html: getAIContent("skills_section") }}
+                  />
+                </section>
+              )}
             </div>
 
-            {/* KIELET */}
-{getAIContent("languages_section") && (
-  <section>
-    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-      Kielet
-    </h2>
-    <div 
-      className="prose prose-sm max-w-none text-gray-800"
-      dangerouslySetInnerHTML={{ __html: getAIContent("languages_section") }}
-    />
-  </section>
-)}
+            {/* LANGUAGES */}
+            {getAIContent("languages_section") && (
+              <section>
+                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+                  Kielet
+                </h2>
+                <div 
+                  className="prose prose-sm max-w-none text-gray-800"
+                  dangerouslySetInnerHTML={{ __html: getAIContent("languages_section") }}
+                />
+              </section>
+            )}
           </div>
 
-          {/* ALLEKIRJOITUS */}
+          {/* SIGNATURE */}
           <div className="mt-8 border-t pt-8">
             <p className="text-4xl text-blue-700 opacity-80" style={{ fontFamily: "'Brush Script MT', cursive" }}>
               {name}
