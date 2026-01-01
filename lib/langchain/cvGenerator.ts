@@ -21,6 +21,7 @@ import {
 
 import { buildAIContext } from "@/lib/knowledge";
 import { analyzeCVData, mergeCVAnswers } from "@/lib/langchain/cvQuestionAnalyzer";
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 
 // ════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -470,6 +471,8 @@ export async function generateEnhancedBackgroundImage(
 // CV PROMPTS
 // ════════════════════════════════════════════════════════════════
 
+// lib/langchain/cvGenerator.ts - SIMPLE CV PROMPT (A4-OPTIMIZED)
+
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating FIRST-PERSON CVs for ALL backgrounds.
 
@@ -479,31 +482,95 @@ const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
 VERIFIED SKILLS: {verifiedSkills}
 FORBIDDEN CLAIMS: {forbiddenClaims}
 
+# ═══════════════════════════════════════════════════════════════
+# CRITICAL: A4 PAGE CONSTRAINT (MUST FIT ONE PAGE)
+# ═══════════════════════════════════════════════════════════════
+
+**MANDATORY LENGTH LIMITS:**
+
+1. **Personal Description:** MAX 100 words (450 characters)
+   - 2-3 sentences ONLY
+   - Focus: Core value + key strength
+   - Example: "I am a [role] with [X] experience in [field]. Known for [strength], I excel at [skill]. Seeking to [goal]."
+
+2. **Skills Section:** MAX 6 skills
+   - Format: "• Skill name"
+   - NO descriptions, NO proficiency bars
+   - 1 line per skill
+   - Example:
+     • React & TypeScript
+     • Project Management
+     • Data Analysis
+
+3. **Experience Section:** MAX 2 positions
+   - Each position: Title, Company, Duration (1 line)
+   - MAX 2 bullet points per position
+   - Each bullet: 1 line, max 70 characters
+   - Example:
+     Software Developer, Tech Corp (2020-2023)
+     • Built 3 web applications serving 10k+ users
+     • Improved page load time by 40%
+
+4. **Education Section:** MAX 2 entries
+   - Format: Degree, School, Year
+   - 1 line per entry, NO descriptions
+   - Example:
+     • B.Sc. Computer Science, Helsinki University, 2020
+
+5. **Languages Section:** MAX 3 languages
+   - Format: "Language: Level"
+   - Example:
+     • Finnish: Native
+     • English: Fluent
+     • Swedish: Intermediate
+
+**TOTAL CV LENGTH:** MAX 2800 characters (incl. HTML tags)
+
+**WHY THIS MATTERS:**
+- CVs must fit ONE A4 page when printed
+- Recruiters spend 6 seconds scanning CVs
+- Concise = Professional = Readable
+
+# ═══════════════════════════════════════════════════════════════
+
 # RULES
-✅ Write in first person ("I am...")
-✅ Use ONLY verified skills
-✅ Focus on personality and potential for Simple CV
-✅ If limited experience, emphasize learning
-❌ NEVER invent skills
+✅ Write in first person ("I am...", "I have...")
+✅ Use ONLY verified skills from {verifiedSkills}
+✅ Focus on personality and potential
+✅ If limited experience, emphasize learning + attitude
+✅ Keep it SHORT and IMPACTFUL
+❌ NEVER invent skills not in {verifiedSkills}
+❌ NEVER exceed length limits above
+❌ NEVER use placeholder text like [Your details here]
 
 LANGUAGE: {language}
+TONE: Professional but personable
 
 {format_instructions}`],
 
-  ["human", `Create Simple CV (personality-focused).
+  ["human", `Create Simple CV (personality-focused, A4-optimized).
 
+**CANDIDATE:**
 Name: {name}
 Skills: {verifiedSkills}
 Experience: {workExperience}
 Education: {education}
 
-PERSONALITY:
+**PERSONALITY:**
 Working Style: {workingStyle}
 Problem Solving: {problemSolving}
 Unique Strength: {uniqueStrength}
 
-Write in {language}. Return JSON.`]
+**CRITICAL INSTRUCTIONS:**
+1. Keep personal description under 100 words
+2. Max 6 skills, max 2 jobs, max 2 education entries
+3. MUST fit ONE A4 page (2800 chars total)
+4. Write in {language}
+
+Return JSON with cv_content sections. Be concise!`]
 ]);
+
+// lib/langchain/cvGenerator.ts - TECHNICAL CV PROMPT (A4-OPTIMIZED)
 
 const atsOptimizedTechnicalPrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating TECHNICAL CVs.
@@ -514,27 +581,82 @@ const atsOptimizedTechnicalPrompt = ChatPromptTemplate.fromMessages([
 VERIFIED SKILLS: {verifiedSkills}
 FORBIDDEN CLAIMS: {forbiddenClaims}
 
+# ═══════════════════════════════════════════════════════════════
+# CRITICAL: A4 PAGE CONSTRAINT (TECHNICAL VERSION)
+# ═══════════════════════════════════════════════════════════════
+
+**MANDATORY LENGTH LIMITS (Technical CVs get slightly more space):**
+
+1. **Personal Description:** MAX 120 words (500 characters)
+   - 3 sentences: Role + Technical Focus + Achievement
+   - Example: "Software engineer with 3 years in full-stack development. Specialized in React, Node.js, and cloud architecture. Built scalable systems serving 100k+ users."
+
+2. **Skills Section:** MAX 10 technical skills
+   - Format: "• Technology/Framework"
+   - Group by category if needed
+   - Example:
+     Frontend: React, TypeScript, Next.js
+     Backend: Node.js, PostgreSQL, REST APIs
+     Tools: Git, Docker, AWS
+
+3. **Experience Section:** MAX 3 positions
+   - Each position: Title, Company, Duration (1 line)
+   - MAX 3 bullet points per position
+   - Each bullet: Include metrics/numbers
+   - Example:
+     Senior Developer, TechCorp (2021-2024)
+     • Led migration to microservices (reduced latency 60%)
+     • Built CI/CD pipeline (deploy time: 2h → 15min)
+     • Mentored 3 junior developers
+
+4. **Education Section:** MAX 2 entries
+   - Include relevant coursework if space allows
+   - Example:
+     • M.Sc. Computer Science, Aalto, 2020
+       Focus: Machine Learning, Algorithms
+
+5. **Languages Section:** MAX 3 languages
+   - Format: "Language: Level"
+
+**TOTAL CV LENGTH:** MAX 3500 characters
+
+# ═══════════════════════════════════════════════════════════════
+
 # RULES FOR TECHNICAL CV
-✅ Focus on technical skills and projects
-✅ Emphasize measurable achievements
-✅ Include specific technologies
-✅ Use industry-standard terminology
+✅ Focus on technical skills and measurable achievements
+✅ Include specific technologies from {verifiedSkills}
+✅ Use numbers/metrics wherever possible
+✅ Emphasize technical problem-solving
+✅ Mention frameworks, tools, methodologies
 ❌ NEVER fabricate technical experience
+❌ NEVER claim skills not in {verifiedSkills}
+❌ NEVER exceed length limits
 
 LANGUAGE: {language}
+TONE: Technical but clear
 
 {format_instructions}`],
 
-  ["human", `Create Technical CV.
+  ["human", `Create Technical CV (A4-optimized).
 
+**CANDIDATE:**
 Name: {name}
 Skills: {verifiedSkills}
 Experience: {workExperience}
 Education: {education}
 Best Project: {bestProjectExample}
 
-Write in {language}. Return JSON.`]
+**CRITICAL:**
+- Max 120 words for description
+- Max 10 technical skills
+- Max 3 jobs with metrics
+- MUST fit ONE A4 page (3500 chars)
+- Language: {language}
+
+Return JSON. Be technical but concise!`]
 ]);
+
+// lib/langchain/cvGenerator.ts - CREATIVE CV PROMPT (A4-OPTIMIZED)
 
 const atsOptimizedCreativePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are a CV writer creating CREATIVE CVs.
@@ -545,25 +667,83 @@ const atsOptimizedCreativePrompt = ChatPromptTemplate.fromMessages([
 VERIFIED SKILLS: {verifiedSkills}
 FORBIDDEN CLAIMS: {forbiddenClaims}
 
+# ═══════════════════════════════════════════════════════════════
+# CRITICAL: A4 PAGE CONSTRAINT (CREATIVE VERSION)
+# ═══════════════════════════════════════════════════════════════
+
+**MANDATORY LENGTH LIMITS (Creative CVs get expressive space):**
+
+1. **Personal Description:** MAX 140 words (600 characters)
+   - 3-4 sentences: Creative identity + Approach + Impact
+   - More personality, still professional
+   - Example: "Creative designer with a passion for user-centered experiences. I blend aesthetics with functionality to craft interfaces that delight and perform. Known for transforming complex problems into elegant solutions."
+
+2. **Skills Section:** MAX 8 creative competencies
+   - Mix: Tools + Soft Skills + Methods
+   - Format: "• Competency"
+   - Example:
+     • UI/UX Design (Figma, Adobe XD)
+     • Visual Storytelling
+     • User Research & Testing
+     • Design Systems
+
+3. **Experience Section:** MAX 3 projects/positions
+   - Each: Title, Context, Duration
+   - MAX 3 bullets: Focus on creative process + outcome
+   - Example:
+     Lead Designer, StartupX (2022-2024)
+     • Redesigned mobile app (user satisfaction: 3.2→4.6★)
+     • Created design system used by 5 teams
+     • Led workshops with 20+ stakeholders
+
+4. **Education Section:** MAX 2 entries
+   - Include creative certifications if relevant
+   - Example:
+     • B.A. Graphic Design, Aalto, 2020
+     • Google UX Design Certificate, 2021
+
+5. **Languages Section:** MAX 3 languages
+
+**TOTAL CV LENGTH:** MAX 3500 characters
+
+**CREATIVE CV TONE:**
+- Show personality through language
+- Emphasize creative thinking + collaboration
+- Include impact (not just tasks)
+
+# ═══════════════════════════════════════════════════════════════
+
 # RULES FOR CREATIVE CV
-✅ Showcase creative projects and portfolio
+✅ Showcase creative projects and portfolio highlights
 ✅ Emphasize design thinking and innovation
-✅ Highlight collaborative work
-✅ Show creative problem-solving
+✅ Highlight collaborative work and impact
+✅ Show creative problem-solving process
+✅ Use verified skills from {verifiedSkills}
 ❌ NEVER invent portfolio pieces
+❌ NEVER claim skills not verified
+❌ NEVER exceed length limits
 
 LANGUAGE: {language}
+TONE: Creative yet professional
 
 {format_instructions}`],
 
-  ["human", `Create Creative CV.
+  ["human", `Create Creative CV (A4-optimized).
 
+**CANDIDATE:**
 Name: {name}
 Skills: {verifiedSkills}
 Experience: {workExperience}
 Best Project: {bestProjectExample}
 
-Write in {language}. Return JSON.`]
+**CRITICAL:**
+- Max 140 words for description (show personality!)
+- Max 8 creative competencies
+- Max 3 projects with impact
+- MUST fit ONE A4 page (3500 chars)
+- Language: {language}
+
+Return JSON. Be creative but concise!`]
 ]);
 
 // ════════════════════════════════════════════════════════════════
@@ -595,116 +775,129 @@ export async function generateCVWithPersonalityExtraction(
     // STEP 1: QUESTION ANALYSIS (FIXED & ENHANCED)
     // ════════════════════════════════════════════════════════════════
     
-    if (!skipQuestions) {
-      timer.start("Question Analysis");
+   if (!skipQuestions) {
+  timer.start("Question Analysis");
 
-      try {
-        const analysis = await Promise.race([
-          analyzeCVData({
-            userData: toLangChainInput(userData),
-            cvType: userData.cvType || "simple",
-            language: userData.language || "finnish",
-            userId: userId,
-          }),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Question analysis timeout")), 5000)
-          ),
-        ]);
+  try {
+    // ✅ VAIHDA analyzeCVData() → analyzeJobAndProfile()
+    const analysis = await Promise.race([
+      analyzeJobAndProfile({
+        jobDescription: jobPosting || `Creating ${userData.cvType || 'simple'} CV`,
+        userProfile: {
+          name: userData.name || "Not specified",
+          workExperience: userData.workExperience || "Not specified",
+          education: userData.education || "Not specified",
+          skills: userData.skills || "Not specified",
+          workingStyle: userData.workingStyle || "Not specified",
+          problemSolving: userData.problemSolving || "Not specified",
+          uniqueStrength: userData.uniqueStrength || "Not specified",
+          careerGoals: userData.careerGoals || "Not specified",
+          bestProjectExample: userData.bestProjectExample || "Not specified",
+          failureLesson: userData.failureLesson || "Not specified",
+          personalNotes: userData.personalityTraits || "Not specified",
+        },
+        language: userData.language || "finnish",
+        userId: userId, // ✅ Historiapohjainen filtteröinti
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Question analysis timeout")), 5000)
+      ),
+    ]);
 
-        timer.end();
+    timer.end();
 
-        if (analysis.shouldAskQuestions && analysis.questions.length > 0) {
-          const unanswered = analysis.questions.filter((q) => {
-            if (!answeredQuestions?.length) return true;
-            return !answeredQuestions.some(
-              (a) => a.id === q.id || a.question === q.question
-            );
-          });
+    // ✅ SAMA LOGIIKKA KUIN COVER LETTERISSA
+    if (analysis.shouldAskQuestions && analysis.questions.length > 0) {
+      const critical = analysis.questions.filter(
+        (q) => q.priority === "critical"
+      );
 
-          const critical = unanswered.filter(
-            (q) => q.priority === "critical"
-          );
+      console.log(
+        `❓ CV Questions: total=${analysis.questions.length}, critical=${critical.length}`
+      );
 
-          console.log(
-            `❓ Questions: total=${analysis.questions.length}, unanswered=${unanswered.length}, critical=${critical.length}`
-          );
-
-          // ⛔ Stop ONLY if critical questions remain unanswered
-          if (critical.length > 0) {
-            timer.end(); // ✅ FIXED: close timer before returning
-            
-            return {
-              personal_description: "",
-              html: {
-                skills_section: "",
-                experience_section: "",
-                education_section: "",
-                languages_section: "",
-              },
-              background_image: "",
-              profile_initials: "",
-              fullTextContent: "",
-              ats_data: null,
-              job_analysis: {
-                required_skills: [],
-                preferred_skills: [],
-                soft_skills: [],
-                company_values: [],
-                key_responsibilities: [],
-                experience_level: "mid",
-                industry_keywords: [],
-              },
-              images: {
-                background_prompt: "",
-                visual_elements: [],
-              },
-              needsMoreInfo: true,
-              questions: critical,
-            };
-          }
-        }
-      } catch (analysisError) {
-        timer.end();
-        console.warn(
-          "⚠️ Question analysis failed/timeout, continuing without questions:",
-          analysisError
-        );
+      if (critical.length > 0) {
+        timer.end(); // ✅ Sulje timer ennen paluuta
+        
+        return {
+          personal_description: "",
+          html: {
+            skills_section: "",
+            experience_section: "",
+            education_section: "",
+            languages_section: "",
+          },
+          background_image: "",
+          profile_initials: "",
+          fullTextContent: "",
+          ats_data: null,
+          job_analysis: {
+            required_skills: [],
+            preferred_skills: [],
+            soft_skills: [],
+            company_values: [],
+            key_responsibilities: [],
+            experience_level: "mid",
+            industry_keywords: [],
+          },
+          images: {
+            background_prompt: "",
+            visual_elements: [],
+          },
+          needsMoreInfo: true,
+          questions: critical, // ✅ PALAUTA KYSYMYKSET
+        };
       }
     }
+  } catch (analysisError) {
+    timer.end();
+    console.warn(
+      "⚠️ Question analysis failed/timeout, continuing without questions:",
+      analysisError
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// STEP 2: MERGE ANSWERS (YKSINKERTAISTETTU)
+// ════════════════════════════════════════════════════════════════
+
+let enhancedUserData = { ...userData };
+
+if (answeredQuestions && answeredQuestions.length > 0) {
+  timer.start("Merge Answers");
+  
+  console.log(`📝 CV: Integrating ${answeredQuestions.length} answers`);
+  
+  // ✅ YKSINKERTAINEN MERGE (sama kuin Cover Letter V2)
+  answeredQuestions.forEach((item: any) => {
+    const question = item.question.toLowerCase();
+    const answer = item.answer;
     
-    checkTimeout();
-    
-    // ════════════════════════════════════════════════════════════════
-    // STEP 2: MERGE ANSWERS
-    // ════════════════════════════════════════════════════════════════
-    
-    let enhancedUserData = { ...userData };
-    
-    if (answeredQuestions && answeredQuestions.length > 0) {
-      timer.start("Merge Answers");
-      
-      const merged = mergeCVAnswers(
-        toLangChainInput(userData),
-        answeredQuestions
-      );
-      
-      enhancedUserData = {
-        ...userData,
-        workExperience: merged.workExperience || userData.workExperience,
-        education: merged.education || userData.education,
-        skills: merged.skills || userData.skills,
-        workingStyle: merged.workingStyle || userData.workingStyle,
-        problemSolving: merged.problemSolving || userData.problemSolving,
-        uniqueStrength: merged.uniqueStrength || userData.uniqueStrength,
-        careerGoals: merged.careerGoals || userData.careerGoals,
-        bestProjectExample: merged.bestProjectExample || userData.bestProjectExample,
-      };
-      
-      timer.end();
+    // ✅ MATCH VASTAUS KENTTÄÄN
+    if (question.includes('työkokemus') || question.includes('experience')) {
+      enhancedUserData.workExperience = 
+        `${enhancedUserData.workExperience || ''}\n\n${answer}`.trim();
+    } else if (question.includes('koulutus') || question.includes('education')) {
+      enhancedUserData.education = 
+        `${enhancedUserData.education || ''}\n\n${answer}`.trim();
+    } else if (question.includes('taito') || question.includes('skill')) {
+      enhancedUserData.skills = 
+        `${enhancedUserData.skills || ''}, ${answer}`.trim();
+    } else if (question.includes('projekti') || question.includes('project')) {
+      enhancedUserData.bestProjectExample = answer;
+    } else if (question.includes('vahvuus') || question.includes('strength')) {
+      enhancedUserData.uniqueStrength = answer;
+    } else if (question.includes('tavoite') || question.includes('goal')) {
+      enhancedUserData.careerGoals = answer;
     }
-    
-    checkTimeout();
-    
+    // ✅ Voit lisätä lisää matcheja tarvittaessa
+  });
+  
+  timer.end();
+  console.log('✅ CV: Answers merged successfully');
+}
+
     // ════════════════════════════════════════════════════════════════
     // STEP 3: PARALLEL EXTRACTION
     // ════════════════════════════════════════════════════════════════

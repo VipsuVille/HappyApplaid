@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - KORJATTU: skipQuestions logiikka
+// app/api/generate-cv/route.ts - COMPLETE FIXED VERSION
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -11,6 +11,10 @@ import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/master
 import crypto from 'crypto';
 
 export const maxDuration = 60;
+
+// ════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ════════════════════════════════════════════════════════════════
 
 function generateQuestionId(questionText: string): string {
   return crypto
@@ -56,6 +60,7 @@ async function saveUserResponse(
   }
 }
 
+// ✅ KORJATTU: A4-pituuden validointi lisätty
 function validateCVContent(result: any): { isValid: boolean; reason?: string } {
   if (!result.html) {
     return { isValid: false, reason: 'HTML missing' };
@@ -63,6 +68,7 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
 
   const { skills_section, experience_section, education_section, languages_section } = result.html;
 
+  // ✅ TARKISTA VIRHEET
   const sections = [skills_section, experience_section, education_section, languages_section];
   const hasErrors = sections.some(section => 
     section && section.toLowerCase().includes('error generating')
@@ -72,6 +78,7 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
     return { isValid: false, reason: 'Sections contain error messages' };
   }
 
+  // ✅ TARKISTA SISÄLTÖ
   const hasContent = 
     (skills_section && skills_section.length > 20) ||
     (experience_section && experience_section.length > 20) ||
@@ -82,28 +89,58 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
     return { isValid: false, reason: 'All sections empty or too short' };
   }
 
+  // ✅ TARKISTA PERSONAL DESCRIPTION
   if (!result.personal_description || result.personal_description.length < 20) {
     return { isValid: false, reason: 'Personal description too short' };
+  }
+
+  // ✅ UUSI: TARKISTA A4-PITUUS (arvio)
+  const totalChars = 
+    (result.personal_description?.length || 0) +
+    (skills_section?.length || 0) +
+    (experience_section?.length || 0) +
+    (education_section?.length || 0) +
+    (languages_section?.length || 0);
+
+  // ✅ A4-estimaatti: ~3500 merkkiä = 1 sivu (riippuu fontista)
+  if (totalChars > 4500) {
+    console.warn(`⚠️ CV might be too long: ${totalChars} chars (recommended max ~3500)`);
+    // ÄLÄ hylkää, vain varoita
   }
 
   return { isValid: true };
 }
 
+// ✅ KORJATTU: Tukee KAIKKIA kuvamuotoja
 function cleanImageForStorage(url: string | null | undefined): string | null {
   if (!url) return null;
   
-  if (url.startsWith("data:image")) {
+  // ✅ Jos Supabase URL, palauta sellaisenaan
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    console.log("🖼️ Image is HTTP/HTTPS URL");
     return url;
   }
   
+  // ✅ Jos Base64, palauta sellaisenaan
+  if (url.startsWith("data:image")) {
+    console.log("🖼️ Image is Base64");
+    return url;
+  }
+  
+  // Jos jotain muuta, yritä etsiä Base64
   const base64Match = url.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]+)/);
   if (base64Match) {
-    console.log("🖼️ Puhdistettu kuva-URL");
+    console.log("🖼️ Extracted Base64 from string");
     return base64Match[1];
   }
   
+  console.log("🖼️ Image format unknown, returning as-is");
   return url;
 }
+
+// ════════════════════════════════════════════════════════════════
+// MAIN ROUTE
+// ════════════════════════════════════════════════════════════════
 
 export async function POST(req: Request) {
   const startTime = Date.now();
@@ -146,6 +183,10 @@ export async function POST(req: Request) {
         : "cv_basic";
 
     console.log(`🔍 Request: ${action}, type: ${cvType}`);
+
+    // ════════════════════════════════════════════════════════════════
+    // TOKEN VALIDATION
+    // ════════════════════════════════════════════════════════════════
 
     const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
@@ -192,6 +233,10 @@ export async function POST(req: Request) {
     }
 
     console.log(`✅ Token check passed (${required} tokens)`);
+
+    // ════════════════════════════════════════════════════════════════
+    // PREPARE INPUT
+    // ════════════════════════════════════════════════════════════════
 
     let input: LangChainCVInput;
 
@@ -251,7 +296,6 @@ export async function POST(req: Request) {
         jobPosting: jobPosting || undefined,
         enableRAG: enableRAG,
         
-        // ✅ KORJAUS: Käytä laskettua arvoa
         skipQuestions: shouldSkipQuestions,
         answeredQuestions: answeredQuestions || []
       };
@@ -275,7 +319,6 @@ export async function POST(req: Request) {
       input.userId = userId;
       input.jobPosting = jobPosting;
       input.enableRAG = enableRAG;
-      // ✅ KORJAUS: Käytä laskettua arvoa
       input.skipQuestions = shouldSkipQuestions;
       input.answeredQuestions = answeredQuestions || [];
     }
@@ -283,11 +326,15 @@ export async function POST(req: Request) {
     console.log(`✅ Profile loaded: ${input.name}`);
     console.log(`   - skipQuestions: ${input.skipQuestions}`);
 
+    // ════════════════════════════════════════════════════════════════
+    // GENERATE CV
+    // ════════════════════════════════════════════════════════════════
+
     console.log(`🤖 Generating CV (safe mode)...`);
     
     const result = await generateCVSafely(input);
 
-    // JOS KYSYTTÄVÄÄ
+    // ✅ JOS AI KYSYY LISÄKYSYMYKSIÄ
     if (result.needsMoreInfo && result.questions && result.questions.length > 0) {
       console.log(`❓ Returning ${result.questions.length} questions`);
       
@@ -299,11 +346,18 @@ export async function POST(req: Request) {
       });
     }
 
-    // VALIDOI SISÄLTÖ
+    // ✅ VALIDOI SISÄLTÖ
     const validation = validateCVContent(result);
     
     if (!validation.isValid) {
       console.error(`❌ CV content validation failed: ${validation.reason}`);
+      
+      // ✅ DEBUG INFO
+      console.error('❌ CV sections state:');
+      console.error('   - Skills:', result.html?.skills_section?.substring(0, 50));
+      console.error('   - Experience:', result.html?.experience_section?.substring(0, 50));
+      console.error('   - Education:', result.html?.education_section?.substring(0, 50));
+      console.error('   - Languages:', result.html?.languages_section?.substring(0, 50));
       
       return NextResponse.json({
         error: "CV_GENERATION_INCOMPLETE",
@@ -324,7 +378,10 @@ export async function POST(req: Request) {
 
     console.log('✅ CV content validation passed');
 
-    // ✅ MASTER GUARDIAN CHECK (VAIN WARNING-TILASSA)
+    // ════════════════════════════════════════════════════════════════
+    // MASTER GUARDIAN CHECK
+    // ════════════════════════════════════════════════════════════════
+
     console.log('🛡️ Running Master Guardian...');
     
     const { data: userProfile } = await supabaseAdmin
@@ -350,19 +407,18 @@ export async function POST(req: Request) {
       'generation'
     );
 
-    // ✅ KORJAUS: Älä hylkää automaattisesti, VAIN VAROITA
+    // ✅ ÄLÄ hylkää automaattisesti, VAIN VAROITA
     if (guardianCheck.riskLevel === 'danger') {
       console.warn('🚨 GUARDIAN WARNING (not blocking):', guardianCheck.recommendation);
-      // ❌ ÄLÄ tee tätä:
-      // return NextResponse.json({ error: 'CONSISTENCY_VIOLATION' }, { status: 400 });
-      
-      // ✅ SEN SIJAAN: logita ja jatka
       console.warn('⚠️ Continuing despite Guardian warning');
     }
 
     console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
 
-    // TALLENNA VASTAUKSET
+    // ════════════════════════════════════════════════════════════════
+    // SAVE ANSWERS
+    // ════════════════════════════════════════════════════════════════
+
     if (answeredQuestions && answeredQuestions.length > 0) {
       console.log(`💾 Saving ${answeredQuestions.length} answers...`);
       
@@ -375,12 +431,21 @@ export async function POST(req: Request) {
       console.log(`✅ Saved ${successCount}/${answeredQuestions.length} answers`);
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // CLEAN IMAGES
+    // ════════════════════════════════════════════════════════════════
+
     const cleanProfileImage = cleanImageForStorage(input.profileImage);
     const cleanBackgroundImage = cleanImageForStorage(result.background_image);
 
-    console.log("🖼️ Image URLs cleaned");
+    console.log("🖼️ Images after cleaning:");
+    console.log("   - Profile:", cleanProfileImage ? "✅" : "❌");
+    console.log("   - Background:", cleanBackgroundImage ? "✅" : "❌");
 
-    // TALLENNA CV
+    // ════════════════════════════════════════════════════════════════
+    // SAVE CV
+    // ════════════════════════════════════════════════════════════════
+
     const { data: saved, error: saveError } = await supabaseAdmin
       .from("cvs")
       .insert({
@@ -395,7 +460,21 @@ export async function POST(req: Request) {
             personal_description: result.personal_description,
           },
           ai_data: {
-            ...result.html,
+            // ✅ VANHA MUOTO (html-objekti sisällä)
+            html: {
+              skills_section: result.html.skills_section,
+              experience_section: result.html.experience_section,
+              education_section: result.html.education_section,
+              languages_section: result.html.languages_section,
+            },
+            
+            // ✅ UUSI MUOTO (suoraan juuressa, types/index.ts mukaan)
+            skills_section: result.html.skills_section,
+            experience_section: result.html.experience_section,
+            education_section: result.html.education_section,
+            languages_section: result.html.languages_section,
+            
+            // Muut kentät
             personal_description: result.personal_description,
             profile_initials: result.profile_initials,
             fullTextContent: result.fullTextContent,
@@ -404,6 +483,7 @@ export async function POST(req: Request) {
           }
         },
         
+        // ✅ TÄRKEÄ: Tallenna MYÖS root-tasolle (templatea varten)
         background_image: cleanBackgroundImage || "",
         profile_image: cleanProfileImage || null,
         profile_initials: result.profile_initials,
@@ -439,7 +519,10 @@ export async function POST(req: Request) {
 
     console.log(`✅ CV saved: ${saved.id}`);
 
-    // KULUTA TOKENIT
+    // ════════════════════════════════════════════════════════════════
+    // CONSUME TOKENS
+    // ════════════════════════════════════════════════════════════════
+
     if (tier === "free") {
       await supabaseAdmin.from("free_usage").upsert({
         user_id: userId,
@@ -457,6 +540,10 @@ export async function POST(req: Request) {
 
     const totalTime = Date.now() - startTime;
     console.log(`🎉 Complete in ${totalTime}ms`);
+
+    // ════════════════════════════════════════════════════════════════
+    // RETURN SUCCESS
+    // ════════════════════════════════════════════════════════════════
 
     return NextResponse.json({
       success: true,

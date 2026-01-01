@@ -24,30 +24,52 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
 
   const name = data?.name || "Nimi";
   const title = data?.title || "Ammattinimike";
+const getBackgroundImage = () => {
+  // ✅ 1. Tarkista ai_data.background_image (uusi)
+  const bg = aiData?.background_image || aiData?.background_image_url;
+  
+  // ✅ 2. Tarkista data.backgroundImage (vanha)
+  const dataBg = data?.backgroundImage;
+  
+  // ✅ 3. Palauta ensimmäinen validi URL
+  const finalBg = bg || dataBg;
+  
+  if (finalBg && (finalBg.startsWith('http') || finalBg.startsWith('data:'))) {
+    return finalBg;
+  }
+  
+  return null;
+};
 
+const bgImage = getBackgroundImage();
   // ✅ AI-SISÄLLÖN VARMISTUS: Piilota virheviestit ja tyhjät kentät
-  const getAIContent = (field: keyof AIData): string => {
-    const content = aiData?.[field];
+ const getAIContent = (field: keyof AIData): string => {
+  // ✅ YRI ENSIN: Suoraan juuresta (uusi muoto)
+  let content = aiData?.[field];
+  
+  // ✅ JOS EI LÖYDY: Kokeile html-objektista (vanha muoto)
+  if (!content && aiData?.html) {
+    content = aiData.html[field as keyof typeof aiData.html];
+  }
     
-    if (typeof content === "string" && content.trim()) {
-      // ❌ Piilota "Error generating..." viestit
-      if (content.toLowerCase().includes("error generating")) {
-        console.warn(`⚠️ Virheviesti kentässä '${field}', piilotetaan`);
-        return "";
-      }
-      
-      // ❌ Piilota liian lyhyet tekstit (alle 20 merkkiä)
-      if (content.trim().length < 20) {
-        console.warn(`⚠️ Liian lyhyt sisältö kentässä '${field}'`);
-        return "";
-      }
-      
-      return content;
+  if (typeof content === "string" && content.trim()) {
+    // ❌ Piilota virheviestit
+    if (content.toLowerCase().includes("error generating")) {
+      console.warn(`⚠️ Virheviesti kentässä '${field}', piilotetaan`);
+      return "";
     }
     
-    return "";
-  };
-
+    // ❌ Piilota liian lyhyet tekstit (alle 20 merkkiä)
+    if (content.trim().length < 20) {
+      console.warn(`⚠️ Liian lyhyt sisältö kentässä '${field}'`);
+      return "";
+    }
+    
+    return content;
+  }
+  
+  return "";
+};
   return (
     <div
       className="cv-paper bg-white mx-auto relative overflow-hidden shadow-2xl"
@@ -59,7 +81,15 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
       }}
     >
       {/* 1. HEADER & TAUSTAKUVA */}
-      <div className="relative bg-indigo-900" style={{ height: "70mm" }}>
+     <div
+  className="relative bg-indigo-900"
+  style={{
+    height: "70mm",
+    backgroundImage: bgImage ? `url(${bgImage})` : undefined,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+  }}
+>
         {bgImg ? (
           <img 
             src={bgImg} 
@@ -173,59 +203,58 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
           )}
 
           <div className="grid grid-cols-1 gap-12">
-            {/* TYÖKOKEMUS - Näytetään vain jos sisältöä on */}
-            {getAIContent("experience_section") && (
-              <section>
-                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-                  Työkokemus
-                </h2>
-                <div 
-                  className="prose prose-sm max-w-none text-gray-800"
-                  dangerouslySetInnerHTML={{ __html: getAIContent("experience_section") }}
-                />
-              </section>
-            )}
+        {getAIContent("experience_section") && (
+  <section>
+    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+      Työkokemus
+    </h2>
+    <div 
+      className="prose prose-sm max-w-none text-gray-800"
+      dangerouslySetInnerHTML={{ __html: getAIContent("experience_section") }}
+    />
+  </section>
+)}
 
             <div className="grid grid-cols-2 gap-12">
               {/* KOULUTUS */}
-              {getAIContent("education_section") && (
-                <section>
-                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-                    Koulutus
-                  </h2>
-                  <div 
-                    className="prose prose-sm max-w-none text-gray-800"
-                    dangerouslySetInnerHTML={{ __html: getAIContent("education_section") }}
-                  />
-                </section>
-              )}
+          {getAIContent("education_section") && (
+  <section>
+    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+      Koulutus
+    </h2>
+    <div 
+      className="prose prose-sm max-w-none text-gray-800"
+      dangerouslySetInnerHTML={{ __html: getAIContent("education_section") }}
+    />
+  </section>
+)}
 
               {/* OSAAMINEN */}
-              {getAIContent("skills_section") && (
-                <section>
-                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-                    Osaaminen
-                  </h2>
-                  <div 
-                    className="prose prose-sm max-w-none text-gray-800"
-                    dangerouslySetInnerHTML={{ __html: getAIContent("skills_section") }}
-                  />
-                </section>
-              )}
+{getAIContent("skills_section") && (
+  <section>
+    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+      Osaaminen
+    </h2>
+    <div 
+      className="prose prose-sm max-w-none text-gray-800"
+      dangerouslySetInnerHTML={{ __html: getAIContent("skills_section") }}
+    />
+  </section>
+)}
             </div>
 
             {/* KIELET */}
-            {getAIContent("languages_section") && (
-              <section>
-                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
-                  Kielet
-                </h2>
-                <div 
-                  className="prose prose-sm max-w-none text-gray-800"
-                  dangerouslySetInnerHTML={{ __html: getAIContent("languages_section") }}
-                />
-              </section>
-            )}
+{getAIContent("languages_section") && (
+  <section>
+    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">
+      Kielet
+    </h2>
+    <div 
+      className="prose prose-sm max-w-none text-gray-800"
+      dangerouslySetInnerHTML={{ __html: getAIContent("languages_section") }}
+    />
+  </section>
+)}
           </div>
 
           {/* ALLEKIRJOITUS */}
