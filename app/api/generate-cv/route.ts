@@ -282,7 +282,6 @@ export async function POST(req: Request) {
 
     console.log(`✅ Profile loaded: ${input.name}`);
     console.log(`   - skipQuestions: ${input.skipQuestions}`);
-    console.log(`   - answeredQuestions: ${input.answeredQuestions?.length || 0}`);
 
     console.log(`🤖 Generating CV (safe mode)...`);
     
