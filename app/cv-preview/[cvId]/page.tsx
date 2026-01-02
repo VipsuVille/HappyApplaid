@@ -45,11 +45,13 @@ export default function CVPreviewPage() {
       return trimmed;
     }
     
-    // ✅ 3. Supabase file path → Rakenna public URL
+    // ✅ 3. Supabase file path → Rakenna PUBLIC URL (ei signed!)
     // Esim: "backgrounds/user_123/bg-cv_456.png"
+    // TAI: "default-images/backgrounds/123.jpg"
     if (trimmed.includes('/') && !trimmed.startsWith('data:')) {
+      // ✅ KÄYTÄ PUBLIC URL:ia (ei vanhene)
       const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${trimmed}`;
-      console.log("✅ Built Supabase URL:", publicUrl);
+      console.log("✅ Built Supabase PUBLIC URL:", publicUrl);
       return publicUrl;
     }
     

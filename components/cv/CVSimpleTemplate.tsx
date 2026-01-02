@@ -27,10 +27,19 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
    * Priority: data.profileImage > data.photo > aiData.profile_image > aiData.html.profile_image
    */
   const getProfileImage = (): string | null => {
+    // ✅ DEBUG: Log all sources
+    console.log('🔍 Profile image sources:', {
+      'data.profileImage': data?.profileImage?.substring(0, 80),
+      'data.photo': (data as any)?.photo?.substring(0, 80),
+      'aiData.profile_image': aiData?.profile_image?.substring(0, 80),
+      'aiData.html?.profile_image': (aiData?.html as any)?.profile_image?.substring(0, 80),
+    });
+    
     const sources = [
       data?.profileImage,
-      data?.photo,
+      (data as any)?.photo, // ✅ Type cast
       aiData?.profile_image,
+      (aiData?.html as any)?.profile_image, // ✅ Type cast
     ];
     
     for (const src of sources) {
@@ -60,10 +69,19 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
    * Priority: data.backgroundImage > aiData.background_image > aiData.background_image_url > aiData.html.background_image
    */
   const getBackgroundImage = (): string | null => {
+    // ✅ DEBUG: Log all sources
+    console.log('🔍 Background image sources:', {
+      'data.backgroundImage': data?.backgroundImage?.substring(0, 80),
+      'aiData.background_image': aiData?.background_image?.substring(0, 80),
+      'aiData.background_image_url': aiData?.background_image_url?.substring(0, 80),
+      'aiData.html?.background_image': (aiData?.html as any)?.background_image?.substring(0, 80),
+    });
+    
     const sources = [
       data?.backgroundImage,
       aiData?.background_image,
       aiData?.background_image_url,
+      (aiData?.html as any)?.background_image, // ✅ Type cast koska ei ole AIData:ssa
     ];
     
     for (const src of sources) {
