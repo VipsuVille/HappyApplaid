@@ -489,7 +489,7 @@ export async function POST(req: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // CLEAN AND VALIDATE IMAGES (KORJATTU!)
+    // CLEAN AND VALIDATE IMAGES (KORJATTU + FALLBACK)
     // ════════════════════════════════════════════════════════════════
 
     console.log("🖼️ Processing images...");
@@ -498,6 +498,12 @@ export async function POST(req: Request) {
 
     // ✅ PROFIILIKUVA: Puhdista JA validoi
     let cleanProfileImage = cleanImageForStorage(input.profileImage);
+
+    // ❌ FALLBACK: Jos ei kuvaa, hae user_profiles:sta
+    if (!cleanProfileImage && userProfile?.profile_image) {
+      console.log("💾 No input image, loading from user_profiles...");
+      cleanProfileImage = cleanImageForStorage(userProfile.profile_image);
+    }
 
     // ❌ KRIITTINEN FIX: Jos cleanImageForStorage palauttaa null MUTTA input oli validi URL
     if (!cleanProfileImage && input.profileImage && input.profileImage.startsWith('http')) {
