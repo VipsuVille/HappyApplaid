@@ -493,22 +493,50 @@ export async function POST(req: Request) {
     // ════════════════════════════════════════════════════════════════
 
     console.log("🖼️ Processing images...");
-    console.log("   - Input profileImage:", input.profileImage?.substring(0, 80) || "none");
-    console.log("   - Result background_image:", result.background_image?.substring(0, 80) || "none");
+    console.log("   - Input profileImage (raw):", input.profileImage?.substring(0, 120) || "none");
+    console.log("   - Result background_image (raw):", result.background_image?.substring(0, 120) || "none");
 
-    // ✅ PROFIILIKUVA
-    const cleanProfileImage = cleanImageForStorage(input.profileImage);
+    // ✅ PROFIILIKUVA: Puhdista JA validoi
+    let cleanProfileImage = cleanImageForStorage(input.profileImage);
 
-    // ✅ TAUSTAKUVA
-    const cleanBackgroundImage = cleanImageForStorage(result.background_image);
+    // ❌ KRIITTINEN FIX: Jos cleanImageForStorage palauttaa null MUTTA input oli validi URL
+    if (!cleanProfileImage && input.profileImage && input.profileImage.startsWith('http')) {
+      console.warn("⚠️ cleanImageForStorage rejected HTTP URL, using raw input");
+      cleanProfileImage = input.profileImage;
+    }
+
+    // ✅ TAUSTAKUVA: Puhdista JA validoi
+    let cleanBackgroundImage = cleanImageForStorage(result.background_image);
+
+    // ❌ KRIITTINEN FIX: Jos cleanImageForStorage palauttaa null MUTTA result oli validi URL
+    if (!cleanBackgroundImage && result.background_image && result.background_image.startsWith('http')) {
+      console.warn("⚠️ cleanImageForStorage rejected HTTP URL, using raw input");
+      cleanBackgroundImage = result.background_image;
+    }
 
     console.log("🖼️ Images after cleaning:");
-    console.log("   - Profile:", cleanProfileImage ? `✅ ${cleanProfileImage.substring(0, 60)}...` : "❌ null");
-    console.log("   - Background:", cleanBackgroundImage ? `✅ ${cleanBackgroundImage.substring(0, 60)}...` : "❌ null");
+    console.log("   - Profile FINAL:", cleanProfileImage ? `✅ TYPE=${cleanProfileImage.startsWith('data:') ? 'Base64' : 'HTTP'} LEN=${cleanProfileImage.length}` : "❌ null");
+    console.log("   - Profile FIRST 120:", cleanProfileImage?.substring(0, 120));
+    console.log("   - Background FINAL:", cleanBackgroundImage ? `✅ TYPE=${cleanBackgroundImage.startsWith('data:') ? 'Base64' : 'HTTP'} LEN=${cleanBackgroundImage.length}` : "❌ null");
+    console.log("   - Background FIRST 120:", cleanBackgroundImage?.substring(0, 120));
 
     // ✅ DEBUG: Tarkista onko SVG fallback
     if (cleanBackgroundImage && cleanBackgroundImage.includes('Background Image')) {
       console.warn("⚠️ Background is SVG FALLBACK - image generation failed!");
+    }
+
+    // ✅ KRIITTINEN VALIDOINTI: Varmista että URL:t ovat oikeassa muodossa
+    if (cleanProfileImage && cleanProfileImage.includes('cv_files/data:')) {
+      console.error("❌ CRITICAL: Profile image has invalid Supabase + Base64 mix!");
+      console.error("   Detected:", cleanProfileImage.substring(0, 150));
+      console.error("   This should NEVER happen - check where this URL is created!");
+      cleanProfileImage = null; // ❌ Hylkää virheellinen URL
+    }
+
+    if (cleanBackgroundImage && cleanBackgroundImage.includes('cv_files/data:')) {
+      console.error("❌ CRITICAL: Background image has invalid Supabase + Base64 mix!");
+      console.error("   Detected:", cleanBackgroundImage.substring(0, 150));
+      cleanBackgroundImage = null; // ❌ Hylkää virheellinen URL
     }
 
     // ════════════════════════════════════════════════════════════════
