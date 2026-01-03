@@ -251,18 +251,24 @@ export default function CVPreviewPage() {
         // FINAL DEBUG
         // ════════════════════════════════════════════════════════════════
         
+        // ════════════════════════════════════════════════════════════════
+        // FINAL DEBUG
+        // ════════════════════════════════════════════════════════════════
+        
         console.log("═══════════════════════════════════════════");
         console.log("🎨 FINAL PROCESSED CV DATA:");
         console.log("═══════════════════════════════════════════");
         console.log("Profile Image:");
         console.log("  - Has image:", !!profileImage);
-        console.log("  - Type:", profileImage.startsWith('data:') ? 'Base64' : profileImage.startsWith('http') ? 'HTTP URL' : 'Unknown');
+        console.log("  - Type:", profileImage ? (profileImage.startsWith('data:') ? 'Base64' : profileImage.startsWith('http') ? 'HTTP URL' : 'Unknown') : 'None');
+        console.log("  - Full URL:", profileImage?.substring(0, 200));
         console.log("  - Saved to cv_data.profileImage:", !!data.content.cv_data.profileImage);
         console.log("  - Saved to ai_data.profile_image:", !!data.content.ai_data.profile_image);
         console.log("");
         console.log("Background Image:");
         console.log("  - Has image:", !!backgroundImage);
-        console.log("  - Type:", backgroundImage.startsWith('data:') ? 'Base64' : backgroundImage.startsWith('http') ? 'HTTP URL' : 'Unknown');
+        console.log("  - Type:", backgroundImage ? (backgroundImage.startsWith('data:') ? 'Base64' : backgroundImage.startsWith('http') ? 'HTTP URL' : 'Unknown') : 'None');
+        console.log("  - Full URL:", backgroundImage?.substring(0, 200));
         console.log("  - Saved to cv_data.backgroundImage:", !!data.content.cv_data.backgroundImage);
         console.log("  - Saved to ai_data.background_image:", !!data.content.ai_data.background_image);
         console.log("═══════════════════════════════════════════");

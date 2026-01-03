@@ -125,7 +125,7 @@ function cleanImageForStorage(url: string | null | undefined): string | null {
   
   // ✅ 1. HTTP/HTTPS URL → Palauta sellaisenaan
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    console.log("🖼️ Image is HTTP URL:", trimmed.substring(0, 80));
+    console.log("🖼️ Image is HTTP URL");
     return trimmed;
   }
   
@@ -135,22 +135,22 @@ function cleanImageForStorage(url: string | null | undefined): string | null {
     const parts = trimmed.split(',');
     if (parts.length === 2 && parts[1].length > 100) {
       console.log("🖼️ Valid Base64 image (length:", trimmed.length, ")");
-      return trimmed;
+      return trimmed; // ✅ PALAUTA KOKO DATA URI
     } else {
-      console.warn("⚠️ Invalid Base64 format");
+      console.warn("⚠️ Invalid Base64 format (too short or malformed)");
       return null;
     }
   }
   
-  // ✅ 3. Yritä etsiä Base64 stringistä
+  // ✅ 3. Yritä etsiä Base64 stringistä (jos joku on lisännyt jotain eteen)
   const base64Match = trimmed.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]{100,})/);
   if (base64Match) {
     console.log("🖼️ Extracted Base64 from dirty string");
     return base64Match[1];
   }
   
-  // ❌ 4. Tuntematon muoto
-  console.warn("⚠️ Unknown image format:", trimmed.substring(0, 100));
+  // ❌ 4. Tuntematon muoto → Palauta null (älä yritä rakentaa URL:ia)
+  console.warn("⚠️ Unknown image format, returning null:", trimmed.substring(0, 100));
   return null;
 }
 
@@ -432,9 +432,25 @@ export async function POST(req: Request) {
       'generation'
     );
 
-    // ✅ Varoita mutta älä hylkää
-    if (guardianCheck.riskLevel === 'danger') {
-      console.warn('🚨 GUARDIAN WARNING (not blocking):', guardianCheck.recommendation);
+    // ✅ KORJAUS: Jos Guardian hylkää, PALAUTA VIRHE (älä tallenna)
+    if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
+      console.error('🚨 GUARDIAN REJECTED CV');
+      console.error('   Violations:', guardianCheck.violations);
+      
+      return NextResponse.json({
+        error: "CV_CONTENT_REJECTED",
+        message: "Sisältö sisältää epäluotettavaa tietoa",
+        details: {
+          riskLevel: guardianCheck.riskLevel,
+          violations: guardianCheck.violations,
+          recommendation: guardianCheck.recommendation
+        }
+      }, { status: 400 });
+    }
+
+    // ⚠️ VAROITUS (mutta salli tallennus)
+    if (guardianCheck.riskLevel === 'warning') {
+      console.warn('⚠️ Guardian warning:', guardianCheck.recommendation);
     }
 
     console.log(`✅ Guardian check: ${guardianCheck.riskLevel}`);
@@ -459,12 +475,22 @@ export async function POST(req: Request) {
     // CLEAN AND VALIDATE IMAGES
     // ════════════════════════════════════════════════════════════════
 
+    // ✅ PROFIILIKUVA: Käytä INPUT:sta (käyttäjän valitsema)
     const cleanProfileImage = cleanImageForStorage(input.profileImage);
+
+    // ✅ TAUSTAKUVA: Käytä RESULT:sta (AI:n generoima)
     const cleanBackgroundImage = cleanImageForStorage(result.background_image);
 
     console.log("🖼️ Images after cleaning:");
-    console.log("   - Profile:", cleanProfileImage ? `✅ (${cleanProfileImage.substring(0, 30)}...)` : "❌");
-    console.log("   - Background:", cleanBackgroundImage ? `✅ (${cleanBackgroundImage.substring(0, 30)}...)` : "❌");
+    console.log("   - Profile INPUT:", input.profileImage?.substring(0, 80));
+    console.log("   - Profile CLEAN:", cleanProfileImage ? `✅ (${cleanProfileImage.substring(0, 80)}...)` : "❌");
+    console.log("   - Background RAW:", result.background_image?.substring(0, 80));
+    console.log("   - Background CLEAN:", cleanBackgroundImage ? `✅ (${cleanBackgroundImage.substring(0, 80)}...)` : "❌");
+
+    // ✅ DEBUG: Tarkista onko fallback
+    if (cleanBackgroundImage && cleanBackgroundImage.includes('Background Image')) {
+      console.warn("⚠️ Background is FALLBACK SVG - image generation failed!");
+    }
 
     // ════════════════════════════════════════════════════════════════
     // SAVE CV TO DATABASE
