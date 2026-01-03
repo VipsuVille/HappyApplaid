@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - COMPLETE FINAL VERSION
+// app/api/generate-cv/route.ts - KRIITTINEN KORJAUS: cleanImageForStorage()
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -60,9 +60,6 @@ async function saveUserResponse(
   }
 }
 
-/**
- * Validoi CV:n sisällön laadun ja A4-pituuden
- */
 function validateCVContent(result: any): { isValid: boolean; reason?: string } {
   if (!result.html) {
     return { isValid: false, reason: 'HTML missing' };
@@ -70,7 +67,6 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
 
   const { skills_section, experience_section, education_section, languages_section } = result.html;
 
-  // ✅ TARKISTA VIRHEET
   const sections = [skills_section, experience_section, education_section, languages_section];
   const hasErrors = sections.some(section => 
     section && section.toLowerCase().includes('error generating')
@@ -80,7 +76,6 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
     return { isValid: false, reason: 'Sections contain error messages' };
   }
 
-  // ✅ TARKISTA SISÄLTÖ
   const hasContent = 
     (skills_section && skills_section.length > 20) ||
     (experience_section && experience_section.length > 20) ||
@@ -91,12 +86,10 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
     return { isValid: false, reason: 'All sections empty or too short' };
   }
 
-  // ✅ TARKISTA PERSONAL DESCRIPTION
   if (!result.personal_description || result.personal_description.length < 20) {
     return { isValid: false, reason: 'Personal description too short' };
   }
 
-  // ✅ TARKISTA A4-PITUUS (arvio)
   const totalChars = 
     (result.personal_description?.length || 0) +
     (skills_section?.length || 0) +
@@ -104,7 +97,6 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
     (education_section?.length || 0) +
     (languages_section?.length || 0);
 
-  // A4-estimaatti: ~3500 merkkiä = 1 sivu
   if (totalChars > 4500) {
     console.warn(`⚠️ CV might be too long: ${totalChars} chars (recommended max ~3500)`);
   }
@@ -113,44 +105,77 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
 }
 
 /**
- * Puhdista ja validoi kuva-URL
- * Tukee: Base64, HTTP URL, Supabase path
+ * ✅ KORJATTU: Puhdista ja validoi kuva-URL
+ * 
+ * ONGELMA ENNEN:
+ * - Palautti "data:" ilman Base64-sisältöä
+ * - Johti URL:iin: "https://supabase.../cv_files/data:"
+ * 
+ * RATKAISU:
+ * - Tarkista että Base64 on TÄYDELLINEN
+ * - Palauta null jos puutteellinen
  */
 function cleanImageForStorage(url: string | null | undefined): string | null {
+  // ✅ 1. NULL/EMPTY CHECK
   if (!url || url.trim() === '') {
+    console.log("🖼️ Image is null/empty");
     return null;
   }
   
   const trimmed = url.trim();
   
-  // ✅ 1. HTTP/HTTPS URL → Palauta sellaisenaan
+  // ✅ 2. HTTP/HTTPS URL → Palauta sellaisenaan
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    console.log("🖼️ Image is HTTP URL");
+    console.log("🖼️ Image is HTTP URL:", trimmed.substring(0, 80));
     return trimmed;
   }
   
-  // ✅ 2. BASE64 DATA URI → Validoi ja palauta
+  // ✅ 3. BASE64 DATA URI → KRIITTINEN VALIDOINTI
   if (trimmed.startsWith("data:image")) {
-    // Tarkista että Base64 on validi
+    // Tarkista formaatti: data:image/jpeg;base64,XXXXXX
     const parts = trimmed.split(',');
-    if (parts.length === 2 && parts[1].length > 100) {
-      console.log("🖼️ Valid Base64 image (length:", trimmed.length, ")");
-      return trimmed; // ✅ PALAUTA KOKO DATA URI
-    } else {
-      console.warn("⚠️ Invalid Base64 format (too short or malformed)");
+    
+    if (parts.length !== 2) {
+      console.error("❌ Invalid Base64: Missing comma separator");
       return null;
     }
+    
+    const [header, data] = parts;
+    
+    // Tarkista header
+    if (!header.includes('base64')) {
+      console.error("❌ Invalid Base64: Missing 'base64' in header");
+      return null;
+    }
+    
+    // Tarkista että data on olemassa ja riittävän pitkä
+    if (!data || data.length < 100) {
+      console.error("❌ Invalid Base64: Data too short or missing");
+      console.error("   Header:", header);
+      console.error("   Data length:", data?.length || 0);
+      return null;
+    }
+    
+    // ✅ KAIKKI OK - palauta koko Data URI
+    console.log("✅ Valid Base64 image (length:", trimmed.length, ")");
+    return trimmed;
   }
   
-  // ✅ 3. Yritä etsiä Base64 stringistä (jos joku on lisännyt jotain eteen)
+  // ✅ 4. Yritä etsiä Base64 stringistä (jos joku on lisännyt jotain eteen)
   const base64Match = trimmed.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]{100,})/);
   if (base64Match) {
     console.log("🖼️ Extracted Base64 from dirty string");
     return base64Match[1];
   }
   
-  // ❌ 4. Tuntematon muoto → Palauta null (älä yritä rakentaa URL:ia)
-  console.warn("⚠️ Unknown image format, returning null:", trimmed.substring(0, 100));
+  // ❌ 5. SUPABASE PATH → EI ENÄÄ TUETA (käytä vain HTTP URL tai Base64)
+  if (trimmed.includes('/') && !trimmed.startsWith('data:')) {
+    console.error("❌ Supabase path detected - should be HTTP URL:", trimmed.substring(0, 80));
+    return null;
+  }
+  
+  // ❌ 6. Tuntematon muoto
+  console.error("❌ Unknown image format:", trimmed.substring(0, 100));
   return null;
 }
 
@@ -163,19 +188,11 @@ export async function POST(req: Request) {
   console.log("🚀 CV Generation API (Safe Mode with Questions)");
 
   try {
-    // ════════════════════════════════════════════════════════════════
-    // AUTHENTICATION
-    // ════════════════════════════════════════════════════════════════
-    
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // PARSE REQUEST
-    // ════════════════════════════════════════════════════════════════
-    
     const body = await req.json();
     const {
       profileData,
@@ -188,7 +205,6 @@ export async function POST(req: Request) {
       skipQuestions,
     } = body;
 
-    // ✅ KORJAUS: Oikea skipQuestions logiikka
     const shouldSkipQuestions = skipQuestions === true || 
       (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0);
 
@@ -225,7 +241,6 @@ export async function POST(req: Request) {
 
     console.log(`💳 Subscription: ${tier}, Tokens: ${currentTokens}, Active: ${isActive}`);
 
-    // Free tier check
     if (tier === "free") {
       const { data: freeUsage } = await supabaseAdmin
         .from("free_usage")
@@ -241,7 +256,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Token balance check
     let required = 0;
     if (tier !== "free") {
       required = ACTION_COSTS[tier]?.[action] ?? 0;
@@ -360,7 +374,6 @@ export async function POST(req: Request) {
     
     const result = await generateCVSafely(input);
 
-    // ✅ JOS AI KYSYY LISÄKYSYMYKSIÄ
     if (result.needsMoreInfo && result.questions && result.questions.length > 0) {
       console.log(`❓ Returning ${result.questions.length} questions`);
       
@@ -372,17 +385,10 @@ export async function POST(req: Request) {
       });
     }
 
-    // ✅ VALIDOI SISÄLTÖ
     const validation = validateCVContent(result);
     
     if (!validation.isValid) {
       console.error(`❌ CV validation failed: ${validation.reason}`);
-      console.error('   Sections state:', {
-        skills: result.html?.skills_section?.length || 0,
-        experience: result.html?.experience_section?.length || 0,
-        education: result.html?.education_section?.length || 0,
-        languages: result.html?.languages_section?.length || 0
-      });
       
       return NextResponse.json({
         error: "CV_GENERATION_INCOMPLETE",
@@ -404,7 +410,7 @@ export async function POST(req: Request) {
     console.log('✅ CV content validation passed');
 
     // ════════════════════════════════════════════════════════════════
-    // MASTER GUARDIAN CHECK
+    // MASTER GUARDIAN CHECK (PERMISSIVE FOR EDUCATION)
     // ════════════════════════════════════════════════════════════════
 
     console.log('🛡️ Running Master Guardian...');
@@ -432,7 +438,7 @@ export async function POST(req: Request) {
       'generation'
     );
 
-    // ✅ KORJAUS: Salli jos VAIN education-ongelma (koska se on buginen)
+    // ✅ VÄLIAIKAINEN: Salli education-ongelmat (kunnes Guardian korjataan)
     const hasOnlyEducationIssues = 
       guardianCheck.violations &&
       guardianCheck.violations.fabricatedEducation &&
@@ -441,12 +447,10 @@ export async function POST(req: Request) {
       (!guardianCheck.violations.fabricatedExperience || guardianCheck.violations.fabricatedExperience.length === 0);
 
     if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
-      // ⚠️ VÄLIAIKAINEN: Salli jos vain education-ongelmia
       if (hasOnlyEducationIssues) {
-        console.warn('⚠️ Guardian flagged education but allowing (known issue)');
+        console.warn('⚠️ Guardian flagged education but allowing (known fuzzy matching issue)');
         console.warn('   Flagged items:', guardianCheck.violations.fabricatedEducation);
       } else {
-        // ❌ HYLKÄÄ jos muita ongelmia
         console.error('🚨 GUARDIAN REJECTED CV');
         console.error('   Violations:', guardianCheck.violations);
         
@@ -462,7 +466,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // ⚠️ VAROITUS (mutta salli tallennus)
     if (guardianCheck.riskLevel === 'warning') {
       console.warn('⚠️ Guardian warning:', guardianCheck.recommendation);
     }
@@ -486,27 +489,26 @@ export async function POST(req: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // CLEAN AND VALIDATE IMAGES
+    // CLEAN AND VALIDATE IMAGES (KORJATTU!)
     // ════════════════════════════════════════════════════════════════
 
-    // ✅ PROFIILIKUVA: Käytä INPUT:sta (käyttäjän valitsema)
+    console.log("🖼️ Processing images...");
+    console.log("   - Input profileImage:", input.profileImage?.substring(0, 80) || "none");
+    console.log("   - Result background_image:", result.background_image?.substring(0, 80) || "none");
+
+    // ✅ PROFIILIKUVA
     const cleanProfileImage = cleanImageForStorage(input.profileImage);
 
-    // ✅ TAUSTAKUVA: 
-    // Käytä ENSIN input.backgroundImage (käyttäjän valitsema)
-    // JOS PUUTTUU: Käytä result.background_image (AI:n generoima)
-    const backgroundImageSource = input.backgroundImage || result.background_image;
-    const cleanBackgroundImage = cleanImageForStorage(backgroundImageSource);
+    // ✅ TAUSTAKUVA
+    const cleanBackgroundImage = cleanImageForStorage(result.background_image);
 
     console.log("🖼️ Images after cleaning:");
-    console.log("   - Profile INPUT:", input.profileImage?.substring(0, 80));
-    console.log("   - Profile CLEAN:", cleanProfileImage ? `✅ (${cleanProfileImage.substring(0, 80)}...)` : "❌");
-    console.log("   - Background SOURCE:", backgroundImageSource?.substring(0, 80));
-    console.log("   - Background CLEAN:", cleanBackgroundImage ? `✅ (${cleanBackgroundImage.substring(0, 80)}...)` : "❌");
+    console.log("   - Profile:", cleanProfileImage ? `✅ ${cleanProfileImage.substring(0, 60)}...` : "❌ null");
+    console.log("   - Background:", cleanBackgroundImage ? `✅ ${cleanBackgroundImage.substring(0, 60)}...` : "❌ null");
 
-    // ✅ DEBUG: Tarkista onko fallback
+    // ✅ DEBUG: Tarkista onko SVG fallback
     if (cleanBackgroundImage && cleanBackgroundImage.includes('Background Image')) {
-      console.warn("⚠️ Background is FALLBACK SVG - image generation failed!");
+      console.warn("⚠️ Background is SVG FALLBACK - image generation failed!");
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -527,7 +529,6 @@ export async function POST(req: Request) {
             personal_description: result.personal_description,
           },
           ai_data: {
-            // ✅ VANHA MUOTO (html-objekti sisällä)
             html: {
               skills_section: result.html.skills_section,
               experience_section: result.html.experience_section,
@@ -535,13 +536,11 @@ export async function POST(req: Request) {
               languages_section: result.html.languages_section,
             },
             
-            // ✅ UUSI MUOTO (suoraan juuressa, types/index.ts mukaan)
             skills_section: result.html.skills_section,
             experience_section: result.html.experience_section,
             education_section: result.html.education_section,
             languages_section: result.html.languages_section,
             
-            // Muut kentät
             personal_description: result.personal_description,
             profile_initials: result.profile_initials,
             fullTextContent: result.fullTextContent,
@@ -551,7 +550,6 @@ export async function POST(req: Request) {
           }
         },
         
-        // ✅ TALLENNA MYÖS ROOT-TASOLLE (backward compatibility)
         background_image: cleanBackgroundImage || "",
         profile_image: cleanProfileImage || null,
         profile_initials: result.profile_initials,
@@ -575,8 +573,8 @@ export async function POST(req: Request) {
           images_saved: {
             profile: !!cleanProfileImage,
             background: !!cleanBackgroundImage,
-            profile_type: cleanProfileImage?.startsWith('data:') ? 'base64' : 'url',
-            background_type: cleanBackgroundImage?.startsWith('data:') ? 'base64' : 'url'
+            profile_type: cleanProfileImage?.startsWith('data:') ? 'base64' : cleanProfileImage?.startsWith('http') ? 'url' : 'none',
+            background_type: cleanBackgroundImage?.startsWith('data:') ? 'base64' : cleanBackgroundImage?.startsWith('http') ? 'url' : 'none'
           }
         }
       })
@@ -616,10 +614,6 @@ export async function POST(req: Request) {
 
     const totalTime = Date.now() - startTime;
     console.log(`🎉 CV generation complete in ${totalTime}ms`);
-
-    // ════════════════════════════════════════════════════════════════
-    // RETURN SUCCESS
-    // ════════════════════════════════════════════════════════════════
 
     return NextResponse.json({
       success: true,
