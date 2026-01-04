@@ -1265,46 +1265,32 @@ checkTimeout();
 // ════════════════════════════════════════════════════════════════
 timer.start("Background");
 
-let backgroundImage: string | null = cleanImageUrl(finalUserData.backgroundImage);
+let backgroundImage: string | null =
+  cleanImageUrl(finalUserData.backgroundImage);
 
 const timeRemaining = MAX_EXECUTION_TIME - (Date.now() - startTime);
 
-// ✅ VAIN jos ei ole taustakuvaa JA aikaa on jäljellä → generoi uusi
-if (!backgroundImage && timeRemaining > 15000) {
-  try {
-    console.log("🎨 No background image, generating new...");
-    
-    const generatedUrl = await Promise.race([
-      generateEnhancedBackgroundImage(
-        toLangChainInput(finalUserData),
-        authToken
-      ),
-      new Promise<string>((resolve) =>
-        setTimeout(() => {
-          console.warn("⏰ Background generation timeout");
-          resolve(""); // ❌ TYHJÄ, EI SVG!
-        }, 12000)
-      ),
-    ]);
-
-    // ✅ TARKISTA että saatiin oikea URL (ei SVG!)
-    if (generatedUrl && !generatedUrl.startsWith("data:image/svg")) {
-      backgroundImage = generatedUrl;
-      console.log("✅ Background generated:", generatedUrl.substring(0, 80));
-    } else {
-      console.warn("⚠️ Background generation failed or returned SVG fallback");
-      backgroundImage = null; // ❌ NULL, ei SVG!
+if (!backgroundImage) {
+  if (timeRemaining > 15000) {
+    try {
+      backgroundImage = await Promise.race([
+        generateEnhancedBackgroundImage(
+          toLangChainInput(finalUserData),
+          authToken
+        ),
+        new Promise<string>((resolve) =>
+          setTimeout(() => resolve(FALLBACK_IMAGE), 12000)
+        ),
+      ]);
+    } catch {
+      backgroundImage = FALLBACK_IMAGE;
     }
-  } catch (error) {
-    console.error("❌ Background generation error:", error);
-    backgroundImage = null; // ❌ NULL, ei SVG!
+  } else {
+    backgroundImage = FALLBACK_IMAGE;
   }
-} else if (!backgroundImage) {
-  console.log("⚠️ No time for background generation or input already had image");
 }
 
 timer.end();
-
 
 // ════════════════════════════════════════════════════════════════
 // FINAL ASSEMBLY
@@ -1325,15 +1311,8 @@ ${parsedOutput.cv_content.languages_section}
 timer.getResults();
 const profileImageClean = cleanImageUrl(finalUserData.profileImage);
 
-// ✅ LOPULLINEN VALIDOINTI
-const finalBackgroundImage = cleanImageUrl(backgroundImage);
-
-console.log("🌄 FINAL BACKGROUND:", {
-  hasImage: !!finalBackgroundImage,
-  type: finalBackgroundImage?.startsWith('data:') ? 'Base64' : 
-        finalBackgroundImage?.startsWith('http') ? 'HTTP URL' : 'None',
-  length: finalBackgroundImage?.length || 0
-});
+const finalBackgroundImage =
+  cleanImageUrl(backgroundImage) || FALLBACK_IMAGE;
 
 return {
   personal_description: parsedOutput.personal_description,

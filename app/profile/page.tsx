@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { ProfileData } from "@/types";
+import { supabase } from "@/lib/supabase-client";
 
 // --- DESIGN SYSTEM STYLES ---
 const styles = {
@@ -277,31 +278,85 @@ const SimplifiedProfilePage: React.FC = () => {
     setProfileData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+ const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file || !userId) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Valitse vain kuvatiedostoja");
+  // Validoi tiedosto
+  if (!file.type.startsWith("image/")) {
+    toast.error("Valitse vain kuvatiedostoja");
+    return;
+  }
+
+  if (file.size > 5 * 1024 * 1024) {
+    toast.error("Kuvan koko max 5MB");
+    return;
+  }
+
+  try {
+    setIsSaving(true);
+    toast.loading("Ladataan kuvaa...");
+
+    // 1️⃣ GENEROI TIEDOSTONIMI
+    const fileExt = file.name.split(".").pop();
+    const fileName = `profile_${Date.now()}.${fileExt}`;
+    const filePath = `profiles/${userId}/${fileName}`;
+
+    // 2️⃣ LATAA SUPABASE STORAGE:EN
+    const { error: uploadError } = await supabase.storage
+      .from("cv_files")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      toast.error("Kuvan lataus epäonnistui");
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Kuvan koko max 5MB");
+    // 3️⃣ HAE PUBLIC URL
+    const { data: urlData } = supabase.storage
+      .from("cv_files")
+      .getPublicUrl(filePath);
+
+    if (!urlData?.publicUrl) {
+      toast.error("URL:n haku epäonnistui");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64String = e.target?.result as string;
-      setProfileData((prev) => ({
-        ...prev,
-        profileImage: base64String,
-      }));
-      toast.success("Profiilikuva lisätty!");
-    };
-    reader.readAsDataURL(file);
-  };
+    // 4️⃣ TALLENNA default_images-TAULUUN
+    const { error: dbError } = await supabase
+      .from("default_images")
+      .insert({
+        user_id: userId,
+        image_type: "profile",
+        file_path: filePath,
+        name: `Profiilikuva ${new Date().toLocaleDateString()}`,
+        is_active: true,
+        is_ai_generated: false,
+      });
+
+    if (dbError) {
+      console.error("DB error:", dbError);
+      // Ei kriittinen virhe - kuva on jo Storagessa
+    }
+
+    // 5️⃣ PÄIVITÄ UI (tallennetaan vain file_path, ei Base64!)
+    setProfileData((prev) => ({
+      ...prev,
+      profileImage: filePath, // ✅ VAIN PATH, EI BASE64!
+    }));
+
+    toast.success("Profiilikuva lisätty!");
+  } catch (error) {
+    console.error("Error:", error);
+    toast.error("Kuvan lataus epäonnistui");
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const removeProfileImage = () => {
     setProfileData((prev) => ({ ...prev, profileImage: "" }));
@@ -394,7 +449,21 @@ const SimplifiedProfilePage: React.FC = () => {
       ),
     }));
   };
-
+const getProfileImageUrl = (imagePath: string | undefined): string => {
+  if (!imagePath) return "";
+  
+  // Jos jo HTTP URL → palauta sellaisenaan
+  if (imagePath.startsWith("http")) return imagePath;
+  
+  // Jos Base64 → palauta sellaisenaan (legacy-tuki)
+  if (imagePath.startsWith("data:image")) return imagePath;
+  
+  // Muuten rakenna Supabase public URL
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return "";
+  
+  return `${supabaseUrl}/storage/v1/object/public/cv_files/${imagePath}`;
+};
   // --- RENDER SECTIONS ---
 
   const renderEssentials = () => {
@@ -614,14 +683,15 @@ const SimplifiedProfilePage: React.FC = () => {
         <div className="relative group">
           <div className="w-40 h-40 rounded-3xl border-4 border-white shadow-2xl overflow-hidden bg-indigo-50 flex items-center justify-center relative">
             {profileData.profileImage ? (
-              <img
-                src={profileData.profileImage}
-                alt="Profiilikuva"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <User className="w-16 h-16 text-indigo-200" />
-            )}
+    <img
+      src={getProfileImageUrl(profileData.profileImage)}
+      alt="Profiilikuva"
+      className="w-full h-full object-cover"
+    />
+  ) : (
+    <User className="w-16 h-16 text-indigo-200" />
+  )}
+
              {/* Hover Overlay */}
              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}>
