@@ -34,6 +34,7 @@ import {
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
 import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
+import HowItWorksTimeline from "@/components/howitworks";
 
 interface SubscriptionStatus {
   plan_type: "free" | "basic" | "semi-pro" | "pro";
@@ -829,6 +830,7 @@ if (!isLoaded || subLoading) {
               ? `Welcome${displayName ? `, ${displayName}` : ""}!`
               : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
           </h1>
+          <HowItWorksTimeline />
 <p className="text-gray-700 text-base sm:text-lg">
   {tier === "free"
     ? language === "en"

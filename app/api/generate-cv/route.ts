@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - KRIITTINEN KORJAUS: cleanImageForStorage()
+// app/api/generate-cv/route.ts - COMPLETE FIXED VERSION
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -102,81 +102,6 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
   }
 
   return { isValid: true };
-}
-
-/**
- * ✅ KORJATTU: Puhdista ja validoi kuva-URL
- * 
- * ONGELMA ENNEN:
- * - Palautti "data:" ilman Base64-sisältöä
- * - Johti URL:iin: "https://supabase.../cv_files/data:"
- * 
- * RATKAISU:
- * - Tarkista että Base64 on TÄYDELLINEN
- * - Palauta null jos puutteellinen
- */
-function cleanImageForStorage(url: string | null | undefined): string | null {
-  // ✅ 1. NULL/EMPTY CHECK
-  if (!url || url.trim() === '') {
-    console.log("🖼️ Image is null/empty");
-    return null;
-  }
-  
-  const trimmed = url.trim();
-  
-  // ✅ 2. HTTP/HTTPS URL → Palauta sellaisenaan
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    console.log("🖼️ Image is HTTP URL:", trimmed.substring(0, 80));
-    return trimmed;
-  }
-  
-  // ✅ 3. BASE64 DATA URI → KRIITTINEN VALIDOINTI
-  if (trimmed.startsWith("data:image")) {
-    // Tarkista formaatti: data:image/jpeg;base64,XXXXXX
-    const parts = trimmed.split(',');
-    
-    if (parts.length !== 2) {
-      console.error("❌ Invalid Base64: Missing comma separator");
-      return null;
-    }
-    
-    const [header, data] = parts;
-    
-    // Tarkista header
-    if (!header.includes('base64')) {
-      console.error("❌ Invalid Base64: Missing 'base64' in header");
-      return null;
-    }
-    
-    // Tarkista että data on olemassa ja riittävän pitkä
-    if (!data || data.length < 100) {
-      console.error("❌ Invalid Base64: Data too short or missing");
-      console.error("   Header:", header);
-      console.error("   Data length:", data?.length || 0);
-      return null;
-    }
-    
-    // ✅ KAIKKI OK - palauta koko Data URI
-    console.log("✅ Valid Base64 image (length:", trimmed.length, ")");
-    return trimmed;
-  }
-  
-  // ✅ 4. Yritä etsiä Base64 stringistä (jos joku on lisännyt jotain eteen)
-  const base64Match = trimmed.match(/(data:image\/[^;]+;base64,[A-Za-z0-9+/=]{100,})/);
-  if (base64Match) {
-    console.log("🖼️ Extracted Base64 from dirty string");
-    return base64Match[1];
-  }
-  
-  // ❌ 5. SUPABASE PATH → EI ENÄÄ TUETA (käytä vain HTTP URL tai Base64)
-  if (trimmed.includes('/') && !trimmed.startsWith('data:')) {
-    console.error("❌ Supabase path detected - should be HTTP URL:", trimmed.substring(0, 80));
-    return null;
-  }
-  
-  // ❌ 6. Tuntematon muoto
-  console.error("❌ Unknown image format:", trimmed.substring(0, 100));
-  return null;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -489,64 +414,84 @@ export async function POST(req: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // CLEAN AND VALIDATE IMAGES (KORJATTU + FALLBACK)
+    // IMAGE PROCESSING (TALLENNA FILE PATHT, EI BASE64!)
     // ════════════════════════════════════════════════════════════════
 
     console.log("🖼️ Processing images...");
-    console.log("   - Input profileImage (raw):", input.profileImage?.substring(0, 120) || "none");
-    console.log("   - Result background_image (raw):", result.background_image?.substring(0, 120) || "none");
 
-    // ✅ PROFIILIKUVA: Puhdista JA validoi
-    let cleanProfileImage = cleanImageForStorage(input.profileImage);
+    // ✅ 1. PROFIILIKUVA: Hae user_profiles:sta (file path tai Base64 legacy)
+    let profileImagePath = "";
 
-    // ❌ FALLBACK: Jos ei kuvaa, hae user_profiles:sta
-    if (!cleanProfileImage && userProfile?.profile_image) {
-      console.log("💾 No input image, loading from user_profiles...");
-      cleanProfileImage = cleanImageForStorage(userProfile.profile_image);
+    if (userProfile?.profile_image) {
+      const rawProfile = userProfile.profile_image;
+      
+      // Jos Base64 (legacy) → jätä sellaisenaan (migraatio myöhemmin)
+      if (rawProfile.startsWith("data:image/")) {
+        console.log("⚠️ Profile is Base64 (legacy format)");
+        profileImagePath = rawProfile;
+      }
+      // Jos file path → käytä sitä
+      else if (rawProfile.includes('/')) {
+        profileImagePath = rawProfile;
+        console.log("✅ Profile image file path:", profileImagePath);
+      }
+      // Jos HTTP URL → pura file path
+      else if (rawProfile.startsWith('http')) {
+        const pathMatch = rawProfile.match(/\/cv_files\/(.+)$/);
+        if (pathMatch) {
+          profileImagePath = pathMatch[1];
+          console.log("✅ Extracted profile file path from URL:", profileImagePath);
+        }
+      }
     }
 
-    // ❌ KRIITTINEN FIX: Jos cleanImageForStorage palauttaa null MUTTA input oli validi URL
-    if (!cleanProfileImage && input.profileImage && input.profileImage.startsWith('http')) {
-      console.warn("⚠️ cleanImageForStorage rejected HTTP URL, using raw input");
-      cleanProfileImage = input.profileImage;
+    // ✅ 2. TAUSTAKUVA: Generoi uusi TAI käytä inputtia
+    let backgroundImagePath = "";
+
+    // Jos input sisältää taustakuvan (käyttäjä valitsi vanhan)
+    if (input.backgroundImage) {
+      const rawBg = input.backgroundImage;
+      
+      // Jos file path → käytä sitä
+      if (rawBg.includes('/') && !rawBg.startsWith('http') && !rawBg.startsWith('data:')) {
+        backgroundImagePath = rawBg;
+        console.log("✅ Background from input (file path):", backgroundImagePath);
+      }
+      // Jos HTTP URL → pura file path
+      else if (rawBg.startsWith('http')) {
+        const pathMatch = rawBg.match(/\/cv_files\/(.+)$/);
+        if (pathMatch) {
+          backgroundImagePath = pathMatch[1];
+          console.log("✅ Extracted background file path from input URL:", backgroundImagePath);
+        }
+      }
     }
 
-    // ✅ TAUSTAKUVA: Puhdista JA validoi
-    let cleanBackgroundImage = cleanImageForStorage(result.background_image);
-
-    // ❌ KRIITTINEN FIX: Jos cleanImageForStorage palauttaa null MUTTA result oli validi URL
-    if (!cleanBackgroundImage && result.background_image && result.background_image.startsWith('http')) {
-      console.warn("⚠️ cleanImageForStorage rejected HTTP URL, using raw input");
-      cleanBackgroundImage = result.background_image;
+    // Jos ei ole taustakuvaa, result.background_image sisältää sen
+    if (!backgroundImagePath && result.background_image) {
+      const rawBg = result.background_image;
+      
+      // Jos file path → käytä sitä
+      if (rawBg.includes('/') && !rawBg.startsWith('http') && !rawBg.startsWith('data:')) {
+        backgroundImagePath = rawBg;
+        console.log("✅ Background from result (file path):", backgroundImagePath);
+      }
+      // Jos HTTP URL → pura file path
+      else if (rawBg.startsWith('http')) {
+        const pathMatch = rawBg.match(/\/cv_files\/(.+)$/);
+        if (pathMatch) {
+          backgroundImagePath = pathMatch[1];
+          console.log("✅ Extracted background file path from result URL:", backgroundImagePath);
+        }
+      }
     }
 
-    console.log("🖼️ Images after cleaning:");
-    console.log("   - Profile FINAL:", cleanProfileImage ? `✅ TYPE=${cleanProfileImage.startsWith('data:') ? 'Base64' : 'HTTP'} LEN=${cleanProfileImage.length}` : "❌ null");
-    console.log("   - Profile FIRST 120:", cleanProfileImage?.substring(0, 120));
-    console.log("   - Background FINAL:", cleanBackgroundImage ? `✅ TYPE=${cleanBackgroundImage.startsWith('data:') ? 'Base64' : 'HTTP'} LEN=${cleanBackgroundImage.length}` : "❌ null");
-    console.log("   - Background FIRST 120:", cleanBackgroundImage?.substring(0, 120));
-
-    // ✅ DEBUG: Tarkista onko SVG fallback
-    if (cleanBackgroundImage && cleanBackgroundImage.includes('Background Image')) {
-      console.warn("⚠️ Background is SVG FALLBACK - image generation failed!");
-    }
-
-    // ✅ KRIITTINEN VALIDOINTI: Varmista että URL:t ovat oikeassa muodossa
-    if (cleanProfileImage && cleanProfileImage.includes('cv_files/data:')) {
-      console.error("❌ CRITICAL: Profile image has invalid Supabase + Base64 mix!");
-      console.error("   Detected:", cleanProfileImage.substring(0, 150));
-      console.error("   This should NEVER happen - check where this URL is created!");
-      cleanProfileImage = null; // ❌ Hylkää virheellinen URL
-    }
-
-    if (cleanBackgroundImage && cleanBackgroundImage.includes('cv_files/data:')) {
-      console.error("❌ CRITICAL: Background image has invalid Supabase + Base64 mix!");
-      console.error("   Detected:", cleanBackgroundImage.substring(0, 150));
-      cleanBackgroundImage = null; // ❌ Hylkää virheellinen URL
-    }
+    console.log("🖼️ Final image paths:");
+    console.log("   - Profile:", profileImagePath || "none");
+    console.log("   - Background:", backgroundImagePath || "none");
 
     // ════════════════════════════════════════════════════════════════
-    // SAVE CV TO DATABASE
+    // SAVE CV TO DATABASE (TALLENNA FILE PATHT!)
     // ════════════════════════════════════════════════════════════════
 
     const { data: saved, error: saveError } = await supabaseAdmin
@@ -555,11 +500,16 @@ export async function POST(req: Request) {
         user_id: userId,
         title: `${input.name || "My"} CV - ${cvType}`,
         
+        // ✅ ROOT-TASOLLA: File patht (ei URL:eja!)
+        profile_image: profileImagePath || null,
+        background_image: backgroundImagePath || null,
+        
         content: {
           cv_data: {
             ...input,
-            profileImage: cleanProfileImage,
-            backgroundImage: cleanBackgroundImage,
+            // ✅ CONTENT:SSA: File patht
+            profileImage: profileImagePath,
+            backgroundImage: backgroundImagePath,
             personal_description: result.personal_description,
           },
           ai_data: {
@@ -579,13 +529,13 @@ export async function POST(req: Request) {
             profile_initials: result.profile_initials,
             fullTextContent: result.fullTextContent,
             cvType: cvType,
-            background_image: cleanBackgroundImage,
-            profile_image: cleanProfileImage,
+            
+            // ✅ AI_DATA:SSA: File patht
+            background_image: backgroundImagePath,
+            profile_image: profileImagePath,
           }
         },
         
-        background_image: cleanBackgroundImage || "",
-        profile_image: cleanProfileImage || null,
         profile_initials: result.profile_initials,
         is_public: false,
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
@@ -605,10 +555,10 @@ export async function POST(req: Request) {
             timestamp: new Date().toISOString()
           },
           images_saved: {
-            profile: !!cleanProfileImage,
-            background: !!cleanBackgroundImage,
-            profile_type: cleanProfileImage?.startsWith('data:') ? 'base64' : cleanProfileImage?.startsWith('http') ? 'url' : 'none',
-            background_type: cleanBackgroundImage?.startsWith('data:') ? 'base64' : cleanBackgroundImage?.startsWith('http') ? 'url' : 'none'
+            profile: !!profileImagePath,
+            background: !!backgroundImagePath,
+            profile_path: profileImagePath,
+            background_path: backgroundImagePath,
           }
         }
       })
@@ -623,7 +573,10 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`✅ CV saved: ${saved.id}`);
+    console.log(`✅ CV saved with file paths:`, {
+      profile: profileImagePath || 'none',
+      background: backgroundImagePath || 'none'
+    });
 
     // ════════════════════════════════════════════════════════════════
     // CONSUME TOKENS
