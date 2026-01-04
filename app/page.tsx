@@ -312,6 +312,7 @@ if (!isLoaded || subLoading) {
                     ? "Start for free with zero risk. We just need you to fill your profile so our AI knows you. You get 1 free CV and a general Cover Letter to test the quality."
                     : "Aloita ilmaiseksi ilman sitoutumista. Sinun tarvitsee vain täyttää profiilisi, jotta AI oppii tuntemaan sinut. Saat 1 ilmaisen CV:n ja yhden yleisen esittelykirjeen testataksesi laatua."}
                 </p>
+          <HowItWorksTimeline />
 
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-6 sm:mb-8 px-4">
                   <SignedOut>
@@ -830,7 +831,6 @@ if (!isLoaded || subLoading) {
               ? `Welcome${displayName ? `, ${displayName}` : ""}!`
               : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
           </h1>
-          <HowItWorksTimeline />
 <p className="text-gray-700 text-base sm:text-lg">
   {tier === "free"
     ? language === "en"
@@ -863,6 +863,7 @@ if (!isLoaded || subLoading) {
             </Link>
           </div>
         )}
+          <HowItWorksTimeline />
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {canCreateCV ? (
