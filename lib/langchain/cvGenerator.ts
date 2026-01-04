@@ -392,13 +392,19 @@ function cleanImageUrl(url?: string): string | null {
 
   const trimmed = url.trim();
 
+  // ✅ SALLI SVG FALLBACK (taustakuville)
+  if (trimmed.startsWith("data:image/svg+xml")) {
+    console.log("✅ SVG fallback image accepted");
+    return trimmed;
+  }
+
   // ❌ Estä placeholderit ja defaultit
   if (
     trimmed === "" ||
     trimmed.includes("cv_files/default") ||
     trimmed.endsWith("/default") ||
-    trimmed.endsWith("/storage/") || // ✅ UUSI: Estä vajaat Supabase URLs
-    trimmed.endsWith("/storage") // ✅ UUSI: Estä vajaat Supabase URLs
+    trimmed.endsWith("/storage/") ||
+    trimmed.endsWith("/storage")
   ) {
     console.warn("⚠️ Rejected placeholder/incomplete URL:", trimmed.substring(0, 100));
     return null;
