@@ -36,33 +36,93 @@ export default function EditCVPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // --- INITIAL LOAD ---
-  useEffect(() => {
-    const init = async () => {
-      if (!userId || !id) return;
+// app/edit-cv/[id]/page.tsx - INITIAL LOAD (KORJATTU)
 
-      try {
-        const token = await getToken({ template: 'supabase' });
-        if (!token) throw new Error('No authentication token');
+useEffect(() => {
+  const init = async () => {
+    if (!userId || !id) return;
 
-        const { data, error } = await fetchCVById(id, userId, token);
-        if (error) throw error;
-        if (data) setCvData(data);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No authentication token');
 
-        const images = await getAllAvailableImagesAction();
-        setAvailableImages(images);
-
-        console.log(`✅ Loaded ${images.backgroundImages.length} background images`);
-
-      } catch (err) {
-        console.error('Error initializing CV page:', err);
-        setErrorMessage('CV:n lataaminen epäonnistui');
-      } finally {
-        setIsLoading(false);
+      const { data, error } = await fetchCVById(id, userId, token);
+      if (error) throw error;
+      
+      if (data) {
+        // ✅ PROSESSOI KUVAT ENNEN TALLENNUSTA
+        const processImageUrl = (url: string | null | undefined): string => {
+          if (!url || url.trim() === "") return "";
+          const trimmed = url.trim();
+          
+          // Base64 → OK (paitsi SVG)
+          if (trimmed.startsWith('data:image') && !trimmed.includes('svg+xml')) {
+            return trimmed;
+          }
+          
+          // HTTP URL → OK
+          if (trimmed.startsWith('http')) {
+            return trimmed;
+          }
+          
+          // Supabase path → Rakenna public URL
+          if (trimmed.includes('/')) {
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            if (!supabaseUrl) return "";
+            return `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
+          }
+          
+          return "";
+        };
+        
+        // ✅ HAE PROFIILIKUVA
+        const profileImage = processImageUrl(
+          data.content?.cv_data?.profileImage || 
+          data.content?.ai_data?.profile_image
+        );
+        
+        // ✅ HAE TAUSTAKUVA
+        const backgroundImage = processImageUrl(
+          data.content?.cv_data?.backgroundImage || 
+          data.content?.ai_data?.background_image
+        );
+        
+        // ✅ TALLENNA PROSESSOIDUT KUVAT
+        if (data.content) {
+          if (!data.content.ai_data) data.content.ai_data = {};
+          
+          if (profileImage) {
+            data.content.cv_data.profileImage = profileImage;
+            data.content.ai_data.profile_image = profileImage;
+          }
+          
+          if (backgroundImage) {
+            data.content.cv_data.backgroundImage = backgroundImage;
+            data.content.ai_data.background_image = backgroundImage;
+          }
+        }
+        
+        console.log(`✅ CV loaded with images:`, {
+          hasProfile: !!profileImage,
+          hasBackground: !!backgroundImage
+        });
+        
+        setCvData(data);
       }
-    };
 
-    init();
-  }, [id, userId, getToken]);
+      const images = await getAllAvailableImagesAction();
+      setAvailableImages(images);
+
+    } catch (err) {
+      console.error('Error initializing CV page:', err);
+      setErrorMessage('CV:n lataaminen epäonnistui');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  init();
+}, [id, userId, getToken]);
 
   // --- HANDLERS ---
   const handleContentChange = useCallback(<K extends keyof any>(

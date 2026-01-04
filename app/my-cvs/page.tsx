@@ -30,54 +30,118 @@ export default function MyCVsPage() {
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
   const cvRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const loadCVs = async () => {
-    if (!userId) {
-      setLoading(false);
-      setError("Käyttäjä ei ole kirjautunut sisään");
-      return;
-    }
+  // app/my-cvs/page.tsx - KUVAN HAKU KORJAUS
 
-    setLoading(true);
-    setError(null);
+const loadCVs = async () => {
+  if (!userId) {
+    setLoading(false);
+    setError("Käyttäjä ei ole kirjautunut sisään");
+    return;
+  }
 
-    try {
-      const token = await getToken({ template: "supabase" });
-      if (!token) throw new Error("Autentikaatiotoken puuttuu");
+  setLoading(true);
+  setError(null);
+
+  try {
+    const token = await getToken({ template: "supabase" });
+    if (!token) throw new Error("Autentikaatiotoken puuttuu");
+    
+    const { data, error: fetchError } = await fetchCVs(userId, token);
+    if (fetchError) throw fetchError;
+    
+    // ✅ PARANNETTU DATAN PUHDISTUS: Varmistetaan kuvat
+    const processedData = (data || []).map((cv: any) => {
+      let cvData = cv.cv_data;
+      let aiData = cv.ai_data;
+
+      // Jos sarakkeet ovat tyhjiä, pura content-merkkijonosta
+      if (!cvData && cv.content) {
+        try {
+          const parsed = typeof cv.content === 'string' ? JSON.parse(cv.content) : cv.content;
+          cvData = parsed.cv_data || {};
+          aiData = parsed.ai_data || {};
+        } catch (e) {
+          console.error("Datan parsiminen epäonnistui ID:lle:", cv.id);
+          cvData = {};
+          aiData = {};
+        }
+      }
       
-      const { data, error: fetchError } = await fetchCVs(userId, token);
-      if (fetchError) throw fetchError;
-      
-      // ✅ DATAN PUHDISTUS: Varmistetaan että template saa aina objektin
-      const processedData = (data || []).map((cv: any) => {
-        let cvData = cv.cv_data;
-        let aiData = cv.ai_data;
-
-        // Jos sarakkeet ovat tyhjiä (null), puretaan tiedot 'content'-merkkijonosta
-        if (!cvData && cv.content) {
-          try {
-            const parsed = typeof cv.content === 'string' ? JSON.parse(cv.content) : cv.content;
-            cvData = parsed.cv_data || null;
-            aiData = parsed.ai_data || null;
-          } catch (e) {
-            console.error("Datan parsiminen epäonnistui ID:lle:", cv.id);
-          }
+      // ✅ UUSI: Varmista että kuvat ovat oikeassa muodossa
+      const processImageUrl = (url: string | null | undefined): string => {
+        if (!url || url.trim() === "") return "";
+        const trimmed = url.trim();
+        
+        // Base64 → OK
+        if (trimmed.startsWith('data:image') && !trimmed.includes('svg+xml')) {
+          return trimmed;
         }
         
-        return {
-          ...cv,
-          cv_data: cvData,
-          ai_data: aiData
-        };
+        // HTTP URL → OK
+        if (trimmed.startsWith('http')) {
+          return trimmed;
+        }
+        
+        // Supabase path → Rakenna public URL
+        if (trimmed.includes('/')) {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          if (!supabaseUrl) return "";
+          return `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
+        }
+        
+        return "";
+      };
+      
+      // ✅ PROSESSOI PROFIILIKUVA
+      const profileImage = processImageUrl(
+        cv.profile_image || 
+        cvData?.profileImage || 
+        aiData?.profile_image || 
+        cvData?.photo
+      );
+      
+      // ✅ PROSESSOI TAUSTAKUVA
+      const backgroundImage = processImageUrl(
+        cv.background_image || 
+        cvData?.backgroundImage || 
+        aiData?.background_image
+      );
+      
+      // ✅ TALLENNA TAKAISIN KAIKKIIN PAIKKOIHIN
+      if (profileImage) {
+        cvData.profileImage = profileImage;
+        cvData.photo = profileImage;
+        if (aiData) aiData.profile_image = profileImage;
+      }
+      
+      if (backgroundImage) {
+        cvData.backgroundImage = backgroundImage;
+        if (aiData) aiData.background_image = backgroundImage;
+      }
+      
+      console.log(`CV ${cv.id}:`, {
+        hasProfile: !!profileImage,
+        hasBackground: !!backgroundImage
       });
+      
+      return {
+        ...cv,
+        profile_image: profileImage,
+        background_image: backgroundImage,
+        cv_data: cvData,
+        ai_data: aiData
+      };
+    });
 
-      setCvs(processedData);
-    } catch (error) {
-      console.error("Virhe CV:iden haussa:", error);
-      setError(error instanceof Error ? error.message : "Tuntematon virhe");
-    } finally {
-      setLoading(false);
-    }
-  };
+    console.log(`✅ Loaded ${processedData.length} CVs with processed images`);
+    setCvs(processedData);
+  } catch (error) {
+    console.error("Virhe CV:iden haussa:", error);
+    setError(error instanceof Error ? error.message : "Tuntematon virhe");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const setCvRef = useCallback(
     (cvId: string) => (el: HTMLDivElement | null) => {

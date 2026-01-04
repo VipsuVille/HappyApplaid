@@ -24,50 +24,61 @@ export default function CVPreviewPage() {
   /**
    * ✅ KORJATTU: Muuntaa kuva-URL:n oikeaan muotoon
    * 
-   * ONGELMA ENNEN:
-   * - Jos Base64, rakensi: "https://supabase.../cv_files/data:image..."
-   * 
-   * RATKAISU:
-   * - Tarkista Base64 ENSIN (ennen Supabase path -logiikkaa)
-   * - Palauta Base64 sellaisenaan
+   * TUKEE:
+   * 1. Base64 data URI
+   * 2. HTTP/HTTPS URL (Supabase signed URL)
+   * 3. Supabase file path (muunnetaan public URL)
+   * 4. NULL/tyhjä → palauttaa tyhjän (ei virhettä)
    */
   const processImageUrl = (imageData: string | null | undefined): string => {
+    // ✅ 1. NULL/UNDEFINED/TYHJÄ → Palauta tyhjä (ei virhettä!)
     if (!imageData || imageData.trim() === "") {
+      console.log("⚠️ Image is null/empty/undefined");
       return "";
     }
     
     const trimmed = imageData.trim();
     
-    // ✅ 1. BASE64 DATA URI → PALAUTA HETI (TÄRKEINTÄ!)
+    // ✅ 2. BASE64 DATA URI → Palauta sellaisenaan
     if (trimmed.startsWith('data:image')) {
-      console.log("✅ Base64 image detected:", trimmed.substring(0, 50));
+      // ❌ HYLKÄÄ SVG (backend ei pitäisi lähettää näitä!)
+      if (trimmed.includes('data:image/svg+xml')) {
+        console.warn("⚠️ SVG fallback detected, rejecting");
+        return "";
+      }
       
       // Validoi että Base64 on täydellinen
       const parts = trimmed.split(',');
       if (parts.length === 2 && parts[1].length > 100) {
-        return trimmed; // ✅ PALAUTA SELLAISENAAN
+        console.log("✅ Valid Base64 image");
+        return trimmed;
       } else {
         console.error("❌ Invalid Base64 format");
         return "";
       }
     }
     
-    // ✅ 2. HTTP/HTTPS URL → Palauta sellaisenaan
+    // ✅ 3. HTTP/HTTPS URL → Palauta sellaisenaan
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      console.log("✅ HTTP URL detected:", trimmed.substring(0, 80));
+      console.log("✅ HTTP URL detected");
       return trimmed;
     }
     
-    // ✅ 3. Supabase file path → Rakenna PUBLIC URL
-    // VAIN jos ei ole Base64 TAI HTTP URL
+    // ✅ 4. Supabase file path → Rakenna PUBLIC URL
     if (trimmed.includes('/') && !trimmed.startsWith('data:') && !trimmed.startsWith('http')) {
-      const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${trimmed}`;
-      console.log("✅ Built Supabase PUBLIC URL:", publicUrl);
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        console.error("❌ NEXT_PUBLIC_SUPABASE_URL not configured");
+        return "";
+      }
+      
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
+      console.log("✅ Built Supabase PUBLIC URL");
       return publicUrl;
     }
     
-    // ❌ 4. Tuntematon muoto
-    console.warn("⚠️ Unknown image format:", trimmed.substring(0, 100));
+    // ❌ 5. Tuntematon muoto
+    console.warn("⚠️ Unknown image format, rejecting:", trimmed.substring(0, 100));
     return "";
   };
 
@@ -169,27 +180,29 @@ export default function CVPreviewPage() {
         // ════════════════════════════════════════════════════════════════
         
         console.log("👤 PROFILE IMAGE SOURCES:");
-        console.log("   1. cv.profile_image:", data.profile_image?.substring(0, 80));
-        console.log("   2. cv_data.profileImage:", data.content.cv_data?.profileImage?.substring(0, 80));
-        console.log("   3. cv_data.photo:", data.content.cv_data?.photo?.substring(0, 80));
-        console.log("   4. ai_data.profile_image:", data.content.ai_data?.profile_image?.substring(0, 80));
-        console.log("   5. ai_data.html.profile_image:", data.content.ai_data?.html?.profile_image?.substring(0, 80));
+        
+        // ✅ PRIORITEETTI (tärkeysjärjestyksessä):
+        const profileImageSources = [
+          { name: 'cv.profile_image', value: data.profile_image },
+          { name: 'cv_data.profileImage', value: data.content.cv_data?.profileImage },
+          { name: 'ai_data.profile_image', value: data.content.ai_data?.profile_image },
+          { name: 'cv_data.photo', value: data.content.cv_data?.photo },
+          { name: 'ai_data.html.profile_image', value: data.content.ai_data?.html?.profile_image }
+        ];
 
-        // Etsi profiilikuva prioriteettijärjestyksessä
-        let rawProfileImage = 
-          data.profile_image ||
-          data.content.cv_data?.profileImage ||
-          data.content.cv_data?.photo ||
-          data.content.ai_data?.profile_image ||
-          data.content.ai_data?.html?.profile_image ||
-          "";
+        profileImageSources.forEach(src => {
+          console.log(`   - ${src.name}:`, src.value?.substring(0, 80) || 'null');
+        });
+
+        // Etsi ensimmäinen ei-tyhjä arvo
+        const rawProfileImage = profileImageSources.find(src => src.value && src.value.trim() !== '')?.value || "";
 
         let profileImage = "";
 
         if (rawProfileImage) {
-          console.log("👤 Raw profile image:", rawProfileImage.substring(0, 100));
+          console.log("👤 Raw profile image found from:", profileImageSources.find(src => src.value === rawProfileImage)?.name);
           
-          // ✅ PROSESSOI URL (tämä nyt tarkistaa Base64 ensin!)
+          // ✅ PROSESSOI URL
           profileImage = processImageUrl(rawProfileImage);
           
           // PDF-mode: Muunna Base64:ksi jos HTTP URL
@@ -198,12 +211,9 @@ export default function CVPreviewPage() {
             profileImage = await convertImageForPDF(profileImage);
           }
           
-          console.log("👤 Final profile image type:", 
-            profileImage.startsWith('data:') ? 'Base64' : 
-            profileImage.startsWith('http') ? 'HTTP URL' : 'Unknown'
-          );
+          console.log("👤 Final profile image:", profileImage ? 'FOUND' : 'EMPTY');
         } else {
-          console.log("👤 No profile image found");
+          console.log("👤 No valid profile image source found");
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -211,25 +221,25 @@ export default function CVPreviewPage() {
         // ════════════════════════════════════════════════════════════════
         
         console.log("🌄 BACKGROUND IMAGE SOURCES:");
-        console.log("   1. cv.background_image:", data.background_image?.substring(0, 80));
-        console.log("   2. cv_data.backgroundImage:", data.content.cv_data?.backgroundImage?.substring(0, 80));
-        console.log("   3. ai_data.background_image:", data.content.ai_data?.background_image?.substring(0, 80));
-        console.log("   4. ai_data.background_image_url:", data.content.ai_data?.background_image_url?.substring(0, 80));
-        console.log("   5. ai_data.html.background_image:", data.content.ai_data?.html?.background_image?.substring(0, 80));
+        
+        const backgroundImageSources = [
+          { name: 'cv.background_image', value: data.background_image },
+          { name: 'cv_data.backgroundImage', value: data.content.cv_data?.backgroundImage },
+          { name: 'ai_data.background_image', value: data.content.ai_data?.background_image },
+          { name: 'ai_data.background_image_url', value: data.content.ai_data?.background_image_url },
+          { name: 'ai_data.html.background_image', value: data.content.ai_data?.html?.background_image }
+        ];
 
-        // Etsi taustakuva prioriteettijärjestyksessä
-        let rawBackgroundImage = 
-          data.background_image ||
-          data.content.cv_data?.backgroundImage ||
-          data.content.ai_data?.background_image ||
-          data.content.ai_data?.background_image_url ||
-          data.content.ai_data?.html?.background_image ||
-          "";
+        backgroundImageSources.forEach(src => {
+          console.log(`   - ${src.name}:`, src.value?.substring(0, 80) || 'null');
+        });
+
+        const rawBackgroundImage = backgroundImageSources.find(src => src.value && src.value.trim() !== '')?.value || "";
 
         let backgroundImage = "";
 
         if (rawBackgroundImage) {
-          console.log("🌄 Raw background image:", rawBackgroundImage.substring(0, 100));
+          console.log("🌄 Raw background image found from:", backgroundImageSources.find(src => src.value === rawBackgroundImage)?.name);
           
           // ✅ PROSESSOI URL
           backgroundImage = processImageUrl(rawBackgroundImage);
@@ -240,12 +250,9 @@ export default function CVPreviewPage() {
             backgroundImage = await convertImageForPDF(backgroundImage);
           }
           
-          console.log("🌄 Final background image type:", 
-            backgroundImage.startsWith('data:') ? 'Base64' : 
-            backgroundImage.startsWith('http') ? 'HTTP URL' : 'Unknown'
-          );
+          console.log("🌄 Final background image:", backgroundImage ? 'FOUND' : 'EMPTY');
         } else {
-          console.log("🌄 No background image found");
+          console.log("🌄 No valid background image source found");
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -256,8 +263,8 @@ export default function CVPreviewPage() {
         if (profileImage) {
           data.profile_image = profileImage;
           data.content.cv_data.profileImage = profileImage;
-          data.content.cv_data.photo = profileImage;
           data.content.ai_data.profile_image = profileImage;
+          console.log("✅ Profile image saved to all locations");
         }
 
         // Taustakuva → 3 paikkaan
@@ -265,7 +272,7 @@ export default function CVPreviewPage() {
           data.background_image = backgroundImage;
           data.content.cv_data.backgroundImage = backgroundImage;
           data.content.ai_data.background_image = backgroundImage;
-          data.content.ai_data.background_image_url = backgroundImage;
+          console.log("✅ Background image saved to all locations");
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -275,17 +282,12 @@ export default function CVPreviewPage() {
         console.log("═══════════════════════════════════════════");
         console.log("🎨 FINAL PROCESSED CV DATA:");
         console.log("═══════════════════════════════════════════");
-        console.log("Profile Image:");
-        console.log("  - Has image:", !!profileImage);
-        console.log("  - Type:", profileImage ? (profileImage.startsWith('data:') ? 'Base64' : profileImage.startsWith('http') ? 'HTTP URL' : 'Unknown') : 'None');
+        console.log("Profile Image:", profileImage ? 'YES' : 'NO');
+        console.log("  - Type:", profileImage ? (profileImage.startsWith('data:') ? 'Base64' : 'HTTP URL') : 'None');
         console.log("  - Length:", profileImage?.length || 0);
-        console.log("  - First 100 chars:", profileImage?.substring(0, 100));
-        console.log("");
-        console.log("Background Image:");
-        console.log("  - Has image:", !!backgroundImage);
-        console.log("  - Type:", backgroundImage ? (backgroundImage.startsWith('data:') ? 'Base64' : backgroundImage.startsWith('http') ? 'HTTP URL' : 'Unknown') : 'None');
+        console.log("Background Image:", backgroundImage ? 'YES' : 'NO');
+        console.log("  - Type:", backgroundImage ? (backgroundImage.startsWith('data:') ? 'Base64' : 'HTTP URL') : 'None');
         console.log("  - Length:", backgroundImage?.length || 0);
-        console.log("  - First 100 chars:", backgroundImage?.substring(0, 100));
         console.log("═══════════════════════════════════════════");
 
         setCv(data);
