@@ -26,85 +26,81 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
    * Get profile image from multiple sources
    * Priority: data.profileImage > data.photo > aiData.profile_image > aiData.html.profile_image
    */
-  const getProfileImage = (): string | null => {
-    // ✅ DEBUG: Log all sources
-    console.log('🔍 Profile image sources:', {
-      'data.profileImage': data?.profileImage?.substring(0, 80),
-      'data.photo': (data as any)?.photo?.substring(0, 80),
-      'aiData.profile_image': aiData?.profile_image?.substring(0, 80),
-      'aiData.html?.profile_image': (aiData?.html as any)?.profile_image?.substring(0, 80),
-    });
-    
-    const sources = [
-      data?.profileImage,
-      (data as any)?.photo, // ✅ Type cast
-      aiData?.profile_image,
-      (aiData?.html as any)?.profile_image, // ✅ Type cast
-    ];
-    
-    for (const src of sources) {
-      if (!src) continue;
-      
-      const srcStr = String(src).trim();
-      
-      // ✅ Valid Base64
-      if (srcStr.startsWith('data:image')) {
-        console.log('✅ Profile: Base64 found');
-        return srcStr;
-      }
-      
-      // ✅ Valid HTTP URL
-      if (srcStr.startsWith('http://') || srcStr.startsWith('https://')) {
-        console.log('✅ Profile: HTTP URL found');
-        return srcStr;
-      }
-    }
-    
-    console.warn('⚠️ No valid profile image found');
-    return null;
-  };
+  const isValidImage = (src?: string | null) => {
+  if (!src) return false;
+  const s = String(src).trim();
+  return (
+    s !== "" &&
+    !s.includes("cv_files/default") &&
+    (s.startsWith("http://") ||
+      s.startsWith("https://") ||
+      s.startsWith("data:image"))
+  );
+};
+
+const getProfileImage = (): string | null => {
+  console.log("🔍 Profile image sources:", {
+    "data.profile_image": (data as any)?.profile_image?.substring(0, 80),
+    "data.profileImage": data?.profileImage?.substring(0, 80),
+    "data.photo": (data as any)?.photo?.substring(0, 80),
+    "aiData.profile_image": aiData?.profile_image?.substring(0, 80),
+    "aiData.html?.profile_image": (aiData?.html as any)?.profile_image?.substring(0, 80),
+  });
+
+  const sources = [
+    (data as any)?.profile_image,   // ✅ BACKEND FIELD (TÄRKEIN)
+    data?.profileImage,
+    (data as any)?.photo,
+    aiData?.profile_image,
+    (aiData?.html as any)?.profile_image,
+  ];
+
+  for (const src of sources) {
+    if (!isValidImage(src)) continue;
+
+    const srcStr = String(src).trim();
+    console.log("✅ Profile image selected:", srcStr.substring(0, 80));
+    return srcStr;
+  }
+
+  console.warn("⚠️ No valid profile image found");
+  return null;
+};
+
   
   /**
    * Get background image from multiple sources
    * Priority: data.backgroundImage > aiData.background_image > aiData.background_image_url > aiData.html.background_image
    */
-  const getBackgroundImage = (): string | null => {
-    // ✅ DEBUG: Log all sources
-    console.log('🔍 Background image sources:', {
-      'data.backgroundImage': data?.backgroundImage?.substring(0, 80),
-      'aiData.background_image': aiData?.background_image?.substring(0, 80),
-      'aiData.background_image_url': aiData?.background_image_url?.substring(0, 80),
-      'aiData.html?.background_image': (aiData?.html as any)?.background_image?.substring(0, 80),
-    });
-    
-    const sources = [
-      data?.backgroundImage,
-      aiData?.background_image,
-      aiData?.background_image_url,
-      (aiData?.html as any)?.background_image, // ✅ Type cast koska ei ole AIData:ssa
-    ];
-    
-    for (const src of sources) {
-      if (!src) continue;
-      
-      const srcStr = String(src).trim();
-      
-      // ✅ Valid Base64
-      if (srcStr.startsWith('data:image')) {
-        console.log('✅ Background: Base64 found');
-        return srcStr;
-      }
-      
-      // ✅ Valid HTTP URL
-      if (srcStr.startsWith('http://') || srcStr.startsWith('https://')) {
-        console.log('✅ Background: HTTP URL found');
-        return srcStr;
-      }
-    }
-    
-    console.warn('⚠️ No valid background image found');
-    return null;
-  };
+ const getBackgroundImage = (): string | null => {
+  console.log("🔍 Background image sources:", {
+    "data.background_image": (data as any)?.background_image?.substring(0, 80),
+    "data.backgroundImage": data?.backgroundImage?.substring(0, 80),
+    "aiData.background_image": aiData?.background_image?.substring(0, 80),
+    "aiData.background_image_url": aiData?.background_image_url?.substring(0, 80),
+    "aiData.html?.background_image": (aiData?.html as any)?.background_image?.substring(0, 80),
+  });
+
+  const sources = [
+    (data as any)?.background_image, // ✅ BACKEND FIELD (TÄRKEIN)
+    data?.backgroundImage,
+    aiData?.background_image,
+    aiData?.background_image_url,
+    (aiData?.html as any)?.background_image,
+  ];
+
+  for (const src of sources) {
+    if (!isValidImage(src)) continue;
+
+    const srcStr = String(src).trim();
+    console.log("✅ Background image selected:", srcStr.substring(0, 80));
+    return srcStr;
+  }
+
+  console.warn("⚠️ No valid background image found");
+  return null;
+};
+
 
   const profileImg = getProfileImage();
   const bgImage = getBackgroundImage();
