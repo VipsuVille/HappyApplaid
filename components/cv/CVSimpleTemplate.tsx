@@ -17,7 +17,8 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
   isEditing,
   onContentChange,
 }) => {
-  
+  console.log("🔥 RAW data", data);
+console.log("🔥 RAW aiData", aiData);
   // ════════════════════════════════════════════════════════════════
   // IMAGE HANDLING: 5 SOURCES (priority order)
   // ════════════════════════════════════════════════════════════════
