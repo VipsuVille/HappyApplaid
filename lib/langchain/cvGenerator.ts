@@ -721,7 +721,7 @@ export async function generateCVWithPersonalityExtraction(
     // STEP 7: Guardian (simplified)
     const guardianCheck = {
       approved: true,
-      riskLevel: 'safe' as 'safe',
+riskLevel: 'safe' as const,
       violations: {}
     };
 
