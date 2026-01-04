@@ -48,7 +48,7 @@ const getProfileImage = (): string | null => {
   });
 
   const sources = [
-    (data as any)?.profile_image,   // ✅ BACKEND FIELD (TÄRKEIN)
+    (data as any)?.profile_image,
     data?.profileImage,
     (data as any)?.photo,
     aiData?.profile_image,
@@ -59,6 +59,16 @@ const getProfileImage = (): string | null => {
     if (!isValidImage(src)) continue;
 
     const srcStr = String(src).trim();
+
+    // ❌ ESTÄ URL + BASE64 -YHDISTELMÄ
+    if (
+      srcStr.startsWith("http") &&
+      srcStr.includes("data:image")
+    ) {
+      console.warn("❌ Invalid profile image (URL + base64 mixed)", srcStr.substring(0, 120));
+      continue;
+    }
+
     console.log("✅ Profile image selected:", srcStr.substring(0, 80));
     return srcStr;
   }
@@ -72,7 +82,7 @@ const getProfileImage = (): string | null => {
    * Get background image from multiple sources
    * Priority: data.backgroundImage > aiData.background_image > aiData.background_image_url > aiData.html.background_image
    */
- const getBackgroundImage = (): string | null => {
+const getBackgroundImage = (): string | null => {
   console.log("🔍 Background image sources:", {
     "data.background_image": (data as any)?.background_image?.substring(0, 80),
     "data.backgroundImage": data?.backgroundImage?.substring(0, 80),
@@ -82,7 +92,7 @@ const getProfileImage = (): string | null => {
   });
 
   const sources = [
-    (data as any)?.background_image, // ✅ BACKEND FIELD (TÄRKEIN)
+    (data as any)?.background_image,
     data?.backgroundImage,
     aiData?.background_image,
     aiData?.background_image_url,
@@ -93,6 +103,16 @@ const getProfileImage = (): string | null => {
     if (!isValidImage(src)) continue;
 
     const srcStr = String(src).trim();
+
+    // ❌ ESTÄ URL + BASE64 -YHDISTELMÄ
+    if (
+      srcStr.startsWith("http") &&
+      srcStr.includes("data:image")
+    ) {
+      console.warn("❌ Invalid background image (URL + base64 mixed)", srcStr.substring(0, 120));
+      continue;
+    }
+
     console.log("✅ Background image selected:", srcStr.substring(0, 80));
     return srcStr;
   }
@@ -100,6 +120,7 @@ const getProfileImage = (): string | null => {
   console.warn("⚠️ No valid background image found");
   return null;
 };
+
 
 
   const profileImg = getProfileImage();
