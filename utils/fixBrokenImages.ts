@@ -1,4 +1,4 @@
-// app/api/fix-images/route.ts
+// utils/fixBrokenImages.ts
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function fixBrokenImageUrls() {

@@ -375,6 +375,18 @@ function sanitizeAIResponse(rawResponse: string): string {
     throw error;
   }
 }
+// ════════════════════════════════════════════════════════════════
+// IMAGE URL PROCESSING (KORJATTU!)
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * ✅ KORJATTU: Muuntaa kuva-URL:n kelvolliseen muotoon
+ * 
+ * Tukee:
+ * 1. Base64 data URIs
+ * 2. HTTP/HTTPS URLs
+ * 3. Supabase file paths → muunnetaan public URLs:ksi
+ */
 function cleanImageUrl(url?: string): string | null {
   if (!url || typeof url !== "string") return null;
 
@@ -384,19 +396,59 @@ function cleanImageUrl(url?: string): string | null {
   if (
     trimmed === "" ||
     trimmed.includes("cv_files/default") ||
-    trimmed.endsWith("/default")
+    trimmed.endsWith("/default") ||
+    trimmed.endsWith("/storage/") || // ✅ UUSI: Estä vajaat Supabase URLs
+    trimmed.endsWith("/storage") // ✅ UUSI: Estä vajaat Supabase URLs
   ) {
+    console.warn("⚠️ Rejected placeholder/incomplete URL:", trimmed.substring(0, 100));
     return null;
   }
 
-  // ✅ Salli data:image
-  if (trimmed.startsWith("data:image/")) return trimmed;
-
-  // ✅ Salli https kuvat
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return trimmed;
+  // ✅ 1. BASE64 DATA URI
+  if (trimmed.startsWith("data:image/")) {
+    // Validoi että on täydellinen
+    const parts = trimmed.split(',');
+    if (parts.length === 2 && parts[1].length > 100) {
+      console.log("✅ Valid Base64 image");
+      return trimmed;
+    } else {
+      console.warn("⚠️ Invalid Base64 (too short)");
+      return null;
+    }
   }
 
+  // ✅ 2. HTTP/HTTPS URL (täydellinen)
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    // Tarkista että URL sisältää tiedostonimen
+    if (trimmed.includes('.jpg') || trimmed.includes('.jpeg') || 
+        trimmed.includes('.png') || trimmed.includes('.webp') ||
+        trimmed.includes('.gif')) {
+      console.log("✅ Valid HTTP URL with file extension");
+      return trimmed;
+    } else {
+      console.warn("⚠️ HTTP URL missing file extension:", trimmed.substring(0, 100));
+      return null;
+    }
+  }
+
+  // ✅ 3. SUPABASE FILE PATH → Muunna public URL:ksi
+  // Esim: "profiles/user_123/profile.jpg" → "https://...supabase.co/storage/v1/object/public/cv_files/profiles/user_123/profile.jpg"
+  if (trimmed.includes('/') && !trimmed.startsWith('http')) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    
+    if (!supabaseUrl) {
+      console.error("❌ NEXT_PUBLIC_SUPABASE_URL not configured!");
+      return null;
+    }
+
+    // Rakenna public URL
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
+    console.log("✅ Built Supabase public URL from path:", trimmed);
+    console.log("   Full URL:", publicUrl);
+    return publicUrl;
+  }
+
+  console.warn("⚠️ Unknown image format:", trimmed.substring(0, 100));
   return null;
 }
 
