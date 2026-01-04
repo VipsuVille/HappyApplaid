@@ -400,7 +400,10 @@ export default function CVPreviewPage() {
   // RENDER CV
   // ════════════════════════════════════════════════════════════════
 
-  const templateType = cv.content?.ai_data?.cvType || cv.content?.cv_data?.cvType || "simple";
+const templateType =
+  cv.metadata?.cv_type ||
+  cv.content?.cv_data?.cvType ||
+  "simple";
 
   let TemplateComponent;
   switch (templateType) {

@@ -268,7 +268,6 @@ useEffect(() => {
         failureLesson: cvData.content?.cv_data?.failureLesson || '',
         
         cvType: (cvData.content?.cv_data?.cvType || 
-                  cvData.content?.ai_data?.cvType || 
                   cvData.metadata?.cv_type || 
                   'simple') as 'technical' | 'creative' | 'simple',
       },
