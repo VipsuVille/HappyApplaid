@@ -1,4 +1,4 @@
-// lib/langchain/cvGenerator.ts - COMPLETE FINAL VERSION
+// lib/langchain/cvGenerator.ts - TÄYSIN KORJATTU VERSIO
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -465,39 +465,92 @@ export async function generateEnhancedBackgroundImage(
   authToken?: string
 ): Promise<string> {
   try {
+    console.log("🎨 Starting background image generation...");
+
     const optimizedPrompt = `Abstract minimal professional background, soft gradient, clean design, no text`;
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
-    const response = await fetch(`${BASE_URL}/api/generate-image`, {
+    const apiUrl = `${BASE_URL}/api/generate-image`;
+    console.log(`🌐 Calling: ${apiUrl}`);
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers,
       body: JSON.stringify({ prompt: optimizedPrompt }),
     });
 
+    console.log(`📡 Response status: ${response.status}`);
+
     if (!response.ok) {
-      console.error("Image generation failed:", response.statusText);
+      const errorText = await response.text();
+      console.error("❌ Image generation API failed:", response.statusText);
+      console.error("   Error body:", errorText);
       return "";
     }
 
-    const data = await response.json() as { url?: string };
-    if (!data.url) return "";
+    const data = await response.json() as { url?: string; originalUrl?: string; error?: string };
+    
+    if (data.error) {
+      console.error("❌ API returned error:", data.error);
+      return "";
+    }
 
+    if (!data.url) {
+      console.error("❌ No URL in API response");
+      return "";
+    }
+
+    console.log("✅ Image URL received:", data.url.substring(0, 100));
+
+    // ✅ LATAA KUVA (jos Base64, muunna Blobiksi)
     let imageBlob: Blob;
+    
     if (data.url.startsWith("data:")) {
+      // Base64 → Blob
       const base64Data = data.url.split(",")[1];
-      if (!base64Data) return "";
-      imageBlob = await (await fetch(`data:application/octet-stream;base64,${base64Data}`)).blob();
+      if (!base64Data) {
+        console.error("❌ Invalid base64 data");
+        return "";
+      }
+      
+      try {
+        const binaryData = atob(base64Data);
+        const arrayBuffer = new Uint8Array(binaryData.length);
+        for (let i = 0; i < binaryData.length; i++) {
+          arrayBuffer[i] = binaryData.charCodeAt(i);
+        }
+        imageBlob = new Blob([arrayBuffer], { type: "image/png" });
+      } catch (error) {
+        console.error("❌ Base64 decode failed:", error);
+        return "";
+      }
+      
     } else {
+      // HTTP URL → Lataa
       const imageResponse = await fetch(data.url);
-      if (!imageResponse.ok) return "";
+      if (!imageResponse.ok) {
+        console.error("❌ Failed to fetch image from URL");
+        return "";
+      }
       imageBlob = await imageResponse.blob();
     }
 
+    console.log(`✅ Image blob size: ${imageBlob.size} bytes`);
+
+    if (imageBlob.size === 0) {
+      console.error("❌ Image blob is empty");
+      return "";
+    }
+
+    // ✅ TALLENNA SUPABASEEN
     const userId = userData.userId || "anonymous";
     const cvId = userData.cvId || `cv_${Date.now()}`;
-    const filePath = `backgrounds/${userId}/bg-${cvId}-${Date.now()}.png`;
+    const timestamp = Date.now();
+    const filePath = `backgrounds/${userId}/bg-${cvId}-${timestamp}.png`;
+
+    console.log(`💾 Uploading to: ${filePath}`);
 
     const { error: uploadError } = await supabase.storage
       .from("cv_files")
@@ -508,34 +561,40 @@ export async function generateEnhancedBackgroundImage(
       });
 
     if (uploadError) {
-      console.error("Upload error:", uploadError);
+      console.error("❌ Supabase upload error:", uploadError);
       return "";
     }
 
+    // ✅ HAE PUBLIC URL
     const { data: publicUrlData } = supabase.storage
       .from("cv_files")
       .getPublicUrl(filePath);
 
-    if (!publicUrlData?.publicUrl) return "";
+    if (!publicUrlData?.publicUrl) {
+      console.error("❌ Failed to get public URL");
+      return "";
+    }
 
+    console.log("✅ Public URL:", publicUrlData.publicUrl);
+
+    // ✅ TALLENNA METADATA (optional)
     try {
       await supabase.from('default_images').insert({
         user_id: userId,
         image_type: 'background',
         file_path: filePath,
-        name: `AI Taustakuva ${new Date().toLocaleDateString()}`,
+        name: `AI Taustakuva ${new Date().toLocaleDateString('fi-FI')}`,
         is_active: true,
         is_ai_generated: true,
         generation_prompt: optimizedPrompt,
         cv_id: cvId
       });
       
-      console.log("✅ Background saved to default_images gallery");
+      console.log("✅ Metadata saved to default_images");
     } catch (metaError) {
       console.error("⚠️ Metadata save failed (non-critical):", metaError);
     }
 
-    console.log("✅ Background generated:", publicUrlData.publicUrl);
     return publicUrlData.publicUrl;
     
   } catch (error) {
@@ -545,7 +604,7 @@ export async function generateEnhancedBackgroundImage(
 }
 
 // ════════════════════════════════════════════════════════════════
-// CV PROMPTS (shortened for token limit - use your originals)
+// CV PROMPTS (käytä omia promptejasi täällä)
 // ════════════════════════════════════════════════════════════════
 
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
@@ -583,8 +642,8 @@ Unique Strength: {uniqueStrength}
 Write in {language}. Return JSON.`]
 ]);
 
-const atsOptimizedTechnicalPrompt = atsOptimizedSimplePrompt; // Use originals
-const atsOptimizedCreativePrompt = atsOptimizedSimplePrompt; // Use originals
+const atsOptimizedTechnicalPrompt = atsOptimizedSimplePrompt;
+const atsOptimizedCreativePrompt = atsOptimizedSimplePrompt;
 
 // ════════════════════════════════════════════════════════════════
 // MAIN FUNCTION
@@ -596,7 +655,7 @@ export async function generateCVWithPersonalityExtraction(
   const timer = new PerformanceTimer();
   timer.start("Total Generation");
   
-  const MAX_EXECUTION_TIME = 50000;
+  const MAX_EXECUTION_TIME = 55000;
   const startTime = Date.now();
   
   const checkTimeout = () => {
@@ -611,12 +670,10 @@ export async function generateCVWithPersonalityExtraction(
   try {
     checkTimeout();
     
-    // STEP 1: Question Analysis (implement as needed)
-    
-    // STEP 2: Merge Answers (implement as needed)
+    // STEP 1-2: Questions & Answers (implement as needed)
     let enhancedUserData = { ...userData };
 
-    // STEP 3: Parallel Extraction
+    // STEP 3: Parallel Extraction (simplified for now)
     timer.start("Extractions");
     
     const personalityExtraction: PersonalityExtraction = {
@@ -721,44 +778,67 @@ export async function generateCVWithPersonalityExtraction(
     // STEP 7: Guardian (simplified)
     const guardianCheck = {
       approved: true,
-riskLevel: 'safe' as const,
+      riskLevel: 'safe' as const,
       violations: {}
     };
 
     checkTimeout();
 
-    // STEP 8: Background Image
+    // STEP 8: Background Image - KORJATTU
     timer.start("Background");
 
     let backgroundImage: string = "";
-    const timeRemaining = MAX_EXECUTION_TIME - (Date.now() - startTime);
 
+    // ✅ 1. Jos on jo inputissa, käytä sitä
     if (finalUserData.backgroundImage) {
       backgroundImage = finalUserData.backgroundImage;
+      console.log("✅ Using existing background from input");
     }
 
-    if (!backgroundImage && timeRemaining > 15000) {
+    // ✅ 2. Jos ei ole, yritä generoida
+    if (!backgroundImage) {
       try {
-        const generatedUrl = await Promise.race([
-          generateEnhancedBackgroundImage(toLangChainInput(finalUserData), authToken),
-          new Promise<string>((resolve) => setTimeout(() => resolve(""), 12000))
-        ]);
+        console.log("🎨 Generating new background image...");
+        
+        const generatedUrl = await generateEnhancedBackgroundImage(
+          toLangChainInput(finalUserData), 
+          authToken
+        );
 
         if (generatedUrl && generatedUrl.startsWith("http")) {
+          // Pura file path URL:sta
           const pathMatch = generatedUrl.match(/\/cv_files\/(.+)$/);
           if (pathMatch) {
             backgroundImage = pathMatch[1];
+            console.log("✅ Background path:", backgroundImage);
+          } else {
+            // Jos ei voi purkea pathia, käytä koko URL:ia
+            backgroundImage = generatedUrl;
+            console.log("✅ Background URL:", backgroundImage);
           }
+        } else if (generatedUrl && generatedUrl.startsWith("data:")) {
+          // Base64 kuva
+          backgroundImage = generatedUrl;
+          console.log("✅ Background Base64, length:", generatedUrl.length);
+        } else {
+          console.warn("⚠️ Background generation returned empty or invalid");
         }
+        
       } catch (error) {
-        console.error("❌ Background error:", error);
+        console.error("❌ Background generation error:", error);
+        // Jatka ilman taustakuvaa
       }
     }
 
     timer.end();
 
+    // ✅ 3. Puhdista kuva-URL
     const finalBackgroundImage = cleanImageUrl(backgroundImage || undefined);
     const profileImageClean = cleanImageUrl(finalUserData.profileImage);
+
+    console.log("🖼️ Final images:");
+    console.log("   Profile:", profileImageClean ? "YES" : "NO");
+    console.log("   Background:", finalBackgroundImage ? "YES" : "NO");
 
     const fullTextContent = `
 ${parsedOutput.personal_description}
