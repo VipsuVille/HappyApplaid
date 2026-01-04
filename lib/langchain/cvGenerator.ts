@@ -375,6 +375,30 @@ function sanitizeAIResponse(rawResponse: string): string {
     throw error;
   }
 }
+function cleanImageUrl(url?: string): string | null {
+  if (!url || typeof url !== "string") return null;
+
+  const trimmed = url.trim();
+
+  // ❌ Estä placeholderit ja defaultit
+  if (
+    trimmed === "" ||
+    trimmed.includes("cv_files/default") ||
+    trimmed.endsWith("/default")
+  ) {
+    return null;
+  }
+
+  // ✅ Salli data:image
+  if (trimmed.startsWith("data:image/")) return trimmed;
+
+  // ✅ Salli https kuvat
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+
+  return null;
+}
 
 function extractDataManually(rawResponse: string, userData: LangChainCVInput): CVOutputType {
   console.log("🔧 Manual extraction fallback");
@@ -1181,13 +1205,14 @@ checkTimeout();
 // ════════════════════════════════════════════════════════════════
 // STEP 8: BACKGROUND IMAGE
 // ════════════════════════════════════════════════════════════════
-
 timer.start("Background");
-let backgroundImage = "";
+
+let backgroundImage: string | null =
+  cleanImageUrl(finalUserData.backgroundImage);
 
 const timeRemaining = MAX_EXECUTION_TIME - (Date.now() - startTime);
 
-if (!finalUserData.backgroundImage) {
+if (!backgroundImage) {
   if (timeRemaining > 15000) {
     try {
       backgroundImage = await Promise.race([
@@ -1195,21 +1220,18 @@ if (!finalUserData.backgroundImage) {
           toLangChainInput(finalUserData),
           authToken
         ),
-        new Promise<string>((resolve) => 
+        new Promise<string>((resolve) =>
           setTimeout(() => resolve(FALLBACK_IMAGE), 12000)
-        )
+        ),
       ]);
     } catch {
-      console.warn('⚠️ Background image generation failed, using fallback');
       backgroundImage = FALLBACK_IMAGE;
     }
   } else {
-    console.warn(`⚠️ Skipping background generation, only ${timeRemaining}ms remaining`);
     backgroundImage = FALLBACK_IMAGE;
   }
-} else {
-  backgroundImage = finalUserData.backgroundImage;
 }
+
 timer.end();
 
 // ════════════════════════════════════════════════════════════════
@@ -1229,12 +1251,19 @@ ${parsedOutput.cv_content.languages_section}
 `.trim();
 
 timer.getResults();
+const profileImageClean = cleanImageUrl(finalUserData.profileImage);
+
+const finalBackgroundImage =
+  cleanImageUrl(backgroundImage) || FALLBACK_IMAGE;
 
 return {
   personal_description: parsedOutput.personal_description,
   html: parsedOutput.cv_content,
-  background_image: backgroundImage || FALLBACK_IMAGE,
-  profile_initials: finalUserData.profileImage ? "" : generateInitials(finalUserData.name),
+  background_image: finalBackgroundImage,
+  profile_initials: profileImageClean
+  ? ""
+  : generateInitials(finalUserData.name),
+
   fullTextContent,
   ats_data: parsedOutput.ats_optimization || null,
   job_analysis: jobAnalysis,
