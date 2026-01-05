@@ -1,4 +1,4 @@
-// lib/langchain/cvGenerator.ts - COMPLETE WITH QUESTION LOGIC
+// lib/langchain/cvGenerator.ts - WITH QUESTION LOGIC
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -21,7 +21,7 @@ import {
 } from "@/lib/ats/masterGuardian";
 
 import { buildAIContext } from "@/lib/knowledge";
-import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer"; // ✅ LISÄTTY
 
 // ════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -30,7 +30,7 @@ import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 // ════════════════════════════════════════════════════════════════
-// TYPES
+// TYPES (sama kuin ennen)
 // ════════════════════════════════════════════════════════════════
 
 type PersonalityExtraction = {
@@ -133,7 +133,6 @@ interface CVGeneratorInput {
   enableRAG?: boolean;
   skipQuestions?: boolean;
   answeredQuestions?: Array<{ id: string; question: string; answer: string }>;
-  generateBackground?: boolean;
 }
 
 const cvOutputSchema = z.object({
@@ -186,7 +185,7 @@ interface CVGenerationResult {
 }
 
 // ════════════════════════════════════════════════════════════════
-// HELPERS
+// HELPERS (samat kuin ennen)
 // ════════════════════════════════════════════════════════════════
 
 function toLangChainInput(input: CVGeneratorInput): LangChainCVInput {
@@ -292,6 +291,7 @@ function generateInitials(name: string): string {
   return names.map((n) => n.charAt(0).toUpperCase()).join("");
 }
 
+// ✅ UUSI: MERGE ANSWERS
 function mergeCVAnswers(
   userData: LangChainCVInput,
   answers: Array<{ id: string; question: string; answer: string }>
@@ -302,30 +302,39 @@ function mergeCVAnswers(
     const q = item.question.toLowerCase();
     const a = item.answer;
 
+    // Työkokemukseen liittyvät
     if (q.includes('työkokemus') || q.includes('work experience') || q.includes('projektit')) {
       merged.workExperience = (merged.workExperience || userData.workExperience || '') + '\n\n' + a;
     }
+    // Koulutukseen liittyvät
     else if (q.includes('koulutus') || q.includes('education') || q.includes('opiskelu')) {
       merged.education = (merged.education || userData.education || '') + '\n\n' + a;
     }
+    // Taitoihin liittyvät
     else if (q.includes('osaaminen') || q.includes('taidot') || q.includes('skills')) {
       merged.skills = (merged.skills || userData.skills || '') + ', ' + a;
     }
+    // Työskentelytyyli
     else if (q.includes('työskentelytyyli') || q.includes('working style')) {
       merged.workingStyle = a;
     }
+    // Ongelmanratkaisu
     else if (q.includes('ongelmanratkaisu') || q.includes('problem solving')) {
       merged.problemSolving = a;
     }
+    // Vahvuudet
     else if (q.includes('vahvuus') || q.includes('strength')) {
       merged.uniqueStrength = a;
     }
+    // Tavoitteet
     else if (q.includes('tavoite') || q.includes('goal')) {
       merged.careerGoals = a;
     }
+    // Projekti-esimerkki
     else if (q.includes('projekti') || q.includes('project')) {
       merged.bestProjectExample = a;
     }
+    // Kaikki muu → lisää workExperience tai careerGoals
     else {
       if (a.length > 50) {
         merged.workExperience = (merged.workExperience || userData.workExperience || '') + '\n\n' + a;
@@ -337,7 +346,7 @@ function mergeCVAnswers(
 }
 
 // ════════════════════════════════════════════════════════════════
-// PROMPTS
+// PROMPTS (✅ POISTETTU PITUUSRAJOITUKSET!)
 // ════════════════════════════════════════════════════════════════
 
 const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
@@ -383,7 +392,7 @@ const atsOptimizedTechnicalPrompt = atsOptimizedSimplePrompt;
 const atsOptimizedCreativePrompt = atsOptimizedSimplePrompt;
 
 // ════════════════════════════════════════════════════════════════
-// JOB ANALYSIS
+// (muut funktiot säilyvät samana: analyzeJobPosting, sanitize, etc.)
 // ════════════════════════════════════════════════════════════════
 
 export async function analyzeJobPosting(jobPostingText: string): Promise<JobAnalysis> {
@@ -415,10 +424,6 @@ export async function analyzeJobPosting(jobPostingText: string): Promise<JobAnal
     };
   }
 }
-
-// ════════════════════════════════════════════════════════════════
-// SANITIZATION & EXTRACTION
-// ════════════════════════════════════════════════════════════════
 
 function sanitizeAIResponse(rawResponse: string): string {
   try {
@@ -503,17 +508,11 @@ function extractDataManually(rawResponse: string, userData: LangChainCVInput): C
   };
 }
 
-// ════════════════════════════════════════════════════════════════
-// BACKGROUND IMAGE GENERATION
-// ════════════════════════════════════════════════════════════════
-
 export async function generateEnhancedBackgroundImage(
   userData: LangChainCVInput,
   authToken?: string
 ): Promise<string> {
   try {
-    console.log("🎨 Generating background image...");
-    
     const optimizedPrompt = `Abstract minimal professional background, soft gradient, clean design, no text`;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
@@ -524,16 +523,10 @@ export async function generateEnhancedBackgroundImage(
       body: JSON.stringify({ prompt: optimizedPrompt }),
     });
 
-    if (!response.ok) {
-      console.warn("❌ Background generation failed (HTTP)");
-      return "";
-    }
+    if (!response.ok) return "";
 
     const data = await response.json() as { url?: string };
-    if (!data.url) {
-      console.warn("❌ No URL in response");
-      return "";
-    }
+    if (!data.url) return "";
 
     let imageBlob: Blob;
     
@@ -570,10 +563,7 @@ export async function generateEnhancedBackgroundImage(
         contentType: "image/png",
       });
 
-    if (uploadError) {
-      console.error("❌ Upload failed:", uploadError);
-      return "";
-    }
+    if (uploadError) return "";
 
     const { data: publicUrlData } = supabase.storage
       .from("cv_files")
@@ -596,7 +586,6 @@ export async function generateEnhancedBackgroundImage(
       console.error("⚠️ Metadata save failed:", metaError);
     }
 
-    console.log("✅ Background generated:", filePath);
     return publicUrlData.publicUrl;
   } catch (error) {
     console.error("❌ Background generation failed:", error);
@@ -605,7 +594,7 @@ export async function generateEnhancedBackgroundImage(
 }
 
 // ════════════════════════════════════════════════════════════════
-// MAIN FUNCTION
+// ✅ MAIN FUNCTION - KYSYMYSLOGIIKKA LISÄTTY!
 // ════════════════════════════════════════════════════════════════
 
 export async function generateCVWithPersonalityExtraction(
@@ -624,20 +613,13 @@ export async function generateCVWithPersonalityExtraction(
     }
   };
 
-  const { 
-    authToken, 
-    jobPosting, 
-    userId, 
-    skipQuestions, 
-    answeredQuestions,
-    generateBackground = true
-  } = userData;
+  const { authToken, jobPosting, userId, skipQuestions, answeredQuestions } = userData;
 
   try {
     checkTimeout();
     
     // ════════════════════════════════════════════════════════════════
-    // STEP 1: QUESTION ANALYSIS
+    // ✅ STEP 1: QUESTION ANALYSIS
     // ════════════════════════════════════════════════════════════════
     
     if (!skipQuestions) {
@@ -668,6 +650,7 @@ export async function generateCVWithPersonalityExtraction(
         timer.end();
 
         if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
+          // Suodata jo vastatut
           const unanswered = smartAnalysis.questions.filter((q) => {
             if (!answeredQuestions?.length) return true;
             return !answeredQuestions.some(
@@ -675,6 +658,7 @@ export async function generateCVWithPersonalityExtraction(
             );
           });
 
+          // Priorisoi kriittiset
           const critical = unanswered.filter(q => q.priority === 'critical');
           
           if (critical.length > 0) {
@@ -721,7 +705,7 @@ export async function generateCVWithPersonalityExtraction(
     }
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 2: MERGE ANSWERS
+    // ✅ STEP 2: MERGE ANSWERS
     // ════════════════════════════════════════════════════════════════
     
     let enhancedUserData = { ...userData };
@@ -753,7 +737,7 @@ export async function generateCVWithPersonalityExtraction(
     }
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 3: PERSONALITY & GROUND TRUTH
+    // STEP 3+: LOPUT (sama kuin ennen, mutta käytä enhancedUserData!)
     // ════════════════════════════════════════════════════════════════
     
     timer.start("Extractions");
@@ -800,13 +784,9 @@ export async function generateCVWithPersonalityExtraction(
     
     const finalUserData = { ...enhancedUserData };
 
-    const promptTemplate = atsOptimizedSimplePrompt;
+    let promptTemplate = atsOptimizedSimplePrompt;
 
     checkTimeout();
-
-    // ════════════════════════════════════════════════════════════════
-    // STEP 4: AI GENERATION
-    // ════════════════════════════════════════════════════════════════
 
     timer.start("AI Generation");
 
@@ -842,211 +822,168 @@ export async function generateCVWithPersonalityExtraction(
     timer.end();
 
     checkTimeout();
-
-    // ════════════════════════════════════════════════════════════════
-    // STEP 5: PARSING
-    // ════════════════════════════════════════════════════════════════
-
     timer.start("Parsing");
-    let parsedOutput: CVOutputType;
-    try {
-      const sanitized = sanitizeAIResponse(rawContentString);
-      parsedOutput = await outputParser.parse(sanitized);
-    } catch {
-      try {
-        parsedOutput = await outputParser.parse(rawContentString);
-      } catch {
-        parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData));
+let parsedOutput: CVOutputType;
+try {
+const sanitized = sanitizeAIResponse(rawContentString);
+parsedOutput = await outputParser.parse(sanitized);
+} catch {
+try {
+parsedOutput = await outputParser.parse(rawContentString);
+} catch {
+parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData));
+}
+}
+timer.end();
+checkTimeout();
+
+const guardianCheck = {
+  approved: true,
+  riskLevel: 'safe' as const,
+  violations: {}
+};
+
+checkTimeout();
+
+timer.start("Background");
+
+let backgroundImage: string = "";
+
+if (finalUserData.backgroundImage) {
+  backgroundImage = finalUserData.backgroundImage;
+}
+
+if (!backgroundImage) {
+  try {
+    const generatedUrl = await generateEnhancedBackgroundImage(
+      toLangChainInput(finalUserData), 
+      authToken
+    );
+
+    if (generatedUrl && generatedUrl.startsWith("http")) {
+      const pathMatch = generatedUrl.match(/\/cv_files\/(.+)$/);
+      if (pathMatch) {
+        backgroundImage = pathMatch[1];
+      } else {
+        backgroundImage = generatedUrl;
       }
+    } else if (generatedUrl && generatedUrl.startsWith("data:")) {
+      backgroundImage = generatedUrl;
     }
-    timer.end();
+  } catch (error) {
+    console.error("❌ Background generation error:", error);
+  }
+}
 
-    checkTimeout();
+timer.end();
 
-    const guardianCheck = {
-      approved: true,
-      riskLevel: 'safe' as const,
-      violations: {}
-    };
+const finalBackgroundImage = cleanImageUrl(backgroundImage || undefined);
+const profileImageClean = cleanImageUrl(finalUserData.profileImage);
 
-    checkTimeout();
-
-    // ════════════════════════════
-
-    // STEP 8: Background Image - KORJATTU
-    timer.start("Background");
-
-    let backgroundImage: string = "";
-
-    // ✅ 1. Jos on jo inputissa, käytä sitä
-    if (finalUserData.backgroundImage) {
-      backgroundImage = finalUserData.backgroundImage;
-      console.log("✅ Using existing background from input");
-    }
-
-    // ✅ 2. Jos ei ole, yritä generoida
-    if (!backgroundImage) {
-      try {
-        console.log("🎨 Generating new background image...");
-        
-        const generatedUrl = await generateEnhancedBackgroundImage(
-          toLangChainInput(finalUserData), 
-          authToken
-        );
-
-        if (generatedUrl && generatedUrl.startsWith("http")) {
-          // Pura file path URL:sta
-          const pathMatch = generatedUrl.match(/\/cv_files\/(.+)$/);
-          if (pathMatch) {
-            backgroundImage = pathMatch[1];
-            console.log("✅ Background path:", backgroundImage);
-          } else {
-            // Jos ei voi purkea pathia, käytä koko URL:ia
-            backgroundImage = generatedUrl;
-            console.log("✅ Background URL:", backgroundImage);
-          }
-        } else if (generatedUrl && generatedUrl.startsWith("data:")) {
-          // Base64 kuva
-          backgroundImage = generatedUrl;
-          console.log("✅ Background Base64, length:", generatedUrl.length);
-        } else {
-          console.warn("⚠️ Background generation returned empty or invalid");
-        }
-        
-      } catch (error) {
-        console.error("❌ Background generation error:", error);
-        // Jatka ilman taustakuvaa
-      }
-    }
-
-    timer.end();
-
-    // ✅ 3. Puhdista kuva-URL
-    const finalBackgroundImage = cleanImageUrl(backgroundImage || undefined);
-    const profileImageClean = cleanImageUrl(finalUserData.profileImage);
-
-    console.log("🖼️ Final images:");
-    console.log("   Profile:", profileImageClean ? "YES" : "NO");
-    console.log("   Background:", finalBackgroundImage ? "YES" : "NO");
-
-    const fullTextContent = `
+const fullTextContent = `
 ${parsedOutput.personal_description}
 ${parsedOutput.cv_content.skills_section}
 ${parsedOutput.cv_content.experience_section}
 `.trim();
+timer.getResults();
 
-    timer.getResults();
-
-    return {
-      personal_description: parsedOutput.personal_description,
-      html: parsedOutput.cv_content,
-      background_image: finalBackgroundImage || "",
-      profile_initials: profileImageClean ? "" : generateInitials(finalUserData.name),
-      fullTextContent,
-      ats_data: parsedOutput.ats_optimization || null,
-      job_analysis: jobAnalysis,
-      ground_truth_check: {
-        approved: guardianCheck.approved,
-        riskLevel: guardianCheck.riskLevel,
-        violations: guardianCheck.violations
-      },
-      images: {
-        background_prompt: '',
-        visual_elements: []
-      }
-    };
-
-  } catch (error) {
-    console.error("❌ Generation failed:", error);
-    throw error;
+return {
+  personal_description: parsedOutput.personal_description,
+  html: parsedOutput.cv_content,
+  background_image: finalBackgroundImage || "",
+  profile_initials: profileImageClean ? "" : generateInitials(finalUserData.name),
+  fullTextContent,
+  ats_data: parsedOutput.ats_optimization || null,
+  job_analysis: jobAnalysis,
+  ground_truth_check: {
+    approved: guardianCheck.approved,
+    riskLevel: guardianCheck.riskLevel,
+    violations: guardianCheck.violations
+  },
+  images: {
+    background_prompt: '',
+    visual_elements: []
   }
+};
+} catch (error) {
+console.error("❌ Generation failed:", error);
+throw error;
 }
-
-// ════════════════════════════════════════════════════════════════
-// SAFE WRAPPER (for API routes) - ✅ TÄMÄ PUUTTUI!
-// ════════════════════════════════════════════════════════════════
-
+}
 export async function generateCVSafely(
-  userData: CVGeneratorInput
+userData: CVGeneratorInput
 ): Promise<CVGenerationResult> {
-  try {
-    const timeoutPromise = new Promise<CVGenerationResult>((_, reject) => {
-      setTimeout(() => reject(new Error('CV generation timeout (55s)')), 55000);
-    });
+try {
+const timeoutPromise = new Promise<CVGenerationResult>((_, reject) => {
+setTimeout(() => reject(new Error('CV generation timeout (55s)')), 55000);
+});
+const generationPromise = generateCVWithPersonalityExtraction(userData);
 
-    const generationPromise = generateCVWithPersonalityExtraction(userData);
-
-    return await Promise.race([generationPromise, timeoutPromise]);
-  } catch (error) {s
-    console.error("❌ generateCVSafely caught error:", error);
-
-    return {
-      personal_description: `${userData.name || "Professional"} - Generation Failed`,
-      html: {
-        skills_section: `<p>Error generating skills</p>`,
-        experience_section: `<p>Error generating experience</p>`,
-        education_section: `<p>Error generating education</p>`,
-        languages_section: `<p>Error generating languages</p>`,
-      },
-      background_image: "",
-      profile_initials: generateInitials(userData.name || ""),
-      fullTextContent: "CV generation error",
-      ats_data: null,
-      job_analysis: {
-        required_skills: [],
-        preferred_skills: [],
-        soft_skills: [],
-        company_values: [],
-        key_responsibilities: [],
-        experience_level: "mid",
-        industry_keywords: [],
-      },
-      ground_truth_check: {
-        approved: false,
-        riskLevel: "error",
-        violations: { error: error instanceof Error ? error.message : "Unknown" }
-      },
-      images: {
-        background_prompt: '',
-        visual_elements: []
-      }
-    };
+return await Promise.race([generationPromise, timeoutPromise]);
+} catch (error) {
+console.error("❌ generateCVSafely caught error:", error);
+return {
+  personal_description: `${userData.name || "Professional"} - Generation Failed`,
+  html: {
+    skills_section: `<p>Error generating skills</p>`,
+    experience_section: `<p>Error generating experience</p>`,
+    education_section: `<p>Error generating education</p>`,
+    languages_section: `<p>Error generating languages</p>`,
+  },
+  background_image: "",
+  profile_initials: generateInitials(userData.name || ""),
+  fullTextContent: "CV generation error",
+  ats_data: null,
+  job_analysis: {
+    required_skills: [],
+    preferred_skills: [],
+    soft_skills: [],
+    company_values: [],
+    key_responsibilities: [],
+    experience_level: "mid",
+    industry_keywords: [],
+  },
+  ground_truth_check: {
+    approved: false,
+    riskLevel: "error",
+    violations: { error: error instanceof Error ? error.message : "Unknown" }
+  },
+  images: {
+    background_prompt: '',
+    visual_elements: []
   }
+};
 }
-
-// ════════════════════════════════════════════════════════════════
-// LEGACY EXPORT
-// ════════════════════════════════════════════════════════════════
-
+}
 export async function generateCVWithLangChain(
-  userData: LangChainCVInput & { authToken?: string; jobPosting?: string }
+userData: LangChainCVInput & { authToken?: string; jobPosting?: string }
 ): Promise<CVGenerationResult> {
-  const cvInput: CVGeneratorInput = {
-    userId: userData.userId,
-    cvId: userData.cvId,
-    name: userData.name || '',
-    email: userData.email,
-    phone: userData.phone,
-    location: userData.location,
-    cvType: userData.cvType,
-    language: userData.language,
-    title: userData.title,
-    introText: userData.introText,
-    education: userData.education,
-    workExperience: userData.workExperience,
-    skills: userData.skills,
-    languages: userData.languages,
-    workingStyle: userData.workingStyle,
-    problemSolving: userData.problemSolving,
-    energySources: userData.energySources,
-    uniqueStrength: userData.uniqueStrength,
-    learningStyle: userData.learningStyle,
-    teamRole: userData.teamRole,
-    valuesExample: userData.valuesExample,
-    superpower: userData.superpower,
-    careerGoals: userData.careerGoals,
-    bestProjectExample: userData.bestProjectExample,
-    failureLesson: userData.failureLesson,
+const cvInput: CVGeneratorInput = {
+userId: userData.userId,
+cvId: userData.cvId,
+name: userData.name || '',
+email: userData.email,
+phone: userData.phone,
+location: userData.location,
+cvType: userData.cvType,
+language: userData.language,
+title: userData.title,
+introText: userData.introText,
+education: userData.education,
+workExperience: userData.workExperience,
+skills: userData.skills,
+languages: userData.languages,
+workingStyle: userData.workingStyle,
+problemSolving: userData.problemSolving,
+energySources: userData.energySources,
+uniqueStrength: userData.uniqueStrength,
+learningStyle: userData.learningStyle,
+teamRole: userData.teamRole,
+valuesExample: userData.valuesExample,
+superpower: userData.superpower,
+careerGoals: userData.careerGoals,
+bestProjectExample: userData.bestProjectExample,
+failureLesson: userData.failureLesson,
 profileImage: userData.profileImage,
 backgroundImage: userData.backgroundImage,
 hobbies: userData.hobbies,
@@ -1057,4 +994,3 @@ authToken: userData.authToken,
 };
 return generateCVWithPersonalityExtraction(cvInput);
 }
-
