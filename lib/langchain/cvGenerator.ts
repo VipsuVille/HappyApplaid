@@ -788,7 +788,20 @@ export async function generateCVWithPersonalityExtraction(
 
     checkTimeout();
 
-    timer.start("AI Generation");
+// STEP 5: AI Generation
+timer.start("AI Generation");
+
+// ✅ DEBUG: Mitä AI saa inputtina?
+console.log('🔍 AI INPUT DATA:');
+console.log('  - Name:', finalUserData.name);
+console.log('  - Work Experience length:', finalUserData.workExperience?.length || 0);
+console.log('  - Work Experience:', finalUserData.workExperience?.substring(0, 200));
+console.log('  - Education length:', finalUserData.education?.length || 0);
+console.log('  - Skills:', finalUserData.skills?.substring(0, 100));
+console.log('  - Best Project:', finalUserData.bestProjectExample?.substring(0, 100));
+console.log('  - Career Goals:', finalUserData.careerGoals?.substring(0, 100));
+
+
 
     const model = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -834,8 +847,58 @@ parsedOutput = await outputParser.parse(rawContentString);
 parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData));
 }
 }
+
 timer.end();
+
 checkTimeout();
+
+// ✅ QUALITY CHECK: Onko sisältö riittävän pitkä?
+console.log('📏 Content length check:');
+console.log('  - Personal:', parsedOutput.personal_description?.length || 0);
+console.log('  - Skills:', parsedOutput.cv_content.skills_section?.length || 0);
+console.log('  - Experience:', parsedOutput.cv_content.experience_section?.length || 0);
+console.log('  - Education:', parsedOutput.cv_content.education_section?.length || 0);
+
+// Jos experience on liian lyhyt, luo fallback
+if ((parsedOutput.cv_content.experience_section?.length || 0) < 50) {
+  console.warn('⚠️ Experience section too short, creating fallback...');
+  
+  // Rakenna järkevä kokemus-osio käytettävissä olevasta datasta
+  const experienceFallback: string[] = [];
+  
+  // Jos on best project
+  if (finalUserData.bestProjectExample && finalUserData.bestProjectExample.length > 20) {
+    experienceFallback.push(`<strong>Projektityöskentely</strong><br>${finalUserData.bestProjectExample}`);
+  }
+  
+  // Jos on skills, muunna ne kokemukseksi
+  if (finalUserData.skills && finalUserData.skills.length > 10) {
+    const skillsList = finalUserData.skills.split(',').map(s => s.trim()).slice(0, 5);
+    experienceFallback.push(
+      `<strong>Tekninen osaaminen käytännössä</strong><br>` +
+      `Kehittänyt osaamistani seuraavilla osa-alueilla:<br>` +
+      skillsList.map(skill => `• ${skill}`).join('<br>')
+    );
+  }
+  
+  // Jos on career goals
+  if (finalUserData.careerGoals && finalUserData.careerGoals.length > 20) {
+    experienceFallback.push(`<strong>Urasuunnitelma</strong><br>${finalUserData.careerGoals}`);
+  }
+  
+  // Jos mitään ei ole, luo geneerinen
+  if (experienceFallback.length === 0) {
+    experienceFallback.push(
+      `<strong>Osaamisen kehittäminen</strong><br>` +
+      `Aktiivisesti kehittänyt osaamistani ${finalUserData.cvType || 'ohjelmoin nin'} saralla. ` +
+      `Keskittynyt käytännön projekteihin ja modernien teknologioiden oppimiseen.`
+    );
+  }
+  
+  parsedOutput.cv_content.experience_section = experienceFallback.join('<br><br>');
+  console.log('✅ Fallback experience created:', parsedOutput.cv_content.experience_section.length, 'chars');
+}
+
 
 const guardianCheck = {
   approved: true,
