@@ -208,7 +208,7 @@ const isPaid = isActive && tier !== "free";
 
 if (!isLoaded || subLoading) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100 flex items-center justify-center">
       <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
         <div className="text-lg font-bold text-gray-900">
           {language === "en" ? "Loading..." : "Ladataan..."}
@@ -221,7 +221,7 @@ if (!isLoaded || subLoading) {
   // --- 1. ENSIN: Clerk Loading State ---
  if (!isLoaded || subLoading) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100 flex items-center justify-center">
       <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
         <div className="text-lg font-bold text-gray-900">
           {language === "en" ? "Loading..." : "Ladataan..."}
@@ -234,7 +234,7 @@ if (!isLoaded || subLoading) {
   // --- 2. Welcome/Onboarding State ---
   if (showWelcome) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100">
+      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100">
         <WelcomeModal
           isOpen={true}
           onComplete={handleWelcomeComplete}
@@ -247,7 +247,7 @@ if (!isLoaded || subLoading) {
 
   if (showOnboarding) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100">
+      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100">
         <OnboardingSteps
           isOpen={true}
           onComplete={handleOnboardingComplete}
@@ -262,10 +262,10 @@ if (!isLoaded || subLoading) {
   // ========================================
   if (!isSignedIn) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
 
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-400/30 to-orange-400/30 rounded-full blur-3xl animate-pulse"></div>
           <div
             className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse"
             style={{ animationDelay: "1s" }}
@@ -281,7 +281,7 @@ if (!isLoaded || subLoading) {
       
           <div className="mb-12 sm:mb-16">
             <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-orange-500/10 p-6 sm:p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl sm:rounded-[2.5rem]"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-orange-100/30 pointer-events-none rounded-3xl sm:rounded-[2.5rem]"></div>
 
               <div className="relative z-10 text-center">
                 <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 bg-white/90 backdrop-blur-sm rounded-full border-2 border-orange-300 shadow-xl mb-4 sm:mb-6">
@@ -294,7 +294,7 @@ if (!isLoaded || subLoading) {
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 sm:mb-6 leading-tight px-2">
-                  <span className="bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-orange-600 to-orange-600 bg-clip-text text-transparent">
                     {language === "en"
                       ? "Create Your Profile Once,"
                       : "Luo Profiili Kerran,"}
@@ -317,7 +317,7 @@ if (!isLoaded || subLoading) {
                 <div className="flex mt-6 flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-6 sm:mb-8 px-4">
                   <SignedOut>
                     <SignInButton mode="modal">
-                      <Button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-purple-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all">
+                      <Button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-orange-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all">
                         <Sparkles className="inline w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         {language === "en" ? "Start Free" : "Aloita Ilmaiseksi"}
                       </Button>
@@ -369,8 +369,8 @@ if (!isLoaded || subLoading) {
           </div>
      
           <div className="mb-16 sm:mb-20">
-             <div className="bg-gradient-to-br from-orange-900 via-purple-900 to-orange-900 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-16 text-white shadow-2xl relative overflow-hidden text-center">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
+             <div className="bg-gradient-to-br from-orange-900 via-orange-900 to-orange-900 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-16 text-white shadow-2xl relative overflow-hidden text-center">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
                 <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
                 
                 <div className="relative z-10 max-w-4xl mx-auto">
@@ -437,9 +437,9 @@ if (!isLoaded || subLoading) {
 
   {/* Video Placeholder - Yksinkertaistettu */}
   <div className="max-w-3xl mx-auto px-4">
-    <div className="relative aspect-video bg-gradient-to-br from-orange-100 to-purple-100 rounded-2xl sm:rounded-3xl border-2 border-orange-300 overflow-hidden shadow-xl">
+    <div className="relative aspect-video bg-gradient-to-br from-orange-100 to-orange-100 rounded-2xl sm:rounded-3xl border-2 border-orange-300 overflow-hidden shadow-xl">
       <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-        <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gradient-to-br from-orange-500 to-purple-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-2xl">
+        <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-2xl">
           <svg className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
             <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
           </svg>
@@ -460,9 +460,9 @@ if (!isLoaded || subLoading) {
 
 <div className="mb-16 sm:mb-20">
   <div className="max-w-4xl mx-auto">
-    <div className="bg-gradient-to-br from-orange-50 via-purple-50 to-pink-50 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-orange-200 shadow-2xl relative overflow-hidden">
+    <div className="bg-gradient-to-br from-orange-50 via-orange-50 to-pink-50 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-orange-200 shadow-2xl relative overflow-hidden">
       {/* Decorative background */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-200/30 to-purple-200/30 rounded-full blur-3xl -mr-20 -mt-20"></div>
+      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-200/30 to-orange-200/30 rounded-full blur-3xl -mr-20 -mt-20"></div>
       
       <div className="relative z-10">
         <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full border border-orange-300 mb-6 backdrop-blur-sm">
@@ -512,7 +512,7 @@ if (!isLoaded || subLoading) {
           </div>
         </div>
 
-        <div className="mt-6 sm:mt-8 bg-gradient-to-r from-orange-600 to-purple-600 p-4 sm:p-6 rounded-2xl text-white">
+        <div className="mt-6 sm:mt-8 bg-gradient-to-r from-orange-600 to-orange-600 p-4 sm:p-6 rounded-2xl text-white">
           <p className="text-sm sm:text-base font-semibold flex items-center gap-2">
             <Check className="w-5 h-5" />
             {language === "en" ? "Result:" : "Tulos:"}
@@ -533,25 +533,25 @@ if (!isLoaded || subLoading) {
     =================================== */}
 <div className="mb-16 sm:mb-20">
   <div className="max-w-4xl mx-auto">
-    <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-purple-100 shadow-xl hover:shadow-2xl transition-all">
-      <div className="bg-purple-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
-        <Crown className="w-7 h-7 text-purple-600" />
+    <div className="bg-white/80 backdrop-blur-xl rounded-3xl sm:rounded-[2rem] p-6 sm:p-8 border-2 border-orange-100 shadow-xl hover:shadow-2xl transition-all">
+      <div className="bg-orange-100 w-14 h-14 rounded-2xl sm:rounded-3xl flex items-center justify-center mb-4 sm:mb-6">
+        <Crown className="w-7 h-7 text-orange-600" />
       </div>
       <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2 flex-wrap">
         {language === "en" ? "Built-in HR Consultant" : "Sisäänrakennettu HR-Konsultti"}
-        <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full border border-purple-300">Pro</span>
+        <span className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full border border-orange-300">Pro</span>
       </h3>
       <p className="text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">
         {language === "en"
           ? "Our Pro AI reads real recruitment articles and HR guides from our database before writing. It's like having an expert check your application."
           : "Pro AI:mme lukee tietokannastamme oikeita rekrytointiartikkeleita ja HR-oppaita ennen kirjoittamista. Kuin asiantuntija tarkistaisi hakemuksesi."}
       </p>
-      <div className="bg-purple-50 p-4 rounded-2xl border border-purple-100">
-        <p className="text-sm font-semibold text-purple-800 flex items-center gap-2">
+      <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+        <p className="text-sm font-semibold text-orange-800 flex items-center gap-2">
           <Database className="w-4 h-4" />
           {language === "en" ? "RAG Technology:" : "RAG-Teknologia:"}
         </p>
-        <p className="text-sm text-purple-700 mt-1">
+        <p className="text-sm text-orange-700 mt-1">
           {language === "en"
             ? "Retrieval-Augmented Generation ensures professional advice."
             : "Retrieval-Augmented Generation varmistaa ammattimaisen neuvonnan."}
@@ -580,7 +580,7 @@ if (!isLoaded || subLoading) {
                 <div className="space-y-4 sm:space-y-6">
                   
                   <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-                     <FileText className="w-10 h-10 text-purple-600 mb-4" />
+                     <FileText className="w-10 h-10 text-orange-600 mb-4" />
                      <h3 className="font-bold text-lg mb-2">{language === "en" ? "Professional PDF Export" : "Ammattimainen PDF-Vienti"}</h3>
                      <p className="text-sm text-gray-600">{language === "en" ? "Download your CVs and cover letters as professional PDF files for easy sharing." : "Lataa CV:t ja hakukirjeet ammattimaisina PDF-tiedostoina helppoa jakamista varten."}</p>
                   </div>
@@ -708,9 +708,9 @@ if (!isLoaded || subLoading) {
                   </Button>
                 </Link>
               </div>
-          <div className="bg-white rounded-2xl sm:rounded-3xl p-6 border-2 border-purple-200 shadow-lg flex flex-col">
-            <h3 className="text-xl font-bold mb-2 text-purple-900 flex items-center gap-2">
-              Pro <Crown className="w-4 h-4 text-purple-600" />
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-6 border-2 border-orange-200 shadow-lg flex flex-col">
+            <h3 className="text-xl font-bold mb-2 text-orange-900 flex items-center gap-2">
+              Pro <Crown className="w-4 h-4 text-orange-600" />
             </h3>
             <div className="mb-4">
               <span className="text-3xl font-bold">15.99€</span>
@@ -722,15 +722,15 @@ if (!isLoaded || subLoading) {
                 <span>{language === "en" ? "Everything in Semi-Pro" : "Kaikki Semi-Prossa"}</span>
               </li>
               <li className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
-                <span className="font-bold text-purple-900">{language === "en" ? "RAG Expert Database" : "RAG-Eksperttitietokanta"}</span>
+                <Check className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                <span className="font-bold text-orange-900">{language === "en" ? "RAG Expert Database" : "RAG-Eksperttitietokanta"}</span>
               </li>
-              <li className="flex items-start gap-2 text-xs text-purple-600 font-medium bg-purple-50 p-1 rounded">
+              <li className="flex items-start gap-2 text-xs text-orange-600 font-medium bg-orange-50 p-1 rounded">
                  {language === "en" ? "Maximum Impact" : "Maksimaalinen Vaikutus"}
               </li>
             </ul>
             <Link href="/pricing">
-              <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+              <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white">
                 {language === "en" ? "Choose Pro" : "Valitse Pro"}
               </Button>
             </Link>
@@ -741,7 +741,7 @@ if (!isLoaded || subLoading) {
            {language === "en" ? "Cancel anytime • No credit card required for free plan" : "Peruuta milloin vain • Ei luottokorttia ilmaisessa paketissa"}
         </p>
       </div>
-      <div className="bg-gradient-to-r from-orange-600 to-purple-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 lg:p-16 text-center text-white shadow-2xl">
+      <div className="bg-gradient-to-r from-orange-600 to-orange-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 lg:p-16 text-center text-white shadow-2xl">
         <h2 className="text-2xl sm:text-3xl md:text-5xl font-extrabold mb-4 sm:mb-6">
           {language === "en" ? "Ready to Save Hours?" : "Valmis Säästämään Tunteja?"}
         </h2>
@@ -782,7 +782,7 @@ if (!isLoaded || subLoading) {
     )}
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100">
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100">
 
       {showProfilePrompt && profileCompleted === false && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -808,7 +808,7 @@ if (!isLoaded || subLoading) {
 
             <div className="flex gap-3">
               <Link href="/profile" className="flex-1">
-                <Button className="w-full bg-gradient-to-r from-orange-600 to-purple-600">
+                <Button className="w-full bg-gradient-to-r from-orange-600 to-orange-600">
                   {language === "en" ? "Fill Profile" : "Täytä Profiili"}
                 </Button>
               </Link>
@@ -826,7 +826,7 @@ if (!isLoaded || subLoading) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-orange-600 to-orange-600 bg-clip-text text-transparent mb-2">
             {language === "en"
               ? `Welcome${displayName ? `, ${displayName}` : ""}!`
               : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
@@ -882,7 +882,7 @@ if (!isLoaded || subLoading) {
   ? "Free personality-driven CV (Basic)"
   : "Ilmainen persoonallisuusvetoinen CV (Basic)"}
                 </p>
-                <Button className="w-full bg-gradient-to-r from-orange-600 to-purple-600">
+                <Button className="w-full bg-gradient-to-r from-orange-600 to-orange-600">
                   {language === "en" ? "Create CV" : "Luo CV"}
                 </Button>
               </div>
