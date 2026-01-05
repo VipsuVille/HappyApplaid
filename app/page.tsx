@@ -208,7 +208,7 @@ const isPaid = isActive && tier !== "free";
 
 if (!isLoaded || subLoading) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100 flex items-center justify-center">
       <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
         <div className="text-lg font-bold text-gray-900">
           {language === "en" ? "Loading..." : "Ladataan..."}
@@ -221,7 +221,7 @@ if (!isLoaded || subLoading) {
   // --- 1. ENSIN: Clerk Loading State ---
  if (!isLoaded || subLoading) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 flex items-center justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100 flex items-center justify-center">
       <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
         <div className="text-lg font-bold text-gray-900">
           {language === "en" ? "Loading..." : "Ladataan..."}
@@ -234,7 +234,7 @@ if (!isLoaded || subLoading) {
   // --- 2. Welcome/Onboarding State ---
   if (showWelcome) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
+      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100">
         <WelcomeModal
           isOpen={true}
           onComplete={handleWelcomeComplete}
@@ -247,7 +247,7 @@ if (!isLoaded || subLoading) {
 
   if (showOnboarding) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
+      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100">
         <OnboardingSteps
           isOpen={true}
           onComplete={handleOnboardingComplete}
@@ -262,10 +262,10 @@ if (!isLoaded || subLoading) {
   // ========================================
   if (!isSignedIn) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100 font-sans text-gray-900 selection:bg-amber-300 selection:text-gray-900 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
 
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-indigo-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-400/30 to-purple-400/30 rounded-full blur-3xl animate-pulse"></div>
           <div
             className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse"
             style={{ animationDelay: "1s" }}
@@ -280,13 +280,13 @@ if (!isLoaded || subLoading) {
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
       
           <div className="mb-12 sm:mb-16">
-            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 p-6 sm:p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
+            <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-orange-500/10 p-6 sm:p-8 md:p-12 lg:p-16 backdrop-saturate-150 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/50 via-transparent to-purple-100/30 pointer-events-none rounded-3xl sm:rounded-[2.5rem]"></div>
 
               <div className="relative z-10 text-center">
-                <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 bg-white/90 backdrop-blur-sm rounded-full border-2 border-indigo-300 shadow-xl mb-4 sm:mb-6">
-                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
-                  <span className="font-bold text-indigo-800 text-sm sm:text-base">
+                <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 bg-white/90 backdrop-blur-sm rounded-full border-2 border-orange-300 shadow-xl mb-4 sm:mb-6">
+                  <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+                  <span className="font-bold text-orange-800 text-sm sm:text-base">
                     {language === "en"
                       ? "Not Just AI. Your Digital Twin."
                       : "Ei Vain AI. Vaan Digitaalinen Kaksosesi."}
@@ -294,7 +294,7 @@ if (!isLoaded || subLoading) {
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 sm:mb-6 leading-tight px-2">
-                  <span className="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent">
                     {language === "en"
                       ? "Create Your Profile Once,"
                       : "Luo Profiili Kerran,"}
@@ -317,7 +317,7 @@ if (!isLoaded || subLoading) {
                 <div className="flex mt-6 flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-6 sm:mb-8 px-4">
                   <SignedOut>
                     <SignInButton mode="modal">
-                      <Button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all">
+                      <Button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-orange-600 to-purple-600 text-white rounded-xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all">
                         <Sparkles className="inline w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                         {language === "en" ? "Start Free" : "Aloita Ilmaiseksi"}
                       </Button>
@@ -330,7 +330,7 @@ if (!isLoaded || subLoading) {
                         .getElementById("how-it-works")
                         ?.scrollIntoView({ behavior: "smooth" })
                     }
-                    className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-white text-indigo-600 rounded-xl font-bold text-base sm:text-lg border-2 border-indigo-300 hover:bg-indigo-50 transition-all"
+                    className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-white text-orange-600 rounded-xl font-bold text-base sm:text-lg border-2 border-orange-300 hover:bg-orange-50 transition-all"
                   >
                     {language === "en"
                       ? "See How It Works"
@@ -339,7 +339,7 @@ if (!isLoaded || subLoading) {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-xs sm:text-sm text-gray-700 max-w-3xl mx-auto px-4 font-medium">
-                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-orange-100">
                     <CreditCard className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
@@ -347,15 +347,15 @@ if (!isLoaded || subLoading) {
                         : "Ei vaadi luottokorttia"}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
-                    <Clock className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-orange-100">
+                    <Clock className="w-4 h-4 text-orange-600 flex-shrink-0" />
                     <span>
                       {language === "en"
                         ? "10-15min setup"
                         : "10-15min asennus"}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-indigo-100">
+                  <div className="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full border border-orange-100">
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                     <span>
                       {language === "en"
@@ -369,14 +369,14 @@ if (!isLoaded || subLoading) {
           </div>
      
           <div className="mb-16 sm:mb-20">
-             <div className="bg-gradient-to-br from-indigo-900 via-purple-900 to-indigo-900 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-16 text-white shadow-2xl relative overflow-hidden text-center">
+             <div className="bg-gradient-to-br from-orange-900 via-purple-900 to-orange-900 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-16 text-white shadow-2xl relative overflow-hidden text-center">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
-                <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
+                <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
                 
                 <div className="relative z-10 max-w-4xl mx-auto">
                   <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/20 mb-4 sm:mb-6 backdrop-blur-sm">
                     <Brain className="w-5 h-5 text-pink-300" />
-                    <span className="font-bold text-indigo-100 tracking-wide uppercase text-sm">
+                    <span className="font-bold text-orange-100 tracking-wide uppercase text-sm">
                       {language === "en" ? "Not Just AI" : "Ei Vain AI"}
                     </span>
                   </div>
@@ -387,7 +387,7 @@ if (!isLoaded || subLoading) {
                       : "Sinun Digitaalinen Kaksosesi."}
                   </h2>
                   
-                  <p className="text-base sm:text-lg md:text-xl text-indigo-100 mb-6 sm:mb-8 leading-relaxed">
+                  <p className="text-base sm:text-lg md:text-xl text-orange-100 mb-6 sm:mb-8 leading-relaxed">
                     {language === "en"
                       ? "Most AI tools generate generic, robotic text that recruiters spot instantly. Our unique engine analyzes your profile, your strengths, working style, and values—and writes in YOUR unique voice."
                       : "Useimmat AI-työkalut luovat geneeristä tekstiä, jonka rekrytoijat tunnistavat heti. Meidän ainutlaatuinen ohjelmamme analysoi profiilisi psygolokisesti – vahvuutesi, työtapasi ja arvosi – ja kirjoittaa SINUN ainutlaatuisella äänelläsi."}
@@ -408,7 +408,7 @@ if (!isLoaded || subLoading) {
                         <Check className="w-5 h-5" /> 
                         HappyApplaid
                       </h3>
-                      <p className="text-xs sm:text-sm text-indigo-100 italic">
+                      <p className="text-xs sm:text-sm text-orange-100 italic">
                         {language === "en" 
                           ? "\"My problem-solving approach relies on deep analysis, which helped me lead the X project...\""
                           : "\"Ongelmanratkaisutyylini perustuu syvälliseen analyysiin, mikä auttoi minua johtamaan X-projektia...\""}
@@ -422,11 +422,11 @@ if (!isLoaded || subLoading) {
     
 
 
-<div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">
+<div id="how-it-works" className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 md:p-12 border-2 border-orange-200 shadow-2xl mb-16">
   <div className="text-center mb-6 sm:mb-8">
-    <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-100 rounded-full mb-4">
-      <Sparkles className="w-5 h-5 text-indigo-600" />
-      <span className="font-bold text-indigo-800 text-sm sm:text-base">
+    <div className="inline-flex items-center gap-2 px-4 py-2 bg-orange-100 rounded-full mb-4">
+      <Sparkles className="w-5 h-5 text-orange-600" />
+      <span className="font-bold text-orange-800 text-sm sm:text-base">
         {language === "en" ? "See It In Action" : "Katso Toiminnassa"}
       </span>
     </div>
@@ -437,9 +437,9 @@ if (!isLoaded || subLoading) {
 
   {/* Video Placeholder - Yksinkertaistettu */}
   <div className="max-w-3xl mx-auto px-4">
-    <div className="relative aspect-video bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl sm:rounded-3xl border-2 border-indigo-300 overflow-hidden shadow-xl">
+    <div className="relative aspect-video bg-gradient-to-br from-orange-100 to-purple-100 rounded-2xl sm:rounded-3xl border-2 border-orange-300 overflow-hidden shadow-xl">
       <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-        <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-2xl">
+        <div className="h-16 w-16 sm:h-20 sm:w-20 bg-gradient-to-br from-orange-500 to-purple-600 rounded-full flex items-center justify-center mb-4 sm:mb-6 shadow-2xl">
           <svg className="w-8 h-8 sm:w-10 sm:h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
             <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
           </svg>
@@ -460,14 +460,14 @@ if (!isLoaded || subLoading) {
 
 <div className="mb-16 sm:mb-20">
   <div className="max-w-4xl mx-auto">
-    <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl relative overflow-hidden">
+    <div className="bg-gradient-to-br from-orange-50 via-purple-50 to-pink-50 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-orange-200 shadow-2xl relative overflow-hidden">
       {/* Decorative background */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-200/30 to-purple-200/30 rounded-full blur-3xl -mr-20 -mt-20"></div>
+      <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-200/30 to-purple-200/30 rounded-full blur-3xl -mr-20 -mt-20"></div>
       
       <div className="relative z-10">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full border border-indigo-300 mb-6 backdrop-blur-sm">
-          <Sparkles className="w-5 h-5 text-indigo-600" />
-          <span className="font-bold text-indigo-800 text-sm">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 rounded-full border border-orange-300 mb-6 backdrop-blur-sm">
+          <Sparkles className="w-5 h-5 text-orange-600" />
+          <span className="font-bold text-orange-800 text-sm">
             {language === "en" ? "Smart & Adaptive" : "Älykäs & Mukautuva"}
           </span>
         </div>
@@ -483,9 +483,9 @@ if (!isLoaded || subLoading) {
         </p>
 
         <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
-          <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border border-indigo-200 shadow-sm">
+          <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border border-orange-200 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
-              <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600" />
+              <MessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-orange-600" />
               <h3 className="font-bold text-base sm:text-lg text-gray-900">
                 {language === "en" ? "Smart Questions" : "Älykkäät Kysymykset"}
               </h3>
@@ -497,7 +497,7 @@ if (!isLoaded || subLoading) {
             </p>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border border-indigo-200 shadow-sm">
+          <div className="bg-white/80 backdrop-blur-sm p-4 sm:p-6 rounded-2xl border border-orange-200 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
               <Lightbulb className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-600" />
               <h3 className="font-bold text-base sm:text-lg text-gray-900">
@@ -512,7 +512,7 @@ if (!isLoaded || subLoading) {
           </div>
         </div>
 
-        <div className="mt-6 sm:mt-8 bg-gradient-to-r from-indigo-600 to-purple-600 p-4 sm:p-6 rounded-2xl text-white">
+        <div className="mt-6 sm:mt-8 bg-gradient-to-r from-orange-600 to-purple-600 p-4 sm:p-6 rounded-2xl text-white">
           <p className="text-sm sm:text-base font-semibold flex items-center gap-2">
             <Check className="w-5 h-5" />
             {language === "en" ? "Result:" : "Tulos:"}
@@ -566,7 +566,7 @@ if (!isLoaded || subLoading) {
              </h2>
              <div className="space-y-4 sm:space-y-6">
                 <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition-all">
-                   <Target className="w-10 h-10 text-indigo-600 mb-4" />
+                   <Target className="w-10 h-10 text-orange-600 mb-4" />
                    <h3 className="font-bold text-lg mb-2">{language === "en" ? "Job-Specific Content" : "Työkohtainen Sisältö"}</h3>
                    <p className="text-sm text-gray-600">{language === "en" ? "Tailored to the specific job description." : "Räätälöity juuri kyseiseen työpaikkaan."}</p>
                 </div>
@@ -601,7 +601,7 @@ if (!isLoaded || subLoading) {
           </div>
 
       
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-indigo-200 shadow-2xl mb-16">
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border-2 border-orange-200 shadow-2xl mb-16">
             <div className="text-center mb-8 sm:mb-12">
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-4">
                 {language === "en" ? "Simple, Transparent Pricing" : "Yksinkertainen, Läpinäkyvä Hinnoittelu"}
@@ -741,11 +741,11 @@ if (!isLoaded || subLoading) {
            {language === "en" ? "Cancel anytime • No credit card required for free plan" : "Peruuta milloin vain • Ei luottokorttia ilmaisessa paketissa"}
         </p>
       </div>
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 lg:p-16 text-center text-white shadow-2xl">
+      <div className="bg-gradient-to-r from-orange-600 to-purple-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 lg:p-16 text-center text-white shadow-2xl">
         <h2 className="text-2xl sm:text-3xl md:text-5xl font-extrabold mb-4 sm:mb-6">
           {language === "en" ? "Ready to Save Hours?" : "Valmis Säästämään Tunteja?"}
         </h2>
-        <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8 text-indigo-100 max-w-2xl mx-auto">
+        <p className="text-base sm:text-lg md:text-xl mb-6 sm:mb-8 text-orange-100 max-w-2xl mx-auto">
           {language === "en" 
             ? "Create your profile once. Get personalized applications forever." 
             : "Luo profiili kerran. Saa personoituja hakemuksia ikuisesti."}
@@ -754,7 +754,7 @@ if (!isLoaded || subLoading) {
         <div className="flex justify-center mb-6 sm:mb-8">
           <SignedOut>
             <SignInButton mode="modal">
-              <Button className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-indigo-600 rounded-xl font-bold text-base sm:text-lg hover:bg-gray-100 shadow-xl transform hover:scale-105 transition-all">
+              <Button className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-orange-600 rounded-xl font-bold text-base sm:text-lg hover:bg-gray-100 shadow-xl transform hover:scale-105 transition-all">
                 <Sparkles className="inline w-5 h-5 mr-2" />
                 {language === "en" ? "Start Free Now" : "Aloita Ilmaiseksi"}
               </Button>
@@ -762,7 +762,7 @@ if (!isLoaded || subLoading) {
           </SignedOut>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-indigo-100">
+        <div className="flex flex-wrap justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-orange-100">
           <div className="flex items-center gap-2">
              <Check className="w-4 h-4" /> {language === "en" ? "No credit card" : "Ei luottokorttia"}
           </div>
@@ -772,7 +772,7 @@ if (!isLoaded || subLoading) {
         </div>
       </div>
 
-      <footer className="py-8 sm:py-12 text-center text-gray-500 border-t border-indigo-100 bg-white/70 backdrop-blur-xl mt-16 rounded-3xl">
+      <footer className="py-8 sm:py-12 text-center text-gray-500 border-t border-orange-100 bg-white/70 backdrop-blur-xl mt-16 rounded-3xl">
         <div className="max-w-7xl mx-auto px-4 text-sm">
           © {new Date().getFullYear()} HappyApplaid. {language === "en" ? "All rights reserved." : "Kaikki oikeudet pidätetään."}
         </div>
@@ -782,7 +782,7 @@ if (!isLoaded || subLoading) {
     )}
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
+    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-purple-50 to-pink-100">
 
       {showProfilePrompt && profileCompleted === false && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -794,7 +794,7 @@ if (!isLoaded || subLoading) {
               <X className="w-6 h-6 text-gray-600" />
             </button>
 
-            <User className="h-16 w-16 mx-auto mb-4 text-indigo-600" />
+            <User className="h-16 w-16 mx-auto mb-4 text-orange-600" />
             <h3 className="text-2xl font-bold text-center mb-4 text-gray-900">
               {language === "en"
                 ? `Hey, ${user?.firstName}!`
@@ -808,7 +808,7 @@ if (!isLoaded || subLoading) {
 
             <div className="flex gap-3">
               <Link href="/profile" className="flex-1">
-                <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
+                <Button className="w-full bg-gradient-to-r from-orange-600 to-purple-600">
                   {language === "en" ? "Fill Profile" : "Täytä Profiili"}
                 </Button>
               </Link>
@@ -826,7 +826,7 @@ if (!isLoaded || subLoading) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8 backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-orange-600 to-purple-600 bg-clip-text text-transparent mb-2">
             {language === "en"
               ? `Welcome${displayName ? `, ${displayName}` : ""}!`
               : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
@@ -869,7 +869,7 @@ if (!isLoaded || subLoading) {
           {canCreateCV ? (
             <Link href="/create-cv">
               <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl sm:rounded-3xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
-                <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-indigo-600 mb-4" />
+                <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-orange-600 mb-4" />
                 <h3 className="font-bold text-lg sm:text-xl mb-2 text-gray-900">
                   {language === "en" ? "Create CV" : "Luo CV"}
                 </h3>
@@ -882,7 +882,7 @@ if (!isLoaded || subLoading) {
   ? "Free personality-driven CV (Basic)"
   : "Ilmainen persoonallisuusvetoinen CV (Basic)"}
                 </p>
-                <Button className="w-full bg-gradient-to-r from-indigo-600 to-purple-600">
+                <Button className="w-full bg-gradient-to-r from-orange-600 to-purple-600">
                   {language === "en" ? "Create CV" : "Luo CV"}
                 </Button>
               </div>
@@ -947,38 +947,38 @@ if (!isLoaded || subLoading) {
 
         <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-3xl sm:rounded-[2rem] shadow-2xl p-6 sm:p-8">
           <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 flex items-center gap-2 text-gray-900">
-            <Files className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
+            <Files className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
             {language === "en" ? "My Documents" : "Omat Dokumentit"}
           </h2>
 
           <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
             <div>
               <Link href="/my-cvs">
-                <div className="flex items-center justify-between p-3 sm:p-4 bg-indigo-50 rounded-xl sm:rounded-2xl hover:bg-indigo-100 transition-all mb-3 sm:mb-4 cursor-pointer">
+                <div className="flex items-center justify-between p-3 sm:p-4 bg-orange-50 rounded-xl sm:rounded-2xl hover:bg-orange-100 transition-all mb-3 sm:mb-4 cursor-pointer">
                   <div className="flex items-center gap-2 sm:gap-3">
-                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                     <span className="font-bold text-gray-900 text-sm sm:text-base">
                       {language === "en" ? "My CVs" : "Omat CV:t"}
                     </span>
                     {recentCVs.length > 0 && (
-                      <span className="bg-indigo-200 px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold">
+                      <span className="bg-orange-200 px-2 py-0.5 sm:py-1 rounded-full text-xs font-bold">
                         {recentCVs.length}
                       </span>
                     )}
                   </div>
-                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600" />
+                  <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
                 </div>
               </Link>
 
               {loadingRecent ? (
                 <div className="text-center py-6 sm:py-8">
-                  <div className="animate-spin h-6 w-6 sm:h-8 sm:w-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div>
+                  <div className="animate-spin h-6 w-6 sm:h-8 sm:w-8 border-4 border-orange-600 border-t-transparent rounded-full mx-auto"></div>
                 </div>
               ) : recentCVs.length > 0 ? (
                 <div className="space-y-2">
                   {recentCVs.map((cv: any) => (
                     <Link key={cv.id} href={`/edit-cv/${cv.id}`}>
-                      <div className="p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-indigo-300">
+                      <div className="p-3 sm:p-4 bg-white rounded-xl sm:rounded-2xl hover:shadow-md transition-all border-2 border-gray-200 hover:border-orange-300">
                         <p className="font-semibold text-xs sm:text-sm text-gray-900 truncate">
                           {cv.content?.personalInfo?.name ||
                             cv.title ||
@@ -1090,7 +1090,7 @@ if (!isLoaded || subLoading) {
         </div>
       </div>
 
-      <footer className="py-8 text-center text-gray-500 border-t border-indigo-100 bg-white/70 backdrop-blur-xl mt-12 mx-4 sm:mx-6 lg:mx-8 rounded-3xl">
+      <footer className="py-8 text-center text-gray-500 border-t border-orange-100 bg-white/70 backdrop-blur-xl mt-12 mx-4 sm:mx-6 lg:mx-8 rounded-3xl">
         <p className="text-sm">
           © {new Date().getFullYear()} HappyApplaid.{" "}
           {language === "en"
