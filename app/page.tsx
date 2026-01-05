@@ -865,7 +865,7 @@ if (!isLoaded || subLoading) {
         )}
           <HowItWorksTimeline />
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+        <div className="grid mt-6 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
           {canCreateCV ? (
             <Link href="/create-cv">
               <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl sm:rounded-3xl shadow-xl p-6 hover:shadow-2xl hover:scale-105 transition-all cursor-pointer">
