@@ -34,14 +34,14 @@ export default function HowItWorksTimeline() {
           : "Generoi CV tai hakukirje",
       text:
         language === "en"
-          ? "Create a general document or paste a job ad (or type e.g. “IKEA”) for a job-specific version."
-          : "Luo yleinen dokumentti tai liitä työpaikkailmoitus (tai kirjoita esim. “IKEA”) työpaikkakohtaista versiota varten.",
+          ? "Create a general document or paste a job ad (or type e.g. comapnyname) for a job-specific version."
+          : "Luo yleinen dokumentti tai liitä työpaikkailmoitus (tai kirjoita esim. Työpaikan nimi) työpaikkakohtaista versiota varten.",
     },
   ];
 
   return (
-    <div className="bg-white/80 backdrop-blur-xl border-2 border-indigo-200 rounded-3xl p-6 sm:p-10 shadow-2xl">
-      <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8">
+    <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-3xl p-6 sm:p-10 shadow-2xl">
+      <h2 className="text-2xl sm:text-3xl font-bold text-center mb-8 text-gray-100">
         {language === "en" ? "How it works" : "Näin ohjelma toimii"}
       </h2>
 
@@ -50,16 +50,16 @@ export default function HowItWorksTimeline() {
           const Icon = step.icon;
           return (
             <div key={index} className="flex-1 text-center relative">
-              <div className="mx-auto w-14 h-14 rounded-full bg-indigo-600 text-white flex items-center justify-center mb-4 shadow-lg">
+              <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 text-white flex items-center justify-center mb-4 shadow-lg shadow-orange-500/20">
                 <Icon className="w-7 h-7" />
               </div>
 
-              <h3 className="font-bold text-lg mb-2">{step.title}</h3>
-              <p className="text-sm text-gray-600">{step.text}</p>
+              <h3 className="font-bold text-lg mb-2 text-gray-100">{step.title}</h3>
+              <p className="text-sm text-gray-400">{step.text}</p>
 
               {/* Nuoli vain desktopissa */}
               {index < steps.length - 1 && (
-                <div className="hidden md:block absolute top-7 right-[-24px] text-indigo-400 text-3xl">
+                <div className="hidden md:block absolute top-7 right-[-24px] text-orange-400/50 text-3xl">
                   →
                 </div>
               )}
