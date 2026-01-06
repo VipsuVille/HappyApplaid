@@ -600,6 +600,11 @@ export async function generateEnhancedBackgroundImage(
 export async function generateCVWithPersonalityExtraction(
   userData: CVGeneratorInput
 ): Promise<CVGenerationResult> {
+  console.log('🚀 [CV GEN] STARTED');
+  console.log('   - User:', userData.name);
+  console.log('   - Type:', userData.cvType);
+  console.log('   - Skip Questions:', userData.skipQuestions);
+  
   const timer = new PerformanceTimer();
   timer.start("Total Generation");
   
@@ -616,17 +621,22 @@ export async function generateCVWithPersonalityExtraction(
   const { authToken, jobPosting, userId, skipQuestions, answeredQuestions } = userData;
 
   try {
+    console.log('✅ [CV GEN] Try block entered');
     checkTimeout();
     
     // ════════════════════════════════════════════════════════════════
-    // ✅ STEP 1: QUESTION ANALYSIS
+    // STEP 1: QUESTION ANALYSIS
     // ════════════════════════════════════════════════════════════════
     
+    console.log('🔍 [CV GEN] STEP 1: Question Analysis');
+    console.log('   - skipQuestions:', skipQuestions);
+    
     if (!skipQuestions) {
+      console.log('   → Running question analysis...');
       timer.start("Question Analysis");
 
       try {
-        console.log('🔍 CV: Running smart question analysis...');
+        console.log('   → Calling analyzeJobAndProfile...');
         
         const smartAnalysis = await analyzeJobAndProfile({
           jobDescription: jobPosting || `Creating ${userData.cvType} CV`,
@@ -647,10 +657,13 @@ export async function generateCVWithPersonalityExtraction(
           userId: userId
         });
 
+        console.log('   ✅ analyzeJobAndProfile completed');
+        console.log('   - Should ask:', smartAnalysis.shouldAskQuestions);
+        console.log('   - Questions:', smartAnalysis.questions?.length || 0);
+        
         timer.end();
 
         if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
-          // Suodata jo vastatut
           const unanswered = smartAnalysis.questions.filter((q) => {
             if (!answeredQuestions?.length) return true;
             return !answeredQuestions.some(
@@ -658,11 +671,13 @@ export async function generateCVWithPersonalityExtraction(
             );
           });
 
-          // Priorisoi kriittiset
           const critical = unanswered.filter(q => q.priority === 'critical');
           
+          console.log('   - Unanswered:', unanswered.length);
+          console.log('   - Critical:', critical.length);
+          
           if (critical.length > 0) {
-            console.log(`❓ CV needs ${critical.length} critical answers`);
+            console.log('❓ [CV GEN] Returning questions (exiting early)');
             
             return {
               personal_description: "",
@@ -695,25 +710,30 @@ export async function generateCVWithPersonalityExtraction(
           }
         }
         
-        console.log('✅ CV: Profile sufficient OR questions skipped');
+        console.log('   ✅ No critical questions needed');
       } catch (analysisError) {
         timer.end();
-        console.warn('⚠️ Question analysis failed, continuing:', analysisError);
+        console.error('   ❌ Question analysis ERROR:', analysisError);
+        console.warn('   → Continuing without questions');
       }
     } else {
-      console.log('⭐ CV: Skipping question analysis (skipQuestions=true)');
+      console.log('   ⭐ Questions skipped (skipQuestions=true)');
     }
 
+    console.log('✅ [CV GEN] STEP 1 completed');
+    
     // ════════════════════════════════════════════════════════════════
-    // ✅ STEP 2: MERGE ANSWERS
+    // STEP 2: MERGE ANSWERS
     // ════════════════════════════════════════════════════════════════
+    
+    console.log('📝 [CV GEN] STEP 2: Merge Answers');
     
     let enhancedUserData = { ...userData };
     
     if (answeredQuestions && answeredQuestions.length > 0) {
       timer.start("Merge Answers");
       
-      console.log(`📝 Merging ${answeredQuestions.length} answers into profile...`);
+      console.log(`   → Merging ${answeredQuestions.length} answers...`);
       
       const merged = mergeCVAnswers(
         toLangChainInput(userData),
@@ -732,14 +752,19 @@ export async function generateCVWithPersonalityExtraction(
         bestProjectExample: merged.bestProjectExample || userData.bestProjectExample,
       };
       
-      console.log('✅ Answers merged into enhanced profile');
+      console.log('   ✅ Answers merged');
       timer.end();
+    } else {
+      console.log('   ⭐ No answers to merge');
     }
 
+    console.log('✅ [CV GEN] STEP 2 completed');
+    
     // ════════════════════════════════════════════════════════════════
-    // STEP 3+: LOPUT (sama kuin ennen, mutta käytä enhancedUserData!)
+    // STEP 3: EXTRACTIONS
     // ════════════════════════════════════════════════════════════════
     
+    console.log('🔬 [CV GEN] STEP 3: Extractions (simplified)');
     timer.start("Extractions");
     
     const personalityExtraction: PersonalityExtraction = {
@@ -781,27 +806,22 @@ export async function generateCVWithPersonalityExtraction(
     };
     
     timer.end();
+    console.log('✅ [CV GEN] STEP 3 completed');
     
     const finalUserData = { ...enhancedUserData };
-
     let promptTemplate = atsOptimizedSimplePrompt;
 
     checkTimeout();
 
-// STEP 5: AI Generation
-timer.start("AI Generation");
-
-// ✅ DEBUG: Mitä AI saa inputtina?
-console.log('🔍 AI INPUT DATA:');
-console.log('  - Name:', finalUserData.name);
-console.log('  - Work Experience length:', finalUserData.workExperience?.length || 0);
-console.log('  - Work Experience:', finalUserData.workExperience?.substring(0, 200));
-console.log('  - Education length:', finalUserData.education?.length || 0);
-console.log('  - Skills:', finalUserData.skills?.substring(0, 100));
-console.log('  - Best Project:', finalUserData.bestProjectExample?.substring(0, 100));
-console.log('  - Career Goals:', finalUserData.careerGoals?.substring(0, 100));
-
-
+    // ════════════════════════════════════════════════════════════════
+    // STEP 4: AI GENERATION
+    // ════════════════════════════════════════════════════════════════
+    
+    console.log('🤖 [CV GEN] STEP 4: AI Generation');
+    console.log('   - Model: gpt-4o-mini');
+    console.log('   - Temperature: 0.7');
+    
+    timer.start("AI Generation");
 
     const model = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -810,6 +830,8 @@ console.log('  - Career Goals:', finalUserData.careerGoals?.substring(0, 100));
       timeout: 20000,
     });
 
+    console.log('   → Formatting prompt...');
+    
     const formatted = await promptTemplate.formatMessages({
       knowledgeContext: '',
       language: finalUserData.language || 'finnish',
@@ -826,152 +848,146 @@ console.log('  - Career Goals:', finalUserData.careerGoals?.substring(0, 100));
       format_instructions: outputParser.getFormatInstructions()
     });
 
+    console.log('   → Calling OpenAI...');
+    
     const result = await Promise.race([
       model.invoke(formatted),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 20000))
     ]);
 
+    console.log('   ✅ OpenAI response received');
+    
     const rawContentString = getMessageContent(result);
+    console.log('   - Response length:', rawContentString.length, 'chars');
+    
     timer.end();
 
     checkTimeout();
+
+    // ════════════════════════════════════════════════════════════════
+    // STEP 5: PARSING
+    // ════════════════════════════════════════════════════════════════
+    
+    console.log('📋 [CV GEN] STEP 5: Parsing');
     timer.start("Parsing");
-let parsedOutput: CVOutputType;
-try {
-const sanitized = sanitizeAIResponse(rawContentString);
-parsedOutput = await outputParser.parse(sanitized);
-} catch {
-try {
-parsedOutput = await outputParser.parse(rawContentString);
-} catch {
-parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData));
-}
-}
-
-timer.end();
-
-checkTimeout();
-
-// ✅ QUALITY CHECK: Onko sisältö riittävän pitkä?
-console.log('📏 Content length check:');
-console.log('  - Personal:', parsedOutput.personal_description?.length || 0);
-console.log('  - Skills:', parsedOutput.cv_content.skills_section?.length || 0);
-console.log('  - Experience:', parsedOutput.cv_content.experience_section?.length || 0);
-console.log('  - Education:', parsedOutput.cv_content.education_section?.length || 0);
-
-// Jos experience on liian lyhyt, luo fallback
-if ((parsedOutput.cv_content.experience_section?.length || 0) < 50) {
-  console.warn('⚠️ Experience section too short, creating fallback...');
-  
-  // Rakenna järkevä kokemus-osio käytettävissä olevasta datasta
-  const experienceFallback: string[] = [];
-  
-  // Jos on best project
-  if (finalUserData.bestProjectExample && finalUserData.bestProjectExample.length > 20) {
-    experienceFallback.push(`<strong>Projektityöskentely</strong><br>${finalUserData.bestProjectExample}`);
-  }
-  
-  // Jos on skills, muunna ne kokemukseksi
-  if (finalUserData.skills && finalUserData.skills.length > 10) {
-    const skillsList = finalUserData.skills.split(',').map(s => s.trim()).slice(0, 5);
-    experienceFallback.push(
-      `<strong>Tekninen osaaminen käytännössä</strong><br>` +
-      `Kehittänyt osaamistani seuraavilla osa-alueilla:<br>` +
-      skillsList.map(skill => `• ${skill}`).join('<br>')
-    );
-  }
-  
-  // Jos on career goals
-  if (finalUserData.careerGoals && finalUserData.careerGoals.length > 20) {
-    experienceFallback.push(`<strong>Urasuunnitelma</strong><br>${finalUserData.careerGoals}`);
-  }
-  
-  // Jos mitään ei ole, luo geneerinen
-  if (experienceFallback.length === 0) {
-    experienceFallback.push(
-      `<strong>Osaamisen kehittäminen</strong><br>` +
-      `Aktiivisesti kehittänyt osaamistani ${finalUserData.cvType || 'ohjelmoin nin'} saralla. ` +
-      `Keskittynyt käytännön projekteihin ja modernien teknologioiden oppimiseen.`
-    );
-  }
-  
-  parsedOutput.cv_content.experience_section = experienceFallback.join('<br><br>');
-  console.log('✅ Fallback experience created:', parsedOutput.cv_content.experience_section.length, 'chars');
-}
-
-
-const guardianCheck = {
-  approved: true,
-  riskLevel: 'safe' as const,
-  violations: {}
-};
-
-checkTimeout();
-
-timer.start("Background");
-
-let backgroundImage: string = "";
-
-if (finalUserData.backgroundImage) {
-  backgroundImage = finalUserData.backgroundImage;
-}
-
-if (!backgroundImage) {
-  try {
-    const generatedUrl = await generateEnhancedBackgroundImage(
-      toLangChainInput(finalUserData), 
-      authToken
-    );
-
-    if (generatedUrl && generatedUrl.startsWith("http")) {
-      const pathMatch = generatedUrl.match(/\/cv_files\/(.+)$/);
-      if (pathMatch) {
-        backgroundImage = pathMatch[1];
-      } else {
-        backgroundImage = generatedUrl;
+    
+    let parsedOutput: CVOutputType;
+    try {
+      console.log('   → Attempting sanitize + parse...');
+      const sanitized = sanitizeAIResponse(rawContentString);
+      parsedOutput = await outputParser.parse(sanitized);
+      console.log('   ✅ Parse successful (method 1)');
+    } catch {
+      try {
+        console.log('   → Attempting direct parse...');
+        parsedOutput = await outputParser.parse(rawContentString);
+        console.log('   ✅ Parse successful (method 2)');
+      } catch {
+        console.log('   → Using manual extraction fallback...');
+        parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData));
+        console.log('   ✅ Fallback extraction used');
       }
-    } else if (generatedUrl && generatedUrl.startsWith("data:")) {
-      backgroundImage = generatedUrl;
     }
-  } catch (error) {
-    console.error("❌ Background generation error:", error);
-  }
-}
+    
+    console.log('   - Parsed sections:');
+    console.log('     • Personal:', parsedOutput.personal_description?.length || 0);
+    console.log('     • Skills:', parsedOutput.cv_content.skills_section?.length || 0);
+    console.log('     • Experience:', parsedOutput.cv_content.experience_section?.length || 0);
+    console.log('     • Education:', parsedOutput.cv_content.education_section?.length || 0);
+    
+    timer.end();
+    console.log('✅ [CV GEN] STEP 5 completed');
 
-timer.end();
+    checkTimeout();
 
-const finalBackgroundImage = cleanImageUrl(backgroundImage || undefined);
-const profileImageClean = cleanImageUrl(finalUserData.profileImage);
+    // ════════════════════════════════════════════════════════════════
+    // STEP 6: REST OF THE FLOW
+    // ════════════════════════════════════════════════════════════════
+    
+    console.log('🏁 [CV GEN] STEP 6: Finalization');
 
-const fullTextContent = `
+    const guardianCheck = {
+      approved: true,
+      riskLevel: 'safe' as const,
+      violations: {}
+    };
+
+    checkTimeout();
+
+    timer.start("Background");
+    console.log('   → Background image processing...');
+
+    let backgroundImage: string = "";
+
+    if (finalUserData.backgroundImage) {
+      backgroundImage = finalUserData.backgroundImage;
+      console.log('   ✅ Using existing background');
+    } else {
+      try {
+        console.log('   → Generating new background...');
+        const generatedUrl = await generateEnhancedBackgroundImage(
+          toLangChainInput(finalUserData), 
+          authToken
+        );
+
+        if (generatedUrl && generatedUrl.startsWith("http")) {
+          const pathMatch = generatedUrl.match(/\/cv_files\/(.+)$/);
+          if (pathMatch) {
+            backgroundImage = pathMatch[1];
+          } else {
+            backgroundImage = generatedUrl;
+          }
+          console.log('   ✅ Background generated');
+        } else if (generatedUrl && generatedUrl.startsWith("data:")) {
+          backgroundImage = generatedUrl;
+          console.log('   ✅ Background generated (base64)');
+        } else {
+          console.log('   ⚠️ Background generation returned empty');
+        }
+      } catch (error) {
+        console.error('   ❌ Background generation error:', error);
+      }
+    }
+
+    timer.end();
+
+    const finalBackgroundImage = cleanImageUrl(backgroundImage || undefined);
+    const profileImageClean = cleanImageUrl(finalUserData.profileImage);
+
+    const fullTextContent = `
 ${parsedOutput.personal_description}
 ${parsedOutput.cv_content.skills_section}
 ${parsedOutput.cv_content.experience_section}
 `.trim();
-timer.getResults();
 
-return {
-  personal_description: parsedOutput.personal_description,
-  html: parsedOutput.cv_content,
-  background_image: finalBackgroundImage || "",
-  profile_initials: profileImageClean ? "" : generateInitials(finalUserData.name),
-  fullTextContent,
-  ats_data: parsedOutput.ats_optimization || null,
-  job_analysis: jobAnalysis,
-  ground_truth_check: {
-    approved: guardianCheck.approved,
-    riskLevel: guardianCheck.riskLevel,
-    violations: guardianCheck.violations
-  },
-  images: {
-    background_prompt: '',
-    visual_elements: []
+    timer.getResults();
+    
+    console.log('✅ [CV GEN] COMPLETE - Returning result');
+
+    return {
+      personal_description: parsedOutput.personal_description,
+      html: parsedOutput.cv_content,
+      background_image: finalBackgroundImage || "",
+      profile_initials: profileImageClean ? "" : generateInitials(finalUserData.name),
+      fullTextContent,
+      ats_data: parsedOutput.ats_optimization || null,
+      job_analysis: jobAnalysis,
+      ground_truth_check: {
+        approved: guardianCheck.approved,
+        riskLevel: guardianCheck.riskLevel,
+        violations: guardianCheck.violations
+      },
+      images: {
+        background_prompt: '',
+        visual_elements: []
+      }
+    };
+
+  } catch (error) {
+    console.error('❌ [CV GEN] FATAL ERROR:', error);
+    console.error('   Stack:', error instanceof Error ? error.stack : 'No stack');
+    throw error;
   }
-};
-} catch (error) {
-console.error("❌ Generation failed:", error);
-throw error;
-}
 }
 export async function generateCVSafely(
 userData: CVGeneratorInput
