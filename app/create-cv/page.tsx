@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner"; // ✅ KORJATTU: Käytä sonneria
 import {
   FileText,
   Sparkles,
@@ -21,7 +22,8 @@ type CVTemplate = "technical" | "creative" | "simple";
 
 export default function CreateCVPage() {
   const router = useRouter();
-  const { toast } = useToast();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { getToken } = useAuth();
   
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
@@ -29,6 +31,10 @@ export default function CreateCVPage() {
   const [useATS, setUseATS] = useState(false);
   const [useRAG, setUseRAG] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  
+  // ✅ PROFILE STATE
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   const { 
     tokens, 
@@ -36,10 +42,63 @@ export default function CreateCVPage() {
     plan_type,
     features,
     isLoading: tokensLoading,
-    consumeTokens,
-    canUseAction,
     getActionCost 
   } = useTokens();
+
+  // ✅ LATAA PROFIILI (kuten sinun koodissasi)
+  const loadProfile = async () => {
+    if (!user) return;
+
+    try {
+      setProfileLoading(true);
+      console.log('📋 Loading profile for:', user.id);
+      
+      const response = await fetch(`/api/user-profile/${user.id}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Profile loaded:', {
+          hasName: !!data.name,
+          hasEmail: !!data.email,
+          workExpCount: data.work_experience?.length || 0,
+          keys: Object.keys(data)
+        });
+        setProfileData(data);
+      } else if (response.status === 404) {
+        console.warn('⚠️ Profile not found (404)');
+        setProfileData(null);
+      } else {
+        console.error('❌ Profile fetch failed:', response.status);
+        setProfileData(null);
+      }
+    } catch (error) {
+      console.error("❌ Error loading profile:", error);
+      setProfileData(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userLoaded && user) {
+      loadProfile();
+    }
+  }, [userLoaded, user]);
+
+  // ✅ ESTÄ SIVUN SULKEMINEN LATAUKSEN AIKANA
+  useEffect(() => {
+    if (isLoading) {
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = '';
+      };
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+  }, [isLoading]);
 
   const currentActions: TokenAction[] = ['cv_basic'];
   if (useATS) currentActions.push('cv_ats_addon');
@@ -50,29 +109,58 @@ export default function CreateCVPage() {
     0
   );
 
-  // ✅ OIKEA CV-GENEROINTI
+  // ✅ LOADING STATE
+  if (!userLoaded || profileLoading || tokensLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Ladataan...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ OIKEA HANDLER (yhdistää molemmat)
   const handleGenerateCV = async () => {
     console.log('🚀 [FRONTEND] Generate CV button clicked');
+    console.log('   - User:', user?.id);
     console.log('   - Template:', selectedTemplate);
     console.log('   - ATS:', useATS);
     console.log('   - RAG:', useRAG);
     console.log('   - Total cost:', totalCost);
+    console.log('   - Has profile:', !!profileData);
     
+    if (!user) {
+      toast.error("Kirjaudu sisään luodaksesi CV:n");
+      return;
+    }
+
+    if (!profileData) {
+      toast.error("Täytä ensin profiilisi!");
+      router.push("/profile");
+      return;
+    }
+
+    // Validoi tokenit
     if (tokens < totalCost) {
-      toast({
-        title: "Ei tarpeeksi tokeneita",
-        description: `Tarvitset ${totalCost} tokenia, mutta sinulla on vain ${tokens}.`,
-        variant: "destructive",
-      });
+      toast.error(`Tarvitset ${totalCost} tokenia, mutta sinulla on vain ${tokens}.`);
+      return;
+    }
+
+    // Validoi ominaisuudet
+    if (useATS && !features.canUseATS) {
+      toast.error("ATS-optimointi vaatii Semi-Pro tai Pro -tason");
+      return;
+    }
+
+    if (useRAG && !features.canUseRAG) {
+      toast.error("RAG-tietokanta vaatii Pro-tason");
       return;
     }
 
     if (useATS && !jobPosting.trim()) {
-      toast({
-        title: "Puuttuva työpaikkailmoitus",
-        description: "Syötä työpaikkailmoitus ATS-optimointia varten.",
-        variant: "destructive",
-      });
+      toast.error("Anna työpaikkailmoitus ATS-optimointia varten");
       return;
     }
 
@@ -80,14 +168,34 @@ export default function CreateCVPage() {
     console.log('   → Starting API call...');
 
     try {
+      const token = await getToken({ template: "supabase" });
+      if (!token) throw new Error("No auth token");
+
+      console.log("🚀 Sending CV request:", {
+        cvType: selectedTemplate,
+        actions: currentActions,
+        totalCost: totalCost,
+        hasProfileData: !!profileData,
+        profileKeys: profileData ? Object.keys(profileData) : [],
+        profileName: profileData?.name,
+        workExpCount: profileData?.work_experience?.length || 0
+      });
+
       const response = await fetch("/api/generate-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // ✅ KRIITTINEN: Lähetä profileData
+          profileData: profileData,
+          
+          // CV asetukset
           cvType: selectedTemplate,
-          jobPosting: useATS ? jobPosting : undefined,
-          enableRAG: useRAG,
           language: "finnish",
+          
+          // Optionaaliset
+          forceGenerate: false,
+          jobPosting: useATS || useRAG ? jobPosting : undefined,
+          enableRAG: useRAG,
           skipQuestions: false,
         }),
       });
@@ -95,45 +203,58 @@ export default function CreateCVPage() {
       console.log('   → API response status:', response.status);
 
       if (!response.ok) {
-        const error = await response.json();
-        console.error('   ❌ API error:', error);
-        throw new Error(error.message || "CV-generointi epäonnistui");
+        const errorData = await response.json();
+        console.error('   ❌ API error:', errorData);
+        
+        if (errorData.error === "FREE_CV_ALREADY_USED") {
+          toast.error("Olet jo käyttänyt ilmaisen CV:n! Aktivoi Basic-tilaus.", 
+            { duration: 8000 });
+          router.push("/pricing");
+          return;
+        }
+
+        if (errorData.error === "PROFILE_REQUIRED") {
+          toast.error("Profiilia ei löydy. Lataa sivu uudelleen tai täytä profiili.");
+          return;
+        }
+
+        throw new Error(errorData.message || errorData.error || "CV generation failed");
       }
 
-      const data = await response.json();
-      console.log('   ✅ API success:', data);
+      const result = await response.json();
+      console.log('   ✅ API success:', result);
 
       // Tarkista tarvitaanko kysymyksiä
-      if (data.needsMoreInfo && data.questions) {
-        console.log('   ❓ Questions needed:', data.questions.length);
+      if (result.needsMoreInfo && result.questions) {
+        console.log('   ❓ Questions needed:', result.questions.length);
         
-        toast({
-          title: "Tarvitaan lisätietoja",
-          description: `${data.questions.length} kysymystä vastattavana.`,
-        });
-
-        // TODO: Ohjaa kysymyssivulle tai näytä modaali
-        router.push(`/questions?cvId=${data.cvId || 'new'}`);
+        toast.info(`Tarvitaan lisätietoja: ${result.questions.length} kysymystä`);
+        
+        // TODO: Ohjaa kysymyssivulle
+        router.push(`/questions?cvId=${result.cvId || 'new'}`);
         return;
       }
 
       // CV valmis!
-      toast({
-        title: "CV valmis! 🎉",
-        description: `Generointi kesti ${Math.round((data.generationTime || 0) / 1000)}s`,
-      });
+      toast.success(
+        useRAG ? "🎯 RAG-optimoitu CV luotu!" :
+        useATS ? "✅ ATS-optimoitu CV luotu!" :
+        "✅ CV luotu!",
+        { 
+          description: `Generointi kesti ${Math.round((result.generationTime || 0) / 1000)}s`
+        }
+      );
 
       console.log('   → Redirecting to CV page...');
-      router.push(`/cvs/${data.cvId}`);
+      router.push(`/edit-cv/${result.id || result.cvId}`);
 
     } catch (error) {
       console.error('❌ [FRONTEND] Generation failed:', error);
       
-      toast({
-        title: "Virhe CV:n luonnissa",
-        description: error instanceof Error ? error.message : "Tuntematon virhe",
-        variant: "destructive",
-      });
+      toast.error(
+        "Virhe CV:n luonnissa",
+        { description: error instanceof Error ? error.message : "Tuntematon virhe" }
+      );
     } finally {
       setIsLoading(false);
       console.log('   → Loading state reset');
@@ -332,7 +453,7 @@ export default function CreateCVPage() {
             </div>
           </div>
 
-          {/* RIGHT: Summary Card (Desktop Sticky) */}
+          {/* RIGHT: Summary Card */}
           <div className="hidden lg:block">
             <div className="sticky top-24 bg-gradient-to-br from-white to-indigo-50 rounded-3xl p-8 border-2 border-indigo-200 shadow-2xl">
               <h3 className="text-2xl font-bold text-gray-900 mb-6">
