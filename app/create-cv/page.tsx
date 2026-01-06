@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import {
   FileText,
   Sparkles,
@@ -18,6 +20,9 @@ import { TokenAction, useTokens } from "@/hooks/useTokens";
 type CVTemplate = "technical" | "creative" | "simple";
 
 export default function CreateCVPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
   const [jobPosting, setJobPosting] = useState("");
@@ -25,24 +30,116 @@ export default function CreateCVPage() {
   const [useRAG, setUseRAG] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-const { 
-  tokens, 
-  isActive, 
-  plan_type,
-  features,
-  isLoading: tokensLoading,
-  consumeTokens,
-  canUseAction,
-  getActionCost 
-} = useTokens();
-const currentActions: TokenAction[] = ['cv_basic'];
-if (useATS) currentActions.push('cv_ats_addon');
-if (useRAG) currentActions.push('cv_rag_addon');
+  const { 
+    tokens, 
+    isActive, 
+    plan_type,
+    features,
+    isLoading: tokensLoading,
+    consumeTokens,
+    canUseAction,
+    getActionCost 
+  } = useTokens();
 
-const totalCost = currentActions.reduce(
-  (sum, action) => sum + getActionCost(action),
-  0
-);
+  const currentActions: TokenAction[] = ['cv_basic'];
+  if (useATS) currentActions.push('cv_ats_addon');
+  if (useRAG) currentActions.push('cv_rag_addon');
+
+  const totalCost = currentActions.reduce(
+    (sum, action) => sum + getActionCost(action),
+    0
+  );
+
+  // ✅ OIKEA CV-GENEROINTI
+  const handleGenerateCV = async () => {
+    console.log('🚀 [FRONTEND] Generate CV button clicked');
+    console.log('   - Template:', selectedTemplate);
+    console.log('   - ATS:', useATS);
+    console.log('   - RAG:', useRAG);
+    console.log('   - Total cost:', totalCost);
+    
+    if (tokens < totalCost) {
+      toast({
+        title: "Ei tarpeeksi tokeneita",
+        description: `Tarvitset ${totalCost} tokenia, mutta sinulla on vain ${tokens}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (useATS && !jobPosting.trim()) {
+      toast({
+        title: "Puuttuva työpaikkailmoitus",
+        description: "Syötä työpaikkailmoitus ATS-optimointia varten.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    console.log('   → Starting API call...');
+
+    try {
+      const response = await fetch("/api/generate-cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cvType: selectedTemplate,
+          jobPosting: useATS ? jobPosting : undefined,
+          enableRAG: useRAG,
+          language: "finnish",
+          skipQuestions: false,
+        }),
+      });
+
+      console.log('   → API response status:', response.status);
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('   ❌ API error:', error);
+        throw new Error(error.message || "CV-generointi epäonnistui");
+      }
+
+      const data = await response.json();
+      console.log('   ✅ API success:', data);
+
+      // Tarkista tarvitaanko kysymyksiä
+      if (data.needsMoreInfo && data.questions) {
+        console.log('   ❓ Questions needed:', data.questions.length);
+        
+        toast({
+          title: "Tarvitaan lisätietoja",
+          description: `${data.questions.length} kysymystä vastattavana.`,
+        });
+
+        // TODO: Ohjaa kysymyssivulle tai näytä modaali
+        router.push(`/questions?cvId=${data.cvId || 'new'}`);
+        return;
+      }
+
+      // CV valmis!
+      toast({
+        title: "CV valmis! 🎉",
+        description: `Generointi kesti ${Math.round((data.generationTime || 0) / 1000)}s`,
+      });
+
+      console.log('   → Redirecting to CV page...');
+      router.push(`/cvs/${data.cvId}`);
+
+    } catch (error) {
+      console.error('❌ [FRONTEND] Generation failed:', error);
+      
+      toast({
+        title: "Virhe CV:n luonnissa",
+        description: error instanceof Error ? error.message : "Tuntematon virhe",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      console.log('   → Loading state reset');
+    }
+  };
+
   const templates = [
     {
       id: "simple" as CVTemplate,
@@ -116,7 +213,7 @@ const totalCost = currentActions.reduce(
 
       <div className="max-w-7xl mx-auto px-4 pb-32 lg:pb-16">
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* LEFT: Templates + Settings (Desktop) */}
+          {/* LEFT: Templates + Settings */}
           <div className="lg:col-span-2 space-y-8">
             {/* Template Selection */}
             <div className="bg-white rounded-3xl p-6 lg:p-8 border-2 border-indigo-200 shadow-lg">
@@ -281,8 +378,8 @@ const totalCost = currentActions.reduce(
               </div>
 
               <Button
-                onClick={() => setIsLoading(!isLoading)}
-                disabled={isLoading}
+                onClick={handleGenerateCV}
+                disabled={isLoading || tokensLoading}
                 className="w-full py-6 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-70 disabled:transform-none"
               >
                 {isLoading ? (
@@ -338,6 +435,15 @@ const totalCost = currentActions.reduce(
                   <div className="flex-1">
                     <p className="font-bold text-sm">ATS-optimointi (+10 tok)</p>
                     <p className="text-xs text-gray-600">Työpaikkakohtainen optimointi</p>
+                    {useATS && (
+                      <textarea
+                        value={jobPosting}
+                        onChange={(e) => setJobPosting(e.target.value)}
+                        placeholder="Työpaikkailmoitus..."
+                        rows={3}
+                        className="w-full mt-2 p-2 border rounded text-xs"
+                      />
+                    )}
                   </div>
                 </label>
               )}
@@ -364,8 +470,8 @@ const totalCost = currentActions.reduce(
 
         <div className="p-4 pt-0">
           <Button
-            onClick={() => setIsLoading(!isLoading)}
-            disabled={isLoading}
+            onClick={handleGenerateCV}
+            disabled={isLoading || tokensLoading}
             className="w-full py-4 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-bold"
           >
             {isLoading ? "Luodaan..." : `Luo CV (${totalCost} tok)`}
