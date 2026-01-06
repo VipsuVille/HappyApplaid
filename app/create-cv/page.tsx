@@ -35,6 +35,16 @@ export default function CreateCVPage() {
   // ✅ PROFILE STATE
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+interface CVQuestion {
+  id: string;
+  question: string;
+  why?: string;
+  priority?: 'critical' | 'important' | 'optional';
+}
+
+const [questions, setQuestions] = useState<CVQuestion[]>([]);
+const [answers, setAnswers] = useState<Record<string, string>>({});
+const [showQuestions, setShowQuestions] = useState(false);
 
   const { 
     tokens, 
@@ -222,18 +232,19 @@ export default function CreateCVPage() {
       }
 
       const result = await response.json();
-      console.log('   ✅ API success:', result);
+console.log('🧪 CV API RESULT:', result);
 
-      // Tarkista tarvitaanko kysymyksiä
-      if (result.needsMoreInfo && result.questions) {
-        console.log('   ❓ Questions needed:', result.questions.length);
-        
-        toast.info(`Tarvitaan lisätietoja: ${result.questions.length} kysymystä`);
-        
-        // TODO: Ohjaa kysymyssivulle
-        router.push(`/questions?cvId=${result.cvId || 'new'}`);
-        return;
-      }
+if (result.needsMoreInfo && result.questions) {
+  console.log('❓ CV QUESTIONS:', result.questions);
+
+  toast.info(`Tarvitaan lisätietoja: ${result.questions.length} kysymystä`);
+
+  // ⛔ POISTA router.push
+  setQuestions(result.questions);
+  setShowQuestions(true);
+  setIsLoading(false);
+  return;
+}
 
       // CV valmis!
       toast.success(
@@ -260,6 +271,49 @@ export default function CreateCVPage() {
       console.log('   → Loading state reset');
     }
   };
+const handleAnswerQuestions = async () => {
+  console.log('📨 Submitting CV follow-up answers');
+
+  setIsLoading(true);
+
+  const answeredQuestions = questions
+    .filter(q => answers[q.id]?.trim())
+    .map(q => ({
+      id: q.id,
+      question: q.question,
+      answer: answers[q.id],
+    }));
+
+  try {
+    const response = await fetch("/api/generate-cv", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profileData,
+        cvType: selectedTemplate,
+        language: "finnish",
+        answeredQuestions,
+        skipQuestions: true,
+      }),
+    });
+
+    const result = await response.json();
+    console.log('✅ CV generated after questions:', result);
+
+    toast.success("✅ CV luotu lisätietojen jälkeen!");
+
+    setShowQuestions(false);
+    setQuestions([]);
+    setAnswers({});
+
+    router.push(`/edit-cv/${result.id || result.cvId}`);
+  } catch (err) {
+    console.error('❌ Failed after questions:', err);
+    toast.error("Virhe CV:n luonnissa lisäkysymysten jälkeen");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const templates = [
     {
@@ -599,6 +653,64 @@ export default function CreateCVPage() {
           </Button>
         </div>
       </div>
+      {/* 🔴 CV FOLLOW-UP QUESTIONS MODAL */}
+{showQuestions && questions.length > 0 && (
+  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+      <h2 className="text-2xl font-bold mb-4">
+        Tarvitaan lisätietoja CV:tä varten
+      </h2>
+
+      <p className="text-sm text-gray-600 mb-6">
+        Vastaa alla oleviin kysymyksiin, jotta CV voidaan räätälöidä paremmin
+        tähän työpaikkaan.
+      </p>
+
+      {questions.map((q, index) => (
+        <div key={q.id} className="mb-5">
+          <label className="block font-semibold mb-1">
+            {index + 1}. {q.question}
+          </label>
+
+          {q.why && (
+            <p className="text-xs text-gray-500 mb-2">
+              Miksi tämä kysytään: {q.why}
+            </p>
+          )}
+
+          <textarea
+            className="w-full border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            rows={4}
+            value={answers[q.id] || ""}
+            onChange={(e) =>
+              setAnswers(prev => ({
+                ...prev,
+                [q.id]: e.target.value,
+              }))
+            }
+          />
+        </div>
+      ))}
+
+      <div className="flex justify-end gap-3 mt-6">
+        <Button
+          variant="secondary"
+          onClick={() => setShowQuestions(false)}
+        >
+          Peruuta
+        </Button>
+
+        <Button
+          onClick={handleAnswerQuestions}
+          disabled={isLoading}
+        >
+          Lähetä vastaukset
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
