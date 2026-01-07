@@ -1,4 +1,4 @@
-// lib/ats/masterGuardian.ts - TÄYDELLINEN VERSIO (Oppiva)
+// lib/ats/masterGuardian.ts - OPPIVA VERSIO
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -25,8 +25,6 @@ export interface GroundTruth {
     experience: string[];
   };
 }
-
-// lib/ats/masterGuardian.ts - KORJATTU TYPES
 
 export interface GuardianCheckResult {
   approved: boolean;
@@ -465,16 +463,12 @@ Return JSON:
       if (parsed.violations.fabricatedSkills) {
         parsed.violations.fabricatedSkills = parsed.violations.fabricatedSkills
           .filter(skill => {
-            // Tarkista onko hyväksytty
             const isApproved = approvedViolations.skills.some(
               approved => approved.toLowerCase().includes(skill.toLowerCase())
             );
-            // Tarkista onko hylätty
             const isRejected = safeGroundTruth.cannotClaim.some(
               rejected => rejected.toLowerCase().includes(skill.toLowerCase())
             );
-            
-            // Pidä vain jos ei hyväksytty JA ei hylätty
             return !isApproved && !isRejected;
           });
       }

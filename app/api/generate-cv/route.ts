@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - TÄYDELLINEN VERSIO
+// app/api/generate-cv/route.ts - TÄYDELLINEN OPPIVA VERSIO
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -60,6 +60,7 @@ async function saveUserResponse(
   }
 }
 
+// ✅ TALLENNA KÄYTTÄJÄN PÄÄTÖS VIOLATION:ISTA
 async function saveViolationResponse(
   userId: string,
   violationType: string,
@@ -115,6 +116,7 @@ async function saveViolationResponse(
   }
 }
 
+// ✅ PÄIVITÄ PROFIILIA HYVÄKSYTYILLÄ TIEDOILLA
 async function updateProfileWithApprovedItems(
   userId: string,
   approvedItems: Array<{ type: string; content: string }>
@@ -210,7 +212,7 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
 
 export async function POST(req: Request) {
   const startTime = Date.now();
-  console.log("🚀 CV Generation API (Confirmation Mode)");
+  console.log("🚀 CV Generation API (Oppiva Versio)");
 
   try {
     const { userId } = await auth();
@@ -228,7 +230,7 @@ export async function POST(req: Request) {
       language = "finnish",
       answeredQuestions,
       skipQuestions,
-      confirmedViolations,
+      confirmedViolations, // ✅ UUSI: Käyttäjän päätökset
       skipValidation = false
     } = body;
 
@@ -376,22 +378,24 @@ export async function POST(req: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // HANDLE CONFIRMED VIOLATIONS
+    // ✅ KÄSITTELE KÄYTTÄJÄN VAHVISTUKSET
     // ════════════════════════════════════════════════════════════════
 
     if (confirmedViolations && Array.isArray(confirmedViolations)) {
       console.log(`✅ Processing ${confirmedViolations.length} confirmed violations`);
       
+      // Tallenna jokainen päätös user_responses-tauluun
       for (const violation of confirmedViolations) {
         await saveViolationResponse(
           userId,
-          violation.type,
+          violation.type, // 'skill' | 'education' | 'experience'
           violation.content,
-          violation.decision,
+          violation.decision, // 'approved' | 'rejected' | 'corrected'
           violation.correctedContent
         );
       }
 
+      // Päivitä profiilia hyväksytyillä/korjatuilla
       const approvedItems = confirmedViolations
         .filter((v: any) => v.decision === 'approved' || v.decision === 'corrected')
         .map((v: any) => ({
@@ -402,6 +406,7 @@ export async function POST(req: Request) {
       if (approvedItems.length > 0) {
         await updateProfileWithApprovedItems(userId, approvedItems);
         
+        // Lisää myös input-dataan
         approvedItems.forEach((item: any) => {
           if (item.type === 'skill') {
             input.skills = input.skills 
@@ -427,6 +432,7 @@ export async function POST(req: Request) {
     console.log(`🤖 Generating CV...`);
     const result = await generateCVSafely(input);
 
+    // Jos tarvitaan lisäkysymyksiä
     if (result.needsMoreInfo && result.questions) {
       return NextResponse.json({
         success: true,
@@ -447,11 +453,11 @@ export async function POST(req: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // MASTER GUARDIAN CHECK
+    // ✅ MASTER GUARDIAN CHECK (Oppiva)
     // ════════════════════════════════════════════════════════════════
 
     if (!skipValidation) {
-      console.log('🛡️ Running Master Guardian...');
+      console.log('🛡️ Running Master Guardian (oppiva)...');
       
       const { data: userProfile } = await supabaseAdmin
         .from('user_profiles')
@@ -459,6 +465,7 @@ export async function POST(req: Request) {
         .eq('user_id', userId)
         .single();
 
+      // Hae ground truth + oppimishistoria
       const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
       
       const fullCVText = `
@@ -474,6 +481,7 @@ export async function POST(req: Request) {
         'generation'
       );
 
+      // ✅ JOS GUARDIAN LÖYTÄÄ ONGELMIA JA KÄYTTÄJÄ EI OLE VAHVISTANUT
       if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved && !confirmedViolations) {
         console.log('🚨 Guardian flagged violations - requesting confirmation');
         
