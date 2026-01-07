@@ -1,10 +1,12 @@
+// app/create-cv/page.tsx - TÄYDELLINEN VERSIO
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner"; // ✅ KORJATTU: Käytä sonneria
+import { toast } from "sonner";
 import {
   FileText,
   Sparkles,
@@ -17,8 +19,28 @@ import {
   Check,
 } from "lucide-react";
 import { TokenAction, useTokens } from "@/hooks/useTokens";
+import CVConfirmationModal from "@/components/CVConfirmationModal"; // ✅ LISÄTTY
 
 type CVTemplate = "technical" | "creative" | "simple";
+
+interface CVQuestion {
+  id: string;
+  question: string;
+  why?: string;
+  priority?: 'critical' | 'important' | 'optional';
+}
+
+interface ViolationItem {
+  type: 'skill' | 'education' | 'experience';
+  content: string;
+  reason: string;
+}
+
+interface Violations {
+  fabricatedSkills?: string[];
+  fabricatedEducation?: string[];
+  fabricatedExperience?: string[];
+}
 
 export default function CreateCVPage() {
   const router = useRouter();
@@ -32,19 +54,18 @@ export default function CreateCVPage() {
   const [useRAG, setUseRAG] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   
-  // ✅ PROFILE STATE
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-interface CVQuestion {
-  id: string;
-  question: string;
-  why?: string;
-  priority?: 'critical' | 'important' | 'optional';
-}
 
-const [questions, setQuestions] = useState<CVQuestion[]>([]);
-const [answers, setAnswers] = useState<Record<string, string>>({});
-const [showQuestions, setShowQuestions] = useState(false);
+  // CV Questions
+  const [questions, setQuestions] = useState<CVQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [showQuestions, setShowQuestions] = useState(false);
+
+  // ✅ UUDET: Vahvistusmodal
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingViolations, setPendingViolations] = useState<Violations | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
 
   const { 
     tokens, 
@@ -55,7 +76,6 @@ const [showQuestions, setShowQuestions] = useState(false);
     getActionCost 
   } = useTokens();
 
-  // ✅ LATAA PROFIILI (kuten sinun koodissasi)
   const loadProfile = async () => {
     if (!user) return;
 
@@ -98,7 +118,6 @@ const [showQuestions, setShowQuestions] = useState(false);
     }
   }, [userLoaded, user]);
 
-  // ✅ ESTÄ SIVUN SULKEMINEN LATAUKSEN AIKANA
   useEffect(() => {
     if (isLoading) {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -119,7 +138,6 @@ const [showQuestions, setShowQuestions] = useState(false);
     0
   );
 
-  // ✅ LOADING STATE
   if (!userLoaded || profileLoading || tokensLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -131,15 +149,16 @@ const [showQuestions, setShowQuestions] = useState(false);
     );
   }
 
-  // ✅ OIKEA HANDLER (yhdistää molemmat)
+  // ════════════════════════════════════════════════════════════════
+  // MAIN GENERATE FUNCTION
+  // ════════════════════════════════════════════════════════════════
+
   const handleGenerateCV = async () => {
     console.log('🚀 [FRONTEND] Generate CV button clicked');
     console.log('   - User:', user?.id);
     console.log('   - Template:', selectedTemplate);
     console.log('   - ATS:', useATS);
     console.log('   - RAG:', useRAG);
-    console.log('   - Total cost:', totalCost);
-    console.log('   - Has profile:', !!profileData);
     
     if (!user) {
       toast.error("Kirjaudu sisään luodaksesi CV:n");
@@ -152,13 +171,11 @@ const [showQuestions, setShowQuestions] = useState(false);
       return;
     }
 
-    // Validoi tokenit
     if (tokens < totalCost) {
       toast.error(`Tarvitset ${totalCost} tokenia, mutta sinulla on vain ${tokens}.`);
       return;
     }
 
-    // Validoi ominaisuudet
     if (useATS && !features.canUseATS) {
       toast.error("ATS-optimointi vaatii Semi-Pro tai Pro -tason");
       return;
@@ -175,38 +192,23 @@ const [showQuestions, setShowQuestions] = useState(false);
     }
 
     setIsLoading(true);
-    console.log('   → Starting API call...');
 
     try {
       const token = await getToken({ template: "supabase" });
       if (!token) throw new Error("No auth token");
 
-      console.log("🚀 Sending CV request:", {
-        cvType: selectedTemplate,
-        actions: currentActions,
-        totalCost: totalCost,
-        hasProfileData: !!profileData,
-        profileKeys: profileData ? Object.keys(profileData) : [],
-        profileName: profileData?.name,
-        workExpCount: profileData?.work_experience?.length || 0
-      });
-
       const response = await fetch("/api/generate-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // ✅ KRIITTINEN: Lähetä profileData
           profileData: profileData,
-          
-          // CV asetukset
           cvType: selectedTemplate,
           language: "finnish",
-          
-          // Optionaaliset
           forceGenerate: false,
           jobPosting: useATS || useRAG ? jobPosting : undefined,
           enableRAG: useRAG,
           skipQuestions: false,
+          skipValidation: false // ✅ Älä ohita validaatiota
         }),
       });
 
@@ -232,21 +234,36 @@ const [showQuestions, setShowQuestions] = useState(false);
       }
 
       const result = await response.json();
-console.log('🧪 CV API RESULT:', result);
+      console.log('🧪 CV API RESULT:', result);
 
-if (result.needsMoreInfo && result.questions) {
-  console.log('❓ CV QUESTIONS:', result.questions);
+      // ✅ 1. TARVITAAN LISÄTIETOJA?
+      if (result.needsMoreInfo && result.questions) {
+        console.log('❓ CV QUESTIONS:', result.questions);
+        toast.info(`Tarvitaan lisätietoja: ${result.questions.length} kysymystä`);
+        setQuestions(result.questions);
+        setShowQuestions(true);
+        setIsLoading(false);
+        return;
+      }
 
-  toast.info(`Tarvitaan lisätietoja: ${result.questions.length} kysymystä`);
+      // ✅ 2. TARVITAAN VAHVISTUS?
+      if (result.needsConfirmation && result.violations) {
+        console.log('🚨 CV needs confirmation:', result.violations);
+        
+        setPendingViolations(result.violations);
+        setPendingRequest({
+          profileData,
+          cvType: selectedTemplate,
+          language: "finnish",
+          jobPosting: useATS || useRAG ? jobPosting : undefined,
+          enableRAG: useRAG
+        });
+        setShowConfirmation(true);
+        setIsLoading(false);
+        return;
+      }
 
-  // ⛔ POISTA router.push
-  setQuestions(result.questions);
-  setShowQuestions(true);
-  setIsLoading(false);
-  return;
-}
-
-      // CV valmis!
+      // ✅ 3. ONNISTUI!
       toast.success(
         useRAG ? "🎯 RAG-optimoitu CV luotu!" :
         useATS ? "✅ ATS-optimoitu CV luotu!" :
@@ -256,7 +273,6 @@ if (result.needsMoreInfo && result.questions) {
         }
       );
 
-      console.log('   → Redirecting to CV page...');
       router.push(`/edit-cv/${result.id || result.cvId}`);
 
     } catch (error) {
@@ -268,52 +284,208 @@ if (result.needsMoreInfo && result.questions) {
       );
     } finally {
       setIsLoading(false);
-      console.log('   → Loading state reset');
     }
   };
-const handleAnswerQuestions = async () => {
-  console.log('📨 Submitting CV follow-up answers');
 
-  setIsLoading(true);
+  // ════════════════════════════════════════════════════════════════
+  // QUESTION HANDLER
+  // ════════════════════════════════════════════════════════════════
 
-  const answeredQuestions = questions
-    .filter(q => answers[q.id]?.trim())
-    .map(q => ({
-      id: q.id,
-      question: q.question,
-      answer: answers[q.id],
-    }));
+  const handleAnswerQuestions = async () => {
+    console.log('📨 Submitting CV follow-up answers');
 
-  try {
-    const response = await fetch("/api/generate-cv", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        profileData,
-        cvType: selectedTemplate,
-        language: "finnish",
-        answeredQuestions,
-        skipQuestions: true,
-      }),
-    });
+    setIsLoading(true);
 
-    const result = await response.json();
-    console.log('✅ CV generated after questions:', result);
+    const answeredQuestions = questions
+      .filter(q => answers[q.id]?.trim())
+      .map(q => ({
+        id: q.id,
+        question: q.question,
+        answer: answers[q.id],
+      }));
 
-    toast.success("✅ CV luotu lisätietojen jälkeen!");
+    try {
+      const response = await fetch("/api/generate-cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profileData,
+          cvType: selectedTemplate,
+          language: "finnish",
+          answeredQuestions,
+          skipQuestions: true,
+        }),
+      });
 
-    setShowQuestions(false);
-    setQuestions([]);
-    setAnswers({});
+      const result = await response.json();
+      console.log('✅ CV generated after questions:', result);
 
-    router.push(`/edit-cv/${result.id || result.cvId}`);
-  } catch (err) {
-    console.error('❌ Failed after questions:', err);
-    toast.error("Virhe CV:n luonnissa lisäkysymysten jälkeen");
-  } finally {
-    setIsLoading(false);
-  }
-};
+      toast.success("✅ CV luotu lisätietojen jälkeen!");
+
+      setShowQuestions(false);
+      setQuestions([]);
+      setAnswers({});
+
+      router.push(`/edit-cv/${result.id || result.cvId}`);
+    } catch (err) {
+      console.error('❌ Failed after questions:', err);
+      toast.error("Virhe CV:n luonnissa lisäkysymysten jälkeen");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // CONFIRMATION HANDLERS
+  // ════════════════════════════════════════════════════════════════
+
+  const handleApproveViolations = async (items: ViolationItem[]) => {
+    if (!pendingRequest) return;
+
+    setIsLoading(true);
+    setShowConfirmation(false);
+
+    try {
+      console.log('✅ User approved violations:', items);
+
+      const confirmedViolations = items.map(item => ({
+        type: item.type,
+        content: item.content,
+        decision: 'approved'
+      }));
+
+      const response = await fetch('/api/generate-cv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pendingRequest,
+          confirmedViolations,
+          skipValidation: true
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.cvId) {
+        toast.success('✅ CV luotu hyväksytyillä tiedoilla!');
+        router.push(`/edit-cv/${data.cvId}`);
+      } else {
+        throw new Error('Failed to generate with approved items');
+      }
+
+    } catch (error) {
+      console.error('Error with approved violations:', error);
+      toast.error('❌ CV:n luonti epäonnistui');
+      setIsLoading(false);
+    }
+  };
+
+  const handleRejectViolations = async () => {
+    if (!pendingRequest) return;
+
+    setIsLoading(true);
+    setShowConfirmation(false);
+
+    try {
+      console.log('❌ User rejected violations - creating lean CV');
+
+      const violationItems: ViolationItem[] = [
+        ...(pendingViolations?.fabricatedSkills || []).map(skill => ({
+          type: 'skill' as const,
+          content: skill,
+          reason: 'Rejected by user'
+        })),
+        ...(pendingViolations?.fabricatedEducation || []).map(edu => ({
+          type: 'education' as const,
+          content: edu,
+          reason: 'Rejected by user'
+        })),
+        ...(pendingViolations?.fabricatedExperience || []).map(exp => ({
+          type: 'experience' as const,
+          content: exp,
+          reason: 'Rejected by user'
+        }))
+      ];
+
+      const confirmedViolations = violationItems.map(item => ({
+        type: item.type,
+        content: item.content,
+        decision: 'rejected'
+      }));
+
+      const response = await fetch('/api/generate-cv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pendingRequest,
+          confirmedViolations,
+          skipValidation: true
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.cvId) {
+        toast.success('✅ CV luotu ilman hylättyjä tietoja', {
+          description: 'CV voi olla lyhyempi, mutta sisältää vain varmennetut tiedot.'
+        });
+        router.push(`/edit-cv/${data.cvId}`);
+      } else {
+        throw new Error('Failed to generate lean CV');
+      }
+
+    } catch (error) {
+      console.error('Error creating lean CV:', error);
+      toast.error('❌ CV:n luonti epäonnistui');
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditViolations = async (corrections: Array<{ original: string; corrected: string; type: string }>) => {
+    if (!pendingRequest) return;
+
+    setIsLoading(true);
+    setShowConfirmation(false);
+
+    try {
+      console.log('✏️ User corrected violations:', corrections);
+
+      const confirmedViolations = corrections.map(corr => ({
+        type: corr.type,
+        content: corr.original,
+        decision: 'corrected',
+        correctedContent: corr.corrected
+      }));
+
+      const response = await fetch('/api/generate-cv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...pendingRequest,
+          confirmedViolations,
+          skipValidation: true
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.cvId) {
+        toast.success('✅ CV luotu korjatuilla tiedoilla!');
+        router.push(`/edit-cv/${data.cvId}`);
+      } else {
+        throw new Error('Failed to generate with corrections');
+      }
+
+    } catch (error) {
+      console.error('Error with corrections:', error);
+      toast.error('❌ CV:n luonti epäonnistui');
+      setIsLoading(false);
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
+  // TEMPLATE DATA
+  // ════════════════════════════════════════════════════════════════
 
   const templates = [
     {
@@ -344,6 +516,10 @@ const handleAnswerQuestions = async () => {
       border: "border-pink-500",
     },
   ];
+
+  // ════════════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════════════
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
@@ -432,7 +608,6 @@ const handleAnswerQuestions = async () => {
               </h2>
 
               <div className="space-y-6">
-                {/* ATS Option */}
                 {features.canUseATS && (
                   <div className={`p-6 rounded-xl border-2 transition-all ${
                     useATS ? "bg-purple-50 border-purple-300 shadow-md" : "bg-gray-50 border-gray-200"
@@ -468,7 +643,6 @@ const handleAnswerQuestions = async () => {
                   </div>
                 )}
 
-                {/* RAG Option */}
                 {features.canUseRAG && (
                   <div className={`p-6 rounded-xl border-2 transition-all ${
                     useRAG ? "bg-amber-50 border-amber-300 shadow-md" : "bg-gray-50 border-gray-200"
@@ -574,143 +748,153 @@ const handleAnswerQuestions = async () => {
                 {tokens} tokenia jäljellä tilauksen jälkeen: {tokens - totalCost}
               </p>
             </div>
-          </div>
+              </div>
+    </div>
+  </div>
+
+  {/* Mobile Bottom Sheet */}
+  <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-indigo-200 shadow-2xl z-40">
+    <button
+      onClick={() => setShowMobileMenu(!showMobileMenu)}
+      className="w-full p-4 flex items-center justify-between"
+    >
+      <div className="flex items-center gap-3">
+        <div className="bg-indigo-100 rounded-full p-2">
+          <Sparkles className="w-5 h-5 text-indigo-600" />
+        </div>
+        <div className="text-left">
+          <p className="font-bold text-gray-900">Yhteensä: {totalCost} tokenia</p>
+          <p className="text-xs text-gray-500">{tokens - totalCost} jäljellä</p>
         </div>
       </div>
+      <ChevronDown className={`w-6 h-6 text-gray-600 transition-transform ${showMobileMenu ? "rotate-180" : ""}`} />
+    </button>
 
-      {/* Mobile Bottom Sheet */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-indigo-200 shadow-2xl z-40">
-        <button
-          onClick={() => setShowMobileMenu(!showMobileMenu)}
-          className="w-full p-4 flex items-center justify-between"
-        >
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-100 rounded-full p-2">
-              <Sparkles className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div className="text-left">
-              <p className="font-bold text-gray-900">Yhteensä: {totalCost} tokenia</p>
-              <p className="text-xs text-gray-500">{tokens - totalCost} jäljellä</p>
-            </div>
-          </div>
-          <ChevronDown className={`w-6 h-6 text-gray-600 transition-transform ${showMobileMenu ? "rotate-180" : ""}`} />
-        </button>
-
-        {showMobileMenu && (
-          <div className="border-t border-gray-200 p-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-4 mb-4">
-              {features.canUseATS && (
-                <label className="flex items-start gap-3 p-4 bg-purple-50 rounded-xl border border-purple-200">
-                  <input
-                    type="checkbox"
-                    checked={useATS}
-                    onChange={(e) => setUseATS(e.target.checked)}
-                    className="mt-1 h-5 w-5"
+    {showMobileMenu && (
+      <div className="border-t border-gray-200 p-4 max-h-[60vh] overflow-y-auto">
+        <div className="space-y-4 mb-4">
+          {features.canUseATS && (
+            <label className="flex items-start gap-3 p-4 bg-purple-50 rounded-xl border border-purple-200">
+              <input
+                type="checkbox"
+                checked={useATS}
+                onChange={(e) => setUseATS(e.target.checked)}
+                className="mt-1 h-5 w-5"
+              />
+              <div className="flex-1">
+                <p className="font-bold text-sm">ATS-optimointi (+10 tok)</p>
+                <p className="text-xs text-gray-600">Työpaikkakohtainen optimointi</p>
+                {useATS && (
+                  <textarea
+                    value={jobPosting}
+                    onChange={(e) => setJobPosting(e.target.value)}
+                    placeholder="Työpaikkailmoitus..."
+                    rows={3}
+                    className="w-full mt-2 p-2 border rounded text-xs"
                   />
-                  <div className="flex-1">
-                    <p className="font-bold text-sm">ATS-optimointi (+10 tok)</p>
-                    <p className="text-xs text-gray-600">Työpaikkakohtainen optimointi</p>
-                    {useATS && (
-                      <textarea
-                        value={jobPosting}
-                        onChange={(e) => setJobPosting(e.target.value)}
-                        placeholder="Työpaikkailmoitus..."
-                        rows={3}
-                        className="w-full mt-2 p-2 border rounded text-xs"
-                      />
-                    )}
-                  </div>
-                </label>
-              )}
+                )}
+              </div>
+            </label>
+          )}
 
-              {features.canUseRAG && (
-                <label className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
-                  <input
-                    type="checkbox"
-                    checked={useRAG}
-                    onChange={(e) => setUseRAG(e.target.checked)}
-                    className="mt-1 h-5 w-5"
-                  />
-                  <div className="flex-1">
-                    <p className="font-bold text-sm flex items-center gap-2">
-                      RAG-tietokanta <Crown className="w-4 h-4 text-amber-600" />
-                    </p>
-                    <p className="text-xs text-gray-600">Asiantuntija-artikkeleita (+20 tok)</p>
-                  </div>
-                </label>
-              )}
-            </div>
+          {features.canUseRAG && (
+            <label className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
+              <input
+                type="checkbox"
+                checked={useRAG}
+                onChange={(e) => setUseRAG(e.target.checked)}
+                className="mt-1 h-5 w-5"
+              />
+              <div className="flex-1">
+                <p className="font-bold text-sm flex items-center gap-2">
+                  RAG-tietokanta <Crown className="w-4 h-4 text-amber-600" />
+                </p>
+                <p className="text-xs text-gray-600">Asiantuntija-artikkeleita (+20 tok)</p>
+              </div>
+            </label>
+          )}
+        </div>
+      </div>
+    )}
+
+    <div className="p-4 pt-0">
+      <Button
+        onClick={handleGenerateCV}
+        disabled={isLoading || tokensLoading}
+        className="w-full py-4 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-bold"
+      >
+        {isLoading ? "Luodaan..." : `Luo CV (${totalCost} tok)`}
+      </Button>
+    </div>
+  </div>
+
+  {/* ✅ CV FOLLOW-UP QUESTIONS MODAL */}
+  {showQuestions && questions.length > 0 && (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold mb-4">
+          Tarvitaan lisätietoja CV:tä varten
+        </h2>
+
+        <p className="text-sm text-gray-600 mb-6">
+          Vastaa alla oleviin kysymyksiin, jotta CV voidaan räätälöidä paremmin
+          tähän työpaikkaan.
+        </p>
+
+        {questions.map((q, index) => (
+          <div key={q.id} className="mb-5">
+            <label className="block font-semibold mb-1">
+              {index + 1}. {q.question}
+            </label>
+
+            {q.why && (
+              <p className="text-xs text-gray-500 mb-2">
+                Miksi tämä kysytään: {q.why}
+              </p>
+            )}
+
+            <textarea
+              className="w-full border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              rows={4}
+              value={answers[q.id] || ""}
+              onChange={(e) =>
+                setAnswers(prev => ({
+                  ...prev,
+                  [q.id]: e.target.value,
+                }))
+              }
+            />
           </div>
-        )}
+        ))}
 
-        <div className="p-4 pt-0">
+        <div className="flex justify-end gap-3 mt-6">
           <Button
-            onClick={handleGenerateCV}
-            disabled={isLoading || tokensLoading}
-            className="w-full py-4 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-bold"
+            variant="secondary"
+            onClick={() => setShowQuestions(false)}
           >
-            {isLoading ? "Luodaan..." : `Luo CV (${totalCost} tok)`}
+            Peruuta
+          </Button>
+
+          <Button
+            onClick={handleAnswerQuestions}
+            disabled={isLoading}
+          >
+            Lähetä vastaukset
           </Button>
         </div>
       </div>
-      {/* 🔴 CV FOLLOW-UP QUESTIONS MODAL */}
-{showQuestions && questions.length > 0 && (
-  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
-    <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-      <h2 className="text-2xl font-bold mb-4">
-        Tarvitaan lisätietoja CV:tä varten
-      </h2>
-
-      <p className="text-sm text-gray-600 mb-6">
-        Vastaa alla oleviin kysymyksiin, jotta CV voidaan räätälöidä paremmin
-        tähän työpaikkaan.
-      </p>
-
-      {questions.map((q, index) => (
-        <div key={q.id} className="mb-5">
-          <label className="block font-semibold mb-1">
-            {index + 1}. {q.question}
-          </label>
-
-          {q.why && (
-            <p className="text-xs text-gray-500 mb-2">
-              Miksi tämä kysytään: {q.why}
-            </p>
-          )}
-
-          <textarea
-            className="w-full border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            rows={4}
-            value={answers[q.id] || ""}
-            onChange={(e) =>
-              setAnswers(prev => ({
-                ...prev,
-                [q.id]: e.target.value,
-              }))
-            }
-          />
-        </div>
-      ))}
-
-      <div className="flex justify-end gap-3 mt-6">
-        <Button
-          variant="secondary"
-          onClick={() => setShowQuestions(false)}
-        >
-          Peruuta
-        </Button>
-
-        <Button
-          onClick={handleAnswerQuestions}
-          disabled={isLoading}
-        >
-          Lähetä vastaukset
-        </Button>
-      </div>
     </div>
-  </div>
-)}
+  )}
 
-    </div>
-  );
+  {/* ✅ CONFIRMATION MODAL */}
+  {showConfirmation && pendingViolations && (
+    <CVConfirmationModal
+      violations={pendingViolations}
+      onApprove={handleApproveViolations}
+      onReject={handleRejectViolations}
+      onEdit={handleEditViolations}
+    />
+  )}
+</div>
+);
 }

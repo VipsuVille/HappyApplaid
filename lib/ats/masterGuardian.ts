@@ -1,7 +1,8 @@
-// lib/ats/masterGuardian.ts - TÄYDELLINEN KORJATTU VERSIO
+// lib/ats/masterGuardian.ts - TÄYDELLINEN VERSIO (Oppiva)
 
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { supabaseAdmin } from '@/lib/supabase';
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -18,18 +19,27 @@ export interface GroundTruth {
   personalityTraits: string[];
   careerLevel: 'entry' | 'mid' | 'senior' | 'expert';
   yearsOfExperience: number;
+  approvedViolations?: {
+    skills: string[];
+    education: string[];
+    experience: string[];
+  };
 }
+
+// lib/ats/masterGuardian.ts - KORJATTU TYPES
 
 export interface GuardianCheckResult {
   approved: boolean;
   riskLevel: 'safe' | 'warning' | 'danger';
   violations: {
-    [key: string]: any;
+    fabricatedSkills?: string[];
+    fabricatedEducation?: string[];
+    fabricatedExperience?: string[];
+    [key: string]: any; // ✅ LISÄÄ TÄMÄ - Sallii error-kentän
   };
   recommendation: string;
   flags: string[];
 }
-
 // ════════════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════════════
@@ -60,10 +70,118 @@ function getMessageContent(message: unknown): string {
 }
 
 // ════════════════════════════════════════════════════════════════
+// ✅ HAE KÄYTTÄJÄN AIEMMAT VAHVISTUKSET
+// ════════════════════════════════════════════════════════════════
+
+async function getUserValidationHistory(userId: string): Promise<{
+  approvedSkills: string[];
+  approvedEducation: string[];
+  approvedExperience: string[];
+  rejectedSkills: string[];
+  rejectedEducation: string[];
+  rejectedExperience: string[];
+}> {
+  try {
+    const { data: responses } = await supabaseAdmin
+      .from('user_responses')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('question_category', 'cv')
+      .eq('asked_in_context', 'cv_validation');
+
+    if (!responses || responses.length === 0) {
+      return {
+        approvedSkills: [],
+        approvedEducation: [],
+        approvedExperience: [],
+        rejectedSkills: [],
+        rejectedEducation: [],
+        rejectedExperience: []
+      };
+    }
+
+    const history = {
+      approvedSkills: [] as string[],
+      approvedEducation: [] as string[],
+      approvedExperience: [] as string[],
+      rejectedSkills: [] as string[],
+      rejectedEducation: [] as string[],
+      rejectedExperience: [] as string[]
+    };
+
+    for (const response of responses) {
+      const metadata = response.metadata || {};
+      const decision = metadata.user_decision;
+      const type = metadata.violation_type;
+      
+      if (!type) continue;
+
+      // Hyväksytty tai korjattu → lisää hyväksyttyihin
+      if (decision === 'approved' || decision === 'corrected') {
+        const content = decision === 'corrected' 
+          ? metadata.corrected_content 
+          : metadata.original_content;
+        
+        if (!content) continue;
+
+        if (type === 'skill') {
+          history.approvedSkills.push(content);
+        } else if (type === 'education') {
+          history.approvedEducation.push(content);
+        } else if (type === 'experience') {
+          history.approvedExperience.push(content);
+        }
+      } 
+      // Hylätty → lisää hylättyihin
+      else if (decision === 'rejected') {
+        const content = metadata.original_content;
+        if (!content) continue;
+
+        if (type === 'skill') {
+          history.rejectedSkills.push(content);
+        } else if (type === 'education') {
+          history.rejectedEducation.push(content);
+        } else if (type === 'experience') {
+          history.rejectedExperience.push(content);
+        }
+      }
+    }
+
+    console.log('📚 User validation history:', {
+      approved: {
+        skills: history.approvedSkills.length,
+        education: history.approvedEducation.length,
+        experience: history.approvedExperience.length
+      },
+      rejected: {
+        skills: history.rejectedSkills.length,
+        education: history.rejectedEducation.length,
+        experience: history.rejectedExperience.length
+      }
+    });
+
+    return history;
+  } catch (error) {
+    console.error('Error fetching validation history:', error);
+    return {
+      approvedSkills: [],
+      approvedEducation: [],
+      approvedExperience: [],
+      rejectedSkills: [],
+      rejectedEducation: [],
+      rejectedExperience: []
+    };
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
 // EXTRACT GROUND TRUTH
 // ════════════════════════════════════════════════════════════════
 
-export async function extractGroundTruthAI(userProfile: any): Promise<GroundTruth> {
+export async function extractGroundTruthAI(
+  userProfile: any,
+  userId?: string
+): Promise<GroundTruth> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: 'gpt-4o-mini',
@@ -126,13 +244,11 @@ Return JSON only, no markdown.`]
     const result = await model.invoke(formatted);
     const content = getMessageContent(result);
     
-    // Clean markdown
     const cleaned = content
       .replace(/```json\s*/g, '')
       .replace(/```\s*/g, '')
       .trim();
     
-    // Extract JSON
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('No JSON found in response');
@@ -140,15 +256,33 @@ Return JSON only, no markdown.`]
 
     const groundTruth = JSON.parse(jsonMatch[0]) as GroundTruth;
     
-    // Validate structure
     if (!groundTruth.technicalSkills || !Array.isArray(groundTruth.technicalSkills)) {
       throw new Error('Invalid ground truth structure');
+    }
+    
+    // ✅ LISÄÄ KÄYTTÄJÄN AIEMMAT HYVÄKSYNNÄT
+    if (userId) {
+      const history = await getUserValidationHistory(userId);
+      groundTruth.approvedViolations = {
+        skills: history.approvedSkills,
+        education: history.approvedEducation,
+        experience: history.approvedExperience
+      };
+      
+      // Lisää myös hylätyt "cannotClaim":iin
+      groundTruth.cannotClaim = [
+        ...groundTruth.cannotClaim,
+        ...history.rejectedSkills,
+        ...history.rejectedEducation,
+        ...history.rejectedExperience
+      ];
     }
     
     console.log('✅ Ground Truth extracted:', {
       name: userProfile.name,
       skills: groundTruth.technicalSkills.length,
       education: groundTruth.education.length,
+      approved: userId ? groundTruth.approvedViolations : 'N/A',
       careerLevel: groundTruth.careerLevel
     });
     
@@ -157,13 +291,13 @@ Return JSON only, no markdown.`]
   } catch (error) {
     console.error('❌ Ground Truth extraction failed:', error);
     
-    // ✅ SAFE FALLBACK
+    // SAFE FALLBACK
     const fallbackSkills = (userProfile.skills || '')
       .split(',')
       .map((s: string) => s.trim())
       .filter(Boolean);
     
-    return {
+    const groundTruth: GroundTruth = {
       technicalSkills: fallbackSkills,
       softSkills: [],
       education: [],
@@ -175,11 +309,27 @@ Return JSON only, no markdown.`]
       careerLevel: 'mid',
       yearsOfExperience: 0
     };
+
+    if (userId) {
+      const history = await getUserValidationHistory(userId);
+      groundTruth.approvedViolations = {
+        skills: history.approvedSkills,
+        education: history.approvedEducation,
+        experience: history.approvedExperience
+      };
+      groundTruth.cannotClaim = [
+        ...history.rejectedSkills,
+        ...history.rejectedEducation,
+        ...history.rejectedExperience
+      ];
+    }
+
+    return groundTruth;
   }
 }
 
 // ════════════════════════════════════════════════════════════════
-// CONSISTENCY CHECK
+// CONSISTENCY CHECK (OPPIVA)
 // ════════════════════════════════════════════════════════════════
 
 export async function masterConsistencyCheckAI(
@@ -188,7 +338,6 @@ export async function masterConsistencyCheckAI(
   stage: 'generation' | 'edit'
 ): Promise<GuardianCheckResult> {
   
-  // ✅ NULL CHECK
   if (!groundTruth) {
     console.warn('⚠️ Guardian: No ground truth, approving with warning');
     return {
@@ -200,7 +349,6 @@ export async function masterConsistencyCheckAI(
     };
   }
   
-  // ✅ EMPTY CONTENT CHECK
   if (!generatedContent || generatedContent.trim().length < 50) {
     console.warn('⚠️ Guardian: Content too short, approving');
     return {
@@ -212,7 +360,6 @@ export async function masterConsistencyCheckAI(
     };
   }
   
-  // ✅ ENSURE SAFE GROUND TRUTH
   const safeGroundTruth: GroundTruth = {
     technicalSkills: groundTruth.technicalSkills || [],
     softSkills: groundTruth.softSkills || [],
@@ -223,7 +370,8 @@ export async function masterConsistencyCheckAI(
     cannotClaim: groundTruth.cannotClaim || [],
     personalityTraits: groundTruth.personalityTraits || [],
     careerLevel: groundTruth.careerLevel || 'mid',
-    yearsOfExperience: groundTruth.yearsOfExperience || 0
+    yearsOfExperience: groundTruth.yearsOfExperience || 0,
+    approvedViolations: groundTruth.approvedViolations
   };
 
   try {
@@ -233,28 +381,56 @@ export async function masterConsistencyCheckAI(
       temperature: 0.1,
     });
 
+    // ✅ RAKENNA KONTEKSTI HYVÄKSYTYISTÄ JA HYLKÄTYISTÄ
+    const approvedContext = safeGroundTruth.approvedViolations 
+      ? `
+
+**USER HAS PREVIOUSLY APPROVED THESE (✅ SAFE, DO NOT FLAG):**
+- Skills: ${safeGroundTruth.approvedViolations.skills.join(', ') || 'None'}
+- Education: ${safeGroundTruth.approvedViolations.education.join(', ') || 'None'}
+- Experience: ${safeGroundTruth.approvedViolations.experience.join(', ') || 'None'}
+
+IMPORTANT: If content matches approved items above, it is SAFE.
+`
+      : '';
+
+    const rejectedContext = safeGroundTruth.cannotClaim.length > 0
+      ? `
+
+**USER HAS REJECTED THESE (❌ MUST NOT USE):**
+${safeGroundTruth.cannotClaim.join(', ')}
+
+CRITICAL: If any of these appear, mark as DANGER violation.
+`
+      : '';
+
     const prompt = `You are a CV fact-checker. Check for severe fabrications only.
 
 GROUND TRUTH (verified user data):
 - Technical Skills: ${safeGroundTruth.technicalSkills.join(', ') || 'None listed'}
 - Education: ${safeGroundTruth.education.join(', ') || 'None listed'}
 - Work History: ${safeGroundTruth.workHistory.join('; ') || 'None listed'}
-- CANNOT CLAIM: ${safeGroundTruth.cannotClaim.join(', ') || 'None'}
+${approvedContext}
+${rejectedContext}
 
 GENERATED CV CONTENT:
 ${generatedContent.substring(0, 2000)}
 
-ONLY REJECT if content contains:
-1. Skills NOT in technicalSkills list
-2. Education NOT in education list
-3. Work experience NOT in workHistory
-4. Anything in cannotClaim list
+VALIDATION RULES:
+1. ✅ APPROVE if content contains:
+   - Skills/education/experience from technicalSkills/education/workHistory lists
+   - Skills/education/experience from APPROVED list
+   - Generic qualities (motivated, team player, etc.)
 
-APPROVE if content:
-- Describes listed skills
-- Mentions listed education
-- References listed work history
-- Uses generic qualities (motivated, team player)
+2. ❌ REJECT (danger) if content contains:
+   - Skills NOT in technicalSkills list AND NOT in approved list
+   - Education NOT in education list AND NOT in approved list
+   - Work experience NOT in workHistory AND NOT in approved list
+   - **ANYTHING from the REJECTED list**
+
+3. ⚠️ WARNING if:
+   - Content is vague but not clearly fabricated
+   - Minor embellishments that don't change core facts
 
 Return JSON:
 {
@@ -272,35 +448,88 @@ Return JSON:
     const result = await model.invoke(prompt);
     const content = getMessageContent(result);
     
-    // Clean and parse
     const cleaned = content
       .replace(/```json\s*/g, '')
       .replace(/```\s*/g, '')
       .trim();
     
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON in Guardian response');
-    }
+    if (!jsonMatch) throw new Error('No JSON in Guardian response');
 
     const parsed = JSON.parse(jsonMatch[0]) as GuardianCheckResult;
+
+    // ✅ POST-PROCESSING: Poista violations jotka on jo hyväksytty
+    if (parsed.violations && safeGroundTruth.approvedViolations) {
+      const { approvedViolations } = safeGroundTruth;
+      
+      if (parsed.violations.fabricatedSkills) {
+        parsed.violations.fabricatedSkills = parsed.violations.fabricatedSkills
+          .filter(skill => {
+            // Tarkista onko hyväksytty
+            const isApproved = approvedViolations.skills.some(
+              approved => approved.toLowerCase().includes(skill.toLowerCase())
+            );
+            // Tarkista onko hylätty
+            const isRejected = safeGroundTruth.cannotClaim.some(
+              rejected => rejected.toLowerCase().includes(skill.toLowerCase())
+            );
+            
+            // Pidä vain jos ei hyväksytty JA ei hylätty
+            return !isApproved && !isRejected;
+          });
+      }
+      
+      if (parsed.violations.fabricatedEducation) {
+        parsed.violations.fabricatedEducation = parsed.violations.fabricatedEducation
+          .filter(edu => {
+            const isApproved = approvedViolations.education.some(
+              approved => approved.toLowerCase().includes(edu.toLowerCase())
+            );
+            const isRejected = safeGroundTruth.cannotClaim.some(
+              rejected => rejected.toLowerCase().includes(edu.toLowerCase())
+            );
+            return !isApproved && !isRejected;
+          });
+      }
+      
+      if (parsed.violations.fabricatedExperience) {
+        parsed.violations.fabricatedExperience = parsed.violations.fabricatedExperience
+          .filter(exp => {
+            const isApproved = approvedViolations.experience.some(
+              approved => approved.toLowerCase().includes(exp.toLowerCase())
+            );
+            const isRejected = safeGroundTruth.cannotClaim.some(
+              rejected => rejected.toLowerCase().includes(exp.toLowerCase())
+            );
+            return !isApproved && !isRejected;
+          });
+      }
+
+      // Jos kaikki violations poistuivat, hyväksy
+      const hasViolations = 
+        (parsed.violations.fabricatedSkills?.length || 0) > 0 ||
+        (parsed.violations.fabricatedEducation?.length || 0) > 0 ||
+        (parsed.violations.fabricatedExperience?.length || 0) > 0;
+
+      if (!hasViolations && parsed.riskLevel === 'danger') {
+        parsed.approved = true;
+        parsed.riskLevel = 'safe';
+        parsed.recommendation = 'All items were previously approved by user';
+        parsed.flags = ['auto_approved_from_history'];
+      }
+    }
 
     console.log(`🛡️ Guardian ${stage}:`, {
       approved: parsed.approved,
       risk: parsed.riskLevel,
-      violationCount: Object.values(parsed.violations || {}).flat().length
+      violations: Object.values(parsed.violations || {}).flat().length
     });
-
-    if (!parsed.approved) {
-      console.error('🚨 REJECTED by Guardian:', parsed.violations);
-    }
 
     return parsed;
 
   } catch (error) {
     console.error('❌ Guardian check failed:', error);
     
-    // ✅ SAFE FALLBACK: Approve but flag for manual review
     return {
       approved: true,
       riskLevel: 'warning',
