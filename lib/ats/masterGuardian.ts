@@ -186,6 +186,7 @@ export async function extractGroundTruthAI(
     temperature: 0.0,
   });
 
+  // ✅ KORJATTU PROMPT (ei puuttuvia muuttujia)
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `Extract verifiable facts from user profile. Works for ANY profession.
 
@@ -203,9 +204,10 @@ Return JSON with these exact fields:
   "yearsOfExperience": number
 }
 
-Extract ONLY what exists. Do NOT infer or add skills not listed.`],
+Extract ONLY what exists. Do NOT infer or add skills not listed.
+Return JSON only, no markdown.`],
 
-    ['human', `Extract facts from profile:
+    ['human', `Extract facts from this profile:
 
 NAME: {name}
 WORK EXPERIENCE: {workExperience}
@@ -220,7 +222,7 @@ SUPERPOWER: {superpower}
 CAREER GOALS: {careerGoals}
 BEST PROJECT: {bestProject}
 
-Return JSON only, no markdown.`]
+Return ONLY valid JSON with all required fields.`]
   ]);
 
   try {
@@ -289,7 +291,7 @@ Return JSON only, no markdown.`]
   } catch (error) {
     console.error('❌ Ground Truth extraction failed:', error);
     
-    // SAFE FALLBACK
+    // ✅ PARANNETTU FALLBACK
     const fallbackSkills = (userProfile.skills || '')
       .split(',')
       .map((s: string) => s.trim())
@@ -298,9 +300,9 @@ Return JSON only, no markdown.`]
     const groundTruth: GroundTruth = {
       technicalSkills: fallbackSkills,
       softSkills: [],
-      education: [],
+      education: userProfile.education ? [userProfile.education] : [],
       certifications: [],
-      workHistory: [],
+      workHistory: userProfile.work_experience ? [userProfile.work_experience] : [],
       achievements: [],
       cannotClaim: [],
       personalityTraits: [userProfile.superpower || 'Professional'].filter(Boolean),
@@ -325,7 +327,6 @@ Return JSON only, no markdown.`]
     return groundTruth;
   }
 }
-
 // ════════════════════════════════════════════════════════════════
 // CONSISTENCY CHECK (OPPIVA)
 // ════════════════════════════════════════════════════════════════
