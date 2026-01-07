@@ -452,50 +452,56 @@ export async function POST(req: Request) {
       }, { status: 500 });
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // ✅ MASTER GUARDIAN CHECK (Oppiva)
-    // ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// ✅ MASTER GUARDIAN CHECK (Oppiva + skipValidation)
+// ════════════════════════════════════════════════════════════════
 
-    if (!skipValidation) {
-      console.log('🛡️ Running Master Guardian (oppiva)...');
-      
-      const { data: userProfile } = await supabaseAdmin
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+// ✅ KRIITTINEN: Ohita Guardian jos käyttäjä on vahvistanut
+const shouldRunGuardian = !skipValidation && !confirmedViolations?.length;
 
-      // Hae ground truth + oppimishistoria
-      const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
-      
-      const fullCVText = `
-        ${result.personal_description || ''}
-        ${result.html?.skills_section || ''}
-        ${result.html?.experience_section || ''}
-        ${result.html?.education_section || ''}
-      `.trim();
-      
-      const guardianCheck = await masterConsistencyCheckAI(
-        fullCVText,
-        groundTruth,
-        'generation'
-      );
+if (shouldRunGuardian) {
+  console.log('🛡️ Running Master Guardian (oppiva)...');
+  
+  const { data: userProfile } = await supabaseAdmin
+    .from('user_profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
 
-      // ✅ JOS GUARDIAN LÖYTÄÄ ONGELMIA JA KÄYTTÄJÄ EI OLE VAHVISTANUT
-      if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved && !confirmedViolations) {
-        console.log('🚨 Guardian flagged violations - requesting confirmation');
-        
-        return NextResponse.json({
-          success: false,
-          needsConfirmation: true,
-          violations: guardianCheck.violations,
-          recommendation: guardianCheck.recommendation,
-          message: 'CV sisältää tietoja joita ei löydy profiilista. Vahvista käyttö.'
-        }, { status: 400 });
-      }
+  // Ground truth + oppimishistoria
+  const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
+  
+  const fullCVText = `
+    ${result.personal_description || ''}
+    ${result.html?.skills_section || ''}
+    ${result.html?.experience_section || ''}
+    ${result.html?.education_section || ''}
+  `.trim();
+  
+  const guardianCheck = await masterConsistencyCheckAI(
+    fullCVText,
+    groundTruth,
+    'generation'
+  );
 
-      console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
-    }
+  // 🚨 Guardian pysäyttää vain jos käyttäjä EI ole vielä vahvistanut
+  if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
+    console.log('🚨 Guardian flagged violations - requesting confirmation');
+    
+    return NextResponse.json({
+      success: false,
+      needsConfirmation: true,
+      violations: guardianCheck.violations,
+      recommendation: guardianCheck.recommendation,
+      message: 'CV sisältää tietoja joita ei löydy profiilista. Vahvista käyttö.'
+    }, { status: 400 });
+  }
+
+  console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
+} else {
+  console.log('🟢 Guardian SKIPPED (user confirmed or skipValidation=true)');
+}
+
 
     // ════════════════════════════════════════════════════════════════
     // SAVE CV

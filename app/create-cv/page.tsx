@@ -347,106 +347,106 @@ export default function CreateCVPage() {
   // ════════════════════════════════════════════════════════════════
 
   const handleApproveViolations = async (items: ViolationItem[]) => {
-    if (!pendingRequest) return;
+  if (!pendingRequest) return;
 
-    setIsLoading(true);
-    setShowConfirmation(false);
+  setIsLoading(true);
+  setShowConfirmation(false);
 
-    try {
-      console.log('✅ User approved violations:', items);
+  try {
+    console.log('✅ User approved violations:', items);
 
-      const confirmedViolations = items.map(item => ({
-        type: item.type,
-        content: item.content,
-        decision: 'approved'
-      }));
+    const confirmedViolations = items.map(item => ({
+      type: item.type,
+      content: item.content,
+      decision: 'approved'
+    }));
 
-      const response = await fetch('/api/generate-cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...pendingRequest,
-          confirmedViolations,
-          skipValidation: true
-        })
-      });
+    const response = await fetch('/api/generate-cv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...pendingRequest,
+        confirmedViolations,
+        skipValidation: true // ✅ TÄRKEÄ!
+      })
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (data.success && data.cvId) {
-        toast.success('✅ CV luotu hyväksytyillä tiedoilla!');
-        router.push(`/edit-cv/${data.cvId}`);
-      } else {
-        throw new Error('Failed to generate with approved items');
-      }
-
-    } catch (error) {
-      console.error('Error with approved violations:', error);
-      toast.error('❌ CV:n luonti epäonnistui');
-      setIsLoading(false);
+    if (data.success && data.cvId) {
+      toast.success('✅ CV luotu hyväksytyillä tiedoilla!');
+      router.push(`/edit-cv/${data.cvId}`);
+    } else {
+      throw new Error('Failed to generate with approved items');
     }
-  };
+
+  } catch (error) {
+    console.error('Error with approved violations:', error);
+    toast.error('❌ CV:n luonti epäonnistui');
+    setIsLoading(false);
+  }
+};
 
   const handleRejectViolations = async () => {
-    if (!pendingRequest) return;
+  if (!pendingRequest) return;
 
-    setIsLoading(true);
-    setShowConfirmation(false);
+  setIsLoading(true);
+  setShowConfirmation(false);
 
-    try {
-      console.log('❌ User rejected violations - creating lean CV');
+  try {
+    console.log('❌ User rejected violations - creating lean CV');
 
-      const violationItems: ViolationItem[] = [
-        ...(pendingViolations?.fabricatedSkills || []).map(skill => ({
-          type: 'skill' as const,
-          content: skill,
-          reason: 'Rejected by user'
-        })),
-        ...(pendingViolations?.fabricatedEducation || []).map(edu => ({
-          type: 'education' as const,
-          content: edu,
-          reason: 'Rejected by user'
-        })),
-        ...(pendingViolations?.fabricatedExperience || []).map(exp => ({
-          type: 'experience' as const,
-          content: exp,
-          reason: 'Rejected by user'
-        }))
-      ];
+    const violationItems: ViolationItem[] = [
+      ...(pendingViolations?.fabricatedSkills || []).map(skill => ({
+        type: 'skill' as const,
+        content: skill,
+        reason: 'Rejected by user'
+      })),
+      ...(pendingViolations?.fabricatedEducation || []).map(edu => ({
+        type: 'education' as const,
+        content: edu,
+        reason: 'Rejected by user'
+      })),
+      ...(pendingViolations?.fabricatedExperience || []).map(exp => ({
+        type: 'experience' as const,
+        content: exp,
+        reason: 'Rejected by user'
+      }))
+    ];
 
-      const confirmedViolations = violationItems.map(item => ({
-        type: item.type,
-        content: item.content,
-        decision: 'rejected'
-      }));
+    const confirmedViolations = violationItems.map(item => ({
+      type: item.type,
+      content: item.content,
+      decision: 'rejected'
+    }));
 
-      const response = await fetch('/api/generate-cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...pendingRequest,
-          confirmedViolations,
-          skipValidation: true
-        })
+    const response = await fetch('/api/generate-cv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...pendingRequest,
+        confirmedViolations,
+        skipValidation: true // ✅ TÄRKEÄ!
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.cvId) {
+      toast.success('✅ CV luotu ilman hylättyjä tietoja', {
+        description: 'CV voi olla lyhyempi, mutta sisältää vain varmennetut tiedot.'
       });
-
-      const data = await response.json();
-
-      if (data.success && data.cvId) {
-        toast.success('✅ CV luotu ilman hylättyjä tietoja', {
-          description: 'CV voi olla lyhyempi, mutta sisältää vain varmennetut tiedot.'
-        });
-        router.push(`/edit-cv/${data.cvId}`);
-      } else {
-        throw new Error('Failed to generate lean CV');
-      }
-
-    } catch (error) {
-      console.error('Error creating lean CV:', error);
-      toast.error('❌ CV:n luonti epäonnistui');
-      setIsLoading(false);
+      router.push(`/edit-cv/${data.cvId}`);
+    } else {
+      throw new Error('Failed to generate lean CV');
     }
-  };
+
+  } catch (error) {
+    console.error('Error creating lean CV:', error);
+    toast.error('❌ CV:n luonti epäonnistui');
+    setIsLoading(false);
+  }
+};
 
   const handleEditViolations = async (corrections: Array<{ original: string; corrected: string; type: string }>) => {
     if (!pendingRequest) return;

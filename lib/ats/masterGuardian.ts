@@ -33,7 +33,7 @@ export interface GuardianCheckResult {
     fabricatedSkills?: string[];
     fabricatedEducation?: string[];
     fabricatedExperience?: string[];
-    [key: string]: any; // ✅ LISÄÄ TÄMÄ - Sallii error-kentän
+    [key: string]: any; // ✅ LISÄÄ TÄMÄ RIVI
   };
   recommendation: string;
   flags: string[];
