@@ -349,30 +349,38 @@ function mergeCVAnswers(
 // PROMPTS (✅ POISTETTU PITUUSRAJOITUKSET!)
 // ════════════════════════════════════════════════════════════════
 
-const atsOptimizedSimplePrompt = ChatPromptTemplate.fromMessages([
-  ["system", `You are a CV writer creating FIRST-PERSON CVs.
+// ════════════════════════════════════════════════════════════════
+// PROMPTS - PÄIVITETTY STRATEGIA
+// ════════════════════════════════════════════════════════════════
+
+// ✅ SIMPLE CV - Rento, persoonallinen esittely
+const simplePrompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are creating a PERSONAL, FRIENDLY CV in first person.
 
 {knowledgeContext}
 
-VERIFIED SKILLS: {verifiedSkills}
-FORBIDDEN CLAIMS: {forbiddenClaims}
+**STYLE: Rento ja lähestyttävä**
+- Pitkä, kuvaileva teksti
+- Kerro KEN hakija on ihmisenä
+- Persoonallisuus ja vahvuudet esiin
+- Tarina ja konteksti, ei pelkkiä listoja
 
-WRITE DETAILED, COMPREHENSIVE CONTENT:
-- Personal Description: 150-200 words (engaging, personality-driven)
-- Skills: 8-12 items with context
-- Experience: 2-3 positions, 3-4 bullets each (detailed achievements)
-- Education: All entries with details
-- Languages: All languages with proficiency levels
+**STRUCTURE:**
+- Personal Description: 200-250 sanaa (engagoiva, persoonallinen)
+- Skills: Tekstimuotoinen kuvaus taidoista kontekstissa
+- Experience: Tarinamuotoinen, mitä opin ja saavutin
+- Education: Lyhyt kuvaus koulutuksesta
+- Languages: Vapaamuotoinen
 
-QUALITY OVER BREVITY. Use all available information.
+{atsInstructions}
 
 {format_instructions}`],
 
-  ["human", `Create detailed Simple CV.
+  ["human", `Create a friendly, personal CV for:
 
-**CANDIDATE:**
+**PERSON:**
 Name: {name}
-Skills: {verifiedSkills}
+Skills: {skills}
 Experience: {workExperience}
 Education: {education}
 
@@ -380,16 +388,156 @@ Education: {education}
 Working Style: {workingStyle}
 Problem Solving: {problemSolving}
 Unique Strength: {uniqueStrength}
+Superpower: {superpower}
 
-**ADDITIONAL CONTEXT:**
+**CONTEXT:**
 Career Goals: {careerGoals}
 Best Project: {bestProjectExample}
 
-Write in {language}. Return detailed JSON.`]
+{jobContext}
+
+Write in {language}. Be warm, personal, and engaging. Tell their story.`]
 ]);
 
-const atsOptimizedTechnicalPrompt = atsOptimizedSimplePrompt;
-const atsOptimizedCreativePrompt = atsOptimizedSimplePrompt;
+// ✅ TECHNICAL CV - Ammattimainen, listamainen
+const technicalPrompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are creating a PROFESSIONAL, STRUCTURED CV in first person.
+
+{knowledgeContext}
+
+**STYLE: Ammattimainen ja selkeä**
+- Listamuotoinen, keypointit esiin
+- Kurssit, sertifikaatit, teknologiat
+- Mitattavat saavutukset
+- Selkeä hierarkia ja struktuuri
+
+**STRUCTURE:**
+- Personal Description: 100-150 sanaa (ammattitasoinen, asiallinen)
+- Skills: Lista teknologioista ja työkaluista, taitotasot
+- Experience: Bullet-muotoinen, mitattavat tulokset
+- Education: Kurssit, arvosanat, sertifikaatit
+- Languages: Taitotasot selkeästi
+
+{atsInstructions}
+
+{format_instructions}`],
+
+  ["human", `Create a professional, technical CV for:
+
+**PROFESSIONAL:**
+Name: {name}
+Skills: {skills}
+Experience: {workExperience}
+Education: {education}
+
+**COMPETENCIES:**
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Unique Strength: {uniqueStrength}
+
+**ACHIEVEMENTS:**
+Career Goals: {careerGoals}
+Best Project: {bestProjectExample}
+
+{jobContext}
+
+Write in {language}. Be professional, structured, and clear. Focus on measurable results.`]
+]);
+
+// ✅ CREATIVE CV - Leikittelevä mutta ammattitasoinen
+const creativePrompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are creating a CREATIVE, DYNAMIC CV in first person.
+
+{knowledgeContext}
+
+**STYLE: Luova ja visuaalinen**
+- Sekoitus: lyhyt teksti + keypointit
+- Erottuu massasta, mutta ammattitasoinen
+- Persoonallisuus paistaa läpi
+- Visuaalinen hierarkia
+
+**STRUCTURE:**
+- Personal Description: 120-180 sanaa (luova, energinen, mukaansatempaava)
+- Skills: Visuaalinen lista vahvuuksista, ikoneita ja teemoja
+- Experience: Sekoitus tekstiä ja listoja, storytelling + faktoja
+- Education: Luova esitys koulutuksesta
+- Languages: Hauskat kuvaukset taitotasoista
+
+{atsInstructions}
+
+{format_instructions}`],
+
+  ["human", `Create a creative, engaging CV for:
+
+**CREATIVE PROFESSIONAL:**
+Name: {name}
+Skills: {skills}
+Experience: {workExperience}
+Education: {education}
+
+**PERSONALITY:**
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Unique Strength: {uniqueStrength}
+Superpower: {superpower}
+
+**STORY:**
+Career Goals: {careerGoals}
+Best Project: {bestProjectExample}
+
+{jobContext}
+
+Write in {language}. Be creative, dynamic, and memorable. Mix storytelling with facts.`]
+]);
+
+// ════════════════════════════════════════════════════════════════
+// ATS & RAG CONTEXT BUILDERS
+// ════════════════════════════════════════════════════════════════
+
+function buildATSInstructions(jobPosting?: string): string {
+  if (!jobPosting) return '';
+  
+  return `
+**🎯 ATS OPTIMIZATION ACTIVE:**
+
+This CV is targeted for a SPECIFIC JOB. Your mission:
+1. **Keyword Match**: Use exact keywords from job posting
+2. **Mirror Language**: Match the job description's terminology
+3. **Highlight Relevant Skills**: Emphasize skills mentioned in job posting
+4. **Prioritize Relevant Experience**: Lead with most relevant projects/roles
+5. **Quantify Achievements**: Use metrics that align with job requirements
+6. **ATS-Friendly Format**: Clear structure, standard sections, no fancy formatting
+
+**JOB POSTING ANALYSIS:**
+Extract key requirements, skills, and values from this job posting and optimize CV accordingly.
+
+CRITICAL: Make this CV the PERFECT match for THIS specific job.
+`;
+}
+
+function buildJobContext(jobPosting?: string): string {
+  if (!jobPosting) return '';
+  
+  return `
+**TARGET JOB POSTING:**
+${jobPosting.substring(0, 1500)}
+
+Tailor the CV to match this job posting's requirements.
+`;
+}
+
+function buildRAGContext(ragEnabled: boolean, ragData?: string): string {
+  if (!ragEnabled || !ragData) return '';
+  
+  return `
+**📚 CV EXPERT INSIGHTS (from professional articles):**
+
+${ragData}
+
+Use these insights to enhance CV quality and structure.
+`;
+}
+
 
 // ════════════════════════════════════════════════════════════════
 // (muut funktiot säilyvät samana: analyzeJobPosting, sanitize, etc.)
@@ -597,6 +745,10 @@ export async function generateEnhancedBackgroundImage(
 // ✅ MAIN FUNCTION - KYSYMYSLOGIIKKA LISÄTTY!
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// ✅ MAIN FUNCTION - KYSYMYSLOGIIKKA LISÄTTY!
+// ════════════════════════════════════════════════════════════════
+
 export async function generateCVWithPersonalityExtraction(
   userData: CVGeneratorInput
 ): Promise<CVGenerationResult> {
@@ -618,7 +770,15 @@ export async function generateCVWithPersonalityExtraction(
     }
   };
 
-  const { authToken, jobPosting, userId, skipQuestions, answeredQuestions } = userData;
+  // ✅ EKSTRAKTOI KAIKKI TARVITTAVAT MUUTTUJAT HETI ALUSSA
+  const { 
+    authToken, 
+    jobPosting, 
+    userId, 
+    skipQuestions, 
+    answeredQuestions,
+    enableRAG // ✅ LISÄTTY TÄNNE!
+  } = userData;
 
   try {
     console.log('✅ [CV GEN] Try block entered');
@@ -725,11 +885,11 @@ export async function generateCVWithPersonalityExtraction(
     // ════════════════════════════════════════════════════════════════
     // STEP 2: MERGE ANSWERS
     // ════════════════════════════════════════════════════════════════
-    
+
     console.log('📝 [CV GEN] STEP 2: Merge Answers');
-    
+
     let enhancedUserData = { ...userData };
-    
+
     if (answeredQuestions && answeredQuestions.length > 0) {
       timer.start("Merge Answers");
       
@@ -759,14 +919,14 @@ export async function generateCVWithPersonalityExtraction(
     }
 
     console.log('✅ [CV GEN] STEP 2 completed');
-    
+
     // ════════════════════════════════════════════════════════════════
-    // STEP 3: EXTRACTIONS
+    // STEP 3: EXTRACTIONS (simplified)
     // ════════════════════════════════════════════════════════════════
-    
+
     console.log('🔬 [CV GEN] STEP 3: Extractions (simplified)');
     timer.start("Extractions");
-    
+
     const personalityExtraction: PersonalityExtraction = {
       overallPersonality: {
         summary: "Professional with growth mindset",
@@ -781,7 +941,7 @@ export async function generateCVWithPersonalityExtraction(
         suggestions: []
       }
     };
-    
+
     const groundTruth: GroundTruth = {
       technicalSkills: (enhancedUserData.skills || "").split(',').map((s: string) => s.trim()).filter(Boolean),
       softSkills: [],
@@ -794,7 +954,7 @@ export async function generateCVWithPersonalityExtraction(
       careerLevel: 'mid',
       yearsOfExperience: 0
     };
-    
+
     const jobAnalysis: JobAnalysis = {
       required_skills: [],
       preferred_skills: [],
@@ -804,23 +964,96 @@ export async function generateCVWithPersonalityExtraction(
       experience_level: "mid",
       industry_keywords: [],
     };
-    
+
     timer.end();
     console.log('✅ [CV GEN] STEP 3 completed');
-    
+
     const finalUserData = { ...enhancedUserData };
-    let promptTemplate = atsOptimizedSimplePrompt;
 
     checkTimeout();
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 4: AI GENERATION
+    // STEP 4: SELECT PROMPT & BUILD CONTEXT
     // ════════════════════════════════════════════════════════════════
-    
-    console.log('🤖 [CV GEN] STEP 4: AI Generation');
-    console.log('   - Model: gpt-4o-mini');
-    console.log('   - Temperature: 0.7');
-    
+
+    console.log('🎨 [CV GEN] STEP 4: Prompt Selection & Context Building');
+    timer.start("Prompt Selection");
+
+    let promptTemplate: ChatPromptTemplate;
+    let cvTypeDescription: string;
+
+    switch (finalUserData.cvType) {
+      case 'simple':
+        promptTemplate = simplePrompt;
+        cvTypeDescription = 'rento ja persoonallinen esittely-CV';
+        break;
+      case 'technical':
+        promptTemplate = technicalPrompt;
+        cvTypeDescription = 'ammattimainen tekninen CV';
+        break;
+      case 'creative':
+        promptTemplate = creativePrompt;
+        cvTypeDescription = 'luova ja dynaaminen CV';
+        break;
+      default:
+        promptTemplate = simplePrompt;
+        cvTypeDescription = 'rento CV';
+    }
+
+    console.log(`   - CV Type: ${cvTypeDescription}`);
+    console.log(`   - ATS: ${!!jobPosting}`);
+    console.log(`   - RAG: ${!!enableRAG}`);
+
+    // BUILD CONTEXT STRINGS
+    const atsInstructions = buildATSInstructions(jobPosting);
+    const jobContext = buildJobContext(jobPosting);
+
+    // ✅ RAG Knowledge Context
+    let knowledgeContext = '';
+    if (enableRAG) {
+      try {
+        console.log('   → Building RAG context...');
+        
+        knowledgeContext = await buildAIContext({
+          jobDescription: jobPosting || 'General CV creation',
+          userProfile: {
+            name: finalUserData.name,
+            skills: finalUserData.skills,
+            workExperience: finalUserData.workExperience,
+            education: finalUserData.education,
+          },
+          enableRAG: true,
+          contentType: 'cv'
+        });
+        
+        console.log(`   ✅ RAG context built: ${knowledgeContext.length} chars`);
+      } catch (error) {
+        console.error('   ❌ RAG context failed:', error);
+        
+        knowledgeContext = await buildAIContext({
+          jobDescription: '',
+          enableRAG: false,
+          contentType: 'cv'
+        });
+      }
+    } else {
+      knowledgeContext = await buildAIContext({
+        jobDescription: '',
+        enableRAG: false,
+        contentType: 'cv'
+      });
+    }
+
+    timer.end();
+    console.log('✅ [CV GEN] STEP 4 completed');
+
+    checkTimeout();
+
+    // ════════════════════════════════════════════════════════════════
+    // STEP 5: AI GENERATION
+    // ════════════════════════════════════════════════════════════════
+
+    console.log('🤖 [CV GEN] STEP 5: AI Generation');
     timer.start("AI Generation");
 
     const model = new ChatOpenAI({
@@ -830,81 +1063,63 @@ export async function generateCVWithPersonalityExtraction(
       timeout: 20000,
     });
 
-    console.log('   → Formatting prompt...');
-    
     const formatted = await promptTemplate.formatMessages({
-      knowledgeContext: '',
+      knowledgeContext: knowledgeContext || 'No additional context',
+      atsInstructions: atsInstructions || '',
+      jobContext: jobContext || '',
       language: finalUserData.language || 'finnish',
       name: finalUserData.name || 'Professional',
-      verifiedSkills: groundTruth.technicalSkills.join(', ') || 'Developing',
-      forbiddenClaims: groundTruth.cannotClaim.join(', ') || 'None',
-      workExperience: finalUserData.workExperience || 'Building',
+      skills: finalUserData.skills || 'Developing',
+      workExperience: finalUserData.workExperience || 'Building experience',
       education: finalUserData.education || 'Learning',
       workingStyle: finalUserData.workingStyle || 'Adaptable',
       problemSolving: finalUserData.problemSolving || 'Resourceful',
       uniqueStrength: finalUserData.uniqueStrength || 'Motivated',
-      bestProjectExample: finalUserData.bestProjectExample || '',
+      superpower: finalUserData.superpower || 'Fast learner',
       careerGoals: finalUserData.careerGoals || '',
+      bestProjectExample: finalUserData.bestProjectExample || '',
       format_instructions: outputParser.getFormatInstructions()
     });
 
-    console.log('   → Calling OpenAI...');
-    
     const result = await Promise.race([
       model.invoke(formatted),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 20000))
     ]);
 
-    console.log('   ✅ OpenAI response received');
-    
     const rawContentString = getMessageContent(result);
-    console.log('   - Response length:', rawContentString.length, 'chars');
-    
     timer.end();
 
     checkTimeout();
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 5: PARSING
+    // STEP 6: PARSING
     // ════════════════════════════════════════════════════════════════
-    
-    console.log('📋 [CV GEN] STEP 5: Parsing');
+
+    console.log('📋 [CV GEN] STEP 6: Parsing');
     timer.start("Parsing");
-    
+
     let parsedOutput: CVOutputType;
     try {
-      console.log('   → Attempting sanitize + parse...');
       const sanitized = sanitizeAIResponse(rawContentString);
       parsedOutput = await outputParser.parse(sanitized);
-      console.log('   ✅ Parse successful (method 1)');
     } catch {
       try {
-        console.log('   → Attempting direct parse...');
         parsedOutput = await outputParser.parse(rawContentString);
-        console.log('   ✅ Parse successful (method 2)');
       } catch {
-        console.log('   → Using manual extraction fallback...');
         parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData));
-        console.log('   ✅ Fallback extraction used');
       }
     }
-    
-    console.log('   - Parsed sections:');
-    console.log('     • Personal:', parsedOutput.personal_description?.length || 0);
-    console.log('     • Skills:', parsedOutput.cv_content.skills_section?.length || 0);
-    console.log('     • Experience:', parsedOutput.cv_content.experience_section?.length || 0);
-    console.log('     • Education:', parsedOutput.cv_content.education_section?.length || 0);
-    
+
     timer.end();
-    console.log('✅ [CV GEN] STEP 5 completed');
+    console.log('✅ [CV GEN] STEP 6 completed');
 
     checkTimeout();
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 6: REST OF THE FLOW
+    // STEP 7: FINALIZATION
     // ════════════════════════════════════════════════════════════════
-    
-    console.log('🏁 [CV GEN] STEP 6: Finalization');
+
+    console.log('🏁 [CV GEN] STEP 7: Finalization');
 
     const guardianCheck = {
       approved: true,
@@ -912,19 +1127,14 @@ export async function generateCVWithPersonalityExtraction(
       violations: {}
     };
 
-    checkTimeout();
-
     timer.start("Background");
-    console.log('   → Background image processing...');
 
     let backgroundImage: string = "";
 
     if (finalUserData.backgroundImage) {
       backgroundImage = finalUserData.backgroundImage;
-      console.log('   ✅ Using existing background');
     } else {
       try {
-        console.log('   → Generating new background...');
         const generatedUrl = await generateEnhancedBackgroundImage(
           toLangChainInput(finalUserData), 
           authToken
@@ -937,12 +1147,8 @@ export async function generateCVWithPersonalityExtraction(
           } else {
             backgroundImage = generatedUrl;
           }
-          console.log('   ✅ Background generated');
         } else if (generatedUrl && generatedUrl.startsWith("data:")) {
           backgroundImage = generatedUrl;
-          console.log('   ✅ Background generated (base64)');
-        } else {
-          console.log('   ⚠️ Background generation returned empty');
         }
       } catch (error) {
         console.error('   ❌ Background generation error:', error);
@@ -961,9 +1167,10 @@ ${parsedOutput.cv_content.experience_section}
 `.trim();
 
     timer.getResults();
-    
+
     console.log('✅ [CV GEN] COMPLETE - Returning result');
 
+    // ✅ RETURN - Tämä on tärkein!
     return {
       personal_description: parsedOutput.personal_description,
       html: parsedOutput.cv_content,
@@ -982,94 +1189,29 @@ ${parsedOutput.cv_content.experience_section}
         visual_elements: []
       }
     };
-
+    
   } catch (error) {
     console.error('❌ [CV GEN] FATAL ERROR:', error);
     console.error('   Stack:', error instanceof Error ? error.stack : 'No stack');
     throw error;
   }
 }
-export async function generateCVSafely(
-userData: CVGeneratorInput
-): Promise<CVGenerationResult> {
-try {
-const timeoutPromise = new Promise<CVGenerationResult>((_, reject) => {
-setTimeout(() => reject(new Error('CV generation timeout (55s)')), 55000);
-});
-const generationPromise = generateCVWithPersonalityExtraction(userData);
 
-return await Promise.race([generationPromise, timeoutPromise]);
-} catch (error) {
-console.error("❌ generateCVSafely caught error:", error);
-return {
-  personal_description: `${userData.name || "Professional"} - Generation Failed`,
-  html: {
-    skills_section: `<p>Error generating skills</p>`,
-    experience_section: `<p>Error generating experience</p>`,
-    education_section: `<p>Error generating education</p>`,
-    languages_section: `<p>Error generating languages</p>`,
-  },
-  background_image: "",
-  profile_initials: generateInitials(userData.name || ""),
-  fullTextContent: "CV generation error",
-  ats_data: null,
-  job_analysis: {
-    required_skills: [],
-    preferred_skills: [],
-    soft_skills: [],
-    company_values: [],
-    key_responsibilities: [],
-    experience_level: "mid",
-    industry_keywords: [],
-  },
-  ground_truth_check: {
-    approved: false,
-    riskLevel: "error",
-    violations: { error: error instanceof Error ? error.message : "Unknown" }
-  },
-  images: {
-    background_prompt: '',
-    visual_elements: []
-  }
-};
-}
-}
-export async function generateCVWithLangChain(
-userData: LangChainCVInput & { authToken?: string; jobPosting?: string }
+// ✅ POISTA MYÖS TURHAT FUNKTIOT LOPUSTA:
+export async function generateCVSafely(
+  userData: CVGeneratorInput
 ): Promise<CVGenerationResult> {
-const cvInput: CVGeneratorInput = {
-userId: userData.userId,
-cvId: userData.cvId,
-name: userData.name || '',
-email: userData.email,
-phone: userData.phone,
-location: userData.location,
-cvType: userData.cvType,
-language: userData.language,
-title: userData.title,
-introText: userData.introText,
-education: userData.education,
-workExperience: userData.workExperience,
-skills: userData.skills,
-languages: userData.languages,
-workingStyle: userData.workingStyle,
-problemSolving: userData.problemSolving,
-energySources: userData.energySources,
-uniqueStrength: userData.uniqueStrength,
-learningStyle: userData.learningStyle,
-teamRole: userData.teamRole,
-valuesExample: userData.valuesExample,
-superpower: userData.superpower,
-careerGoals: userData.careerGoals,
-bestProjectExample: userData.bestProjectExample,
-failureLesson: userData.failureLesson,
-profileImage: userData.profileImage,
-backgroundImage: userData.backgroundImage,
-hobbies: userData.hobbies,
-profile: userData.profile,
-bio: userData.bio,
-jobPosting: userData.jobPosting,
-authToken: userData.authToken,
-};
-return generateCVWithPersonalityExtraction(cvInput);
+  try {
+    const timeoutPromise = new Promise<CVGenerationResult>((_, reject) => {
+      setTimeout(() => reject(new Error('CV generation timeout (55s)')), 55000);
+    });
+
+    return await Promise.race([
+      generateCVWithPersonalityExtraction(userData),
+      timeoutPromise
+    ]);
+  } catch (error) {
+    console.error('CV generation failed:', error);
+    throw error;
+  }
 }

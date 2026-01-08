@@ -494,35 +494,38 @@ export default function CreateCVPage() {
   // TEMPLATE DATA (sama kuin ennen)
   // ════════════════════════════════════════════════════════════════
 
-  const templates = [
-    {
-      id: "simple" as CVTemplate,
-      icon: FileText,
-      label: "Rento",
-      description: "Persoonallinen ja lähestyttävä CV",
-      gradient: "from-blue-500 to-cyan-600",
-      bg: "bg-blue-50",
-      border: "border-blue-500",
-    },
-    {
-      id: "technical" as CVTemplate,
-      icon: Sparkles,
-      label: "Professional",
-      description: "Tekninen ja strukturoitu ammattilaisille",
-      gradient: "from-indigo-500 to-purple-600",
-      bg: "bg-purple-50",
-      border: "border-purple-500",
-    },
-    {
-      id: "creative" as CVTemplate,
-      icon: Zap,
-      label: "Creative",
-      description: "Luova ja visuaalinen portfolio-CV",
-      gradient: "from-pink-500 to-rose-600",
-      bg: "bg-pink-50",
-      border: "border-pink-500",
-    },
-  ];
+const templates = [
+  {
+    id: "simple" as CVTemplate,
+    icon: FileText,
+    label: "Rento",
+    description: "Pitkä, persoonallinen esittely. Kertoo kuka olet ihmisenä.",
+    details: "Paras yleiskäyttöön. Tuo persoonallisuutesi esiin tarinan kautta.",
+    gradient: "from-blue-500 to-cyan-600",
+    bg: "bg-blue-50",
+    border: "border-blue-500",
+  },
+  {
+    id: "technical" as CVTemplate,
+    icon: Sparkles,
+    label: "Professional",
+    description: "Ammattimainen ja strukturoitu. Listaa taidot ja saavutukset.",
+    details: "Paras teknisiin ja ammattirooleihin. Selkeä hierarkia.",
+    gradient: "from-indigo-500 to-purple-600",
+    bg: "bg-purple-50",
+    border: "border-purple-500",
+  },
+  {
+    id: "creative" as CVTemplate,
+    icon: Zap,
+    label: "Creative",
+    description: "Luova ja mukaansatempaava. Sekoitus tekstiä ja keypointteja.",
+    details: "Paras luoville aloille. Erottuu massasta ammattitasoisesti.",
+    gradient: "from-pink-500 to-rose-600",
+    bg: "bg-pink-50",
+    border: "border-pink-500",
+  },
+];
 
   // ════════════════════════════════════════════════════════════════
   // RENDER (SAMA KUIN ENNEN + MODAALIT)
@@ -640,75 +643,80 @@ export default function CreateCVPage() {
               </h2>
 
               <div className="space-y-6">
-                {features.canUseATS && (
-                  <div className={`p-6 rounded-xl border-2 transition-all ${
-                    useATS ? "bg-purple-50 border-purple-300 shadow-md" : "bg-gray-50 border-gray-200"
-                  }`}>
-                    <label className="flex items-start gap-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useATS}
-                        onChange={(e) => setUseATS(e.target.checked)}
-                        className="mt-1 h-5 w-5 text-purple-600 rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="font-bold text-lg text-gray-900 mb-1">
-                          ATS-optimointi
-                          <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                            +10 tokenia
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Optimoi CV työpaikkailmoituksen mukaan. Maksimoi läpäisyaste.
-                        </p>
-                        {useATS && (
-                          <textarea
-                            value={jobPosting}
-                            onChange={(e) => setJobPosting(e.target.value)}
-                            placeholder="Kopioi työpaikkailmoitus tähän..."
-                            rows={5}
-                            className="w-full p-3 border-2 border-purple-300 rounded-lg focus:border-purple-500 focus:outline-none text-sm"
-                          />
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                )}
+{features.canUseATS && (
+  <div className={`p-6 rounded-xl border-2 transition-all ${
+    useATS ? "bg-purple-50 border-purple-300 shadow-md" : "bg-gray-50 border-gray-200"
+  }`}>
+    <label className="flex items-start gap-4 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={useATS}
+        onChange={(e) => setUseATS(e.target.checked)}
+        className="mt-1 h-5 w-5 text-purple-600 rounded"
+      />
+      <div className="flex-1">
+        <div className="font-bold text-lg text-gray-900 mb-1">
+          🎯 ATS-optimointi
+          <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+            +10 tokenia
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">
+          Räätälöi CV tälle työpaikalle. Maksimoi avainsanat ja läpäisyaste.
+          <br />
+          <strong>Tärkeää:</strong> Käytä vain kun haet TIETTYÄ työpaikkaa.
+        </p>
+        {useATS && (
+          <textarea
+            value={jobPosting}
+            onChange={(e) => setJobPosting(e.target.value)}
+            placeholder="Kopioi työpaikkailmoitus tähän..."
+            rows={5}
+            className="w-full p-3 border-2 border-purple-300 rounded-lg focus:border-purple-500 focus:outline-none text-sm"
+          />
+        )}
+      </div>
+    </label>
+  </div>
+)}
 
-                {features.canUseRAG && (
-                  <div className={`p-6 rounded-xl border-2 transition-all ${
-                    useRAG ? "bg-amber-50 border-amber-300 shadow-md" : "bg-gray-50 border-gray-200"
-                  }`}>
-                    <label className="flex items-start gap-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useRAG}
-                        onChange={(e) => setUseRAG(e.target.checked)}
-                        className="mt-1 h-5 w-5 text-amber-600 rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="font-bold text-lg text-gray-900 mb-1 flex items-center gap-2">
-                          RAG-tietokanta
-                          <Crown className="w-5 h-5 text-amber-600" />
-                          <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full">
-                            Pro • +20 tok
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">
-                          AI konsultoi CV-asiantuntija-artikkeleitamme.
-                        </p>
-                        <div className="p-3 bg-amber-100 border border-amber-200 rounded-lg">
-                          <div className="flex items-start gap-2 text-xs text-amber-800">
-                            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                            <p>
-                              <strong>Hakee vain CV-materiaaleja:</strong> 3-5 asiantuntija-artikkelia
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                )}
+{features.canUseRAG && (
+  <div className={`p-6 rounded-xl border-2 transition-all ${
+    useRAG ? "bg-amber-50 border-amber-300 shadow-md" : "bg-gray-50 border-gray-200"
+  }`}>
+    <label className="flex items-start gap-4 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={useRAG}
+        onChange={(e) => setUseRAG(e.target.checked)}
+        className="mt-1 h-5 w-5 text-amber-600 rounded"
+      />
+      <div className="flex-1">
+        <div className="font-bold text-lg text-gray-900 mb-1 flex items-center gap-2">
+          📚 RAG-tietokanta
+          <Crown className="w-5 h-5 text-amber-600" />
+          <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full">
+            Pro • +20 tok
+          </span>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">
+          AI konsultoi CV-asiantuntija-artikkeleita. Tuo "extra maustetta" CV:hen.
+          <br />
+          <strong>Huom:</strong> Pieni lisähyöty - käytä vain jos haluat maksimaalisen laadun.
+        </p>
+        <div className="p-3 bg-amber-100 border border-amber-200 rounded-lg">
+          <div className="flex items-start gap-2 text-xs text-amber-800">
+            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <p>
+              <strong>Toiminta:</strong> Hakee 3-5 asiantuntija-artikkelia CV-parhaista käytännöistä.
+            </p>
+          </div>
+        </div>
+      </div>
+    </label>
+  </div>
+)}
+
               </div>
             </div>
           </div>
