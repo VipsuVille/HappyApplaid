@@ -514,16 +514,18 @@ if (shouldRunGuardian) {
         title: `${input.name || "My"} CV - ${cvType}`,
         profile_image: input.profileImage || null,
         background_image: result.background_image || null,
-        content: {
-          cv_data: input,
-          ai_data: {
-            html: result.html,
-            personal_description: result.personal_description,
-            profile_initials: result.profile_initials,
-            fullTextContent: result.fullTextContent,
-            cvType: cvType,
-          }
-        },
+    content: {
+  cv_data: input,
+  ai_data: {
+    html: result.html,
+    personal_description: result.personal_description,
+    profile_image: result.profile_image || input.profileImage || null, // ✅ OIKEIN
+    background_image: result.background_image || null, // ✅ OIKEIN
+    profile_initials: result.profile_initials,
+    fullTextContent: result.fullTextContent,
+    cvType: cvType,
+  }
+},
         profile_initials: result.profile_initials,
         is_public: false,
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",

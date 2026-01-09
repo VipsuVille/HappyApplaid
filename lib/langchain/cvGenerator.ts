@@ -22,6 +22,7 @@ import {
 
 import { buildAIContext } from "@/lib/knowledge";
 import { analyzeJobAndProfile } from "./smartQuestionAnalyzer"; // ✅ LISÄTTY
+import { FALLBACK_IMAGE } from "../utils";
 
 // ════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -167,6 +168,7 @@ interface CVGenerationResult {
   personal_description: string;
   html: CVOutputType['cv_content'];
   background_image: string;
+  profile_image: string; // ✅ JO OLEMASSA
   profile_initials: string;
   fullTextContent: string;
   ats_data: CVOutputType['ats_optimization'] | null;
@@ -182,6 +184,8 @@ interface CVGenerationResult {
     background_prompt: string;
     visual_elements: string[];
   };
+  // ❌ POISTA TÄMÄ jos se on täällä:
+  // ats_optimization?: CVOutputType['ats_optimization'];
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -836,41 +840,41 @@ export async function generateCVWithPersonalityExtraction(
           console.log('   - Unanswered:', unanswered.length);
           console.log('   - Critical:', critical.length);
           
-          if (critical.length > 0) {
-            console.log('❓ [CV GEN] Returning questions (exiting early)');
-            
-            return {
-              personal_description: "",
-              html: {
-                skills_section: "",
-                experience_section: "",
-                education_section: "",
-                languages_section: "",
-              },
-              background_image: "",
-              profile_initials: "",
-              fullTextContent: "",
-              ats_data: null,
-              job_analysis: {
-                required_skills: [],
-                preferred_skills: [],
-                soft_skills: [],
-                company_values: [],
-                key_responsibilities: [],
-                experience_level: "mid",
-                industry_keywords: [],
-              },
-              images: {
-                background_prompt: "",
-                visual_elements: [],
-              },
-              needsMoreInfo: true,
-              questions: critical,
-            };
-          }
+    if (critical.length > 0) {
+  console.log('❓ [CV GEN] Returning questions (exiting early)');
+  
+  return {
+    personal_description: "",
+    html: {
+      skills_section: "",
+      experience_section: "",
+      education_section: "",
+      languages_section: "",
+    },
+    background_image: "",
+    profile_image: "",
+    profile_initials: "",
+    fullTextContent: "",
+    ats_data: null,
+    job_analysis: {
+      required_skills: [],
+      preferred_skills: [],
+      soft_skills: [],
+      company_values: [],
+      key_responsibilities: [],
+      experience_level: "mid",
+      industry_keywords: [],
+    },
+    images: {
+      background_prompt: "",
+      visual_elements: [],
+    },
+    needsMoreInfo: true,
+    questions: critical,
+  };
+}  // ✅ TÄMÄ PUUTTUI!
         }
-        
-        console.log('   ✅ No critical questions needed');
+console.log('   ✅ No critical questions needed');
       } catch (analysisError) {
         timer.end();
         console.error('   ❌ Question analysis ERROR:', analysisError);
@@ -1171,24 +1175,21 @@ ${parsedOutput.cv_content.experience_section}
     console.log('✅ [CV GEN] COMPLETE - Returning result');
 
     // ✅ RETURN - Tämä on tärkein!
-    return {
-      personal_description: parsedOutput.personal_description,
-      html: parsedOutput.cv_content,
-      background_image: finalBackgroundImage || "",
-      profile_initials: profileImageClean ? "" : generateInitials(finalUserData.name),
-      fullTextContent,
-      ats_data: parsedOutput.ats_optimization || null,
-      job_analysis: jobAnalysis,
-      ground_truth_check: {
-        approved: guardianCheck.approved,
-        riskLevel: guardianCheck.riskLevel,
-        violations: guardianCheck.violations
-      },
-      images: {
-        background_prompt: '',
-        visual_elements: []
-      }
-    };
+ return {
+  personal_description: parsedOutput.personal_description,
+  html: parsedOutput.cv_content,
+  background_image: finalBackgroundImage || "", // ✅ Käytä finalBackgroundImage
+  profile_image: profileImageClean || "", // ✅ Käytä profileImageClean
+  profile_initials: userData.profileImage ? "" : generateInitials(userData.name),
+  fullTextContent: fullTextContent,
+  ats_data: parsedOutput.ats_optimization || null, // ✅ VAIN ats_data, EI ats_optimization
+  job_analysis: jobAnalysis,
+  ground_truth_check: guardianCheck, // ✅ Lisää tämä jos haluat
+  images: {
+    background_prompt: "",
+    visual_elements: [],
+  },
+};
     
   } catch (error) {
     console.error('❌ [CV GEN] FATAL ERROR:', error);

@@ -780,8 +780,8 @@ if (!isLoaded || subLoading) {
   </div>
     )}
 
-  return (
-  <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 font-sans">
+ return (
+  <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900 font-sans">
     
     {/* --- PROFIILI MODAALI --- */}
     {showProfilePrompt && profileCompleted === false && (
@@ -824,6 +824,13 @@ if (!isLoaded || subLoading) {
         </div>
       </div>
     )}
+
+    {/* Background Decor */}
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-400/15 to-amber-500/15 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/12 to-amber-600/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-400/10 to-orange-500/12 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+    </div>
 
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       
