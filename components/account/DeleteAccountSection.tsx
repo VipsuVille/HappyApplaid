@@ -14,59 +14,56 @@ import {
 import { AlertTriangle, Trash2, Shield } from "lucide-react";
 
 export function DeleteAccountSection() {
-  const { signOut } = useClerk();
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmStep, setConfirmStep] = useState(0);
   const [confirmText, setConfirmText] = useState("");
 
   const handleDeleteAccount = async () => {
-    if (confirmStep === 0) {
-      setConfirmStep(1);
+  if (confirmStep === 0) {
+    setConfirmStep(1);
+    return;
+  }
+
+  if (confirmStep === 1) {
+    if (confirmText.toLowerCase() !== "poista tilini") {
+      alert('Kirjoita "POISTA TILINI" vahvistaaksesi');
       return;
     }
+    setConfirmStep(2);
+    return;
+  }
 
-    if (confirmStep === 1) {
-      if (confirmText.toLowerCase() !== "poista tilini") {
-        alert('Kirjoita "POISTA TILINI" vahvistaaksesi');
-        return;
-      }
-      setConfirmStep(2);
-      return;
+  setIsDeleting(true);
+
+  try {
+    const response = await fetch("/api/delete-account", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Poisto epäonnistui");
     }
 
-    // Suorita poisto
-    setIsDeleting(true);
+    // 🚀 TÄRKEÄ: ohjaa heti pois sivulta
+    router.replace("/");
 
-    try {
-      const response = await fetch("/api/delete-account", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
+    // alert on ok, mutta EI pakollinen
+    alert("Tilisi on poistettu onnistuneesti. Kiitos että käytit palveluamme!");
+  } catch (error) {
+    console.error("Delete failed:", error);
+    alert(
+      `Virhe: ${error instanceof Error ? error.message : "Tuntematon virhe"}`
+    );
+    setConfirmStep(0);
+    setConfirmText("");
+  } finally {
+    setIsDeleting(false);
+  }
+};
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Poisto epäonnistui");
-      }
-
-      // Kirjaa käyttäjä ulos ja ohjaa etusivulle
-      await signOut();
-      router.push("/");
-
-      alert(
-        "Tilisi on poistettu onnistuneesti. Kiitos että käytit palveluamme!"
-      );
-    } catch (error) {
-      console.error("Delete failed:", error);
-      alert(
-        `Virhe: ${error instanceof Error ? error.message : "Tuntematon virhe"}`
-      );
-      setConfirmStep(0);
-      setConfirmText("");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   const resetDeletion = () => {
     setConfirmStep(0);
