@@ -1,4 +1,4 @@
-// app/profile/responses/page.tsx - PARANNETTU VERSIO (Kompakti + Laajennettu)
+// app/profile/responses/page.tsx - TUMMA ORANSSI TEEMA
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -28,8 +28,8 @@ export default function ResponsesPage() {
   const [editValue, setEditValue] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('compact'); // ✅ UUSI: Näkymätila
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set()); // ✅ UUSI: Laajennetut kortit
+  const [viewMode, setViewMode] = useState<ViewMode>('compact');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadResponses();
@@ -37,8 +37,7 @@ export default function ResponsesPage() {
 
   const loadResponses = async () => {
     try {
-      // ✅ POISTA RAJOITUS: Hae KAIKKI vastaukset
-      const res = await fetch('/api/user-responses?limit=1000'); // Tai poista limit kokonaan backendistä
+      const res = await fetch('/api/user-responses?limit=1000');
       const data = await res.json();
       
       if (data.success) {
@@ -109,12 +108,12 @@ export default function ResponsesPage() {
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'skills': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'experience': return 'bg-green-100 text-green-800 border-green-200';
-      case 'personality': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'education': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'cover_letter': return 'bg-pink-100 text-pink-800 border-pink-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'skills': return 'bg-blue-500/20 text-blue-300 border-blue-400/30';
+      case 'experience': return 'bg-green-500/20 text-green-300 border-green-400/30';
+      case 'personality': return 'bg-purple-500/20 text-purple-300 border-purple-400/30';
+      case 'education': return 'bg-yellow-500/20 text-yellow-300 border-yellow-400/30';
+      case 'cover_letter': return 'bg-pink-500/20 text-pink-300 border-pink-400/30';
+      default: return 'bg-gray-500/20 text-gray-300 border-gray-400/30';
     }
   };
 
@@ -128,7 +127,6 @@ export default function ResponsesPage() {
     }
   };
 
-  // ✅ SUODATUS + HAKU
   const filteredResponses = responses
     .filter(r => filterCategory === 'all' || r.question_category === filterCategory)
     .filter(r => 
@@ -141,56 +139,64 @@ export default function ResponsesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-        <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-8 shadow-xl">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-3" />
-          <p className="text-gray-600 font-medium">Ladataan vastauksia...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900">
+        <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-8 shadow-2xl border border-white/10">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-400 mx-auto mb-3" />
+          <p className="text-gray-100 font-medium">Ladataan vastauksia...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 py-12 px-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900 py-12 px-4 relative overflow-hidden">
+      
+      {/* Background Decor */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/20 to-amber-600/20 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-600/15 to-amber-700/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-500/15 to-orange-600/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto relative z-10">
         
         {/* HEADER */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+          <h1 className="text-4xl font-black bg-gradient-to-r from-orange-400 via-amber-500 to-orange-500 bg-clip-text text-transparent mb-2">
             📚 Tallennetut Vastaukset
           </h1>
-          <p className="text-gray-600 font-medium">
+          <p className="text-gray-300 font-medium">
             AI:n kysymät kysymykset ja sinun vastauksesi
           </p>
-          <p className="text-sm text-gray-500 mt-2">
+          <p className="text-sm text-gray-400 mt-2">
             {responses.length} {responses.length === 1 ? 'vastaus' : 'vastausta'} • 
             Näytetään {filteredResponses.length}
           </p>
         </div>
 
-        {/* ✅ TOOLBAR: Haku + Näkymävaihto */}
+        {/* TOOLBAR: Haku + Näkymävaihto */}
         <div className="mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
           
           {/* Search Bar */}
-          <div className="relative flex-1 max-w-md">
+          <div className="relative flex-1 max-w-md w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="Hae kysymyksistä tai vastauksista..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/70 backdrop-blur-sm border-2 border-white/60 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-200 outline-none"
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 text-gray-100 placeholder-gray-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 outline-none transition-all"
             />
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex gap-2 bg-white/70 backdrop-blur-sm rounded-xl p-1 border-2 border-white/60">
+          <div className="flex gap-2 bg-white/5 backdrop-blur-md rounded-xl p-1 border border-white/10">
             <button
               onClick={() => setViewMode('compact')}
               className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
                 viewMode === 'compact'
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-white/50'
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
+                  : 'text-gray-300 hover:bg-white/5'
               }`}
             >
               <Grid3x3 className="w-4 h-4" />
@@ -200,8 +206,8 @@ export default function ResponsesPage() {
               onClick={() => setViewMode('detailed')}
               className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
                 viewMode === 'detailed'
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                  : 'text-gray-600 hover:bg-white/50'
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
+                  : 'text-gray-300 hover:bg-white/5'
               }`}
             >
               <List className="w-4 h-4" />
@@ -219,8 +225,8 @@ export default function ResponsesPage() {
                 onClick={() => setFilterCategory(cat)}
                 className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
                   filterCategory === cat
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                    : 'bg-white/70 text-gray-700 hover:bg-white'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
+                    : 'bg-white/5 backdrop-blur-md text-gray-300 border border-white/10 hover:bg-white/10'
                 }`}
               >
                 {cat === 'all' ? 'Kaikki' : cat.toUpperCase()}
@@ -229,11 +235,11 @@ export default function ResponsesPage() {
           </div>
         )}
 
-        {/* ✅ RESPONSES - VALITTU NÄKYMÄ */}
+        {/* RESPONSES */}
         {filteredResponses.length === 0 ? (
-          <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-12 text-center border-2 border-white/60 shadow-xl">
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-12 text-center border border-white/10 shadow-xl">
             <div className="text-6xl mb-4">💭</div>
-            <p className="text-gray-600 text-lg mb-2">
+            <p className="text-gray-300 text-lg mb-2">
               {searchQuery 
                 ? `Ei tuloksia haulle: "${searchQuery}"`
                 : filterCategory === 'all' 
@@ -243,9 +249,7 @@ export default function ResponsesPage() {
             </p>
           </div>
         ) : viewMode === 'compact' ? (
-          /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-             KOMPAKTI NÄKYMÄ - Tiivis, mahtuu paljon ruudulle
-             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+          /* KOMPAKTI NÄKYMÄ */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredResponses.map(response => {
               const isExpanded = expandedIds.has(response.id);
@@ -254,11 +258,11 @@ export default function ResponsesPage() {
               return (
                 <div
                   key={response.id}
-                  className="bg-white/80 backdrop-blur-xl rounded-xl p-4 border-2 border-white/60 shadow-md hover:shadow-lg transition-all"
+                  className="bg-white/5 backdrop-blur-xl rounded-xl p-4 border border-white/10 shadow-lg hover:shadow-xl hover:border-orange-400/30 transition-all"
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between mb-2">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${getCategoryColor(response.question_category)}`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border backdrop-blur-md ${getCategoryColor(response.question_category)}`}>
                       <Tag className="w-3 h-3" />
                       {response.question_category}
                     </span>
@@ -266,19 +270,19 @@ export default function ResponsesPage() {
                     <div className="flex gap-1">
                       {isEditing ? (
                         <>
-                          <button onClick={() => handleSave(response.id)} className="p-1 bg-green-500 text-white rounded hover:bg-green-600" title="Tallenna">
+                          <button onClick={() => handleSave(response.id)} className="p-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors" title="Tallenna">
                             <Save className="w-3 h-3" />
                           </button>
-                          <button onClick={() => setEditingId(null)} className="p-1 bg-gray-500 text-white rounded hover:bg-gray-600" title="Peruuta">
+                          <button onClick={() => setEditingId(null)} className="p-1 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors" title="Peruuta">
                             <X className="w-3 h-3" />
                           </button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => handleEdit(response)} className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600" title="Muokkaa">
+                          <button onClick={() => handleEdit(response)} className="p-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors" title="Muokkaa">
                             <Edit2 className="w-3 h-3" />
                           </button>
-                          <button onClick={() => handleDelete(response.id)} className="p-1 bg-red-500 text-white rounded hover:bg-red-600" title="Poista">
+                          <button onClick={() => handleDelete(response.id)} className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors" title="Poista">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </>
@@ -287,31 +291,31 @@ export default function ResponsesPage() {
                   </div>
 
                   {/* Question */}
-                  <h3 className="text-sm font-bold text-gray-900 mb-2 leading-tight line-clamp-2">
+                  <h3 className="text-sm font-bold text-gray-100 mb-2 leading-tight line-clamp-2">
                     {response.question_text}
                   </h3>
 
-                  {/* Answer - Collapsed/Expanded */}
+                  {/* Answer */}
                   {isEditing ? (
                     <textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
-                      className="w-full p-2 text-sm border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-200 outline-none"
+                      className="w-full p-2 text-sm bg-gray-900/50 border border-orange-400/30 rounded-lg text-gray-100 focus:ring-2 focus:ring-orange-400/20 outline-none"
                       rows={3}
                     />
                   ) : (
-                    <div className="bg-gray-50 p-2 rounded-lg border border-gray-200 mb-2">
-                      <p className={`text-xs text-gray-700 leading-relaxed ${!isExpanded && 'line-clamp-2'}`}>
+                    <div className="bg-gray-900/30 backdrop-blur-sm p-2 rounded-lg border border-white/5 mb-2">
+                      <p className={`text-xs text-gray-300 leading-relaxed ${!isExpanded && 'line-clamp-2'}`}>
                         {response.answer}
                       </p>
                     </div>
                   )}
 
-                  {/* Expand/Collapse Button */}
+                  {/* Expand/Collapse */}
                   {response.answer.length > 100 && !isEditing && (
                     <button
                       onClick={() => toggleExpand(response.id)}
-                      className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 mb-2"
+                      className="text-xs text-orange-400 hover:text-orange-300 font-semibold flex items-center gap-1 mb-2 transition-colors"
                     >
                       {isExpanded ? (
                         <>Näytä vähemmän <ChevronUp className="w-3 h-3" /></>
@@ -322,7 +326,7 @@ export default function ResponsesPage() {
                   )}
 
                   {/* Metadata */}
-                  <div className="text-xs text-gray-500 space-y-1">
+                  <div className="text-xs text-gray-400 space-y-1">
                     <div className="flex items-center gap-1">
                       <FileText className="w-3 h-3" />
                       {getContextLabel(response.asked_in_context)}
@@ -343,9 +347,7 @@ export default function ResponsesPage() {
             })}
           </div>
         ) : (
-          /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-             YKSITYISKOHTAINEN NÄKYMÄ - Alkuperäinen tyyli
-             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+          /* YKSITYISKOHTAINEN NÄKYMÄ */
           <div className="space-y-6">
             {filteredResponses.map(response => {
               const wasUpdated = response.updated_at !== response.created_at;
@@ -353,16 +355,16 @@ export default function ResponsesPage() {
               return (
                 <div
                   key={response.id}
-                  className="bg-white/80 backdrop-blur-xl rounded-2xl p-6 border-2 border-white/60 shadow-lg hover:shadow-xl transition-all"
+                  className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 shadow-xl hover:shadow-2xl hover:border-orange-400/30 transition-all"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
-                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border ${getCategoryColor(response.question_category)}`}>
+                      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border backdrop-blur-md ${getCategoryColor(response.question_category)}`}>
                         <Tag className="w-3 h-3" />
                         {response.question_category.toUpperCase()}
                       </span>
                       
-                      <h3 className="text-lg font-bold text-gray-900 mt-3 leading-tight">
+                      <h3 className="text-lg font-bold text-gray-100 mt-3 leading-tight">
                         {response.question_text}
                       </h3>
                     </div>
@@ -370,19 +372,19 @@ export default function ResponsesPage() {
                     <div className="flex gap-2 ml-4">
                       {editingId === response.id ? (
                         <>
-                          <button onClick={() => handleSave(response.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600" title="Tallenna">
+                          <button onClick={() => handleSave(response.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors" title="Tallenna">
                             <Save className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setEditingId(null)} className="p-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600" title="Peruuta">
+                          <button onClick={() => setEditingId(null)} className="p-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors" title="Peruuta">
                             <X className="w-4 h-4" />
                           </button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => handleEdit(response)} className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" title="Muokkaa">
+                          <button onClick={() => handleEdit(response)} className="p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors" title="Muokkaa">
                             <Edit2 className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDelete(response.id)} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600" title="Poista">
+                          <button onClick={() => handleDelete(response.id)} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors" title="Poista">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </>
@@ -394,36 +396,36 @@ export default function ResponsesPage() {
                     <textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
-                      className="w-full p-4 border-2 border-indigo-300 rounded-xl focus:ring-4 focus:ring-indigo-200 focus:border-indigo-400 outline-none bg-white"
+                      className="w-full p-4 bg-gray-900/50 border border-orange-400/30 rounded-xl text-gray-100 focus:ring-2 focus:ring-orange-400/20 outline-none"
                       rows={4}
                     />
                   ) : (
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                      <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                    <div className="bg-gray-900/30 backdrop-blur-sm p-4 rounded-xl border border-white/5">
+                      <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">
                         {response.answer}
                       </p>
                     </div>
                   )}
 
-                  <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-4 text-xs text-gray-500">
+                  <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap gap-4 text-xs text-gray-400">
                     <div className="flex items-center gap-1">
                       <FileText className="w-3 h-3" />
                       <span className="font-medium">Konteksti:</span>
-                      <span className="text-gray-700">{getContextLabel(response.asked_in_context)}</span>
+                      <span className="text-gray-300">{getContextLabel(response.asked_in_context)}</span>
                     </div>
 
                     {response.job_title_context && (
                       <div className="flex items-center gap-1">
                         <Briefcase className="w-3 h-3" />
                         <span className="font-medium">Työpaikka:</span>
-                        <span className="text-gray-700">{response.job_title_context}</span>
+                        <span className="text-gray-300">{response.job_title_context}</span>
                       </div>
                     )}
 
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       <span className="font-medium">Luotu:</span>
-                      <span className="text-gray-700">
+                      <span className="text-gray-300">
                         {new Date(response.created_at).toLocaleDateString('fi-FI', {
                           day: 'numeric',
                           month: 'short',
@@ -433,7 +435,7 @@ export default function ResponsesPage() {
                     </div>
 
                     {wasUpdated && (
-                      <div className="flex items-center gap-1 text-blue-600">
+                      <div className="flex items-center gap-1 text-orange-400">
                         <span className="font-medium">Päivitetty:</span>
                         <span>
                           {new Date(response.updated_at).toLocaleDateString('fi-FI', {
@@ -452,17 +454,17 @@ export default function ResponsesPage() {
         )}
 
         {/* INFO BOX */}
-        <div className="mt-8 bg-indigo-50/80 backdrop-blur-sm border-2 border-indigo-200 rounded-2xl p-6">
-          <h3 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
+        <div className="mt-8 bg-orange-500/10 backdrop-blur-md border border-orange-400/30 rounded-2xl p-6">
+          <h3 className="font-bold text-orange-300 mb-2 flex items-center gap-2">
             <span className="text-xl">💡</span>
             Miten tämä toimii?
           </h3>
-          <ul className="text-sm text-indigo-800 space-y-2 ml-6">
+          <ul className="text-sm text-gray-300 space-y-2 ml-6">
             <li className="list-disc">AI kysyy kysymyksiä kun luot hakukirjeitä tai CV:itä</li>
             <li className="list-disc">Vastaukset tallentuvat automaattisesti</li>
-            <li className="list-disc">Seuraavalla kerralla AI <strong>ei kysy samaa uudelleen</strong></li>
+            <li className="list-disc">Seuraavalla kerralla AI <strong className="text-orange-300">ei kysy samaa uudelleen</strong></li>
             <li className="list-disc">Voit muokata vastauksia milloin tahansa</li>
-            <li className="list-disc">Vaihda <strong>Kompakti</strong>-näkymään nähdäksesi enemmän kerralla</li>
+            <li className="list-disc">Vaihda <strong className="text-orange-300">Kompakti</strong>-näkymään nähdäksesi enemmän kerralla</li>
           </ul>
         </div>
       </div>
