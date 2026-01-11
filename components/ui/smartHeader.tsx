@@ -73,16 +73,21 @@ export default function SmartHeader() {
               {language === 'en' ? 'FI' : 'EN'}
             </Button>
 
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button 
-                  size="sm"
-                  className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white border-none"
-                >
-                  Sign In
-                </Button>
-              </SignInButton>
-            </SignedOut>
+  <SignInButton mode="modal">
+  <Button size="sm" variant="ghost">
+    Sign In
+  </Button>
+</SignInButton>
+
+<Link href="/sign-up">
+  <Button
+    size="sm"
+    className="bg-gradient-to-r from-orange-500 to-amber-600 text-white"
+  >
+    Sign Up
+  </Button>
+</Link>
+
           </div>
         </div>
       </header>
@@ -156,6 +161,14 @@ export default function SmartHeader() {
 
             {profileMenuOpen && (
               <div className="absolute right-0 top-12 w-48 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl z-50">
+                <button
+  onClick={toggleLanguage}
+  className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2"
+>
+  <Languages className="w-4 h-4" />
+  {language === "en" ? "Suomeksi" : "In English"}
+</button>
+                
                 <Link href="/settings">
                   <button className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2 rounded-t-lg">
                     <Settings className="w-4 h-4" />
