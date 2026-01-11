@@ -139,36 +139,28 @@ export default function ResponsesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900">
-        <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-8 shadow-2xl border border-white/10">
-          <Loader2 className="w-8 h-8 animate-spin text-orange-400 mx-auto mb-3" />
-          <p className="text-gray-100 font-medium">Ladataan vastauksia...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-slate-100 to-gray-200">
+        <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] p-8 shadow-2xl border-2 border-white/60">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-3" />
+          <p className="text-gray-900 font-medium">Ladataan vastauksia...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900 py-12 px-4 relative overflow-hidden">
-      
-      {/* Background Decor */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/20 to-amber-600/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-600/15 to-amber-700/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-        <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-500/15 to-orange-600/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
-      </div>
-
-      <div className="max-w-7xl mx-auto relative z-10">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-100 to-gray-200 py-12 px-4">
+      <div className="max-w-7xl mx-auto">
         
         {/* HEADER */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-black bg-gradient-to-r from-orange-400 via-amber-500 to-orange-500 bg-clip-text text-transparent mb-2">
+          <h1 className="text-4xl font-black bg-gradient-to-r from-orange-500 to-amber-600 bg-clip-text text-transparent mb-2">
             📚 Tallennetut Vastaukset
           </h1>
-          <p className="text-gray-300 font-medium">
+          <p className="text-gray-700 font-medium">
             AI:n kysymät kysymykset ja sinun vastauksesi
           </p>
-          <p className="text-sm text-gray-400 mt-2">
+          <p className="text-sm text-gray-600 mt-2">
             {responses.length} {responses.length === 1 ? 'vastaus' : 'vastausta'} • 
             Näytetään {filteredResponses.length}
           </p>
@@ -179,24 +171,24 @@ export default function ResponsesPage() {
           
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
             <input
               type="text"
               placeholder="Hae kysymyksistä tai vastauksista..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 text-gray-100 placeholder-gray-400 focus:border-orange-400/50 focus:ring-2 focus:ring-orange-400/20 outline-none transition-all"
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/90 backdrop-blur-sm border-2 border-white/60 text-gray-900 placeholder-gray-500 focus:border-orange-400 focus:ring-4 focus:ring-orange-200 outline-none transition-all shadow-sm"
             />
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex gap-2 bg-white/5 backdrop-blur-md rounded-xl p-1 border border-white/10">
+          <div className="flex gap-2 bg-white/90 backdrop-blur-sm rounded-xl p-1 border-2 border-white/60 shadow-sm">
             <button
               onClick={() => setViewMode('compact')}
               className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
                 viewMode === 'compact'
                   ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
-                  : 'text-gray-300 hover:bg-white/5'
+                  : 'text-gray-700 hover:bg-white/80'
               }`}
             >
               <Grid3x3 className="w-4 h-4" />
@@ -207,7 +199,7 @@ export default function ResponsesPage() {
               className={`px-4 py-2 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
                 viewMode === 'detailed'
                   ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
-                  : 'text-gray-300 hover:bg-white/5'
+                  : 'text-gray-700 hover:bg-white/80'
               }`}
             >
               <List className="w-4 h-4" />
@@ -223,10 +215,10 @@ export default function ResponsesPage() {
               <button
                 key={cat}
                 onClick={() => setFilterCategory(cat)}
-                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm ${
                   filterCategory === cat
                     ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
-                    : 'bg-white/5 backdrop-blur-md text-gray-300 border border-white/10 hover:bg-white/10'
+                    : 'bg-white/90 backdrop-blur-sm text-gray-700 border-2 border-white/60 hover:bg-white hover:shadow-md'
                 }`}
               >
                 {cat === 'all' ? 'Kaikki' : cat.toUpperCase()}
@@ -237,9 +229,9 @@ export default function ResponsesPage() {
 
         {/* RESPONSES */}
         {filteredResponses.length === 0 ? (
-          <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-12 text-center border border-white/10 shadow-xl">
+          <div className="bg-white/90 backdrop-blur-xl rounded-2xl p-12 text-center border-2 border-white/60 shadow-xl">
             <div className="text-6xl mb-4">💭</div>
-            <p className="text-gray-300 text-lg mb-2">
+            <p className="text-gray-700 text-lg mb-2">
               {searchQuery 
                 ? `Ei tuloksia haulle: "${searchQuery}"`
                 : filterCategory === 'all' 
@@ -258,7 +250,7 @@ export default function ResponsesPage() {
               return (
                 <div
                   key={response.id}
-                  className="bg-white/5 backdrop-blur-xl rounded-xl p-4 border border-white/10 shadow-lg hover:shadow-xl hover:border-orange-400/30 transition-all"
+                  className="bg-white/90 backdrop-blur-xl rounded-xl p-4 border-2 border-white/60 shadow-lg hover:shadow-xl hover:border-orange-400/50 transition-all"
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between mb-2">
@@ -291,7 +283,7 @@ export default function ResponsesPage() {
                   </div>
 
                   {/* Question */}
-                  <h3 className="text-sm font-bold text-gray-100 mb-2 leading-tight line-clamp-2">
+                  <h3 className="text-sm font-bold text-gray-900 mb-2 leading-tight line-clamp-2">
                     {response.question_text}
                   </h3>
 
@@ -300,12 +292,12 @@ export default function ResponsesPage() {
                     <textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
-                      className="w-full p-2 text-sm bg-gray-900/50 border border-orange-400/30 rounded-lg text-gray-100 focus:ring-2 focus:ring-orange-400/20 outline-none"
+                      className="w-full p-2 text-sm bg-white border-2 border-orange-400 rounded-lg text-gray-900 focus:ring-4 focus:ring-orange-200 outline-none"
                       rows={3}
                     />
                   ) : (
-                    <div className="bg-gray-900/30 backdrop-blur-sm p-2 rounded-lg border border-white/5 mb-2">
-                      <p className={`text-xs text-gray-300 leading-relaxed ${!isExpanded && 'line-clamp-2'}`}>
+                    <div className="bg-gray-50/80 backdrop-blur-sm p-2 rounded-lg border border-gray-200 mb-2">
+                      <p className={`text-xs text-gray-700 leading-relaxed ${!isExpanded && 'line-clamp-2'}`}>
                         {response.answer}
                       </p>
                     </div>
@@ -315,7 +307,7 @@ export default function ResponsesPage() {
                   {response.answer.length > 100 && !isEditing && (
                     <button
                       onClick={() => toggleExpand(response.id)}
-                      className="text-xs text-orange-400 hover:text-orange-300 font-semibold flex items-center gap-1 mb-2 transition-colors"
+                      className="text-xs text-orange-600 hover:text-orange-700 font-semibold flex items-center gap-1 mb-2 transition-colors"
                     >
                       {isExpanded ? (
                         <>Näytä vähemmän <ChevronUp className="w-3 h-3" /></>
@@ -326,7 +318,7 @@ export default function ResponsesPage() {
                   )}
 
                   {/* Metadata */}
-                  <div className="text-xs text-gray-400 space-y-1">
+                  <div className="text-xs text-gray-600 space-y-1">
                     <div className="flex items-center gap-1">
                       <FileText className="w-3 h-3" />
                       {getContextLabel(response.asked_in_context)}
@@ -355,7 +347,7 @@ export default function ResponsesPage() {
               return (
                 <div
                   key={response.id}
-                  className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10 shadow-xl hover:shadow-2xl hover:border-orange-400/30 transition-all"
+                  className="bg-white/90 backdrop-blur-xl rounded-2xl p-6 border-2 border-white/60 shadow-xl hover:shadow-2xl hover:border-orange-400/50 transition-all"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
@@ -364,7 +356,7 @@ export default function ResponsesPage() {
                         {response.question_category.toUpperCase()}
                       </span>
                       
-                      <h3 className="text-lg font-bold text-gray-100 mt-3 leading-tight">
+                      <h3 className="text-lg font-bold text-gray-900 mt-3 leading-tight">
                         {response.question_text}
                       </h3>
                     </div>
@@ -396,36 +388,36 @@ export default function ResponsesPage() {
                     <textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
-                      className="w-full p-4 bg-gray-900/50 border border-orange-400/30 rounded-xl text-gray-100 focus:ring-2 focus:ring-orange-400/20 outline-none"
+                      className="w-full p-4 bg-white border-2 border-orange-400 rounded-xl text-gray-900 focus:ring-4 focus:ring-orange-200 outline-none"
                       rows={4}
                     />
                   ) : (
-                    <div className="bg-gray-900/30 backdrop-blur-sm p-4 rounded-xl border border-white/5">
-                      <p className="text-gray-200 whitespace-pre-wrap leading-relaxed">
+                    <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-xl border border-gray-200">
+                      <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
                         {response.answer}
                       </p>
                     </div>
                   )}
 
-                  <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap gap-4 text-xs text-gray-400">
+                  <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-4 text-xs text-gray-600">
                     <div className="flex items-center gap-1">
                       <FileText className="w-3 h-3" />
                       <span className="font-medium">Konteksti:</span>
-                      <span className="text-gray-300">{getContextLabel(response.asked_in_context)}</span>
+                      <span className="text-gray-800">{getContextLabel(response.asked_in_context)}</span>
                     </div>
 
                     {response.job_title_context && (
                       <div className="flex items-center gap-1">
                         <Briefcase className="w-3 h-3" />
                         <span className="font-medium">Työpaikka:</span>
-                        <span className="text-gray-300">{response.job_title_context}</span>
+                        <span className="text-gray-800">{response.job_title_context}</span>
                       </div>
                     )}
 
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       <span className="font-medium">Luotu:</span>
-                      <span className="text-gray-300">
+                      <span className="text-gray-800">
                         {new Date(response.created_at).toLocaleDateString('fi-FI', {
                           day: 'numeric',
                           month: 'short',
@@ -435,7 +427,7 @@ export default function ResponsesPage() {
                     </div>
 
                     {wasUpdated && (
-                      <div className="flex items-center gap-1 text-orange-400">
+                      <div className="flex items-center gap-1 text-orange-600">
                         <span className="font-medium">Päivitetty:</span>
                         <span>
                           {new Date(response.updated_at).toLocaleDateString('fi-FI', {
@@ -454,17 +446,17 @@ export default function ResponsesPage() {
         )}
 
         {/* INFO BOX */}
-        <div className="mt-8 bg-orange-500/10 backdrop-blur-md border border-orange-400/30 rounded-2xl p-6">
-          <h3 className="font-bold text-orange-300 mb-2 flex items-center gap-2">
+        <div className="mt-8 bg-orange-50/80 backdrop-blur-sm border-2 border-orange-200 rounded-2xl p-6 shadow-sm">
+          <h3 className="font-bold text-orange-900 mb-2 flex items-center gap-2">
             <span className="text-xl">💡</span>
             Miten tämä toimii?
           </h3>
-          <ul className="text-sm text-gray-300 space-y-2 ml-6">
+          <ul className="text-sm text-orange-800 space-y-2 ml-6">
             <li className="list-disc">AI kysyy kysymyksiä kun luot hakukirjeitä tai CV:itä</li>
             <li className="list-disc">Vastaukset tallentuvat automaattisesti</li>
-            <li className="list-disc">Seuraavalla kerralla AI <strong className="text-orange-300">ei kysy samaa uudelleen</strong></li>
+            <li className="list-disc">Seuraavalla kerralla AI <strong className="text-orange-900">ei kysy samaa uudelleen</strong></li>
             <li className="list-disc">Voit muokata vastauksia milloin tahansa</li>
-            <li className="list-disc">Vaihda <strong className="text-orange-300">Kompakti</strong>-näkymään nähdäksesi enemmän kerralla</li>
+            <li className="list-disc">Vaihda <strong className="text-orange-900">Kompakti</strong>-näkymään nähdäksesi enemmän kerralla</li>
           </ul>
         </div>
       </div>
