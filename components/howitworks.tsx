@@ -1,5 +1,5 @@
 "use client";
-import { User, Brain, FileText, CheckCircle2, ChevronRight, FileEdit, ArrowRight } from "lucide-react";
+import { User, Brain, FileText, CheckCircle2, ChevronRight, FileEdit, ArrowRight, UserCheck } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
@@ -17,7 +17,7 @@ export default function HowItWorksTimeline() {
       action: null
     },
     {
-      icon: Brain,
+      icon: UserCheck,
       title: language === "en" ? "Complete profile" : "Täytä profiilisi",
       text: language === "en" ? "Add your skills and background." : "Kerro taustastasi ja vahvuuksistasi.",
       isCompleted: false,

@@ -1,4 +1,5 @@
-// app/create-cover-letter/page.tsx
+// app/create-cover-letter/page.tsx - TÄYDELLINEN FREE-VERSIO
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -10,10 +11,10 @@ import {
   Loader2, Sparkles, Zap, CheckCircle, Crown, AlertCircle, Target, Info, ArrowRight, X, User
 } from "lucide-react";
 import { TokenAction, useTokens } from "@/hooks/useTokens";
+import { useFreeUsage } from '@/hooks/useFreeUsage'; // ✅ UUSI
 
 type Language = "finnish" | "english" | "swedish";
 type Style = "formal" | "casual";
-// ✅ PÄIVITETTY TYYPPI: Lisätty 'general'
 type CoverLetterVersion = "v1" | "v2" | "general";
 
 interface Question {
@@ -27,7 +28,6 @@ interface Question {
 
 export default function CreateCoverLetterPage() {
   const [jobDescription, setJobDescription] = useState("");
-  // ✅ UUDET TILAT: Yleistä kirjettä varten
   const [targetRole, setTargetRole] = useState("");
   const [targetIndustry, setTargetIndustry] = useState("");
   
@@ -54,6 +54,9 @@ export default function CreateCoverLetterPage() {
     consumeTokens, canUseAction, getActionCost
   } = useTokens();
 
+  // ✅ UUSI: Free Usage Hook
+  const freeUsage = useFreeUsage();
+
   useEffect(() => {
     if (isGenerating) {
       const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -66,16 +69,64 @@ export default function CreateCoverLetterPage() {
     }
   }, [isGenerating]);
 
+  // ✅ UUSI: Validation Functions
+  const canCreateCoverLetter = () => {
+    if (plan_type === 'free') {
+      return !freeUsage.hasUsedAny && !freeUsage.isLoading;
+    }
+    
+    let action: TokenAction = 'cover_letter_v1';
+    if (selectedVersion === 'general') action = 'cover_letter_general';
+    else if (useRAG) action = 'cover_letter_rag';
+    else if (selectedVersion === 'v2') action = 'cover_letter_v2';
+    
+    const cost = getActionCost(action);
+    return tokens >= cost;
+  };
+
+  const getBlockedReason = () => {
+    if (plan_type === 'free') {
+      if (freeUsage.hasUsedCoverLetter) {
+        return '❌ Olet jo käyttänyt ilmaisen hakukirjeen';
+      }
+      if (freeUsage.hasUsedCV) {
+        return '❌ Käytit ilmaisen tokenisi CV:hen';
+      }
+    }
+    
+    let action: TokenAction = 'cover_letter_v1';
+    if (selectedVersion === 'general') action = 'cover_letter_general';
+    else if (useRAG) action = 'cover_letter_rag';
+    else if (selectedVersion === 'v2') action = 'cover_letter_v2';
+    
+    const cost = getActionCost(action);
+    if (tokens < cost) {
+      return `❌ Tarvitset ${cost} tokenia, sinulla on ${tokens}`;
+    }
+    return null;
+  };
+
   const handleSubmit = async () => {
     if (!isLoaded || !isSignedIn || !user?.id) {
       toast.error('Odota hetki, kirjautuminen käynnissä...');
       return;
     }
 
-    // ✅ VALIDOINTI: Työpaikkailmoitus pakollinen vain jos EI ole general
     if (selectedVersion !== 'general' && !jobDescription.trim()) {
       setError("Työpaikkailmoitus on pakollinen tälle kirjeelle");
       return;
+    }
+
+    // ✅ VALIDATION
+    if (!canCreateCoverLetter()) {
+      const reason = getBlockedReason();
+      if (reason) {
+        toast.error(reason, { duration: 6000 });
+        if (plan_type === 'free') {
+          router.push("/pricing");
+        }
+        return;
+      }
     }
 
     if (selectedVersion === 'v2' && !features.canUseV2) {
@@ -88,8 +139,7 @@ export default function CreateCoverLetterPage() {
       return;
     }
 
-    // ✅ ACTIONIN VALINTA
-let action: TokenAction = 'cover_letter_v1';
+    let action: TokenAction = 'cover_letter_v1';
     if (selectedVersion === 'general') action = 'cover_letter_general';
     else if (useRAG) action = 'cover_letter_rag';
     else if (selectedVersion === 'v2') action = 'cover_letter_v2';
@@ -104,12 +154,10 @@ let action: TokenAction = 'cover_letter_v1';
     setError(null);
 
     try {
-      // ✅ ENDPOINT VALINTA
-      let endpoint = '/api/generate-cover-letter'; // Default V1
+      let endpoint = '/api/generate-cover-letter';
       if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
       if (selectedVersion === 'general') endpoint = '/api/generate-general-cover-letter';
 
-      // ✅ PAYLOADIN RAKENTAMINEN
       const body: any = {
         personalNotes,
         language,
@@ -138,9 +186,28 @@ let action: TokenAction = 'cover_letter_v1';
         return;
       }
 
-      // Kysymyslogiikka (lähinnä V1/V2, General harvemmin kyselee mutta valmius on)
+      // ✅ FREE ERROR HANDLING
+      if (!response.ok) {
+        if (data.error === 'FREE_COVER_LETTER_ALREADY_USED') {
+          toast.error(data.message || 'Olet jo käyttänyt ilmaisen hakukirjeen!', {
+            duration: 8000,
+            description: 'Aktivoi Basic-tilaus luodaksesi lisää'
+          });
+          router.push('/pricing');
+          return;
+        }
+
+        if (data.error === 'FREE_SLOT_USED_FOR_CV') {
+          toast.error(data.message || 'Käytit ilmaisen tokenisi CV:hen', {
+            duration: 8000,
+            description: 'Aktivoi Basic-tilaus luodaksesi hakukirjeen'
+          });
+          router.push('/pricing');
+          return;
+        }
+      }
+
       if (data.needsMoreInfo && data.questions && data.questions.length > 0) {
-        console.log(`❓ AI has ${data.questions.length} questions`);
         setPendingQuestions(data.questions);
         setShowQuestionPrompt(true);
         setIsGenerating(false);
@@ -173,16 +240,12 @@ let action: TokenAction = 'cover_letter_v1';
     }
   };
 
-  // KÄYTTÄJÄ HALUAA VASTATA (Vain V1/V2 yleensä)
   const handleShowQuestions = () => {
-  console.log('❓ Questions received from API:', pendingQuestions);
-  console.log('❓ Sample question:', pendingQuestions[0]);
-  
-  setQuestions(pendingQuestions);
-  setShowQuestions(true);
-  setShowQuestionPrompt(false);
-};
-  // KÄYTTÄJÄ HALUAA JATKAA ILMAN
+    setQuestions(pendingQuestions);
+    setShowQuestions(true);
+    setShowQuestionPrompt(false);
+  };
+
   const handleSkipQuestions = async () => {
     setShowQuestionPrompt(false);
     setIsGenerating(true);
@@ -190,7 +253,6 @@ let action: TokenAction = 'cover_letter_v1';
     try {
       let endpoint = '/api/generate-cover-letter';
       if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
-      // General ei yleensä tule tänne, mutta varuiksi
       if (selectedVersion === 'general') endpoint = '/api/generate-general-cover-letter';
 
       let action: TokenAction = 'cover_letter_v1';
@@ -202,7 +264,7 @@ let action: TokenAction = 'cover_letter_v1';
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jobDescription, // Voi olla tyhjä generalissa
+          jobDescription,
           personalNotes,
           language,
           style,
@@ -233,82 +295,70 @@ let action: TokenAction = 'cover_letter_v1';
     }
   };
 
- const handleAnswerQuestions = async () => {
-  const criticalQuestions = questions.filter(q => q.priority === 'critical');
-  const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
-  
-  console.log('🔍 DEBUG: Current answers state:', answers);
-  console.log('🔍 DEBUG: Questions:', questions.map(q => ({ id: q.id, priority: q.priority, question: q.question })));
-  console.log('🔍 DEBUG: Critical questions:', criticalQuestions.length);
-  console.log('🔍 DEBUG: Unanswered critical:', unansweredCritical.length);
-  
-  if (unansweredCritical.length > 0) {
-    setError('Vastaa kaikkiin pakollisiin kysymyksiin');
-    return;
-  }
-
-  setIsGenerating(true);
-  setError(null);
-
-  try {
-    let endpoint = '/api/generate-cover-letter';
-    if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
-
-    let action: TokenAction = useRAG ? 'cover_letter_rag' : (selectedVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1');
-
-    // ✅ KRIITTINEN KORJAUS: Muodosta array objekteja
-    const answeredQuestionsArray = questions
-      .filter(q => answers[q.id] && answers[q.id].trim().length > 0)
-      .map(q => ({
-        id: q.id,
-        question: q.question,  // ✅ OIKEA: Kysymysteksti
-        answer: answers[q.id]
-      }));
-
-    console.log('📤 Sending to API:', {
-      endpoint,
-      answersCount: answeredQuestionsArray.length,
-      sampleAnswer: answeredQuestionsArray[0]
-    });
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jobDescription,
-        personalNotes,
-        language,
-        style,
-        answeredQuestions: answeredQuestionsArray,  // ✅ OIKEA: Array objekteja
-        skipQuestions: true,
-        enableRAG: useRAG
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-
-    if (data.success && data.coverLetterId) {
-      if (plan_type !== 'free' && isActive) {
-        await consumeTokens(action);
-      }
-      setShowQuestions(false);
-      setQuestions([]);
-      setAnswers({});
-      toast.success('✅ Hakukirje luotu vastausten perusteella!');
-      router.push(`/edit-cover-letter/${data.coverLetterId}`);
-    } else {
-      throw new Error(data.error || 'coverLetterId puuttuu');
+  const handleAnswerQuestions = async () => {
+    const criticalQuestions = questions.filter(q => q.priority === 'critical');
+    const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
+    
+    if (unansweredCritical.length > 0) {
+      setError('Vastaa kaikkiin pakollisiin kysymyksiin');
+      return;
     }
 
-  } catch (err) {
-    console.error('❌ Error:', err);
-    setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-  } finally {
-    setIsGenerating(false);
-  }
-};
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      let endpoint = '/api/generate-cover-letter';
+      if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
+
+      let action: TokenAction = useRAG ? 'cover_letter_rag' : (selectedVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1');
+
+      const answeredQuestionsArray = questions
+        .filter(q => answers[q.id] && answers[q.id].trim().length > 0)
+        .map(q => ({
+          id: q.id,
+          question: q.question,
+          answer: answers[q.id]
+        }));
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobDescription,
+          personalNotes,
+          language,
+          style,
+          answeredQuestions: answeredQuestionsArray,
+          skipQuestions: true,
+          enableRAG: useRAG
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+
+      if (data.success && data.coverLetterId) {
+        if (plan_type !== 'free' && isActive) {
+          await consumeTokens(action);
+        }
+        setShowQuestions(false);
+        setQuestions([]);
+        setAnswers({});
+        toast.success('✅ Hakukirje luotu vastausten perusteella!');
+        router.push(`/edit-cover-letter/${data.coverLetterId}`);
+      } else {
+        throw new Error(data.error || 'coverLetterId puuttuu');
+      }
+
+    } catch (err) {
+      console.error('❌ Error:', err);
+      setError(err instanceof Error ? err.message : 'Tuntematon virhe');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   if (!isLoaded || tokensLoading) {
     return (
@@ -326,7 +376,6 @@ let action: TokenAction = 'cover_letter_v1';
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
       
-      {/* DIALOGIT (Questions, Loading) pysyvät samana... */}
       {showQuestionPrompt && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-8 border-2 border-white/40">
@@ -367,9 +416,7 @@ let action: TokenAction = 'cover_letter_v1';
         </div>
       )}
 
-      {/* KYSYMYS BANNER (sama kuin ennen) */}
       {showQuestions && questions.length > 0 && (
-         /* ... (pidä olemassa oleva koodi tässä) ... */
          <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
             <div className="max-w-7xl mx-auto px-4 py-6">
                 <div className="bg-white/90 backdrop-blur-xl border-2 border-white/40 rounded-3xl shadow-2xl p-6 relative">
@@ -381,13 +428,13 @@ let action: TokenAction = 'cover_letter_v1';
                     </button>
                     <h3 className="font-bold text-lg mb-4">Vastaa kysymyksiin</h3>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto mb-4">
-                        {questions.map((q, idx) => (
+                        {questions.map((q) => (
                              <div key={q.id} className="bg-white p-4 rounded-xl border border-gray-200">
                                  <p className="font-semibold mb-2">{q.question}</p>
                                  <textarea 
                                     className="w-full border rounded p-2"
-          value={answers[q.id] || ''}  // Käyttää kysymyksen ID:tä avaimena
-onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
+                                    value={answers[q.id] || ''}
+                                    onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
                                  />
                              </div>
                         ))}
@@ -411,11 +458,39 @@ onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
           </p>
         </div>
 
+        {/* ✅ FREE WARNING BANNER */}
+        {plan_type === 'free' && freeUsage.hasUsedAny && !freeUsage.isLoading && (
+          <div className="mb-6">
+            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 shadow-lg">
+              <div className="flex items-start gap-4">
+                <AlertCircle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-1" />
+                <div className="flex-1">
+                  <h3 className="font-bold text-xl text-amber-900 mb-2">
+                    🚫 Ilmainen käyttö loppu
+                  </h3>
+                  <p className="text-amber-800 mb-4">
+                    {freeUsage.hasUsedCoverLetter 
+                      ? 'Olet jo luonut ilmaisen hakukirjeen. Aktivoi Basic-tilaus luodaksesi lisää.'
+                      : 'Käytit ilmaisen tokenisi CV:hen. Aktivoi Basic-tilaus luodaksesi hakukirjeen.'
+                    }
+                  </p>
+                  <Button
+                    onClick={() => router.push("/pricing")}
+                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-lg"
+                  >
+                    <Crown className="w-5 h-5 mr-2" />
+                    Aktivoi Basic (4,99€/kk) →
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white/90 backdrop-blur-xl border-2 border-white/40 rounded-3xl shadow-2xl p-8 relative overflow-hidden">
           
           <div className="space-y-8 relative z-10">
 
-            {/* Version Selection */}
             <div>
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <Target className="w-6 h-6 text-indigo-600" />
@@ -424,7 +499,6 @@ onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 
-                {/* 1. Tavallinen (V1) */}
                 <button
                   type="button"
                   onClick={() => setSelectedVersion("v1")}
@@ -451,7 +525,6 @@ onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
                   </span>
                 </button>
 
-                {/* 2. ATS-Optimoitu (V2) */}
                 <button
                   type="button"
                   onClick={() => features.canUseV2 ? setSelectedVersion("v2") : null}
@@ -487,7 +560,6 @@ onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
                   </span>
                 </button>
 
-                {/* 3. ✅ UUSI: Yleinen Esittely (General) */}
                 <button
                   type="button"
                   onClick={() => setSelectedVersion("general")}
@@ -517,7 +589,6 @@ onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
               </div>
             </div>
 
-            {/* RAG Toggle (Available for ALL, check permissions) */}
             {features.canUseRAG && (
               <div className="p-6 bg-amber-50 rounded-xl border-2 border-amber-200">
                 <div className="flex items-start gap-4">
@@ -546,9 +617,7 @@ onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
               </div>
             )}
 
-            {/* INPUT FIELDS - CHANGE BASED ON VERSION */}
             {selectedVersion !== 'general' ? (
-              // ✅ V1 & V2: Näytä Työpaikkailmoitus
               <div className="animate-fade-in">
                 <label className="block text-sm font-bold text-gray-900 mb-3 uppercase">
                   📋 Työpaikkailmoitus <span className="text-red-600">*</span>

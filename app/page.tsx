@@ -919,44 +919,7 @@ if (!isLoaded || subLoading) {
             </Link>
           </div>
         )}
-
-        {/* HAKUKIRJE KORTTI */}
-        <Link href="/create-cover-letter" className="group">
-          <div className="h-full backdrop-blur-xl bg-white/5 border border-white/10 rounded-[2rem] shadow-lg p-8 group-hover:shadow-2xl group-hover:shadow-emerald-500/20 group-hover:-translate-y-2 transition-all duration-300">
-            <div className="bg-emerald-500/20 backdrop-blur-md w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform border border-emerald-400/30">
-              <FileInput className="h-8 w-8 text-emerald-400" />
-            </div>
-            <h3 className="font-black text-2xl mb-2 text-gray-100 tracking-tight">
-              {language === "en" ? "Cover Letter" : "Hakukirje"}
-            </h3>
-            <p className="text-sm text-gray-400 mb-8 leading-relaxed">
-              {isPaid
-                ? language === "en" ? "Craft compelling letters for every application." : "Luo vakuuttavat kirjeet jokaiseen hakuun."
-                : language === "en" ? "1 general letter to get you started." : "1 yleinen hakukirje aloittamiseen."}
-            </p>
-            <Button className="w-full h-12 bg-emerald-500 hover:bg-emerald-600 rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-colors text-white">
-              {language === "en" ? "Write Letter" : "Kirjoita kirje"}
-            </Button>
-          </div>
-        </Link>
-
-        {/* PROFIILI KORTTI */}
-        <Link href="/profile" className="group">
-          <div className="h-full backdrop-blur-xl bg-white/5 border border-white/10 rounded-[2rem] shadow-lg p-8 group-hover:shadow-2xl group-hover:shadow-amber-500/20 group-hover:-translate-y-2 transition-all duration-300">
-            <div className="bg-amber-500/20 backdrop-blur-md w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform border border-amber-400/30">
-              <User className="h-8 w-8 text-amber-400" />
-            </div>
-            <h3 className="font-black text-2xl mb-2 text-gray-100 tracking-tight">
-              {language === "en" ? "Your Profile" : "Profiili"}
-            </h3>
-            <p className="text-sm text-gray-400 mb-8 leading-relaxed">
-              {language === "en" ? "Keep your info updated for better AI generation." : "Pidä tiedot ajan tasalla parasta tulosta varten."}
-            </p>
-            <Button variant="outline" className="w-full h-12 rounded-xl border border-amber-400/30 font-bold text-amber-300 hover:bg-amber-500/10 transition-colors">
-              {language === "en" ? "Edit Profile" : "Muokkaa profiilia"}
-            </Button>
-          </div>
-        </Link>
+   
       </div>
 
       {/* --- OMAT DOKUMENTIT --- */}
