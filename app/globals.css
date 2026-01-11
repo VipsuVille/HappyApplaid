@@ -1,12 +1,77 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-body, html {
+
+/* =========================
+   BASE RESET
+   ========================= */
+* {
   box-sizing: border-box;
 }
+
 body {
+  @apply bg-background text-foreground;
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* =========================
+   GLOBAL HELPERS
+   ========================= */
+.no-print {
+  display: block;
+}
+
+/* =========================
+   ANIMATIONS
+   ========================= */
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.animate-fade {
+  animation: fade 0.8s ease-in-out;
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide {
+  background-size: 200% 200%;
+  animation: slide 2s linear infinite;
+}
+
+@keyframes slide {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* =========================
+   HERO TEXT FIXES
+   ========================= */
+.hero-title {
+  word-break: keep-all;
+  white-space: normal;
+  hyphens: manual;
+  line-height: 1.3;
+}
+
+.hero-subtitle,
+.hero-description {
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
+}
+
+/* =========================
+   PRINT / CV STYLES
+   ========================= */
 @page {
   size: A4;
   margin: 0;
@@ -14,99 +79,16 @@ body {
 
 @media print {
   body {
-    width: 210mm;
-    height: 297mm;
-  }
-  * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    color-adjust: exact;
-  }
-}
-/* globals.css */
-/* Estä sanan katkeaminen */
-/* Add to your globals.css */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-.clip-triangle {
-  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-}
-
-.animate-blink {
-  animation: blink 1s step-end infinite;
-}
-
-@keyframes blink {
-  from, to { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.animate-fade {
-  animation: fade 1s ease-in-out;
-}
-
-@keyframes fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-} 
-/* Prevent word breaking for hero title */
-.hero-title {
-  word-break: keep-all;
-  white-space: normal;
-  /* Add hyphens control */
-  hyphens: manual;
-  /* No orphans (prevents single words on last line) */
-  orphans: 3;
-  /* No widows (prevents single words on first line) */
-  widows: 3;
-}
-
-/* Make sure words don't break across spans */
-.word-wrapper {
-  display: inline-block;
-  white-space: nowrap;
-}
-
-/* Improve text wrapping for subtitles and descriptions */
-.hero-subtitle, .hero-description {
-  overflow-wrap: break-word;
-  word-break: normal;
-  hyphens: manual;
-}
-
-/* Ensure height for animation */
-.hero-title {
-  min-height: 1.2em; /* Ensure sufficient space reservation */
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .hero-title {
-    font-size: 2.5rem; /* Slightly smaller on mobile */
-    line-height: 1.2;
-    padding: 0 10px;
-  }
-}
-
-/* Add more spacing between lines in the hero title */
-.hero-title {
-  line-height: 1.3;
-}
-/* globals.css */
-@media print {
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
     background: white !important;
     color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-  
+
   .no-print {
     display: none !important;
   }
-  /* Varmista että CV täyttää koko sivun */
+
   .cv-container {
     width: 210mm !important;
     height: 297mm !important;
@@ -115,220 +97,12 @@ body {
     box-shadow: none !important;
   }
 }
-@keyframes slide {
-  0% {
-      background-position: 0% 50%;
-  }
-  50% {
-      background-position: 100% 50%;
-  }
-  100% {
-      background-position: 0% 50%;
-  }
-}
 
-.animate-slide {
-  background-size: 200% 200%;
-  animation: slide 2s linear infinite;
-}
-
-.shadow-xl {
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-}
-.zoom-50 {
-  zoom: 0.5;
-}
-.zoom-40 {
-  zoom: 0.40;
-}
-.zoom-60 {
-  zoom: 0.60;
-}
-.zoom-80 {
-  zoom: 0.80;
-}
-
-.zoom-100 {
-  zoom: 1;
-}
-.rounded-tl-3xl {
-  border-top-left-radius: 1.5rem;
-}
-
-.rounded-bl-3xl {
-  border-bottom-left-radius: 1.5rem;
-}
-
-.text-blue-900 {
-  color: #1c3d5a;
-}
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-  }
-}
-/* styles/coverLetterStyles.css */
-
-.cover-letter-container {
-  width: 210mm;
-  min-height: 297mm;
-  background-color: white;
-  position: relative;
-  overflow: hidden;
-}
-
-.cover-letter-section {
-  margin-bottom: 1.5rem;
-}
-
-.section-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: #374151;
-}
-
-.section-content {
-  color: #4B5563;
-  line-height: 1.6;
-}
-
-.editable-textarea {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #E5E7EB;
-  border-radius: 0.25rem;
-  outline: none;
-  min-height: 100px;
-}
-
-.editable-textarea:focus {
-  border-color: #3B82F6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
-}
-
-/* Cover letter preview styling */
-.cover-letter-preview {
-  transform-origin: top left;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  border-radius: 0.375rem;
-}
-
-@media (max-width: 768px) {
-  .cover-letter-preview {
-    transform: scale(0.4);
-  }
-}
-
-@media (min-width: 769px) {
-  .cover-letter-preview {
-    transform: scale(1);
-  }
-}
-
-/* Print styling */
-@media print {
-  .cover-letter-container {
-    width: 210mm !important;
-    min-height: 297mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-}
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-20px) rotate(5deg);
-  }
-}
-
-@keyframes glow {
-  0%, 100% {
-    text-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 
-                 0 0 20px rgba(59, 130, 246, 0.3);
-  }
-  50% {
-    text-shadow: 0 0 15px rgba(59, 130, 246, 0.7), 
-                 0 0 30px rgba(59, 130, 246, 0.5),
-                 0 0 40px rgba(59, 130, 246, 0.3);
-  }
-}
-/* Add this to your CSS or use inline styles */
-.hero-title {
-  text-shadow: 0 0 15px rgba(59, 130, 246, 0.5), 0 0 30px rgba(59, 130, 246, 0.3);
-  position: relative;
-}
-
-.hero-title::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
-  background: linear-gradient(45deg, rgba(59, 130, 246, 0.2), rgba(168, 85, 247, 0.2));
-  filter: blur(20px);
-  z-index: -1;
-  border-radius: 20px;
-}
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
+/* =========================
+   ZOOM HELPERS (PREVIEW)
+   ========================= */
+.zoom-40 { zoom: 0.4; }
+.zoom-50 { zoom: 0.5; }
+.zoom-60 { zoom: 0.6; }
+.zoom-80 { zoom: 0.8; }
+.zoom-100 { zoom: 1; }

@@ -1,0 +1,69 @@
+@layer base {
+  :root {
+    /* =========================
+       BRAND COLORS
+       ========================= */
+    --brand-primary: 24 94% 53%;   /* orange-500 */
+    --brand-secondary: 38 92% 50%; /* amber-500 */
+
+    /* =========================
+       BASE BACKGROUNDS
+       ========================= */
+    --background: 222 47% 11%;     /* app background */
+    --foreground: 0 0% 98%;
+
+    --card: 220 26% 14%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 220 26% 14%;
+    --popover-foreground: 0 0% 98%;
+
+    /* =========================
+       BUTTONS & UI SEMANTICS
+       ========================= */
+    --primary: var(--brand-primary);
+    --primary-foreground: 0 0% 0%;
+
+    --secondary: 38 92% 95%;
+    --secondary-foreground: 38 92% 20%;
+
+    --accent: var(--brand-secondary);
+    --accent-foreground: 0 0% 0%;
+
+    --muted: 220 14% 20%;
+    --muted-foreground: 215 20% 65%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* =========================
+       BORDERS & INPUTS
+       ========================= */
+    --border: 220 14% 25%;
+    --input: 220 14% 25%;
+    --ring: var(--brand-primary);
+
+    /* =========================
+       RADIUS
+       ========================= */
+    --radius: 0.75rem;
+
+    /* =========================
+       CHART COLORS
+       ========================= */
+    --chart-1: 24 94% 53%;
+    --chart-2: 38 92% 50%;
+    --chart-3: 173 58% 39%;
+    --chart-4: 197 37% 24%;
+    --chart-5: 43 74% 66%;
+  }
+
+  /* =========================
+     DARK MODE (optional)
+     ========================= */
+  .dark {
+    --background: 222 47% 8%;
+    --card: 220 26% 10%;
+    --border: 220 14% 20%;
+  }
+}
