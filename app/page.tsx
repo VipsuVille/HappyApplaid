@@ -781,19 +781,12 @@ if (!isLoaded || subLoading) {
     )}
 
  return (
-  <div className="min-h-screen bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900 font-sans relative">
-    
-    {/* Background Decor */}
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/20 to-amber-600/20 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-600/15 to-amber-700/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-500/15 to-orange-600/15 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
-    </div>
+  <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 font-sans">
     
     {/* --- PROFIILI MODAALI --- */}
     {showProfilePrompt && profileCompleted === false && (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div className="backdrop-blur-2xl bg-gray-900/80 border border-white/10 rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative animate-in fade-in zoom-in duration-300">
+        <div className="backdrop-blur-2xl bg-white/5 border border-white/10 rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative animate-in fade-in zoom-in duration-300">
           <button
             onClick={() => setShowProfilePrompt(false)}
             className="absolute top-6 right-6 hover:bg-white/10 rounded-full p-2 transition-colors"

@@ -9,6 +9,7 @@ import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
 import crypto from 'crypto';
+import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
 
 export const maxDuration = 60;
 
@@ -265,19 +266,31 @@ export async function POST(req: Request) {
     console.log(`💳 Subscription: ${tier}, Tokens: ${currentTokens}, Active: ${isActive}`);
 
     if (tier === "free") {
-      const { data: freeUsage } = await supabaseAdmin
-        .from("free_usage")
-        .select("used_free_cv")
-        .eq("user_id", userId)
-        .maybeSingle();
+  console.log('🆓 Free tier user - checking usage...');
+  
+  const freeStatus = await checkFreeUsage(userId, 'cv');
+  
+  if (!freeStatus.canUse && !forceGenerate) {
+    console.error(`❌ Free CV not available: ${freeStatus.reason}`);
+    
+    const errorMessages: Record<string, string> = {
+      'FREE_CV_ALREADY_USED': 'Olet jo käyttänyt ilmaisen CV:n! Aktivoi Basic-tilaus.',
+      'FREE_SLOT_USED_FOR_COVER_LETTER': 'Käytit ilmaisen tokenisi hakukirjeeseen. Aktivoi Basic-tilaus luodaksesi CV:n.',
+    };
 
-      if (freeUsage?.used_free_cv && !forceGenerate) {
-        return NextResponse.json(
-          { error: "FREE_CV_ALREADY_USED" },
-          { status: 403 }
-        );
-      }
-    }
+    return NextResponse.json(
+      { 
+        error: freeStatus.reason,
+        message: errorMessages[freeStatus.reason || ''] || 'Ilmainen käyttö on loppu',
+        hasUsedCV: freeStatus.hasUsedCV,
+        hasUsedCoverLetter: freeStatus.hasUsedCoverLetter,
+      },
+      { status: 403 }
+    );
+  }
+
+  console.log('✅ Free CV available');
+}
 
     let required = 0;
     if (tier !== "free") {
@@ -552,21 +565,26 @@ if (shouldRunGuardian) {
     // CONSUME TOKENS
     // ════════════════════════════════════════════════════════════════
 
-    if (tier === "free") {
-      await supabaseAdmin.from("free_usage").upsert({
-        user_id: userId,
-        used_free_cv: true,
-      });
-    } else if (isActive && required > 0) {
-      await supabaseAdmin
-        .from("subscriptions")
-        .update({
-          tokens: currentTokens - required,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-    }
+ if (tier === "free") {
+  const consumed = await consumeFreeUsage(userId, 'cv');
+  
+  if (!consumed) {
+    console.error('⚠️ Failed to mark free CV as used, but CV was created');
+  }
 
+  console.log('✅ Free CV consumed');
+} else if (isActive && required > 0) {
+  // Kuluta tokenit maksaville
+  await supabaseAdmin
+    .from("subscriptions")
+    .update({
+      tokens: currentTokens - required,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+
+  console.log(`✅ Consumed ${required} tokens`);
+}
     console.log(`🎉 CV generated successfully (${Date.now() - startTime}ms)`);
 
     return NextResponse.json({

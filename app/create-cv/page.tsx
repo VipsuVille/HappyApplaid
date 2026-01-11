@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { TokenAction, useTokens } from "@/hooks/useTokens";
 import CVConfirmationModal from "@/components/CVConfirmationModal";
+import { useFreeUsage } from "@/hooks/useFreeUsage";
 
 type CVTemplate = "technical" | "creative" | "simple";
 
@@ -66,6 +67,7 @@ export default function CreateCVPage() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingViolations, setPendingViolations] = useState<Violations | null>(null);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
+  const freeUsage = useFreeUsage();
 
   const { 
     tokens, 
@@ -287,8 +289,34 @@ export default function CreateCVPage() {
     } finally {
       setIsLoading(false);
     }
-  };// ════════════════════════════════════════════════════════════════
-  // ✅ QUESTION HANDLER
+  };
+  // CAN WE MAKE A CV/CL ?
+
+   const canCreateCV = () => {
+    if (plan_type === 'free') {
+      // Free-käyttäjä: Tarkista onko ilmainen käytetty
+      return !freeUsage.hasUsedAny && !freeUsage.isLoading;
+    }
+    // Maksavat: Tarkista tokenit
+    return tokens >= totalCost;
+  };
+
+  const getBlockedReason = () => {
+    if (plan_type === 'free') {
+      if (freeUsage.hasUsedCV) {
+        return '❌ Olet jo käyttänyt ilmaisen CV:n';
+      }
+      if (freeUsage.hasUsedCoverLetter) {
+        return '❌ Käytit ilmaisen tokenisi hakukirjeeseen';
+      }
+    }
+    if (tokens < totalCost) {
+      return `❌ Tarvitset ${totalCost} tokenia, sinulla on ${tokens}`;
+    }
+    return null;
+  };
+  // ════════════════════════════════════════════════════════════════
+  // QUESTION HANDLER
   // ════════════════════════════════════════════════════════════════
 
   const handleAnswerQuestions = async () => {
