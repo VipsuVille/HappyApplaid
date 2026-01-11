@@ -260,7 +260,7 @@ if (!isLoaded || subLoading) {
   // LANDING PAGE (LOGGED OUT) EI KIRJAUTUNUT!
   if (!isSignedIn) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 font-sans text-gray-100 selection:bg-orange-400/30 selection:text-white relative overflow-hidden">
+<div className="min-h-screen bg-gradient-to-br from-[#121212] via-[#0e0e0e] to-[#1a1a1a] font-sans text-[#e7e3dc]">
       {/* Subtle background orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl animate-pulse"></div>
@@ -278,7 +278,7 @@ if (!isLoaded || subLoading) {
         
         {/* Hero Section */}
         <div className="mb-12 sm:mb-16">
-          <div className="backdrop-blur-2xl bg-white/5 border border-white/10 rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-black/50 p-6 sm:p-8 md:p-12 lg:p-16 relative overflow-hidden">
+          <div className="backdrop-blur-2xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-3xl sm:rounded-[2.5rem] shadow-2xl shadow-black/50 p-6 sm:p-8 md:p-12 lg:p-16 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-orange-500/5 pointer-events-none rounded-3xl sm:rounded-[2.5rem]"></div>
 
             <div className="relative z-10 text-center">
@@ -786,7 +786,7 @@ if (!isLoaded || subLoading) {
     {/* --- PROFIILI MODAALI --- */}
     {showProfilePrompt && profileCompleted === false && (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div className="backdrop-blur-2xl bg-white/5 border border-white/10 rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative animate-in fade-in zoom-in duration-300">
+        <div className="backdrop-blur-2xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative animate-in fade-in zoom-in duration-300">
           <button
             onClick={() => setShowProfilePrompt(false)}
             className="absolute top-6 right-6 hover:bg-white/10 rounded-full p-2 transition-colors"
@@ -828,10 +828,11 @@ if (!isLoaded || subLoading) {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       
       {/* --- TERVEHDYS OSA --- */}
-      <div className="mb-10 backdrop-blur-xl bg-white/5 border border-white/10 rounded-[2.5rem] shadow-xl shadow-black/50 p-8 sm:p-10 relative overflow-hidden">
+      <div className="mb-10 backdrop-blur-xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2.5rem] shadow-xl shadow-black/50 p-8 sm:p-10 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 blur-3xl rounded-full -mr-10 -mt-10"></div>
         
-        <h1 className="text-3xl sm:text-5xl font-black bg-gradient-to-r from-orange-400 via-amber-500 to-orange-500 bg-clip-text text-transparent mb-3 tracking-tight">
+        <h1 className="text-3xl sm:text-5xl font-black bg-gradient-to-r from-amber-400 via-orange-500 to-amber-300
+ bg-clip-text text-transparent mb-3 tracking-tight">
           {language === "en"
             ? `Welcome${displayName ? `, ${displayName}` : ""}!`
             : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
@@ -883,7 +884,7 @@ if (!isLoaded || subLoading) {
         {/* CV KORTTI */}
         {canCreateCV ? (
           <Link href="/create-cv" className="group">
-            <div className="h-full backdrop-blur-xl bg-white/5 border border-white/10 rounded-[2rem] shadow-lg p-8 group-hover:shadow-2xl group-hover:shadow-orange-500/20 group-hover:-translate-y-2 transition-all duration-300">
+            <div className="h-full backdrop-blur-xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2rem] shadow-lg p-8 group-hover:shadow-2xl group-hover:shadow-orange-500/20 group-hover:-translate-y-2 transition-all duration-300">
               <div className="bg-orange-500/20 backdrop-blur-md w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform border border-orange-400/30">
                 <FileText className="h-8 w-8 text-orange-400" />
               </div>
@@ -923,7 +924,7 @@ if (!isLoaded || subLoading) {
       </div>
 
       {/* --- OMAT DOKUMENTIT --- */}
-      <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-[2.5rem] shadow-xl p-8 sm:p-10">
+      <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2.5rem] shadow-xl p-8 sm:p-10">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-black flex items-center gap-3 text-gray-100 tracking-tight">
             <Files className="h-7 w-7 text-orange-400" />
