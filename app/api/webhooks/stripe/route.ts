@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
         
         const userId = session.client_reference_id;
         const tier = session.metadata?.tier || 'basic';
-        
+        const billingPeriod = session.metadata?.billingPeriod || 'monthly';
+
         // ✅ HAE TIER CONFIG
         const tierConfig = PRICING[tier as keyof typeof PRICING];
         if (!tierConfig) {
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
         
         console.log(`💾 Saving: user=${userId}, tier=${tier}, tokens=${tierConfig.tokens}`);
         
+       
         // ✅ TALLENNA OIKEIN
         const { data, error } = await supabaseAdmin
           .from('subscriptions')
@@ -90,6 +92,7 @@ export async function POST(req: NextRequest) {
             stripe_subscription_id: subscription.id,
             status: subscription.status,
             current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            billing_period: billingPeriod, // ✅ UUSI KENTTÄ
             plan: tier, // legacy field
             plan_type: tier, // ✅ OIKEA tier (basic/semi-pro/pro)
             tokens: tierConfig.tokens,

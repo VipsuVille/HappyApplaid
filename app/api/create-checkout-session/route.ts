@@ -1,11 +1,9 @@
+// app/api/create-checkout-session/route.ts - PÄIVITETTY
 
-// ========================================
-// app/api/create-checkout-session/route.ts - KORJATTU
-// ========================================
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import Stripe from 'stripe';
-import { currentUser } from '@clerk/nextjs/server';
-import { PRICING, Tier } from '@/lib/pricing';
+import { PRICING, BillingPeriod } from '@/lib/pricing';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-02-24.acacia'
@@ -13,80 +11,87 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. TARKISTA AUTENTIKOINTI
-    const user = await currentUser();
+    const { userId } = await auth();
     
-    if (!user || !user.id) {
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Kirjaudu sisään ensin' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    
-    // 2. HAE TIER
-    const { tier } = await req.json();
-    
-    if (!tier || !PRICING[tier as Tier]) {
+
+    const body = await req.json();
+    const { tier, billingPeriod = 'monthly' } = body as { 
+      tier: 'basic' | 'premium'; 
+      billingPeriod?: BillingPeriod 
+    };
+
+    if (!tier || (tier !== 'basic' && tier !== 'premium')) {
       return NextResponse.json(
-        { error: 'Virheellinen tilaustyyppi' },
+        { error: 'Invalid tier' },
         { status: 400 }
       );
     }
+
+    // ✅ HAE OIKEA PRICE ID
+    const tierConfig = PRICING[tier];
     
-    // 3. HAE STRIPE PRICE ID
-    const tierData = PRICING[tier as Tier];
+    let priceId: string;
     
-    if (!tierData.stripePriceId) {
-      console.error(`❌ Missing Stripe Price ID for tier: ${tier}`);
+    if ('stripePriceId' in tierConfig && typeof tierConfig.stripePriceId === 'object') {
+      if (billingPeriod === 'monthly') {
+        priceId = tierConfig.stripePriceId.monthly;
+      } else if (billingPeriod === 'sixMonths') {
+        priceId = tierConfig.stripePriceId.sixMonths;
+      } else if (billingPeriod === 'yearly') {
+        priceId = tierConfig.stripePriceId.yearly;
+      } else {
+        return NextResponse.json(
+          { error: 'Invalid billing period' },
+          { status: 400 }
+        );
+      }
+    } else {
       return NextResponse.json(
-        { error: 'Hinnoittelukonfiguraatio puuttuu. Ota yhteyttä tukeen.' },
+        { error: 'Invalid tier configuration' },
         { status: 500 }
       );
     }
 
-    console.log(`🛒 Creating checkout for ${tier}:`, {
-      userId: user.id,
-      priceId: tierData.stripePriceId,
-      tokens: tierData.tokens
-    });
-    
-    // 4. LUO CHECKOUT-ISTUNTO
+    if (!priceId) {
+      console.error(`Missing price ID for ${tier} ${billingPeriod}`);
+      return NextResponse.json(
+        { error: 'Price ID not configured' },
+        { status: 500 }
+      );
+    }
+
+    // ✅ LUO CHECKOUT SESSION
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [
         {
-          price: tierData.stripePriceId,
+          price: priceId,
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
-      client_reference_id: user.id,
+      success_url: `${process.env.NEXTAUTH_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXTAUTH_URL}/pricing`,
+      client_reference_id: userId,
       metadata: {
-        userId: user.id,
-        tier: tier,
-        tokens: tierData.tokens.toString(),
+        userId,
+        tier,
+        billingPeriod,
       },
-      subscription_data: {
-        metadata: {
-          userId: user.id,
-          tier: tier,
-          tokens: tierData.tokens.toString(),
-        }
-      }
     });
-    
-    console.log('✅ Checkout session created:', session.id);
-    
-    return NextResponse.json({ 
-      sessionId: session.id, 
-      url: session.url 
-    });
-  } catch (error: any) {
-    console.error('❌ Checkout error:', error);
+
+    return NextResponse.json({ url: session.url });
+
+  } catch (error) {
+    console.error('Checkout session error:', error);
     return NextResponse.json(
-      { error: error.message || 'Maksuprosessin aloittaminen epäonnistui' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     // ✅ KÄYTÄ JAETTUA FUNKTIOTA
-    const result = await detectATSUsageAI(jobDescription);
+    const result = await detectATSUsageAI(jobDescription);                                                                                                                                                                                                                                                                                                          
     return NextResponse.json(result);
     
   } catch (error) {

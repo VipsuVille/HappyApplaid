@@ -1,85 +1,83 @@
-// components/pricing-button.tsx
+// components/buttons/pricing-button.tsx
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@clerk/nextjs';
-import { Tier } from '@/lib/pricing';
+import { useUser } from '@clerk/nextjs';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
+import { Tier, BillingPeriod } from '@/lib/pricing';
 
-interface PricingButtonProps {
+export interface PricingButtonProps {
   tier: Tier;
   label: string;
-  disabled?: boolean;
+  billingPeriod?: BillingPeriod; // default = monthly
 }
 
-export function PricingButton({ tier, label, disabled }: PricingButtonProps) {
-  const [loading, setLoading] = useState(false);
+export function PricingButton({
+  tier,
+  label,
+  billingPeriod = 'monthly',
+}: PricingButtonProps) {
   const router = useRouter();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useUser();
+  const [loading, setLoading] = useState(false);
 
-const handleClick = async () => {
-  console.log('🎯 Button clicked!');
-  console.log('🔐 isSignedIn:', isSignedIn);
-  console.log('📦 tier:', tier);
+  const handleClick = async () => {
+    if (!isLoaded || loading) return;
 
-  if (!isSignedIn) {
-    console.log('❌ Not signed in, redirecting to sign-in');
-    router.push('/sign-in?redirect=/pricing');
-    return;
-  }
+    // FREE
+    if (tier === 'free') {
+      router.push(isSignedIn ? '/dashboard' : '/sign-up');
+      return;
+    }
 
-  if (tier === 'free') {
-    console.log('ℹ️ Free tier, redirecting to dashboard');
-    router.push('/dashboard');
-    return;
-  }
+    // PAID but not logged in
+    if (!isSignedIn) {
+      router.push('/sign-in?redirect=/pricing');
+      return;
+    }
 
-  setLoading(true);
-  console.log('🚀 Calling API...');
+    setLoading(true);
 
-  try {
-    const response = await fetch('/api/create-checkout-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier })
-    });
+    try {
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tier,
+          billingPeriod,
+        }),
+      });
 
-    console.log('📡 Response status:', response.status);
-    console.log('📡 Response ok:', response.ok);
+      const data = await res.json();
 
-    const data = await response.json();
-    console.log('📦 Response data:', data);
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Checkout failed');
+      }
 
-    if (data.url) {
-      console.log('✅ Got URL, redirecting to:', data.url);
       window.location.href = data.url;
-    } else {
-      console.error('❌ No URL in response');
-      alert('Virhe: ' + (data.error || 'Ei checkout URL:ia'));
+    } catch (err) {
+      console.error('❌ Checkout error:', err);
+      alert('Virhe maksusivun avaamisessa. Yritä uudelleen.');
       setLoading(false);
     }
-  } catch (error) {
-    console.error('💥 Fetch error:', error);
-    alert('Maksuprosessi epäonnistui');
-    setLoading(false);
-  }
-};
+  };
 
   return (
-    <button
+    <Button
       onClick={handleClick}
-      disabled={disabled || loading}
-      className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+      disabled={loading}
+      className="w-full py-4 text-lg font-semibold"
     >
       {loading ? (
-        <span className="flex items-center justify-center">
-          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          Ladataan...
+        <span className="flex items-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Ladataan…
         </span>
-      ) : label}
-    </button>
+      ) : (
+        label
+      )}
+    </Button>
   );
 }
