@@ -1,6 +1,7 @@
-//app/components/promoCode.tsx
+'use client';
 
-'use client'
+
+//app/components/promoCode.tsx
 import { useState } from 'react';
 
 export default function PromoCodeRedeem() {

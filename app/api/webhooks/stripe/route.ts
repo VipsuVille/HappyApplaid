@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PRICING } from '@/lib/pricing';
+import { TOKEN_ALLOCATION } from '@/lib/domain/token-allocation';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-02-24.acacia'
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
         const userId = session.client_reference_id;
         const tier = session.metadata?.tier || 'basic';
         const billingPeriod = session.metadata?.billingPeriod || 'monthly';
+       const tokens = TOKEN_ALLOCATION[tier as keyof typeof TOKEN_ALLOCATION] ?? 0;
 
         // ✅ HAE TIER CONFIG
         const tierConfig = PRICING[tier as keyof typeof PRICING];
@@ -80,29 +82,26 @@ export async function POST(req: NextRequest) {
           metadata: { userId, tier }
         });
         
-        console.log(`💾 Saving: user=${userId}, tier=${tier}, tokens=${tierConfig.tokens}`);
         
-       
         // ✅ TALLENNA OIKEIN
-        const { data, error } = await supabaseAdmin
-          .from('subscriptions')
-          .upsert({
-            user_id: userId,
-            stripe_customer_id: session.customer as string,
-            stripe_subscription_id: subscription.id,
-            status: subscription.status,
-            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
-            billing_period: billingPeriod, // ✅ UUSI KENTTÄ
-            plan: tier, // legacy field
-            plan_type: tier, // ✅ OIKEA tier (basic/semi-pro/pro)
-            tokens: tierConfig.tokens,
-            is_active: ['active', 'trialing'].includes(subscription.status),
-            cancel_at_period_end: false, // ✅ Aluksi ei peruutettu
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'user_id'
-          });
+        const { data, error } =await supabaseAdmin
+  .from('subscriptions')
+  .upsert({
+    user_id: userId,
+    stripe_customer_id: session.customer as string,
+    stripe_subscription_id: subscription.id,
+    status: subscription.status,
+    current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+    billing_period: billingPeriod,
+    plan: tier,
+    plan_type: tier,
+    tokens,
+    is_active: ['active', 'trialing'].includes(subscription.status),
+    cancel_at_period_end: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+
 
         if (error) {
           console.error('❌ Supabase error:', error);
@@ -164,28 +163,29 @@ export async function POST(req: NextRequest) {
         }
         
         // ✅ Jos uusi laskutusjakso, lisää tokenit
-        if (event.data.previous_attributes?.current_period_end) {
-          const { data: sub } = await supabaseAdmin
-            .from('subscriptions')
-            .select('plan_type')
-            .eq('stripe_subscription_id', subscription.id)
-            .single();
-          
-          if (sub?.plan_type) {
-            const tierConfig = PRICING[sub.plan_type as keyof typeof PRICING];
-            
-            await supabaseAdmin
-              .from('subscriptions')
-              .update({
-                tokens: tierConfig.tokens, // ✅ Uudet tokenit
-                updated_at: new Date().toISOString(),
-              })
-              .eq('stripe_subscription_id', subscription.id);
-            
-            console.log(`💰 Added ${tierConfig.tokens} tokens`);
-          }
-        }
-        
+      if (event.data.previous_attributes?.current_period_end) {
+  const { data: sub } = await supabaseAdmin
+    .from('subscriptions')
+    .select('plan_type')
+    .eq('stripe_subscription_id', subscription.id)
+    .single();
+
+  if (sub?.plan_type) {
+    const refreshedTokens =
+      TOKEN_ALLOCATION[sub.plan_type as keyof typeof TOKEN_ALLOCATION] ?? 0;
+
+    await supabaseAdmin
+      .from('subscriptions')
+      .update({
+        tokens: refreshedTokens,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('stripe_subscription_id', subscription.id);
+
+    console.log(`💰 Refreshed tokens: ${refreshedTokens}`);
+  }
+}
+ 
         break;
       }
 

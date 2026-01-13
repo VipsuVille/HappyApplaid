@@ -32,7 +32,7 @@ export async function GET() {
       .single();
 
     // ✅ MÄÄRITÄ TIER JA ACTIVE
-    const tier = (subscription?.plan_type || "free").toLowerCase() as 'free' | 'basic' | 'semi-pro' | 'pro';
+    const tier = (subscription?.plan_type || "free").toLowerCase() as 'free' | 'basic' | 'premium';
     const isActive = subscription?.is_active === true && 
                      ['active', 'trialing'].includes(subscription?.status || '');
 

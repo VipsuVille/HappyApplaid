@@ -37,7 +37,7 @@ import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
 import HowItWorksTimeline from "@/components/howitworks";
 
 interface SubscriptionStatus {
-  plan_type: "free" | "basic" | "semi-pro" | "pro";
+  plan_type: "free" | "basic" | "premium";
   is_premium: boolean;
   has_used_free_cv: boolean;
   tokens: number;
@@ -592,7 +592,7 @@ if (!isLoaded || subLoading) {
           </div>
         </div>
 
-        {/* Pricing Section */}
+         {/* ✅ KORJATTU PRICING SECTION - 3 TIERS */}
         <div className="bg-white/5 backdrop-blur-2xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border border-white/10 shadow-2xl mb-16">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-100 mb-4">
@@ -603,10 +603,13 @@ if (!isLoaded || subLoading) {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl mx-auto">
-            {/* Free Plan */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-6xl mx-auto">
+            
+            {/* FREE PLAN */}
             <div className="bg-white/5 backdrop-blur-md rounded-2xl sm:rounded-3xl p-6 border border-white/10 shadow-lg flex flex-col">
-              <h3 className="text-xl font-bold mb-2 text-gray-100">{language === "en" ? "Free" : "Ilmainen"}</h3>
+              <h3 className="text-xl font-bold mb-2 text-gray-100">
+                {language === "en" ? "Free" : "Ilmainen"}
+              </h3>
               <div className="mb-4">
                 <span className="text-3xl font-bold text-gray-100">0€</span>
                 <span className="text-gray-400 text-sm">{language === "en" ? "/month" : "/kk"}</span>
@@ -617,19 +620,27 @@ if (!isLoaded || subLoading) {
               <ul className="space-y-3 mb-6 text-sm flex-1">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="font-semibold text-gray-200">{language === "en" ? "1 Free CV" : "1 Ilmainen CV"}</span>
+                  <span className="font-semibold text-gray-200">
+                    {language === "en" ? "1 Free CV" : "1 Ilmainen CV"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">{language === "en" ? "1 General Letter" : "1 Yleinen Kirje"}</span>
+                  <span className="text-gray-300">
+                    {language === "en" ? "1 General Letter" : "1 Yleinen Kirje"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">{language === "en" ? "Save Profile Data" : "Profiilitiedot tallennetaan"}</span>
+                  <span className="text-gray-300">
+                    {language === "en" ? "Save Profile Data" : "Profiilitiedot tallennetaan"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2 opacity-50">
                   <Ban className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-500">No Job Specific / ATS</span>
+                  <span className="text-gray-500">
+                    {language === "en" ? "No Job Specific / ATS" : "Ei työpaikkakohtaista / ATS"}
+                  </span>
                 </li>
               </ul>
               <SignedOut>
@@ -641,7 +652,7 @@ if (!isLoaded || subLoading) {
               </SignedOut>
             </div>
 
-            {/* Basic Plan */}
+            {/* BASIC PLAN */}
             <div className="bg-white/5 backdrop-blur-md rounded-2xl sm:rounded-3xl p-6 border border-blue-400/30 shadow-lg flex flex-col">
               <h3 className="text-xl font-bold mb-2 text-blue-300">Basic</h3>
               <div className="mb-4">
@@ -651,19 +662,27 @@ if (!isLoaded || subLoading) {
               <ul className="space-y-3 mb-6 text-sm flex-1">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">{language === "en" ? "Unlimited CVs" : "Rajattomat CV:t"}</span>
+                  <span className="text-gray-300">
+                    {language === "en" ? "10,000 tokens/month" : "10,000 tokenia/kk"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">{language === "en" ? "Unlimited Letters" : "Rajattomat Kirjeet"}</span>
+                  <span className="text-gray-300">
+                    {language === "en" ? "Unlimited CVs" : "Rajattomat CV:t"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">{language === "en" ? "Job-Specific Letters" : "Työpaikkakohtaiset Kirjeet"}</span>
+                  <span className="text-gray-300">
+                    {language === "en" ? "Job-Specific Letters" : "Työpaikkakohtaiset Kirjeet"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2 opacity-50">
                   <Ban className="w-4 h-4 text-gray-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-500">No ATS Optimization</span>
+                  <span className="text-gray-500">
+                    {language === "en" ? "No ATS / RAG" : "Ei ATS / RAG"}
+                  </span>
                 </li>
               </ul>
               <Link href="/pricing">
@@ -673,62 +692,44 @@ if (!isLoaded || subLoading) {
               </Link>
             </div>
 
-            {/* Semi-Pro Plan */}
+            {/* PREMIUM PLAN */}
             <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 backdrop-blur-md rounded-2xl sm:rounded-3xl p-6 border border-amber-400/40 shadow-2xl relative scale-105 z-10 flex flex-col">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md whitespace-nowrap">
-                {language === "en" ? "Recommended" : "Suosittelemme"}
+                {language === "en" ? "Best Value" : "Paras Tarjous"}
               </div>
-              <h3 className="text-xl font-bold mb-2 text-amber-300">Semi-Pro</h3>
+              <h3 className="text-xl font-bold mb-2 text-amber-300 flex items-center gap-2">
+                Premium <Crown className="w-4 h-4 text-amber-400" />
+              </h3>
               <div className="mb-4">
-                <span className="text-3xl font-bold text-gray-100">9.99€</span>
+                <span className="text-3xl font-bold text-gray-100">14.99€</span>
                 <span className="text-gray-300 text-sm">{language === "en" ? "/month" : "/kk"}</span>
               </div>
               <ul className="space-y-3 mb-6 text-sm flex-1">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="font-bold text-gray-200">{language === "en" ? "Everything in Basic" : "Kaikki Basicissä"}</span>
+                  <span className="font-bold text-gray-200">
+                    {language === "en" ? "100,000 tokens/month" : "100,000 tokenia/kk"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="font-bold text-gray-200">{language === "en" ? "ATS Optimized CVs" : "ATS-optimoidut CV:t"}</span>
+                  <span className="font-bold text-gray-200">
+                    {language === "en" ? "ATS-Optimized Content" : "ATS-Optimoitu Sisältö"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="font-bold text-gray-200">{language === "en" ? "ATS Optimized Letters" : "ATS-optimoidut Kirjeet"}</span>
+                  <Check className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <span className="font-bold text-amber-200">
+                    {language === "en" ? "RAG Expert Database" : "RAG-Eksperttitietokanta"}
+                  </span>
                 </li>
-              </ul>
-              <Link href="/pricing">
-                <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg">
-                  {language === "en" ? "Choose Semi-Pro" : "Valitse Semi-Pro"}
-                </Button>
-              </Link>
-            </div>
-
-            {/* Pro Plan */}
-            <div className="bg-white/5 backdrop-blur-md rounded-2xl sm:rounded-3xl p-6 border border-orange-400/30 shadow-lg flex flex-col">
-              <h3 className="text-xl font-bold mb-2 text-orange-300 flex items-center gap-2">
-                Pro <Crown className="w-4 h-4 text-orange-400" />
-              </h3>
-              <div className="mb-4">
-                <span className="text-3xl font-bold text-gray-100">15.99€</span>
-                <span className="text-gray-400 text-sm">{language === "en" ? "/month" : "/kk"}</span>
-              </div>
-              <ul className="space-y-3 mb-6 text-sm flex-1">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-300">{language === "en" ? "Everything in Semi-Pro" : "Kaikki Semi-Prossa"}</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-orange-400 flex-shrink-0 mt-0.5" />
-                  <span className="font-bold text-orange-200">{language === "en" ? "RAG Expert Database" : "RAG-Eksperttitietokanta"}</span>
-                </li>
-                <li className="flex items-start gap-2 text-xs text-orange-300 font-medium bg-orange-500/20 p-1 rounded border border-orange-400/30">
+                <li className="flex items-start gap-2 text-xs text-amber-300 font-medium bg-amber-500/20 p-1 rounded border border-amber-400/30">
                   {language === "en" ? "Maximum Impact" : "Maksimaalinen Vaikutus"}
                 </li>
               </ul>
               <Link href="/pricing">
-                <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">
-                  {language === "en" ? "Choose Pro" : "Valitse Pro"}
+                <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg">
+                  {language === "en" ? "Choose Premium" : "Valitse Premium"}
                 </Button>
               </Link>
             </div>

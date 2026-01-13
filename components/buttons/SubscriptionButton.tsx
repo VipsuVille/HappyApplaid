@@ -41,7 +41,7 @@ export const SubscriptionButton = ({ tier = 'basic' }: { tier?: keyof typeof PRI
 
   return (
     <Button onClick={handleSubscribe}>
-      Tilaa nyt {PRICING[tier].monthly}€/kk
+      Tilaa nyt {PRICING[tier].features}€/kk
     </Button>
   );
 };

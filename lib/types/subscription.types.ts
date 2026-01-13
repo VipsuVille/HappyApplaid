@@ -4,7 +4,7 @@ export interface FreemiumStatus {
   tokens: number;
   has_used_free_cv: boolean;
   can_create_cv: boolean;
-  plan_type: 'free' | 'basic' | 'semi-pro' | 'pro';
+  plan_type: 'free' | 'basic' | 'premium';
   cv_count: number;
   
   // ✅ LISÄÄ NÄMÄ (SubscriptionCard varten)
@@ -24,7 +24,7 @@ export interface SubscriptionData {
   created_at: string;
   updated_at: string;
   plan: string;
-  plan_type: 'free' | 'basic' | 'semi-pro' | 'pro';
+  plan_type: 'free' | 'basic' | 'premium';
   tokens: number;
   is_active: boolean;
   cancel_at_period_end: boolean; // ✅ LISÄÄ

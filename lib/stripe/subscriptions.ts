@@ -5,9 +5,9 @@ import { stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { currentUser } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { PRICING, TIER_FEATURES } from '../pricing';
+import { PRICING } from '../pricing';
 
-export type Tier = 'basic' | 'semi-pro' | 'pro';
+export type Tier = 'free' |'basic' | 'premium';
 
 export async function createCheckoutSession(userId: string, tier: Tier) {
   const supabaseAdmin = await getSupabaseAdmin();
@@ -25,7 +25,18 @@ export async function createCheckoutSession(userId: string, tier: Tier) {
     throw new Error('User already has an active subscription');
   }
 
-  const priceId = PRICING[tier].stripePriceId;
+if (tier === 'free') {
+  throw new Error('Free tier has no checkout');
+}
+
+const tierConfig = PRICING[tier];
+
+if (!('stripePriceId' in tierConfig)) {
+  throw new Error(`Tier ${tier} has no Stripe pricing`);
+}
+
+const priceId = tierConfig.stripePriceId.monthly;
+
   
   if (!priceId) {
     throw new Error(`Price ID not found for tier: ${tier}`);
@@ -98,33 +109,20 @@ export async function getActiveSubscriptionForMiddleware(userId: string) {
  * Tarkistaa tier-kohtaiset ominaisuudet
  */
 export async function getTierFeatures(planType: string) {
-  const normalizedTier = planType.toLowerCase().replace('_', '-');
-  
-  switch (normalizedTier) {
-    case 'basic':
-      return TIER_FEATURES.basic;
-    case 'semi-pro':
-    case 'semipro':
-      return TIER_FEATURES['semi-pro'];
-    case 'pro':
-    case 'premium':
-      return TIER_FEATURES.pro;
-    default:
-      console.warn(`Unknown tier: ${planType}, defaulting to no access`);
-      return {
-        canUseV1: false,
-        canUseV2: false,
-        canUseRAG: false,
-        canUseATS: false,
-        name: 'Unknown',
-        costPerLetter: 0
-      };
-  }
-}
+  const tier = planType.toLowerCase() as keyof typeof PRICING;
 
-export async function checkSubscriptionAccess(userId: string, feature: string) {
+  if (!PRICING[tier]) {
+    return PRICING.free.features;
+  }
+
+  return PRICING[tier].features;
+}
+export async function checkSubscriptionAccess(
+  userId: string,
+  feature: string
+) {
   const supabaseAdmin = await getSupabaseAdmin();
-  
+
   const { data } = await supabaseAdmin
     .from('subscriptions')
     .select('status, current_period_end, plan_type, is_active')
@@ -132,37 +130,43 @@ export async function checkSubscriptionAccess(userId: string, feature: string) {
     .maybeSingle();
 
   if (!data) return false;
-  
-  const isActive = data.is_active === true && 
-                   ['active', 'trialing'].includes(data.status);
-  
+
+  const isActive =
+    data.is_active === true &&
+    ['active', 'trialing'].includes(data.status);
+
   if (!isActive) return false;
-  
-  const tierFeatures = await getTierFeatures(data.plan_type);
-  
+
+  // ✅ TÄMÄ PUUTTUI
+  const tier = data.plan_type as keyof typeof PRICING;
+
+  // fallback turva
+  const tierFeatures = PRICING[tier]?.featureFlags ?? PRICING.free.features;
+
   switch (feature) {
     case 'v1_generator':
       return tierFeatures.canUseV1;
-      
+
     case 'v2_generator':
     case 'ats_optimization':
       return tierFeatures.canUseV2;
-      
+
     case 'rag_knowledge':
       return tierFeatures.canUseRAG;
-      
+
     case 'ats_analysis':
       return tierFeatures.canUseATS;
-      
+
     case 'question_generation':
     case 'master_guardian':
     case 'validation':
       return true;
-      
+
     default:
       return isActive;
   }
 }
+
 
 export async function cancelSubscription() {
   const supabaseAdmin = await getSupabaseAdmin();

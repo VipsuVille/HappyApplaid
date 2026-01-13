@@ -130,12 +130,12 @@ export default function CreateCoverLetterPage() {
     }
 
     if (selectedVersion === 'v2' && !features.canUseV2) {
-      toast.error("V2 ATS Generator vaatii Semi-Pro tai Pro -tason");
+      toast.error("V2 ATS Generator vaatii Premium-tason");
       return;
     }
 
     if (useRAG && !features.canUseRAG) {
-      toast.error("RAG-tietokanta vaatii Pro-tason");
+      toast.error("RAG-tietokanta vaatii Premium-tason");
       return;
     }
 
@@ -604,7 +604,7 @@ export default function CreateCoverLetterPage() {
                       Käytä RAG-tietokantaa
                       <Crown className="w-5 h-5 text-amber-600" />
                       <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full font-bold">
-                        PRO • {getActionCost('cover_letter_rag')} tokenia
+                        Premium • {getActionCost('cover_letter_rag')} tokenia
                       </span>
                     </label>
                     <p className="text-sm text-gray-600 mt-1">
@@ -618,7 +618,7 @@ export default function CreateCoverLetterPage() {
             )}
 
             {selectedVersion !== 'general' ? (
-              <div className="animate-fade-in">
+              <div className="animate-fade-in">1
                 <label className="block text-sm font-bold text-gray-900 mb-3 uppercase">
                   📋 Työpaikkailmoitus <span className="text-red-600">*</span>
                 </label>

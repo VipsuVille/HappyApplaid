@@ -5,11 +5,11 @@ import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGenerato
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
-import { getTierFeatures } from "@/lib/stripe/subscriptions";
+import { PRICING } from "@/lib/pricing"; // ✅ KORJAUS: Käytä PRICING suoraan
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import crypto from 'crypto';
-import { checkFreeUsage } from "@/lib/domain/freeUsageGuard";
+import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
 
 // --- APUFUNKTIOT ---
 
@@ -100,37 +100,36 @@ export async function POST(req: Request) {
   }
 
   // ✅ 3. TIER + TOKEN VALIDATION
- const tier = subscription.plan_type as 'free' | 'basic' | 'semi-pro' | 'pro';
-const isActive = subscription.is_active === true && 
-                 ['active', 'trialing'].includes(subscription.status || '');
+  const tier = subscription.plan_type as 'free' | 'basic' | 'premium';
+  const isActive = subscription.is_active === true && 
+                   ['active', 'trialing'].includes(subscription.status || '');
 
-// ✅ LISÄÄ TÄHÄN:
-if (tier === 'free') {
-  console.log('🆓 Free tier user - checking cover letter usage...');
-  
-  const freeStatus = await checkFreeUsage(userId, 'cover_letter');
-  
-  if (!freeStatus.canUse) {
-    console.error(`❌ Free cover letter not available: ${freeStatus.reason}`);
+  if (tier === 'free') {
+    console.log('🆓 Free tier user - checking cover letter usage...');
     
-    const errorMessages: Record<string, string> = {
-      'FREE_COVER_LETTER_ALREADY_USED': 'Olet jo käyttänyt ilmaisen hakukirjeen! Aktivoi Basic-tilaus.',
-      'FREE_SLOT_USED_FOR_CV': 'Käytit ilmaisen tokenisi CV:hen. Aktivoi Basic-tilaus luodaksesi hakukirjeen.',
-    };
+    const freeStatus = await checkFreeUsage(userId, 'cover_letter');
+    
+    if (!freeStatus.canUse) {
+      console.error(`❌ Free cover letter not available: ${freeStatus.reason}`);
+      
+      const errorMessages: Record<string, string> = {
+        'FREE_COVER_LETTER_ALREADY_USED': 'Olet jo käyttänyt ilmaisen hakukirjeen! Aktivoi Basic-tilaus.',
+        'FREE_SLOT_USED_FOR_CV': 'Käytit ilmaisen tokenisi CV:hen. Aktivoi Basic-tilaus luodaksesi hakukirjeen.',
+      };
 
-    return NextResponse.json(
-      { 
-        error: freeStatus.reason,
-        message: errorMessages[freeStatus.reason || ''] || 'Ilmainen käyttö on loppu',
-        hasUsedCV: freeStatus.hasUsedCV,
-        hasUsedCoverLetter: freeStatus.hasUsedCoverLetter,
-      },
-      { status: 403 }
-    );
+      return NextResponse.json(
+        { 
+          error: freeStatus.reason,
+          message: errorMessages[freeStatus.reason || ''] || 'Ilmainen käyttö on loppu',
+          hasUsedCV: freeStatus.hasUsedCV,
+          hasUsedCoverLetter: freeStatus.hasUsedCoverLetter,
+        },
+        { status: 403 }
+      );
+    }
+
+    console.log('✅ Free cover letter available');
   }
-
-  console.log('✅ Free cover letter available');
-}
 
   const required = ACTION_COSTS[tier]?.[action];
 
@@ -138,9 +137,9 @@ if (tier === 'free') {
     return NextResponse.json(
       { 
         error: 'ACTION_NOT_ALLOWED',
-        message: `V2 ATS hakukirje vaatii Semi-Pro tai Pro -tason`,
+        message: `V2 ATS hakukirje vaatii Premium-tason`,
         currentTier: tier,
-        requiredTier: 'semi-pro'
+        requiredTier: 'premium'
       },
       { status: 403 }
     );
@@ -170,11 +169,10 @@ if (tier === 'free') {
       personalNotes: notes,
       language,
       style,
-      answeredQuestions, // ⚠️ TÄMÄ ON ARRAY [{id, question, answer}, ...]
+      answeredQuestions,
       skipQuestions,
     } = requestData;
 
-    // Fallback muuttujat, jos profileData puuttuu
     const {
       name,
       email,
@@ -196,7 +194,6 @@ if (tier === 'free') {
 
     const extractedJobTitle = extractJobTitleFromDescription(finalJobDescription);
 
-    // KORJAUS 1: Tarkista Arrayn pituus, ei Object.keys
     const shouldSkipQuestions = skipQuestions === true || 
                                 (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0);
 
@@ -209,15 +206,16 @@ if (tier === 'free') {
       skipQuestions: shouldSkipQuestions
     });
 
-    const tierFeatures = await getTierFeatures(tier);
+    // ✅ KORJAUS: Käytä PRICING suoraan
+    const tierFeatures = PRICING[tier].featureFlags;
 
     if (!tierFeatures.canUseV2) {
       return NextResponse.json(
         { 
           error: "UPGRADE_REQUIRED", 
-          message: "V2 ATS Generator vaatii Semi-Pro tai Pro -tason",
-          currentTier: tierFeatures.name,
-          requiredTier: "Semi-Pro"
+          message: "V2 ATS Generator vaatii Premium-tason",
+          currentTier: tier,
+          requiredTier: "premium"
         },
         { status: 403 }
       );
@@ -230,18 +228,17 @@ if (tier === 'free') {
       .eq('user_id', userId)
       .single();
 
-    const groundTruth = await extractGroundTruthAI(userProfile || {});
+    const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
     
     // TARKISTA ATS-KÄYTTÖ
     const atsDetection = await detectATSUsageAI(finalJobDescription);
     
-    // ✅ KORJAUS 2: MERGE VASTAUKSET (Array käsittely)
+    // ✅ MERGE VASTAUKSET
     let enhancedPersonalNotes = finalPersonalNotes || '';
     
     if (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0) {
       console.log(`📝 Integrating ${answeredQuestions.length} answers`);
       
-      // Käytä .map() koska data on array, ei object
       const answersText = answeredQuestions
         .map((item: any) => `Kysymys: "${item.question}"\nVastaus: "${item.answer}"`)
         .join('\n\n');
@@ -255,14 +252,14 @@ if (tier === 'free') {
     let coverLetterInput;
     const commonInput = {
       jobDescription: finalJobDescription,
-      personalNotes: enhancedPersonalNotes, // Tässä on nyt yhdistetty teksti
+      personalNotes: enhancedPersonalNotes,
       language: language || "finnish",
       style: style || "formal",
       enableRAG: tierFeatures.canUseRAG,
       allowedSkills: groundTruth.technicalSkills,
       forbiddenClaims: groundTruth.cannotClaim,
       skipQuestions: shouldSkipQuestions,
-      answeredQuestions: answeredQuestions || [], // Välitä array sellaisenaan
+      answeredQuestions: answeredQuestions || [],
       userId: userId
     };
 
@@ -305,7 +302,6 @@ if (tier === 'free') {
     
     const coverLetterData = await generateCoherentCoverLetter(coverLetterInput);
 
-    // JOS AI HALUAA KYSYÄ LISÄÄ (vain jos ei skipattu)
     if (!coverLetterInput.skipQuestions && coverLetterData.questions && coverLetterData.questions.length > 0) {
       console.log(`❓ AI needs clarification: ${coverLetterData.questions.length} questions`);
       
@@ -326,15 +322,15 @@ if (tier === 'free') {
       }, { status: 500 });
     }
 
-    // ✅ KORJAUS 3: TALLENNA VASTAUKSET (Array logic)
+    // ✅ TALLENNA VASTAUKSET
     if (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0) {
       console.log(`💾 Saving ${answeredQuestions.length} answers...`);
       
       const savePromises = answeredQuestions.map((item: any) => 
         saveUserResponse(
           userId,
-          item.question, // Nyt saadaan oikea teksti
-          item.answer,   // Ja oikea vastaus
+          item.question,
+          item.answer,
           'cover_letter_v2',
           extractedJobTitle
         )
@@ -411,7 +407,7 @@ if (tier === 'free') {
           styles: {
             main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
-          tier: tierFeatures.name,
+          tier: tier,
           cost_per_letter: required,
           ground_truth: groundTruth,
           guardian_check: {
@@ -431,7 +427,7 @@ if (tier === 'free') {
           generation_params: {
             style: coverLetterInput.style,
             language: coverLetterInput.language,
-            tier: tierFeatures.name,
+            tier: tier,
             answered_questions: answeredQuestions || [],
             questions_count: Array.isArray(answeredQuestions) ? answeredQuestions.length : 0,
             skip_questions: coverLetterInput.skipQuestions,
@@ -454,7 +450,13 @@ if (tier === 'free') {
     console.log(`✅ V2 Cover letter saved: ${coverLetter.id}`);
 
     // ✅ 7. KULUTA TOKENIT
-    if (tier !== 'free' && isActive && required > 0) {
+    if (tier === 'free') {
+      const consumed = await consumeFreeUsage(userId, 'cover_letter');
+      if (!consumed) {
+        console.error('⚠️ Failed to mark free cover letter as used');
+      }
+      console.log('✅ Free cover letter consumed');
+    } else if (isActive && required > 0) {
       console.log(`💰 Consuming ${required} tokens...`);
       const { error: tokenError } = await supabaseAdmin
         .from('subscriptions')
@@ -474,7 +476,7 @@ if (tier === 'free') {
       success: true,
       coverLetterId: coverLetter.id,
       title: extractedJobTitle,
-      tier: tierFeatures.name,
+      tier: tier,
       tokensUsed: required,
       tokensRemaining: tier !== 'free' ? subscription.tokens - required : 0,
       features: {

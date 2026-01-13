@@ -67,12 +67,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // BASIC = V1 (50 tok), SEMI-PRO+ = V2 (75 tok)
-    const tier = subscription.plan_type as "basic" | "semi-pro" | "pro";
+    // BASIC = V1 (50 tok), premium = V2 (75 tok)
+    const tier = subscription.plan_type as "free" | "basic" | "premium";
     const isActive = subscription.is_active === true && 
       ["active", "trialing"].includes(subscription.status || "");
 
-    const useV2 = tier === 'semi-pro' || tier === 'pro';
+    const useV2 = tier === 'premium';
     const action: TokenAction = useV2 ? 'cover_letter_v2' : 'cover_letter_v1';
     const required = ACTION_COSTS[tier]?.[action] ?? 0;
 

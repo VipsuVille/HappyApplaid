@@ -10,6 +10,7 @@ import { getTierFeatures } from "@/lib/stripe/subscriptions";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import crypto from 'crypto';
 import { checkFreeUsage } from "@/lib/domain/freeUsageGuard";
+import { PRICING } from "@/lib/pricing";
 
 function generateTitle(input: { name: string; targetRole?: string; targetIndustry?: string }): string {
   if (input.targetRole) {
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
   }
 
   // ✅ 3. TIER + TOKEN VALIDATION
-const tier = subscription.plan_type as 'free' | 'basic' | 'semi-pro' | 'pro';
+const tier = subscription.plan_type as 'free' | 'basic' | 'premium';
 const isActive = subscription.is_active === true && 
                  ['active', 'trialing'].includes(subscription.status || '');
 
@@ -195,9 +196,9 @@ if (tier === 'free') {
     });
 
     // ✅ 5. TIER FEATURES
-    const tierFeatures = await getTierFeatures(tier);
+    const tierFeatures = PRICING[tier].featureFlags;
 
-    console.log(`🎫 User tier: ${tierFeatures.name}`);
+    console.log(`🎫 User tier: ${tier}`);
     console.log(`   - V1: ${tierFeatures.canUseV1 ? '✅' : '❌'}`);
     console.log(`   - RAG: ${tierFeatures.canUseRAG ? '✅' : '❌'}`);
 
@@ -390,7 +391,7 @@ if (tier === 'free') {
             main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
 
-          tier: tierFeatures.name,
+          tier: tier,
           cost_per_letter: required,
 
           ground_truth: groundTruth,
@@ -411,7 +412,7 @@ if (tier === 'free') {
           generation_params: {
             style: coverLetterInput.style,
             language: coverLetterInput.language,
-            tier: tierFeatures.name,
+            tier: tier,
             target_industry: targetIndustry || null,
             target_role: targetRole || null,
             answered_questions: answeredQuestions || {},
@@ -460,7 +461,7 @@ if (tier === 'free') {
       success: true,
       coverLetterId: coverLetter.id,
       title: extractedTitle,
-      tier: tierFeatures.name,
+      tier: tier,
       tokensUsed: required,
       tokensRemaining: tier !== 'free' ? subscription.tokens - required : 0,
       features: {

@@ -1,18 +1,17 @@
-// hooks/useTokens.ts - KORJATTU
+// hooks/useTokens.ts - KORJATTU TIER NIMET
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
-import { ACTION_COSTS } from '@/lib/domain/tokens';
+import { ACTION_COSTS, type TokenAction } from '@/lib/domain/tokens';
 
-// ✅ IMPORTOI TokenAction lib/domain/tokens.ts:stä (SINGLE SOURCE OF TRUTH)
-export type { TokenAction } from '@/lib/domain/tokens';
-const TIER_COSTS = ACTION_COSTS;
+// ✅ OIKEAT TIER NIMET (free, basic, premium)
+type PlanType = 'free' | 'basic' | 'premium';
 
 interface TokenData {
   tokens: number;
   isActive: boolean;
-  plan_type: 'free' | 'basic' | 'semi-pro' | 'pro';
+  plan_type: PlanType;
   features: {
     canUseV1: boolean;
     canUseV2: boolean;
@@ -24,12 +23,12 @@ interface TokenData {
   status: string;
 }
 
+// ✅ OIKEAT TIER NIMET
 const TIER_FEATURES = {
   free: { canUseV1: false, canUseV2: false, canUseRAG: false, canUseATS: false },
   basic: { canUseV1: true, canUseV2: false, canUseRAG: false, canUseATS: false },
-  'semi-pro': { canUseV1: true, canUseV2: true, canUseRAG: false, canUseATS: true },
-  pro: { canUseV1: true, canUseV2: true, canUseRAG: true, canUseATS: true }
-};
+  premium: { canUseV1: true, canUseV2: true, canUseRAG: true, canUseATS: true }
+} as const;
 
 // ------------------------------------------------------------------
 // GLOBAL CACHE & DEDUPLICATION
@@ -98,7 +97,12 @@ export function useTokens() {
         }
 
         const data = await response.json();
-        const planType = (data.plan_type || 'free') as keyof typeof TIER_FEATURES;
+        
+        // ✅ NORMALISOI PLAN TYPE (varmista että se on oikea)
+        let planType: PlanType = 'free';
+        if (data.plan_type === 'basic' || data.plan_type === 'premium') {
+          planType = data.plan_type;
+        }
         
         const newData: TokenData = {
           tokens: data.tokens || 0,
@@ -126,11 +130,14 @@ export function useTokens() {
     await fetchPromise;
   }, [userId, isSignedIn, isLoaded]);
 
-  const consumeTokens = async (action: string): Promise<boolean> => {
+  const consumeTokens = async (action: TokenAction): Promise<boolean> => {
     if (!userId || !tokenData) return false;
 
     try {
-      const tokensRequired = (TIER_COSTS[tokenData.plan_type] as any)[action] || 0;
+      // ✅ TYYPPITURVALLISUUS: ACTION_COSTS on nyt oikein tyypitetty
+      const tierCosts = ACTION_COSTS[tokenData.plan_type];
+      const tokensRequired = tierCosts?.[action] || 0;
+      
       if (tokensRequired === 0) return true;
 
       if (tokenData.tokens < tokensRequired) {
@@ -161,15 +168,16 @@ export function useTokens() {
     }
   };
 
-  const canUseAction = (action: string) => {
+  const canUseAction = (action: TokenAction) => {
     if (!tokenData) return { allowed: false, reason: 'Ladataan...' };
 
-    // FREE: EI TOKEN-TARKISTUSTA
+    // FREE: EI TOKEN-TARKISTUSTA (API hoitaa)
     if (tokenData.plan_type === 'free') {
       return { allowed: true };
     }
 
-    const required = (TIER_COSTS[tokenData.plan_type] as any)[action];
+    const tierCosts = ACTION_COSTS[tokenData.plan_type];
+    const required = tierCosts?.[action];
 
     if (required === undefined) {
       return { allowed: false, reason: 'Ei saatavilla tässä plaanissa' };
@@ -180,6 +188,12 @@ export function useTokens() {
     }
 
     return { allowed: true };
+  };
+
+  const getActionCost = (action: TokenAction): number => {
+    if (!tokenData) return 0;
+    const tierCosts = ACTION_COSTS[tokenData.plan_type];
+    return tierCosts?.[action] || 0;
   };
 
   useEffect(() => {
@@ -198,6 +212,9 @@ export function useTokens() {
     consumeTokens,
     fetchTokens: () => fetchTokens(true),
     canUseAction,
-    getActionCost: (action: string) => tokenData ? ((TIER_COSTS[tokenData.plan_type] as any)[action] || 0) : 0,
+    getActionCost,
   };
 }
+
+// ✅ EXPORT TokenAction tyyppi käytettäväksi muualla
+export type { TokenAction };

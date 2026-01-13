@@ -9,6 +9,8 @@ import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/master
 import { getTierFeatures } from "@/lib/stripe/subscriptions";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import crypto from 'crypto';
+import { checkFreeUsage } from "@/lib/domain/freeUsageGuard";
+import { PRICING } from "@/lib/pricing";
 
 function generateTitle(input: { name: string; targetRole?: string; targetIndustry?: string }): string {
   if (input.targetRole) {
@@ -90,11 +92,39 @@ export async function POST(req: Request) {
       { status: 403 }
     );
   }
+const tier = subscription.plan_type as 'free' | 'basic' | 'premium';
+const isActive = subscription.is_active === true && 
+                 ['active', 'trialing'].includes(subscription.status || '');
 
-  const tier = subscription.plan_type as 'free' | 'basic' | 'semi-pro' | 'pro';
-  const isActive = subscription.is_active === true &&
-    ['active', 'trialing'].includes(subscription.status || '');
+// ✅ LISÄÄ TÄHÄN:
+if (tier === 'free') {
+  console.log('🆓 Free tier user - checking cover letter usage...');
+  
+  const freeStatus = await checkFreeUsage(userId, 'cover_letter');
+  
+  if (!freeStatus.canUse) {
+    console.error(`❌ Free cover letter not available: ${freeStatus.reason}`);
+    
+    const errorMessages: Record<string, string> = {
+      'FREE_COVER_LETTER_ALREADY_USED': 'Olet jo käyttänyt ilmaisen hakukirjeen! Aktivoi Basic-tilaus.',
+      'FREE_SLOT_USED_FOR_CV': 'Käytit ilmaisen tokenisi CV:hen. Aktivoi Basic-tilaus luodaksesi hakukirjeen.',
+    };
 
+    return NextResponse.json(
+      { 
+        error: freeStatus.reason,
+        message: errorMessages[freeStatus.reason || ''] || 'Ilmainen käyttö on loppu',
+        hasUsedCV: freeStatus.hasUsedCV,
+        hasUsedCoverLetter: freeStatus.hasUsedCoverLetter,
+      },
+      { status: 403 }
+    );
+  }
+
+  console.log('✅ Free cover letter available');
+}
+
+  
   const required = ACTION_COSTS[tier]?.[action];
 
   if (required === undefined) {
@@ -161,9 +191,8 @@ export async function POST(req: Request) {
       skipQuestions: shouldSkipQuestions
     });
 
-    const tierFeatures = await getTierFeatures(tier);
+    const tierFeatures = PRICING[tier].featureFlags;
 
-    console.log(`🎫 User tier: ${tierFeatures.name}`);
     console.log(`   - V1: ${tierFeatures.canUseV1 ? '✅' : '❌'}`);
     console.log(`   - RAG: ${tierFeatures.canUseRAG ? '✅' : '❌'}`);
 
@@ -356,7 +385,7 @@ export async function POST(req: Request) {
             main_style: 'font-family: "Merriweather", serif; line-height: 1.7;',
           },
 
-          tier: tierFeatures.name,
+          tier: tier,
           cost_per_letter: required,
 
           ground_truth: groundTruth,
@@ -377,7 +406,7 @@ export async function POST(req: Request) {
           generation_params: {
             style: coverLetterInput.style,
             language: coverLetterInput.language,
-            tier: tierFeatures.name,
+            tier: tier,
             target_industry: targetIndustry || null,
             target_role: targetRole || null,
             answered_questions: answeredQuestions || [],
@@ -424,7 +453,7 @@ export async function POST(req: Request) {
       success: true,
       coverLetterId: coverLetter.id,
       title: extractedTitle,
-      tier: tierFeatures.name,
+      tier: tier,
       tokensUsed: required,
       tokensRemaining: tier !== 'free' ? subscription.tokens - required : 0,
       features: {

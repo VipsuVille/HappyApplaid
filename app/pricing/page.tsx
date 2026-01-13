@@ -1,13 +1,16 @@
-// app/pricing/page.tsx - UUSI 3-TIER VERSIO
-
+// app/pricing/page.tsx
 'use client';
 
 import { useState } from 'react';
-import { PRICING, Tier, BillingPeriod, getPriceForPeriod, getSavings } from '@/lib/pricing';
-import PromoCodeRedeem from '@/components/promoCode';
+import { PRICING, BillingPeriod, getSavings } from '@/lib/pricing';
 import { Crown, Sparkles, Check, Zap, AlertCircle } from 'lucide-react';
 import { PricingButton } from '@/components/buttons/pricing-button';
+import dynamic from 'next/dynamic';
 
+const PromoCodeRedeem = dynamic(
+  () => import('@/components/promoCode'),
+  { ssr: false }
+);
 export default function PricingPage() {
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
 
@@ -102,7 +105,7 @@ export default function PricingPage() {
           </div>
 
           {/* BASIC */}
-          <div className="bg-white rounded-3xl p-8 border-2 border-indigo-300 shadow-xl transform scale-105">
+          <div className="relative bg-white rounded-3xl p-8 border-2 border-indigo-300 shadow-xl transform scale-105">
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
               <span className="bg-indigo-600 text-white px-4 py-1 rounded-full text-sm font-bold">
                 Suosituin
@@ -162,7 +165,7 @@ export default function PricingPage() {
           </div>
 
           {/* PREMIUM */}
-          <div className="bg-gradient-to-br from-purple-600 to-indigo-600 rounded-3xl p-8 border-2 border-purple-400 shadow-2xl text-white relative">
+          <div className="relative bg-gradient-to-br from-purple-600 to-indigo-600 rounded-3xl p-8 border-2 border-purple-400 shadow-2xl text-white">
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
               <span className="bg-yellow-400 text-gray-900 px-4 py-1 rounded-full text-sm font-bold flex items-center gap-1">
                 <Crown className="w-4 h-4" />

@@ -258,7 +258,7 @@ export async function POST(req: Request) {
       .eq("user_id", userId)
       .maybeSingle();
 
-    const tier = (subscription?.plan_type || "free") as "free" | "basic" | "semi-pro" | "pro";
+    const tier = (subscription?.plan_type || "free") as "free" | "basic" | "premium";
     const currentTokens = subscription?.tokens || 0;
     const isActive = subscription?.is_active === true && 
       ["active", "trialing"].includes(subscription?.status || "");

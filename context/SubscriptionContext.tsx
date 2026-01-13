@@ -5,8 +5,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { useAuth } from '@clerk/nextjs';
 
 interface SubscriptionData {
-  tier: 'free' | 'basic' | 'semi-pro' | 'pro';
-  plan_type: 'free' | 'basic' | 'semi-pro' | 'pro';
+  tier: 'free' | 'basic' | 'premium'
+  plan_type: 'free' | 'basic' | 'premium';
   active: boolean;
   tokens: number;
   has_used_free_cv: boolean;

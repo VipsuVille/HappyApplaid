@@ -198,12 +198,12 @@ export default function CreateCVPage() {
     }
 
     if (useATS && !features.canUseATS) {
-      toast.error("ATS-optimointi vaatii Semi-Pro tai Pro -tason");
+      toast.error("ATS-optimointi vaatii Premium -tason");
       return;
     }
 
     if (useRAG && !features.canUseRAG) {
-      toast.error("RAG-tietokanta vaatii Pro-tason");
+      toast.error("RAG-tietokanta vaatii Premium-tason");
       return;
     }
 
@@ -572,10 +572,8 @@ export default function CreateCVPage() {
           Luo Ammattimainen CV
         </h1>
         <p className="text-lg lg:text-xl text-gray-600 mb-2">
-          {plan_type === "pro"
-            ? "Pro-taso: Kaikki ominaisuudet käytössäsi"
-            : plan_type === "semi-pro"
-            ? "Semi-Pro: ATS-optimointi käytössä"
+          {plan_type === "premium"
+            ? "Premium: ATS-optimointi käytössä ja muut ominaisuudet"
             : plan_type === "basic"
             ? "Basic: Rajattomat perus CV:t"
             : "Free: 1 ilmainen CV"}
@@ -711,7 +709,7 @@ export default function CreateCVPage() {
                           📚 RAG-tietokanta
                           <Crown className="w-5 h-5 text-amber-600" />
                           <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full">
-                            Pro • +20 tok
+                            Premium • +20 tok
                           </span>
                         </div>
                         <p className="text-sm text-gray-600 mb-3">

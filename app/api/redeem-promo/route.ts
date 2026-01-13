@@ -1,27 +1,33 @@
-// app/api/redeem-promo/route.ts
+// app/api/redeem-promo/route.ts - KORJATTU 3-TIER
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
-// PROMO-KOODIT
+// ✅ PROMO-KOODIT (3-TIER SYSTEEMI)
 const PROMO_CODES: Record<string, {
   tokens: number;
   durationDays: number;
-  tier: 'basic' | 'semi-pro' | 'pro';
+  tier: 'basic' | 'premium'; // ✅ KORJATTU
   description: string;
   maxUses?: number;
 }> = {
   'SEPPO': {
-    tokens: 1000,
+    tokens: 100000,
     durationDays: 10,
-    tier: 'pro', // 👈 Määritä tier täällä
-    description: 'Kiitos avustasi :)'
+    tier: 'premium', // ✅ EI ENÄÄ 'pro'
+    description: 'Kiitos avustasi :) - Premium 10 päivää'
   },
   'FRIEND50': {
-    tokens: 1000,
+    tokens: 10000,
     durationDays: 30,
-    tier: 'semi-pro',
-    description: 'Ystävälle 1kk Semi-Pro'
+    tier: 'basic', // ✅ EI ENÄÄ 'semi-pro'
+    description: 'Ystävälle 1kk Basic'
+  },
+  'TESTPREMIUM': {
+    tokens: 100000,
+    durationDays: 7,
+    tier: 'premium',
+    description: 'Premium-testaus 7 päivää'
   }
 };
 
@@ -69,7 +75,7 @@ export async function POST(req: NextRequest) {
       expiresAt: currentPeriodEnd.toISOString()
     });
 
-    // LUO/PÄIVITÄ SUBSCRIPTION (KORJATTU)
+    // LUO/PÄIVITÄ SUBSCRIPTION
     const { error: subError } = await supabaseAdmin
       .from('subscriptions')
       .upsert({
@@ -78,8 +84,7 @@ export async function POST(req: NextRequest) {
         stripe_subscription_id: `promo_sub_${userId}_${promoCode}`,
         status: 'active',
         current_period_end: currentPeriodEnd.toISOString(),
-        plan: promoDetails.tier,        // 👈 Aseta molemmat
-        plan_type: promoDetails.tier,   // 👈 kentät samaksi
+        plan_type: promoDetails.tier, // ✅ VAIN plan_type
         tokens: promoDetails.tokens,
         is_active: true,
         created_at: new Date().toISOString(),

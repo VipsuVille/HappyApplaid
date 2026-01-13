@@ -1,27 +1,24 @@
 // lib/pricing.ts
-
 export type Tier = 'free' | 'basic' | 'premium';
 export type BillingPeriod = 'monthly' | 'sixMonths' | 'yearly';
 
-type PaidTierConfig = {
-  name: string;
-  monthly: number;
-  sixMonths: number;
-  yearly: number;
-  tokens: number;
-  storage: number;
-  stripePriceId: Record<BillingPeriod, string>;
-  features: readonly string[];
-};
+export interface FeatureFlags {
+  canUseV1: boolean;
+  canUseV2: boolean;
+  canUseRAG: boolean;
+  canUseATS: boolean;
+}
 
-type FreeTierConfig = {
-  name: string;
-  monthly: 0;
-  tokens: 0;
-  storage: 0;
-  stripePriceId: null;
-  features: readonly string[];
-};
+export interface PaidTierConfig {
+  stripePriceId: Record<BillingPeriod, string>;
+  features: string[]; // UI:ssa käytettävä lista
+  featureFlags: FeatureFlags; // Backend-logiikka
+}
+
+export interface FreeTierConfig {
+  features: string[];
+  featureFlags: FeatureFlags;
+}
 
 export const PRICING: {
   free: FreeTierConfig;
@@ -29,65 +26,88 @@ export const PRICING: {
   premium: PaidTierConfig;
 } = {
   free: {
-    name: 'Free',
-    monthly: 0,
-    tokens: 0,
-    storage: 0,
-    stripePriceId: null,
     features: [
       '1 ilmainen CV tai hakukirje',
-      'Testaa palvelua',
-      'Profiilit tallennetaan',
+      'Perustoiminnot',
+      'Ei säilytystä',
     ],
+    featureFlags: {
+      canUseV1: false,
+      canUseV2: false,
+      canUseRAG: false,
+      canUseATS: false,
+    },
   },
-
   basic: {
-    name: 'Basic',
-    monthly: 4.99,
-    sixMonths: 26.94,
-    yearly: 50.99,
-    tokens: 10_000,
-    storage: 50,
     stripePriceId: {
-      monthly: process.env.NEXT_PUBLIC_STRIPE_BASIC_MONTHLY_PRICE_ID!,
-      sixMonths: process.env.NEXT_PUBLIC_STRIPE_BASIC_6M_PRICE_ID!,
-      yearly: process.env.NEXT_PUBLIC_STRIPE_BASIC_YEARLY_PRICE_ID!,
+      monthly: process.env.STRIPE_BASIC_MONTHLY_PRICE_ID!,
+      sixMonths: process.env.STRIPE_BASIC_6M_PRICE_ID!,
+      yearly: process.env.STRIPE_BASIC_YEARLY_PRICE_ID!,
     },
     features: [
-      '10 000 tokenia / kk',
-      'CV:t ja hakukirjeet',
-      'Ei ATS eikä RAG',
-      'Token top-up saatavilla',
+      '10,000 tokenia/kk',
+      'Rajaton määrä CV:itä ja hakukirjeitä',
+      'Tallenna 50 kirjettä',
+      'Osta lisää tokeneita (2.99€/10k)',
+      'Tuki 24/7',
     ],
+    featureFlags: {
+      canUseV1: true,
+      canUseV2: false,
+      canUseRAG: false,
+      canUseATS: false,
+    },
   },
-
   premium: {
-    name: 'Premium',
-    monthly: 14.99,
-    sixMonths: 80.94,
-    yearly: 152.99,
-    tokens: 100_000,
-    storage: 100,
     stripePriceId: {
-      monthly: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_MONTHLY_PRICE_ID!,
-      sixMonths: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_6M_PRICE_ID!,
-      yearly: process.env.NEXT_PUBLIC_STRIPE_PREMIUM_YEARLY_PRICE_ID!,
+      monthly: process.env.STRIPE_PREMIUM_MONTHLY_PRICE_ID!,
+      sixMonths: process.env.STRIPE_PREMIUM_6M_PRICE_ID!,
+      yearly: process.env.STRIPE_PREMIUM_YEARLY_PRICE_ID!,
     },
     features: [
-      '100 000 tokenia / kk',
-      'ATS + RAG',
-      'Kaikki ominaisuudet',
+      '100,000 tokenia/kk',
+      'Rajaton määrä CV:itä ja hakukirjeitä',
+      'ATS-optimointi',
+      'RAG-tietokanta',
+      'Tallenna 100 kirjettä',
+      'Prioriteettituki',
     ],
+    featureFlags: {
+      canUseV1: true,
+      canUseV2: true,
+      canUseRAG: true,
+      canUseATS: true,
+    },
   },
-};
+} as const;
 
-// Helpers
-export function getPriceForPeriod(tier: Tier, period: BillingPeriod): number {
-  if (tier === 'free') return 0;
-  return PRICING[tier][period];
-}
+/**
+ * Laskee säästöt pitkäaikaisille tilauksille
+ */
+export function getSavings(tier: 'basic' | 'premium', period: BillingPeriod): string {
+  if (period === 'monthly') return '';
 
-export function getSavings(tier: Tier, period: BillingPeriod): string {
-  if (tier === 'free' || period === 'monthly') return '';
-  return period === 'sixMonths' ? '−10 %' : '−15 %';
+  const monthlyPrices = {
+    basic: 4.99,
+    premium: 14.99,
+  };
+
+  const actualPrices = {
+    basic: {
+      sixMonths: 26.94,
+      yearly: 50.99,
+    },
+    premium: {
+      sixMonths: 80.94,
+      yearly: 152.99,
+    },
+  };
+
+  const monthlyPrice = monthlyPrices[tier];
+  const actualPrice = actualPrices[tier][period];
+  const months = period === 'sixMonths' ? 6 : 12;
+  const fullPrice = monthlyPrice * months;
+  const savings = fullPrice - actualPrice;
+
+  return `Säästät ${savings.toFixed(2)}€`;
 }
