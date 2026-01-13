@@ -1,16 +1,14 @@
-// app/api/redeem-promo/route.ts - LOPULLINEN VERSIO
+// app/api/redeem-promo/route.ts - LOPULLINEN
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Admin client
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// ✅ PROMO-KOODIT (ei tietokannassa, vain koodissa)
 const PROMO_CODES: Record<string, {
   tokens: number;
   durationDays: number;
@@ -21,13 +19,7 @@ const PROMO_CODES: Record<string, {
     tokens: 100000,
     durationDays: 10,
     planType: 'premium',
-    description: 'Premium 10 päivää - Kiitos avustasi!'
-  },
-  'FRIEND50': {
-    tokens: 10000,
-    durationDays: 30,
-    planType: 'basic',
-    description: 'Basic 30 päivää'
+    description: 'Premium 10 päivää - Kiitos!'
   }
 };
 
@@ -47,7 +39,7 @@ export async function POST(req: NextRequest) {
 
     const promo = PROMO_CODES[promoCode];
 
-    // ✅ Tarkista onko jo käytetty
+    // Tarkista onko jo käytetty
     const { data: existing } = await supabaseAdmin
       .from('promo_code_usage')
       .select('*')
@@ -62,8 +54,15 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + promo.durationDays);
 
-    // ✅ LUO SUBSCRIPTION (VAIN plan_type kenttä!)
-    const { error: subError } = await supabaseAdmin
+    console.log('Creating subscription:', {
+      userId,
+      planType: promo.planType,
+      tokens: promo.tokens,
+      expiresAt: expiresAt.toISOString()
+    });
+
+    // ✅ LUO SUBSCRIPTION (KAIKKI KENTÄT)
+    const { data: subscription, error: subError } = await supabaseAdmin
       .from('subscriptions')
       .upsert({
         user_id: userId,
@@ -71,16 +70,26 @@ export async function POST(req: NextRequest) {
         stripe_subscription_id: `promo_sub_${userId}_${promoCode}`,
         status: 'active',
         current_period_end: expiresAt.toISOString(),
-        plan_type: promo.planType, // ✅ AINOA tier-kenttä
+        plan_type: promo.planType,
         tokens: promo.tokens,
         is_active: true,
-        auto_renew: false,
-        promo_code_used: promoCode,
-      }, { onConflict: 'user_id' });
+        auto_renew: false, // ✅ TÄRKEÄ
+        promo_code_used: promoCode, // ✅ TÄRKEÄ
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { 
+        onConflict: 'user_id',
+        ignoreDuplicates: false 
+      })
+      .select()
+      .single();
 
     if (subError) {
-      console.error('Subscription error:', subError);
-      return NextResponse.json({ error: subError.message }, { status: 500 });
+      console.error('❌ Subscription error:', subError);
+      return NextResponse.json({ 
+        error: 'Tilauksen luonti epäonnistui',
+        details: subError.message 
+      }, { status: 500 });
     }
 
     // Merkitse käytetyksi
@@ -89,6 +98,8 @@ export async function POST(req: NextRequest) {
       promo_code: promoCode,
       redeemed_at: new Date().toISOString()
     });
+
+    console.log('✅ Promo activated successfully');
 
     return NextResponse.json({
       success: true,
@@ -101,7 +112,10 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Promo error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('💥 Promo error:', error);
+    return NextResponse.json({ 
+      error: 'Virhe promo-koodin aktivoinnissa',
+      details: error.message 
+    }, { status: 500 });
   }
 }

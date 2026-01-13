@@ -209,7 +209,6 @@ const SimplifiedProfilePage: React.FC = () => {
 // app/profile/page.tsx - KORJAUS loadProfileData-funktioon
 
 // app/profile/page.tsx - loadProfileData korjaus
-
 const loadProfileData = async () => {
   if (!userId) return;
 
@@ -227,11 +226,13 @@ const loadProfileData = async () => {
           const img = data.profile.profileImage;
           
           if (img.startsWith('http')) {
+            // Jo täysi URL
             imageUrl = img;
           } else if (img.startsWith('data:image')) {
+            // Base64 (legacy)
             imageUrl = img;
           } else {
-            // File path
+            // File path → rakennetaan täysi URL
             const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
             imageUrl = supabaseUrl 
               ? `${supabaseUrl}/storage/v1/object/public/cv_files/${img}`
@@ -241,9 +242,11 @@ const loadProfileData = async () => {
         
         setProfileData({
           ...data.profile,
-          profileImage: imageUrl // ✅ Aina täysi URL
+          profileImage: imageUrl // ✅ Aina täysi URL tai tyhjä string
         });
       }
+    } else if (response.status !== 404) {
+      console.error("Failed to load profile");
     }
   } catch (error) {
     console.error("Error loading profile:", error);
@@ -251,7 +254,6 @@ const loadProfileData = async () => {
     setIsLoading(false);
   }
 };
-
   const saveProfileData = async (showToast = true) => {
     if (!userId) {
       if (showToast) toast.error("Kirjaudu sisään tallentaaksesi profiilin");
@@ -298,7 +300,9 @@ const loadProfileData = async () => {
     setProfileData((prev) => ({ ...prev, [field]: value }));
   };
 
- const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+// app/profile/page.tsx - KORJATTU handleImageUpload
+
+const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
   const file = event.target.files?.[0];
   if (!file || !userId) return;
 
@@ -313,9 +317,11 @@ const loadProfileData = async () => {
     return;
   }
 
+  // ✅ TALLENNA TOAST ID
+  const toastId = toast.loading("Ladataan kuvaa...");
+
   try {
     setIsSaving(true);
-    toast.loading("Ladataan kuvaa...");
 
     // 1️⃣ GENEROI TIEDOSTONIMI
     const fileExt = file.name.split(".").pop();
@@ -332,6 +338,7 @@ const loadProfileData = async () => {
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
+      toast.dismiss(toastId); // ✅ POISTA LOADING
       toast.error("Kuvan lataus epäonnistui");
       return;
     }
@@ -342,6 +349,7 @@ const loadProfileData = async () => {
       .getPublicUrl(filePath);
 
     if (!urlData?.publicUrl) {
+      toast.dismiss(toastId);
       toast.error("URL:n haku epäonnistui");
       return;
     }
@@ -363,15 +371,18 @@ const loadProfileData = async () => {
       // Ei kriittinen virhe - kuva on jo Storagessa
     }
 
-    // 5️⃣ PÄIVITÄ UI (tallennetaan vain file_path, ei Base64!)
+    // 5️⃣ PÄIVITÄ UI - KÄYTÄ TÄYTTÄ URL:IA!
     setProfileData((prev) => ({
       ...prev,
-      profileImage: filePath, // ✅ VAIN PATH, EI BASE64!
+      profileImage: urlData.publicUrl, // ✅ TÄYSI URL, EI file path!
     }));
 
+    toast.dismiss(toastId); // ✅ POISTA LOADING
     toast.success("Profiilikuva lisätty!");
+    
   } catch (error) {
     console.error("Error:", error);
+    toast.dismiss(toastId); // ✅ POISTA LOADING
     toast.error("Kuvan lataus epäonnistui");
   } finally {
     setIsSaving(false);
@@ -690,7 +701,7 @@ const loadProfileData = async () => {
           <div className="w-40 h-40 rounded-3xl border-4 border-white shadow-2xl overflow-hidden bg-indigo-50 flex items-center justify-center relative">
             {profileData.profileImage ? (
     <img
-      src={(profileData.profileImage)}
+      src={profileData.profileImage}
       alt="Profiilikuva"
       className="w-full h-full object-cover"
     />
