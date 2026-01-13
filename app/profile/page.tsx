@@ -206,31 +206,51 @@ const SimplifiedProfilePage: React.FC = () => {
     loadProfileData();
   }, [userId]);
 
-  const loadProfileData = async () => {
-    if (!userId) return;
+// app/profile/page.tsx - KORJAUS loadProfileData-funktioon
 
-    try {
-      setIsLoading(true);
-      const response = await fetch("/api/save-profile", { method: "GET" });
+// app/profile/page.tsx - loadProfileData korjaus
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.profile) {
-          setProfileData((prevData) => ({
-            ...prevData,
-            ...data.profile,
-          }));
-          // POISTETTU: toast.success("Profiili ladattu"); -> Tämä on turha käyttäjälle
+const loadProfileData = async () => {
+  if (!userId) return;
+
+  try {
+    setIsLoading(true);
+    const response = await fetch("/api/save-profile", { method: "GET" });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.profile) {
+        
+        // ✅ MUUNNA profile_image URL:ksi HETI
+        let imageUrl = "";
+        if (data.profile.profileImage) {
+          const img = data.profile.profileImage;
+          
+          if (img.startsWith('http')) {
+            imageUrl = img;
+          } else if (img.startsWith('data:image')) {
+            imageUrl = img;
+          } else {
+            // File path
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            imageUrl = supabaseUrl 
+              ? `${supabaseUrl}/storage/v1/object/public/cv_files/${img}`
+              : "";
+          }
         }
-      } else if (response.status !== 404) {
-        console.error("Failed to load profile");
+        
+        setProfileData({
+          ...data.profile,
+          profileImage: imageUrl // ✅ Aina täysi URL
+        });
       }
-    } catch (error) {
-      console.error("Error loading profile:", error);
-    } finally {
-      setIsLoading(false);
     }
-  };
+  } catch (error) {
+    console.error("Error loading profile:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const saveProfileData = async (showToast = true) => {
     if (!userId) {
@@ -449,21 +469,7 @@ const SimplifiedProfilePage: React.FC = () => {
       ),
     }));
   };
-const getProfileImageUrl = (imagePath: string | undefined): string => {
-  if (!imagePath) return "";
-  
-  // Jos jo HTTP URL → palauta sellaisenaan
-  if (imagePath.startsWith("http")) return imagePath;
-  
-  // Jos Base64 → palauta sellaisenaan (legacy-tuki)
-  if (imagePath.startsWith("data:image")) return imagePath;
-  
-  // Muuten rakenna Supabase public URL
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) return "";
-  
-  return `${supabaseUrl}/storage/v1/object/public/cv_files/${imagePath}`;
-};
+
   // --- RENDER SECTIONS ---
 
   const renderEssentials = () => {
@@ -684,7 +690,7 @@ const getProfileImageUrl = (imagePath: string | undefined): string => {
           <div className="w-40 h-40 rounded-3xl border-4 border-white shadow-2xl overflow-hidden bg-indigo-50 flex items-center justify-center relative">
             {profileData.profileImage ? (
     <img
-      src={getProfileImageUrl(profileData.profileImage)}
+      src={(profileData.profileImage)}
       alt="Profiilikuva"
       className="w-full h-full object-cover"
     />

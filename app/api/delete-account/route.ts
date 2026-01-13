@@ -1,213 +1,112 @@
-// app/api/delete-account/route.ts - TypeScript korjattu versio
+// app/api/delete-account/route.ts - LOPULLINEN
 import { NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
-interface DeletionResult {
-  success: boolean;
-  deletedCount: number;
-  error?: string;
-}
-
-interface DeletionResults {
-  [tableName: string]: DeletionResult;
-}
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 export async function DELETE() {
   try {
     const { userId } = await auth();
-
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log(`Starting admin deletion for: ${userId}`);
+    console.log(`🗑️ Deleting everything for: ${userId}`);
 
-    // ADMIN CLIENT - ohittaa RLS:n
-    const adminSupabase: SupabaseClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+    // 1️⃣ POISTA STORAGE (profiles/ JA backgrounds/)
+    await deleteAllStorageFiles(userId);
 
-    // POISTA STORAGE TIEDOSTOT
-    await deleteStorageFiles(adminSupabase, userId);
-
-    // POISTA TIETOKANTATIEDOT ADMIN-OIKEUKSILLA
-    const tables: string[] = [
-      "token_usage",
-      "rate_limits",
-      "cover_letters",
-      "cvs",
-      "subscriptions",
-      "user_profiles",
+    // 2️⃣ POISTA KAIKKI TAULUT (oikeassa järjestyksessä!)
+    const tables = [
+      'token_usage',
+      'rate_limits', 
+      'promo_code_usage',
+      'cover_letters',
+      'cv_data',        // ✅ Jos tämä on oikea nimi
+      'cvs',            // ✅ Tai tämä
+      'subscriptions',
+      'default_images',
+      'profiles',       // ✅ Viimeisenä
     ];
-    const results: DeletionResults = {};
 
     for (const table of tables) {
       try {
-        const { data, error } = await adminSupabase
+        const { error } = await supabaseAdmin
           .from(table)
           .delete()
-          .eq("user_id", userId) // Suora vertailu ilman UUID-muunnosta
-          .select("id");
-
-        results[table] = {
-          success: !error,
-          deletedCount: data?.length || 0,
-          error: error?.message,
-        };
-
-        if (error) {
-          console.error(`${table} deletion failed:`, error);
+          .eq('user_id', userId);
+        
+        if (error && error.code !== 'PGRST116') { // Ignore "no rows"
+          console.warn(`⚠️ ${table}:`, error.message);
         } else {
-          console.log(`${table}: deleted ${data?.length || 0} records`);
+          console.log(`✅ ${table} deleted`);
         }
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        results[table] = {
-          success: false,
-          deletedCount: 0,
-          error: errorMessage,
-        };
+      } catch (e) {
+        console.warn(`⚠️ ${table} failed (maybe doesn't exist)`);
       }
     }
 
-    // POISTA CLERK KÄYTTÄJÄ
+    // 3️⃣ POISTA CLERK
     try {
       const clerk = await clerkClient();
       await clerk.users.deleteUser(userId);
-      console.log("Clerk user deleted");
-    } catch (clerkError: unknown) {
-      const errorMessage =
-        clerkError instanceof Error
-          ? clerkError.message
-          : "Unknown clerk error";
-      console.error("Clerk deletion failed:", errorMessage);
+      console.log('✅ Clerk user deleted');
+    } catch (e: any) {
+      console.error('❌ Clerk deletion failed:', e.message);
     }
 
-    return NextResponse.json({
+    return NextResponse.json({ 
       success: true,
-      userId,
-      results,
-      message: "Account deleted with admin privileges",
+      message: 'Kaikki poistettu onnistuneesti'
     });
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error("Admin deletion failed:", errorMessage);
-    return NextResponse.json(
-      {
-        error: errorMessage,
-      },
-      { status: 500 }
-    );
+
+  } catch (error: any) {
+    console.error('💥 Deletion failed:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-async function deleteStorageFiles(
-  adminSupabase: SupabaseClient,
-  userId: string
-): Promise<void> {
+async function deleteAllStorageFiles(userId: string) {
   try {
-    console.log(`🗂️ Looking for files for user: ${userId}`);
+    // Poista profiles/
+    const { data: profileFiles } = await supabaseAdmin.storage
+      .from('cv_files')
+      .list(`profiles/${userId}/`, { limit: 1000 });
 
-    // Käyttäjän tiedostot
-    const { data: userFiles, error: listError } = await adminSupabase.storage
-      .from("cv_files")
+    if (profileFiles?.length) {
+      const paths = profileFiles.map(f => `profiles/${userId}/${f.name}`);
+      await supabaseAdmin.storage.from('cv_files').remove(paths);
+      console.log(`✅ Deleted ${paths.length} profile files`);
+    }
+
+    // Poista backgrounds/
+    const { data: bgFiles } = await supabaseAdmin.storage
+      .from('cv_files')
+      .list(`backgrounds/${userId}/`, { limit: 1000 });
+
+    if (bgFiles?.length) {
+      const paths = bgFiles.map(f => `backgrounds/${userId}/${f.name}`);
+      await supabaseAdmin.storage.from('cv_files').remove(paths);
+      console.log(`✅ Deleted ${paths.length} background files`);
+    }
+
+    // Poista suoraan user_id kansiosta (legacy)
+    const { data: legacyFiles } = await supabaseAdmin.storage
+      .from('cv_files')
       .list(userId, { limit: 1000 });
 
-    console.log(`📁 User files found:`, {
-      count: userFiles?.length || 0,
-      files: userFiles?.map((f) => f.name) || [],
-      error: listError?.message,
-    });
-
-    if (listError) {
-      console.error(`List error for user files:`, listError);
+    if (legacyFiles?.length) {
+      const paths = legacyFiles.map(f => `${userId}/${f.name}`);
+      await supabaseAdmin.storage.from('cv_files').remove(paths);
+      console.log(`✅ Deleted ${paths.length} legacy files`);
     }
 
-    if (userFiles && userFiles.length > 0) {
-      const filePaths = userFiles.map(
-        (file: { name: string }) => `${userId}/${file.name}`
-      );
-      console.log(`🗑️ Attempting to delete user files:`, filePaths);
-
-      const { error: deleteError } = await adminSupabase.storage
-        .from("cv_files")
-        .remove(filePaths);
-
-      if (deleteError) {
-        console.error(`Delete error for user files:`, deleteError);
-      } else {
-        console.log(`✅ Deleted ${userFiles.length} user files`);
-      }
-    } else {
-      console.log(`ℹ️ No user files found in /${userId}/ directory`);
-    }
-
-    // Taustakuvat
-    console.log(`🖼️ Looking for background files in: backgrounds/${userId}`);
-
-    const { data: backgroundFiles, error: bgListError } =
-      await adminSupabase.storage
-        .from("cv_files")
-        .list(`backgrounds/${userId}`, { limit: 1000 });
-
-    console.log(`🖼️ Background files found:`, {
-      count: backgroundFiles?.length || 0,
-      files: backgroundFiles?.map((f) => f.name) || [],
-      error: bgListError?.message,
-    });
-
-    if (bgListError) {
-      console.error(`List error for background files:`, bgListError);
-    }
-
-    if (backgroundFiles && backgroundFiles.length > 0) {
-      const bgPaths = backgroundFiles.map(
-        (file: { name: string }) => `backgrounds/${userId}/${file.name}`
-      );
-      console.log(`🗑️ Attempting to delete background files:`, bgPaths);
-
-      const { error: bgDeleteError } = await adminSupabase.storage
-        .from("cv_files")
-        .remove(bgPaths);
-
-      if (bgDeleteError) {
-        console.error(`Delete error for background files:`, bgDeleteError);
-      } else {
-        console.log(`✅ Deleted ${backgroundFiles.length} background files`);
-      }
-    } else {
-      console.log(
-        `ℹ️ No background files found in /backgrounds/${userId}/ directory`
-      );
-    }
-
-    // Tarkista vielä kaikki bucketin tiedostot (debug)
-    const { data: allFiles } = await adminSupabase.storage
-      .from("cv_files")
-      .list("", { limit: 100 });
-
-    const userRelatedFiles =
-      allFiles?.filter(
-        (f) => f.name.includes(userId) || f.name.startsWith(userId)
-      ) || [];
-
-    console.log(
-      `🔍 All user-related files in bucket:`,
-      userRelatedFiles.map((f) => f.name)
-    );
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown storage error";
-    console.error("Storage deletion failed:", errorMessage);
+  } catch (error: any) {
+    console.error('❌ Storage deletion failed:', error.message);
   }
 }

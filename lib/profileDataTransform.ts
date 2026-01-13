@@ -112,6 +112,10 @@ export function transformUIToDB(
    DATABASE → LANGCHAIN
 ====================================================== */
 
+/* ======================================================
+   DATABASE → LANGCHAIN (KORJATTU)
+====================================================== */
+
 export function transformDBToLangChain(
   dbProfile: DBProfileData,
   cvType: "simple" | "technical" | "creative" = "simple"
@@ -154,6 +158,25 @@ export function transformDBToLangChain(
     .filter(Boolean)
     .join(". ");
 
+  // ✅ MUUNNA PROFILE_IMAGE TÄYDEKSI URL:KSI
+ let profileImageUrl: string | undefined = undefined;
+  
+  if (dbProfile.profile_image) {
+    if (dbProfile.profile_image.startsWith('http')) {
+      // Jo täysi URL
+      profileImageUrl = dbProfile.profile_image;
+    } else if (dbProfile.profile_image.startsWith('data:image')) {
+      // Base64 (legacy)
+      profileImageUrl = dbProfile.profile_image;
+    } else {
+      // File path → rakennetaan URL
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (supabaseUrl) {
+        profileImageUrl = `${supabaseUrl}/storage/v1/object/public/cv_files/${dbProfile.profile_image}`;
+      }
+    }
+  }
+
   return {
     userId: dbProfile.user_id,
     cvId: `cv_${Date.now()}`,
@@ -189,11 +212,10 @@ export function transformDBToLangChain(
     age: dbProfile.age || "",
     linkedIn: dbProfile.linkedin || "",
 
-    // ✅ NORMALISOITU
-    profileImage: dbProfile.profile_image ?? undefined,
+    // ✅ KÄYTÄ TÄYTTÄ URL:IA
+    profileImage: profileImageUrl,
   };
 }
-
 /* ======================================================
    VALIDATION
 ====================================================== */
