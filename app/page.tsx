@@ -593,7 +593,7 @@ if (!isLoaded || subLoading) {
         </div>
 
          {/* ✅ KORJATTU PRICING SECTION - 3 TIERS */}
-        <div className="bg-white/5 backdrop-blur-2xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border border-white/10 shadow-2xl mb-16">
+<div id="pricing" className="bg-white/5 backdrop-blur-2xl rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-12 border border-white/10 shadow-2xl mb-16 scroll-mt-20">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-100 mb-4">
               {language === "en" ? "Simple, Transparent Pricing" : "Yksinkertainen, Läpinäkyvä Hinnoittelu"}
