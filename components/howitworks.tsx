@@ -73,10 +73,10 @@ export default function HowItWorksTimeline() {
         {/* STEP 2 */}
         <div className="bg-background border border-border rounded-2xl p-6">
           <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-secondary/20 mb-6">
-            <UserCheck className="w-7 h-7 text-secondary-foreground" />
+            <UserCheck className="w-7 h-7 text-primary" />
           </div>
 
-          <h3 className="font-bold text-lg text-foreground mb-2">
+          <h3 className="font-bold text-lg  text-muted-foreground mb-2">
             {language === "en" ? "Create your profile" : "Luo profiili"}
           </h3>
 
@@ -120,7 +120,7 @@ export default function HowItWorksTimeline() {
               </Link>
 
               <Link href="/create-cover-letter">
-                <Button variant="outline" className="w-full">
+                <Button  className="w-full">
                   <FileText className="w-4 h-4 mr-1" />
                   {language === "en" ? "Create cover letter" : "Tee hakukirje"}
                 </Button>
