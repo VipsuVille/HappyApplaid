@@ -84,7 +84,7 @@ export default function SmartHeader() {
   // Luodaan dynaaminen Pricing-ikoni ja linkki
   const PricingIcon = language === 'fi' ? ReceiptEuro : CircleDollarSign;
   // Jos ollaan jo etusivulla, käytetään pelkkää #id:tä, muuten koko polkua
-  const pricingHref = pathname === '/' ? '#pricing' : '/#pricing';
+  const pricingHref = pathname === '/' ? '#pricing' : '/pricing';
 
   // --- SIGNED OUT HEADER ---
   if (!isSignedIn) {
