@@ -10,8 +10,8 @@ import { Sparkles, Check } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 import Link from "next/link";
 
-export function SignUpPage() {
-  const { language } = useLanguage();
+export default function SignUpPage() {
+    const { language } = useLanguage();
 
   const benefits = [
     {

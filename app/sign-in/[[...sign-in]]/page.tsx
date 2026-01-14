@@ -1,4 +1,5 @@
 //app/sign-in/[[...sign-in]]/page.tsx
+//app/sign-in/[[...sign-in]]/page.tsx
 
 'use client';
 
@@ -6,8 +7,8 @@ import { SignIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
-export function SignInPage() {
-  const { language } = useLanguage();
+export default function SignInPage() {
+    const { language } = useLanguage();
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-gray-50 via-orange-50/30 to-amber-50/40 py-12 px-4 sm:px-6 lg:px-8">
