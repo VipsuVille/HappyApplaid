@@ -53,7 +53,7 @@ export default function SmartHeader() {
       signOut: 'Sign out',
       signIn: 'Sign In',
       signUp: 'Sign Up',
-      toggleLang: 'EN'
+      toggleLang: 'EN',
     },
     fi: {
       home: 'Koti',
@@ -66,8 +66,8 @@ export default function SmartHeader() {
       signOut: 'Kirjaudu ulos',
       signIn: 'Kirjaudu',
       signUp: 'Rekisteröidy',
-      toggleLang: 'FI'
-    }
+      toggleLang: 'FI',
+    },
   }[language];
 
   useEffect(() => {
@@ -99,6 +99,7 @@ export default function SmartHeader() {
   return (
     <>
       <header className="bg-black/80 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
+        {/* tärkeä: relative, jotta absolute mobiilivalikko ankkuroidaan tähän */}
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center relative">
           <Link href="/" className="flex items-center">
             <Image src="/logo.png" alt="HappyApplaid" width={150} height={40} />
@@ -112,7 +113,11 @@ export default function SmartHeader() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className={pathname === href ? 'text-orange-400 bg-orange-500/20 border border-orange-400/30' : 'text-gray-300 hover:text-orange-300 hover:bg-white/5'}
+                    className={
+                      pathname === href
+                        ? 'text-orange-400 bg-orange-500/20 border border-orange-400/30'
+                        : 'text-gray-300 hover:text-orange-300 hover:bg-white/5'
+                    }
                   >
                     <Icon className="w-4 h-4 mr-1" />
                     {label}
@@ -135,7 +140,12 @@ export default function SmartHeader() {
 
             {/* Desktop: Language Toggle (Logged Out) */}
             {!isSignedIn && (
-              <Button onClick={toggleLanguage} variant="ghost" size="sm" className="hidden md:flex bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10">
+              <Button
+                onClick={toggleLanguage}
+                variant="ghost"
+                size="sm"
+                className="hidden md:flex bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10"
+              >
                 <Languages className="w-4 h-4 mr-1" />
                 {t.toggleLang}
               </Button>
@@ -145,13 +155,17 @@ export default function SmartHeader() {
             {!isSignedIn ? (
               <div className="hidden md:flex items-center gap-2">
                 <SignInButton mode="modal" appearance={clerkAppearance}>
-                  <Button size="sm" variant="ghost" className="text-gray-300 hover:text-white hover:bg-white/10">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-gray-300 hover:text-white hover:bg-white/10"
+                  >
                     {t.signIn}
                   </Button>
                 </SignInButton>
-                
+
                 <SignUpButton mode="modal" appearance={clerkAppearance}>
-                  <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:from-orange-600 hover:to-amber-700">
+                  <Button className="bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:from-orange-600 hover:to-amber-700">
                     {t.signUp}
                   </Button>
                 </SignUpButton>
@@ -163,13 +177,18 @@ export default function SmartHeader() {
                   <Link href="/pricing">
                     <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 px-3 py-1.5 rounded-full">
                       <Crown className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-300">{plan.toUpperCase()}</span>
+                      <span className="text-xs font-semibold text-amber-300">
+                        {plan.toUpperCase()}
+                      </span>
                     </div>
                   </Link>
                 )}
-                
+
                 <div data-profile-menu className="relative">
-                  <button onClick={() => setProfileMenuOpen(!profileMenuOpen)} className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors">
+                  <button
+                    onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                    className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+                  >
                     <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-full text-xs flex items-center justify-center font-bold">
                       {user?.firstName?.[0] ?? 'U'}
                     </div>
@@ -178,9 +197,12 @@ export default function SmartHeader() {
 
                   {profileMenuOpen && (
                     <div className="absolute right-0 top-12 w-48 bg-gray-900/95 border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden">
-                      <button onClick={toggleLanguage} className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2">
+                      <button
+                        onClick={toggleLanguage}
+                        className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg:white/5 flex items-center gap-2"
+                      >
                         <Languages className="w-4 h-4" />
-                        {language === "en" ? "Suomeksi" : "In English"}
+                        {language === 'en' ? 'Suomeksi' : 'In English'}
                       </button>
                       <Link href="/settings">
                         <button className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2">
@@ -199,77 +221,103 @@ export default function SmartHeader() {
             )}
 
             {/* Mobile: Hamburger Menu Toggle */}
-            <button className="md:hidden p-2 text-gray-300 hover:bg-white/5 rounded-lg" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <button
+              className="md:hidden p-2 text-gray-300 hover:bg-white/5 rounded-lg"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
+
+          {/* Mobile Menu - Drops below header, ankkuroidaan tähän wrapperiin */}
+          {mobileMenuOpen && (
+            <div className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute left-0 top-full w-screen -mx-4 z-50 animate-in slide-in-from-top duration-200">
+              <div className="flex flex-col p-4 gap-2">
+                {isSignedIn ? (
+                  <>
+                    {navLinks.map(({ href, label, icon: Icon }) => (
+                      <Link key={href} href={href}>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start text-gray-300 hover:text-orange-300"
+                        >
+                          <Icon className="w-5 h-5 mr-3" />
+                          {label}
+                        </Button>
+                      </Link>
+                    ))}
+
+                    {/* Mobile: Language & Settings */}
+                    <div className="pt-2 border-t border-white/10 space-y-2">
+                      <Button
+                        onClick={toggleLanguage}
+                        variant="ghost"
+                        className="w-full justify-start text-gray-300"
+                      >
+                        <Languages className="w-5 h-5 mr-3" />{' '}
+                        {language === 'en' ? 'Suomeksi' : 'English'}
+                      </Button>
+                      <Link href="/settings">
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start text-gray-300"
+                        >
+                          <Settings className="w-5 h-5 mr-3" /> {t.settings}
+                        </Button>
+                      </Link>
+                      <SignOutButton>
+                        <Button className="w-full justify-start text-red-400 hover:text-red-300" variant="ghost">
+                          <LogOut className="w-5 h-5 mr-3" /> {t.signOut}
+                        </Button>
+                      </SignOutButton>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start text-gray-300"
+                      >
+                        <Home className="w-5 h-5 mr-3" /> {t.home}
+                      </Button>
+                    </Link>
+                    <Link href={pricingAnchor}>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start text-gray-300"
+                      >
+                        <PricingIcon className="w-5 h-5 mr-3" /> {t.pricing}
+                      </Button>
+                    </Link>
+                    <Button
+                      onClick={toggleLanguage}
+                      variant="ghost"
+                      className="w-full justify-start text-gray-300"
+                    >
+                      <Languages className="w-5 h-5 mr-3" />{' '}
+                      {language === 'en' ? 'Suomeksi' : 'English'}
+                    </Button>
+
+                    {/* Mobile: Auth Buttons */}
+                    <div className="pt-2 border-t border-white/10 space-y-2">
+                      <SignInButton mode="modal" appearance={clerkAppearance}>
+                        <Button variant="ghost" className="w-full text-gray-300">
+                          {t.signIn}
+                        </Button>
+                      </SignInButton>
+                      <SignUpButton mode="modal" appearance={clerkAppearance}>
+                        <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-600 text:white">
+                          {t.signUp}
+                        </Button>
+                      </SignUpButton>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-        {/* Mobile Menu - Drops below header */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute left-0 top-16 z-40 animate-in slide-in-from-top duration-200">
-          <div className="flex flex-col p-4 gap-2">
-            {isSignedIn ? (
-              <>
-                {navLinks.map(({ href, label, icon: Icon }) => (
-                  <Link key={href} href={href}>
-                    <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-orange-300">
-                      <Icon className="w-5 h-5 mr-3" />
-                      {label}
-                    </Button>
-                  </Link>
-                ))}
-                
-                {/* Mobile: Language & Settings */}
-                <div className="pt-2 border-t border-white/10 space-y-2">
-                  <Button onClick={toggleLanguage} variant="ghost" className="w-full justify-start text-gray-300">
-                    <Languages className="w-5 h-5 mr-3" /> {language === 'en' ? 'Suomeksi' : 'English'}
-                  </Button>
-                  <Link href="/settings">
-                    <Button variant="ghost" className="w-full justify-start text-gray-300">
-                      <Settings className="w-5 h-5 mr-3" /> {t.settings}
-                    </Button>
-                  </Link>
-                  <SignOutButton>
-                    <Button variant="ghost" className="w-full justify-start text-red-400 hover:text-red-300">
-                      <LogOut className="w-5 h-5 mr-3" /> {t.signOut}
-                    </Button>
-                  </SignOutButton>
-                </div>
-              </>
-            ) : (
-              <>
-                <Link href="/">
-                  <Button variant="ghost" className="w-full justify-start text-gray-300">
-                    <Home className="w-5 h-5 mr-3" /> {t.home}
-                  </Button>
-                </Link>
-                <Link href={pricingAnchor}>
-                  <Button variant="ghost" className="w-full justify-start text-gray-300">
-                    <PricingIcon className="w-5 h-5 mr-3" /> {t.pricing}
-                  </Button>
-                </Link>
-                <Button onClick={toggleLanguage} variant="ghost" className="w-full justify-start text-gray-300">
-                  <Languages className="w-5 h-5 mr-3" /> {language === 'en' ? 'Suomeksi' : 'English'}
-                </Button>
-                
-                {/* Mobile: Auth Buttons */}
-                <div className="pt-2 border-t border-white/10 space-y-2">
-                  <SignInButton mode="modal" appearance={clerkAppearance}>
-                    <Button variant="ghost" className="w-full text-gray-300">
-                      {t.signIn}
-                    </Button>
-                  </SignInButton>
-                  <SignUpButton mode="modal" appearance={clerkAppearance}>
-                    <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-600 text-white">
-                      {t.signUp}
-                    </Button>
-                  </SignUpButton>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
       </header>
     </>
   );
