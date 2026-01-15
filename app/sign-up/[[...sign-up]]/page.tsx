@@ -54,7 +54,7 @@ export default function SignUpPage() {
         className="absolute top-6 right-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all group"
         aria-label="Close"
       >
-        <X className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+        <X className="w-5 h-5 text-orange-500/10 group-hover:text-white transition-colors" />
       </button>
 
       {/* Content Container */}

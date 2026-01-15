@@ -53,7 +53,7 @@ export default function SmartHeader() {
       signOut: 'Sign out',
       signIn: 'Sign In',
       signUp: 'Sign Up',
-      toggleLang: 'EM'
+      toggleLang: 'EN'
     },
     fi: {
       home: 'Koti',
@@ -204,11 +204,9 @@ export default function SmartHeader() {
             </button>
           </div>
         </div>
-      </header>
-
-      {/* Mobile Menu - Drops below header */}
+        {/* Mobile Menu - Drops below header */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 sticky top-16 z-40 animate-in slide-in-from-top duration-200">
+        <div className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute left-0 top-16 z-40 animate-in slide-in-from-top duration-200">
           <div className="flex flex-col p-4 gap-2">
             {isSignedIn ? (
               <>
@@ -272,6 +270,7 @@ export default function SmartHeader() {
           </div>
         </div>
       )}
+      </header>
     </>
   );
 }

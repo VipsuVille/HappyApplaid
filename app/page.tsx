@@ -144,6 +144,8 @@ useEffect(() => {
   showWelcome,
   showOnboarding,
 ]);
+
+
    const handleWelcomeComplete = async (data: {
     name: string;
     email: string;
@@ -524,7 +526,7 @@ return (
                 {language === "en" ? "Templates" : "Pohjat"}
               </h3>
               <p className="text-sm text-gray-500">
-                {language === "en" ? "Professional templates" : "Ammattimaiset pohjat"}
+                {language === "en" ? "More professional templates" : "Ammattimaiset pohjat"}
               </p>
             </div>
           </div>

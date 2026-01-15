@@ -96,12 +96,14 @@ export const clerkAppearance: Appearance = {
     footerActionText: 'text-gray-400',
     
     // Identity preview (email/username display)
-    identityPreviewText: 'text-gray-300',
+    identityPreviewText: 'text-orange-500/70',
     identityPreviewEditButton: 'text-orange-400 hover:text-orange-300',
     
     // Form field error
     formFieldErrorText: 'text-red-400 text-xs mt-1',
-    
+        identityPreview: {
+      gap: '0.75rem',
+    },
     // Alert
     alertText: 'text-gray-300',
     
