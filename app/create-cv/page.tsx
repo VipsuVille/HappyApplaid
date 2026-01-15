@@ -505,9 +505,7 @@ export default function CreateCVPage() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
+    
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
@@ -524,3 +522,6 @@ export default function CreateCVPage() {
           background: #374151;
         }
       `}</style>
+    </div>
+  );
+}
