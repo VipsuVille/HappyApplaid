@@ -97,7 +97,53 @@ const isPaid = isActive && tier !== "free";
       checkFirstVisit();
     }
   }, [isSignedIn, user?.id, isLoaded]);
+useEffect(() => {
+  const loadRecentDocuments = async () => {
+    if (!isSignedIn || !user?.id || profileCompleted !== true) return;
 
+    setLoadingRecent(true);
+    try {
+      const cvResponse = await fetch("/api/recent-cvs");
+      if (cvResponse.ok) {
+        const cvData = await cvResponse.json();
+        setRecentCVs(cvData.slice(0, 3));
+      }
+
+      // ✅ korvattu freemiumStatus-logiikka
+      if (tokens > 0 || (isActive && tier !== "free")) {
+        const letterResponse = await fetch("/api/recent-cover-letters");
+        if (letterResponse.ok) {
+          const letterData = await letterResponse.json();
+          setRecentCoverLetters(letterData.slice(0, 3));
+        }
+      }
+    } catch (error) {
+      console.error("Error loading recent documents:", error);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  if (
+    isLoaded &&
+    isSignedIn &&
+    profileCompleted === true &&
+    !showWelcome &&
+    !showOnboarding
+  ) {
+    loadRecentDocuments();
+  }
+}, [
+  isSignedIn,
+  user?.id,
+  profileCompleted,
+  tokens,
+  isActive,
+  tier,
+  isLoaded,
+  showWelcome,
+  showOnboarding,
+]);
    const handleWelcomeComplete = async (data: {
     name: string;
     email: string;
@@ -183,53 +229,7 @@ const isPaid = isActive && tier !== "free";
 
 
 
- useEffect(() => {
-  const loadRecentDocuments = async () => {
-    if (!isSignedIn || !user?.id || profileCompleted !== true) return;
-
-    setLoadingRecent(true);
-    try {
-      const cvResponse = await fetch("/api/recent-cvs");
-      if (cvResponse.ok) {
-        const cvData = await cvResponse.json();
-        setRecentCVs(cvData.slice(0, 3));
-      }
-
-      // ✅ korvattu freemiumStatus-logiikka
-      if (tokens > 0 || (isActive && tier !== "free")) {
-        const letterResponse = await fetch("/api/recent-cover-letters");
-        if (letterResponse.ok) {
-          const letterData = await letterResponse.json();
-          setRecentCoverLetters(letterData.slice(0, 3));
-        }
-      }
-    } catch (error) {
-      console.error("Error loading recent documents:", error);
-    } finally {
-      setLoadingRecent(false);
-    }
-  };
-
-  if (
-    isLoaded &&
-    isSignedIn &&
-    profileCompleted === true &&
-    !showWelcome &&
-    !showOnboarding
-  ) {
-    loadRecentDocuments();
-  }
-}, [
-  isSignedIn,
-  user?.id,
-  profileCompleted,
-  tokens,
-  isActive,
-  tier,
-  isLoaded,
-  showWelcome,
-  showOnboarding,
-]);
+ 
 
 if (!isLoaded || subLoading) {
   return (
