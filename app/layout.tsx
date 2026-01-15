@@ -7,7 +7,6 @@ import { clerkAppearance } from '@/lib/clerkAppearance';
 
 const inter = Inter({ subsets: ["latin"] });
 
-
 export default function RootLayout({
   children,
 }: {
@@ -16,7 +15,7 @@ export default function RootLayout({
   return (
     <ClerkProvider appearance={clerkAppearance}>
       <html lang="en">
-        <body className={`${inter.className} bg-slate-200`} suppressHydrationWarning>
+        <body className={`${inter.className} bg-gray-900`} suppressHydrationWarning>
           <GlobalLayout>
             {children}
           </GlobalLayout>
