@@ -1,26 +1,32 @@
-// app/create-cv/page.tsx - TÄYDELLINEN VERSIO FREE-LOGIIKALLA
-
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  FileText,
   Sparkles,
-  Zap,
   Target,
-  Info,
+  Zap,
   Crown,
+  Lock,
+  ChevronRight,
+  Shield,
+  FileEdit,
+  CheckCircle,
+  ArrowRight,
+  Info,
   AlertCircle,
-  ChevronDown,
-  Check,
 } from "lucide-react";
-import { TokenAction, useTokens } from "@/hooks/useTokens";
-import { useFreeUsage } from '@/hooks/useFreeUsage'; // ✅ UUSI
+
+// Tuodaan hookit ja tyypit
+import { useTokens } from "@/hooks/useTokens";
+import { useFreeUsage } from '@/hooks/useFreeUsage';
 import CVConfirmationModal from "@/components/CVConfirmationModal";
+
+// Tuodaan hinta-asetukset suoraan domain-tiedostosta
+import { ACTION_COSTS, PlanType, TokenAction } from "@/lib/domain/tokens";
 
 type CVTemplate = "technical" | "creative" | "simple";
 
@@ -29,12 +35,6 @@ interface CVQuestion {
   question: string;
   why?: string;
   priority?: 'critical' | 'important' | 'optional';
-}
-
-interface ViolationItem {
-  type: 'skill' | 'education' | 'experience';
-  content: string;
-  reason: string;
 }
 
 interface Violations {
@@ -48,185 +48,103 @@ export default function CreateCVPage() {
   const { user, isLoaded: userLoaded } = useUser();
   const { getToken } = useAuth();
   
+  // State-hallinta
   const [isLoading, setIsLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
   const [jobPosting, setJobPosting] = useState("");
   const [useATS, setUseATS] = useState(false);
-  const [useRAG, setUseRAG] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
   
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
+  // Kysymysten hallinta
   const [questions, setQuestions] = useState<CVQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showQuestions, setShowQuestions] = useState(false);
 
+  // Vahvistus-modalin hallinta
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingViolations, setPendingViolations] = useState<Violations | null>(null);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
 
   const { 
     tokens, 
-    isActive, 
-    plan_type,
-    features,
-    isLoading: tokensLoading,
-    getActionCost 
+    plan_type, 
+    features, 
+    isLoading: tokensLoading 
   } = useTokens();
 
-  // ✅ UUSI: Free Usage Hook
   const freeUsage = useFreeUsage();
 
-  // ════════════════════════════════════════════════════════════════
-  // LOAD PROFILE
-  // ════════════════════════════════════════════════════════════════
+  // --- DYNAAMINEN HINNOITTELU lib/domain/tokens.ts MUKAAN ---
+  const costs = useMemo(() => {
+    const currentTier = (plan_type as PlanType) || 'free';
+    const tierCosts = ACTION_COSTS[currentTier] || {};
+    
+    const basic = tierCosts.cv_basic || 0;
+    const ats = tierCosts.cv_ats_addon || 0;
+    
+    return {
+      basic,
+      ats,
+      total: basic + (useATS ? ats : 0)
+    };
+  }, [plan_type, useATS]);
 
-  const loadProfile = async () => {
-    if (!user) return;
-
-    try {
-      setProfileLoading(true);
-      
-      const response = await fetch(`/api/user-profile/${user.id}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProfileData(data);
-      } else if (response.status === 404) {
-        setProfileData(null);
-      } else {
-        setProfileData(null);
-      }
-    } catch (error) {
-      console.error("❌ Error loading profile:", error);
-      setProfileData(null);
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
+  // Ladataan käyttäjän profiili
   useEffect(() => {
-    if (userLoaded && user) {
-      loadProfile();
-    }
+    const loadProfile = async () => {
+      if (!user) return;
+      try {
+        setProfileLoading(true);
+        const response = await fetch(`/api/user-profile/${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProfileData(data);
+        }
+      } catch (error) {
+        console.error("❌ Virhe profiilin latauksessa:", error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+    if (userLoaded && user) loadProfile();
   }, [userLoaded, user]);
 
-  useEffect(() => {
-    if (isLoading) {
-      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-        e.preventDefault();
-        e.returnValue = '';
-      };
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }
-  }, [isLoading]);
-
-  const currentActions: TokenAction[] = ['cv_basic'];
-  if (useATS) currentActions.push('cv_ats_addon');
-  if (useRAG) currentActions.push('cv_rag_addon');
-
-  const totalCost = currentActions.reduce(
-    (sum, action) => sum + getActionCost(action),
-    0
-  );
-
-  // ✅ UUSI: Validation Functions
   const canCreateCV = () => {
     if (plan_type === 'free') {
-      return !freeUsage.hasUsedAny && !freeUsage.isLoading;
+      return !freeUsage.hasUsedCV && !freeUsage.isLoading;
     }
-    return tokens >= totalCost;
+    return tokens >= costs.total;
   };
 
-  const getBlockedReason = () => {
-    if (plan_type === 'free') {
-      if (freeUsage.hasUsedCV) {
-        return '❌ Olet jo käyttänyt ilmaisen CV:n';
-      }
-      if (freeUsage.hasUsedCoverLetter) {
-        return '❌ Käytit ilmaisen tokenisi hakukirjeeseen';
-      }
-    }
-    if (tokens < totalCost) {
-      return `❌ Tarvitset ${totalCost} tokenia, sinulla on ${tokens}`;
-    }
-    return null;
-  };
-
-  if (!userLoaded || profileLoading || tokensLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Ladataan...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════
-  // ✅ MAIN GENERATE FUNCTION
-  // ════════════════════════════════════════════════════════════════
-
-  const handleGenerateCV = async () => {
-    if (!user) {
-      toast.error("Kirjaudu sisään luodaksesi CV:n");
-      return;
-    }
-
+ const handleGenerateCV = async (
+    finalAnswers?: Record<string, string>, 
+    skipConfirmation = false
+  ) => {
+    if (!user) return toast.error("Kirjaudu sisään jatkaaksesi");
     if (!profileData) {
-      toast.error("Täytä ensin profiilisi!");
+      toast.error("Täytä profiilitiedot ensin!");
       router.push("/profile");
       return;
     }
 
-    // ✅ VALIDATION
     if (!canCreateCV()) {
-      const reason = getBlockedReason();
-      if (reason) {
-        toast.error(reason, { duration: 6000 });
-        if (plan_type === 'free') {
-          router.push("/pricing");
-        }
-        return;
-      }
-    }
-
-    if (useATS && !features.canUseATS) {
-      toast.error("ATS-optimointi vaatii Premium -tason");
-      return;
-    }
-
-    if (useRAG && !features.canUseRAG) {
-      toast.error("RAG-tietokanta vaatii Premium-tason");
-      return;
-    }
-
-    if (useATS && !jobPosting.trim()) {
-      toast.error("Anna työpaikkailmoitus ATS-optimointia varten");
+      toast.error(plan_type === 'free' ? "Ilmainen kokeilu on jo käytetty." : `Tarvitset ${costs.total} tokenia.`);
       return;
     }
 
     setIsLoading(true);
-
     try {
-      const token = await getToken({ template: "supabase" });
-      if (!token) throw new Error("No auth token");
-
       const requestBody = {
-        profileData: profileData,
+        profileData,
         cvType: selectedTemplate,
         language: "finnish",
-        forceGenerate: false,
-        jobPosting: useATS || useRAG ? jobPosting : undefined,
-        enableRAG: useRAG,
+        jobPosting: useATS ? jobPosting : undefined,
+        enableRAG: false,
+        answers: finalAnswers || answers,
         skipQuestions: false,
-        skipValidation: false
+        skipConfirmation, // ✅ Lähetetään tieto backendiin että varoitukset on kuitattu
       };
 
       setPendingRequest(requestBody);
@@ -237,716 +155,322 @@ export default function CreateCVPage() {
         body: JSON.stringify(requestBody),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        
-        // ✅ FREE ERROR HANDLING
-        if (errorData.error === "FREE_CV_ALREADY_USED") {
-          toast.error(errorData.message || "Olet jo käyttänyt ilmaisen CV:n!", 
-            { 
-              duration: 8000,
-              description: "Aktivoi Basic-tilaus luodaksesi lisää CV:itä"
-            });
-          router.push("/pricing");
-          return;
-        }
-
-        if (errorData.error === "FREE_SLOT_USED_FOR_COVER_LETTER") {
-          toast.error(errorData.message || "Käytit ilmaisen tokenisi hakukirjeeseen", 
-            { 
-              duration: 8000,
-              description: "Aktivoi Basic-tilaus luodaksesi CV:n"
-            });
-          router.push("/pricing");
-          return;
-        }
-
-        if (errorData.error === "PROFILE_REQUIRED") {
-          toast.error("Profiilia ei löydy. Lataa sivu uudelleen tai täytä profiili.");
-          return;
-        }
-
-        throw new Error(errorData.message || errorData.error || "CV generation failed");
-      }
-
       const result = await response.json();
 
-      // Questions?
-      if (result.needsMoreInfo && result.questions) {
-        toast.info(`Tarvitaan lisätietoja: ${result.questions.length} kysymystä`);
+      if (result.needsMoreInfo) {
         setQuestions(result.questions);
         setShowQuestions(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // Confirmation?
-      if (result.needsConfirmation && result.violations) {
+      } else if (result.needsConfirmation && !skipConfirmation) {
+        // ✅ Jos backend löytää hallusinaatioita, näytetään modal
         setPendingViolations(result.violations);
         setShowConfirmation(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // Success!
-      toast.success(
-        useRAG ? "🎯 RAG-optimoitu CV luotu!" :
-        useATS ? "✅ ATS-optimoitu CV luotu!" :
-        "✅ CV luotu!",
-        { 
-          description: `Generointi kesti ${Math.round((result.generationTime || 0) / 1000)}s`
-        }
-      );
-
-      router.push(`/edit-cv/${result.id || result.cvId}`);
-
-    } catch (error) {
-      console.error('❌ Generation failed:', error);
-      
-      toast.error(
-        "Virhe CV:n luonnissa",
-        { description: error instanceof Error ? error.message : "Tuntematon virhe" }
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ════════════════════════════════════════════════════════════════
-  // QUESTION & CONFIRMATION HANDLERS (sama kuin ennen)
-  // ════════════════════════════════════════════════════════════════
-
-  const handleAnswerQuestions = async () => {
-    setIsLoading(true);
-
-    const answeredQuestions = questions
-      .filter(q => answers[q.id]?.trim())
-      .map(q => ({
-        id: q.id,
-        question: q.question,
-        answer: answers[q.id],
-      }));
-
-    try {
-      const response = await fetch("/api/generate-cv", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...pendingRequest,
-          answeredQuestions,
-          skipQuestions: true,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.needsConfirmation && result.violations) {
-        setPendingViolations(result.violations);
-        setShowConfirmation(true);
-        setShowQuestions(false);
-        setIsLoading(false);
-        return;
-      }
-
-      toast.success("✅ CV luotu lisätietojen jälkeen!");
-
-      setShowQuestions(false);
-      setQuestions([]);
-      setAnswers({});
-
-      router.push(`/edit-cv/${result.id || result.cvId}`);
-    } catch (err) {
-      console.error('❌ Failed after questions:', err);
-      toast.error("Virhe CV:n luonnissa lisäkysymysten jälkeen");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleApproveViolations = async (items: ViolationItem[]) => {
-    if (!pendingRequest) return;
-
-    setIsLoading(true);
-    setShowConfirmation(false);
-
-    try {
-      const confirmedViolations = items.map(item => ({
-        type: item.type,
-        content: item.content,
-        decision: 'approved'
-      }));
-
-      const response = await fetch('/api/generate-cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...pendingRequest,
-          confirmedViolations,
-          skipValidation: true
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.cvId) {
-        toast.success('✅ CV luotu hyväksytyillä tiedoilla!');
-        router.push(`/edit-cv/${data.cvId}`);
+      } else if (response.ok) {
+        toast.success("✅ CV luotu onnistuneesti!");
+        router.push(`/edit-cv/${result.id || result.cvId}`);
       } else {
-        throw new Error('Failed to generate with approved items');
+        throw new Error(result.error || "Generointi epäonnistui");
       }
-
-    } catch (error) {
-      console.error('Error with approved violations:', error);
-      toast.error('❌ CV:n luonti epäonnistui');
+    } catch (error: any) {
+      toast.error(error.message || "Tapahtui virhe");
+    } finally {
       setIsLoading(false);
     }
+  };
+// 2. UUDET HANDLER-FUNKTIOT MODALILLE (TypeScript-yhteensopivat)
+  const handleApproveViolations = async (items: any[]) => {
+    setShowConfirmation(false);
+    // Kutsutaan generointia uudelleen skipConfirmation = true -lipulla
+    await handleGenerateCV(answers, true);
   };
 
   const handleRejectViolations = async () => {
-    if (!pendingRequest) return;
-
-    setIsLoading(true);
     setShowConfirmation(false);
-
-    try {
-      const violationItems: ViolationItem[] = [
-        ...(pendingViolations?.fabricatedSkills || []).map(skill => ({
-          type: 'skill' as const,
-          content: skill,
-          reason: 'Rejected by user'
-        })),
-        ...(pendingViolations?.fabricatedEducation || []).map(edu => ({
-          type: 'education' as const,
-          content: edu,
-          reason: 'Rejected by user'
-        })),
-        ...(pendingViolations?.fabricatedExperience || []).map(exp => ({
-          type: 'experience' as const,
-          content: exp,
-          reason: 'Rejected by user'
-        }))
-      ];
-
-      const confirmedViolations = violationItems.map(item => ({
-        type: item.type,
-        content: item.content,
-        decision: 'rejected'
-      }));
-
-      const response = await fetch('/api/generate-cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...pendingRequest,
-          confirmedViolations,
-          skipValidation: true
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.cvId) {
-        toast.success('✅ CV luotu ilman hylättyjä tietoja', {
-          description: 'CV voi olla lyhyempi, mutta sisältää vain varmennetut tiedot.'
-        });
-        router.push(`/edit-cv/${data.cvId}`);
-      } else {
-        throw new Error('Failed to generate lean CV');
-      }
-
-    } catch (error) {
-      console.error('Error creating lean CV:', error);
-      toast.error('❌ CV:n luonti epäonnistui');
-      setIsLoading(false);
-    }
+    setPendingViolations(null);
+    toast.info("Generointi peruutettu.");
   };
 
-  const handleEditViolations = async (corrections: Array<{ original: string; corrected: string; type: string }>) => {
-    if (!pendingRequest) return;
-
-    setIsLoading(true);
+  const handleEditViolations = async () => {
     setShowConfirmation(false);
-
-    try {
-      const confirmedViolations = corrections.map(corr => ({
-        type: corr.type,
-        content: corr.original,
-        decision: 'corrected',
-        correctedContent: corr.corrected
-      }));
-
-      const response = await fetch('/api/generate-cv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...pendingRequest,
-          confirmedViolations,
-          skipValidation: true
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.cvId) {
-        toast.success('✅ CV luotu korjatuilla tiedoilla!');
-        router.push(`/edit-cv/${data.cvId}`);
-      } else {
-        throw new Error('Failed to generate with corrections');
-      }
-
-    } catch (error) {
-      console.error('Error with corrections:', error);
-      toast.error('❌ CV:n luonti epäonnistui');
-      setIsLoading(false);
-    }
+    router.push("/profile"); // Ohjataan käyttäjä korjaamaan profiilitietonsa
   };
-
-  // ════════════════════════════════════════════════════════════════
-  // TEMPLATE DATA
-  // ════════════════════════════════════════════════════════════════
-
-  const templates = [
-    {
-      id: "simple" as CVTemplate,
-      icon: FileText,
-      label: "Rento",
-      description: "Pitkä, persoonallinen esittely. Kertoo kuka olet ihmisenä.",
-      details: "Paras yleiskäyttöön. Tuo persoonallisuutesi esiin tarinan kautta.",
-      gradient: "from-blue-500 to-cyan-600",
-      bg: "bg-blue-50",
-      border: "border-blue-500",
-    },
-    {
-      id: "technical" as CVTemplate,
-      icon: Sparkles,
-      label: "Professional",
-      description: "Ammattimainen ja strukturoitu. Listaa taidot ja saavutukset.",
-      details: "Paras teknisiin ja ammattirooleihin. Selkeä hierarkia.",
-      gradient: "from-indigo-500 to-purple-600",
-      bg: "bg-purple-50",
-      border: "border-purple-500",
-    },
-    {
-      id: "creative" as CVTemplate,
-      icon: Zap,
-      label: "Creative",
-      description: "Luova ja mukaansatempaava. Sekoitus tekstiä ja keypointteja.",
-      details: "Paras luoville aloille. Erottuu massasta ammattitasoisesti.",
-      gradient: "from-pink-500 to-rose-600",
-      bg: "bg-pink-50",
-      border: "border-pink-500",
-    },
-  ];
-
-  // ════════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════════
+  if (!userLoaded || profileLoading || tokensLoading) {
+    return (
+      <div className="min-h-screen bg-[#030711] flex flex-col items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+        <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">Ladataan työkaluja...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
-      {/* Loading Banner */}
-      {isLoading && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 max-w-lg w-full px-4 animate-fade-in">
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-5 rounded-2xl shadow-2xl border-2 border-white/20">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
-                <div className="relative">
-                  <div className="animate-spin rounded-full h-8 w-8 border-3 border-white border-t-transparent"></div>
-                  <div className="absolute inset-0 rounded-full bg-white/10 animate-ping"></div>
-                </div>
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-lg mb-1">CV:tä luodaan...</p>
-                <p className="text-sm text-indigo-100 leading-relaxed">
-                  ⏱️ Kestää 30-60 sekuntia. Älä sulje sivua.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="text-center pt-12 pb-8 px-4">
-        <h1 className="text-3xl lg:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
-          Luo Ammattimainen CV
-        </h1>
-        <p className="text-lg lg:text-xl text-gray-600 mb-2">
-          {plan_type === "premium"
-            ? "Premium: ATS-optimointi käytössä ja muut ominaisuudet"
-            : plan_type === "basic"
-            ? "Basic: Rajattomat perus CV:t"
-            : "Free: 1 ilmainen CV"}
-        </p>
-        <p className="text-sm text-gray-500">{tokens} tokenia jäljellä</p>
+    <div className="min-h-screen bg-[#030711] text-[#e7e3dc] selection:bg-orange-500/30">
+      {/* Taustagradientit pagesivu.tsx tyyliin */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/5 rounded-full blur-[120px]" />
       </div>
 
-      {/* ✅ FREE WARNING BANNER */}
-      {plan_type === 'free' && freeUsage.hasUsedAny && !freeUsage.isLoading && (
-        <div className="max-w-7xl mx-auto px-4 mb-6">
-          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 shadow-lg">
-            <div className="flex items-start gap-4">
-              <AlertCircle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-1" />
-              <div className="flex-1">
-                <h3 className="font-bold text-xl text-amber-900 mb-2">
-                  🚫 Ilmainen käyttö loppu
-                </h3>
-                <p className="text-amber-800 mb-4">
-                  {freeUsage.hasUsedCV 
-                    ? 'Olet jo luonut ilmaisen CV:n. Aktivoi Basic-tilaus luodaksesi lisää.'
-                    : 'Käytit ilmaisen tokenisi hakukirjeeseen. Aktivoi Basic-tilaus luodaksesi CV:n.'
-                  }
-                </p>
-                <Button
-                  onClick={() => router.push("/pricing")}
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-lg"
-                >
-                  <Crown className="w-5 h-5 mr-2" />
-                  Aktivoi Basic (4,99€/kk) →
-                </Button>
+      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12 md:py-20">
+        
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
+              <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">AI CV Builder</span>
+            </div>
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white leading-tight">
+              Luo <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">Vaikuttava</span> CV.
+            </h1>
+            <p className="text-gray-400 max-w-xl text-lg font-medium leading-relaxed">
+              Anna tekoälyn hioa kokemuksestasi timanttinen esitys. Valitse tyyli ja anna palaa.
+            </p>
+          </div>
+
+          <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800 p-5 rounded-3xl flex items-center gap-6">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Saldosi</p>
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-2xl font-black text-white">{tokens.toLocaleString()}</span>
+                <span className="text-xs font-bold text-orange-500">TKN</span>
               </div>
+            </div>
+            <div className="w-px h-10 bg-gray-800" />
+            <div className="flex flex-col items-center gap-1">
+              <Crown className={`w-6 h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
+              <span className="text-[8px] font-black uppercase tracking-tighter text-gray-500">{plan_type}</span>
             </div>
           </div>
         </div>
-      )}
 
-      <div className="max-w-7xl mx-auto px-4 pb-32 lg:pb-16">
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* LEFT: Templates + Settings */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Template Selection */}
-            <div className="bg-white rounded-3xl p-6 lg:p-8 border-2 border-indigo-200 shadow-lg">
-              <h2 className="text-2xl lg:text-3xl font-bold mb-6 flex items-center gap-3">
-                <FileText className="text-indigo-600 w-7 h-7" />
-                Valitse CV-Malli
-              </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          {/* VASEN: VALINNAT */}
+          <div className="lg:col-span-8 space-y-10">
+            
+            {/* 1. TYYLI */}
+            <section className="bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-[2.5rem] p-8 md:p-10">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 rounded-2xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
+                  <FileEdit className="w-5 h-5 text-orange-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white">1. Valitse visuaalinen linja</h3>
+              </div>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {templates.map((t) => (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { id: "simple", label: "Rento", desc: "Tarinallinen ja helposti lähestyttävä.", icon: Info },
+                  { id: "technical", label: "Pro", desc: "Suoraviivainen ja faktoihin keskittyvä.", icon: Target },
+                  { id: "creative", label: "Luova", desc: "Erottuva tyyli joka jää mieleen.", icon: Zap },
+                ].map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => setSelectedTemplate(t.id)}
-                    className={`p-6 rounded-2xl border-2 text-left transition-all transform hover:scale-105 ${
-                      selectedTemplate === t.id
-                        ? `${t.border} ${t.bg} shadow-xl scale-105`
-                        : "border-gray-200 bg-white hover:shadow-lg"
+                    onClick={() => setSelectedTemplate(t.id as CVTemplate)}
+                    className={`relative p-6 rounded-3xl border text-left transition-all duration-300 group ${
+                      selectedTemplate === t.id 
+                        ? 'border-orange-500/50 bg-orange-500/5 shadow-[0_0_30px_rgba(249,115,22,0.1)]' 
+                        : 'border-gray-800 bg-black/20 hover:border-gray-700'
                     }`}
                   >
-                    <div className={`h-14 w-14 bg-gradient-to-br ${t.gradient} rounded-2xl flex items-center justify-center mb-4`}>
-                      <t.icon className="h-7 w-7 text-white" />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">{t.label}</h3>
-                    <p className="text-sm text-gray-600">{t.description}</p>
+                    <t.icon className={`w-6 h-6 mb-4 transition-colors ${selectedTemplate === t.id ? 'text-orange-400' : 'text-gray-500 group-hover:text-gray-300'}`} />
+                    <p className="font-bold text-white mb-2">{t.label}</p>
+                    <p className="text-xs text-gray-500 leading-relaxed">{t.desc}</p>
                     {selectedTemplate === t.id && (
-                      <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-indigo-600">
-                        <Check className="w-4 h-4" />
-                        Valittu
-                      </div>
+                      <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-orange-500 animate-in zoom-in duration-300" />
                     )}
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
 
-            {/* Desktop Optimization Settings */}
-            <div className="hidden lg:block bg-white rounded-3xl p-8 border-2 border-indigo-200 shadow-lg">
-              <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                <Target className="text-indigo-600 w-7 h-7" />
-                Optimointiominaisuudet
-              </h2>
-
-              <div className="space-y-6">
-                {features.canUseATS && (
-                  <div className={`p-6 rounded-xl border-2 transition-all ${
-                    useATS ? "bg-purple-50 border-purple-300 shadow-md" : "bg-gray-50 border-gray-200"
+            {/* 2. ATS OPTIMOINTI */}
+            <section className={`rounded-[2.5rem] p-8 md:p-10 border transition-all duration-500 ${
+              useATS 
+                ? 'bg-emerald-500/5 border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.05)]' 
+                : 'bg-gray-900/20 border-gray-800/50'
+            }`}>
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border transition-colors ${
+                    useATS ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-gray-800/50 border-gray-700'
                   }`}>
-                    <label className="flex items-start gap-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useATS}
-                        onChange={(e) => setUseATS(e.target.checked)}
-                        className="mt-1 h-5 w-5 text-purple-600 rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="font-bold text-lg text-gray-900 mb-1">
-                          🎯 ATS-optimointi
-                          <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                            +10 tokenia
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">
-                          Räätälöi CV tälle työpaikalle. Maksimoi avainsanat ja läpäisyaste.
-                          <br />
-                          <strong>Tärkeää:</strong> Käytä vain kun haet TIETTYÄ työpaikkaa.
-                        </p>
-                        {useATS && (
-                          <textarea
-                            value={jobPosting}
-                            onChange={(e) => setJobPosting(e.target.value)}
-                            placeholder="Kopioi työpaikkailmoitus tähän..."
-                            rows={5}
-                            className="w-full p-3 border-2 border-purple-300 rounded-lg focus:border-purple-500 focus:outline-none text-sm"
-                          />
-                        )}
-                      </div>
-                    </label>
+                    <Shield className={`w-5 h-5 ${useATS ? 'text-emerald-400' : 'text-gray-500'}`} />
                   </div>
-                )}
+                  <div>
+                    <h3 className="text-xl font-bold text-white">2. Kohdistaminen (ATS)</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Optimoi CV tiettyä työpaikkaa varten</p>
+                  </div>
+                </div>
 
-                {features.canUseRAG && (
-                  <div className={`p-6 rounded-xl border-2 transition-all ${
-                    useRAG ? "bg-amber-50 border-amber-300 shadow-md" : "bg-gray-50 border-gray-200"
-                  }`}>
-                    <label className="flex items-start gap-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useRAG}
-                        onChange={(e) => setUseRAG(e.target.checked)}
-                        className="mt-1 h-5 w-5 text-amber-600 rounded"
-                      />
-                      <div className="flex-1">
-                        <div className="font-bold text-lg text-gray-900 mb-1 flex items-center gap-2">
-                          📚 RAG-tietokanta
-                          <Crown className="w-5 h-5 text-amber-600" />
-                          <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full">
-                            Premium • +20 tok
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">
-                          AI konsultoi CV-asiantuntija-artikkeleita. Tuo "extra maustetta" CV:hen.
-                          <br />
-                          <strong>Huom:</strong> Pieni lisähyöty - käytä vain jos haluat maksimaalisen laadun.
-                        </p>
-                        <div className="p-3 bg-amber-100 border border-amber-200 rounded-lg">
-                          <div className="flex items-start gap-2 text-xs text-amber-800">
-                            <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                            <p>
-                              <strong>Toiminta:</strong> Hakee 3-5 asiantuntija-artikkelia CV-parhaista käytännöistä.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </label>
+                {plan_type !== 'free' ? (
+                  <button 
+                    onClick={() => setUseATS(!useATS)}
+                    className={`relative w-14 h-7 rounded-full transition-colors duration-300 ${useATS ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                  >
+                    <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform duration-300 ${useATS ? 'translate-x-7' : 'translate-x-0'}`} />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
+                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-[10px] font-black text-amber-500 uppercase tracking-tighter">Premium vain</span>
                   </div>
                 )}
               </div>
-            </div>
+
+              {useATS && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex gap-3">
+                    <Info className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-emerald-200/70 leading-relaxed">
+                      Liitä alta työpaikkailmoitus. AI analysoi vaatimukset ja nostaa esiin juuri ne taidot, joita työnantaja etsii.
+                    </p>
+                  </div>
+                  <textarea
+                    value={jobPosting}
+                    onChange={(e) => setJobPosting(e.target.value)}
+                    placeholder="Esim. 'Haemme kokenutta full-stack kehittäjää...'"
+                    className="w-full h-48 bg-black/40 border border-white/10 rounded-3xl p-6 text-sm text-gray-200 focus:outline-none focus:border-emerald-500/50 transition-all placeholder:text-gray-700 resize-none"
+                  />
+                </div>
+              )}
+            </section>
           </div>
 
-          {/* RIGHT: Summary Card */}
-          <div className="hidden lg:block">
-            <div className="sticky top-24 bg-gradient-to-br from-white to-indigo-50 rounded-3xl p-8 border-2 border-indigo-200 shadow-2xl">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                Tilauksen Yhteenveto
-              </h3>
+          {/* OIKEA: YHTEENVETO (Sticky) */}
+          <div className="lg:col-span-4">
+            <div className="sticky top-12 space-y-6">
+              <div className="bg-gray-900/40 backdrop-blur-2xl border border-gray-800 rounded-[2.5rem] p-8 overflow-hidden relative">
+                {/* Koriste-elementti */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
+                
+                <h3 className="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] mb-8">Yhteenveto</h3>
+                
+                <div className="space-y-5 mb-10">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400 font-medium">CV Generointi</span>
+                    <span className="text-white font-bold">{plan_type === 'free' ? '0' : costs.basic} TKN</span>
+                  </div>
+                  
+                  {useATS && (
+                    <div className="flex justify-between items-center text-sm animate-in slide-in-from-right-4">
+                      <span className="text-emerald-400 font-medium flex items-center gap-2">
+                        <CheckCircle className="w-3.5 h-3.5" /> ATS-lisä
+                      </span>
+                      <span className="text-emerald-400 font-bold">+{costs.ats} TKN</span>
+                    </div>
+                  )}
 
-              <div className="space-y-4 mb-6">
-                <div className="flex justify-between items-center p-4 bg-white rounded-xl border border-gray-200">
-                  <span className="font-semibold text-gray-700">Perus CV</span>
-                  <span className="font-bold text-indigo-600">15 tok</span>
+                  <div className="pt-5 border-t border-gray-800 flex justify-between items-end">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">Kustannus</p>
+                      <p className="text-3xl font-black text-white">
+                        {plan_type === 'free' ? 'ILMAINEN' : `${costs.total}`}
+                        {plan_type !== 'free' && <span className="text-xs text-orange-500 ml-1">TKN</span>}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
-                {useATS && (
-                  <div className="flex justify-between items-center p-4 bg-purple-50 rounded-xl border border-purple-200">
-                    <span className="font-semibold text-gray-700">ATS-lisä</span>
-                    <span className="font-bold text-purple-600">+10 tok</span>
+                <Button
+                  onClick={() => handleGenerateCV()}
+                  disabled={isLoading || (useATS && !jobPosting.trim())}
+                  className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 hover:shadow-[0_0_40px_rgba(249,115,22,0.3)] text-white rounded-2xl font-black text-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] group"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Generoidaan...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                      <span>Luo CV nyt</span>
+                      <ArrowRight className="w-5 h-5 ml-1 opacity-50 group-hover:translate-x-1 transition-all" />
+                    </div>
+                  )}
+                </Button>
+
+                {plan_type === 'free' && (
+                  <div className="mt-6 flex gap-3 p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10">
+                    <AlertCircle className="w-4 h-4 text-orange-400 shrink-0" />
+                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                      Ilmaiskäyttäjänä voit luoda yhden CV:n. Se ei tallennu pysyvästi ilman tilausta.
+                    </p>
                   </div>
                 )}
-
-                {useRAG && (
-                  <div className="flex justify-between items-center p-4 bg-amber-50 rounded-xl border border-amber-200">
-                    <span className="font-semibold text-gray-700">RAG-lisä</span>
-                    <span className="font-bold text-amber-600">+20 tok</span>
-                  </div>
-                )}
-
-                <div className="h-px bg-gray-300 my-4"></div>
-
-                <div className="flex justify-between items-center p-4 bg-indigo-50 rounded-xl border-2 border-indigo-300">
-                  <span className="text-lg font-bold text-gray-900">Yhteensä</span>
-                  <span className="text-2xl font-bold text-indigo-600">{totalCost} tok</span>
-                </div>
               </div>
 
-              <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
-                <div className="flex items-center gap-2 text-amber-800 mb-2">
-                  <AlertCircle className="h-5 w-5" />
-                  <p className="font-semibold text-sm">Huomio</p>
-                </div>
-                <p className="text-xs text-amber-700">
-                  Generointi kestää 30-60 sekuntia. Älä sulje sivua!
+              {/* LISÄINFO */}
+              <div className="px-6 py-4 bg-white/5 border border-white/5 rounded-3xl">
+                <p className="text-[11px] text-gray-500 text-center leading-relaxed font-medium">
+                  Prosessi kestää noin 30 sekuntia. <br/> Tekoäly saattaa kysyä tarkentavia kysymyksiä.
                 </p>
               </div>
-
-              <Button
-                onClick={handleGenerateCV}
-                disabled={isLoading || tokensLoading || !canCreateCV()}
-                className="w-full py-6 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-70 disabled:transform-none"
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
-                    Luodaan...
-                  </div>
-                ) : !canCreateCV() ? (
-                  getBlockedReason()
-                ) : (
-                  <div className="flex items-center justify-center">
-                    <Sparkles className="h-6 w-6 mr-2" />
-                    Luo CV ({totalCost} tok)
-                  </div>
-                )}
-              </Button>
-
-              <p className="text-xs text-center text-gray-500 mt-4">
-                {plan_type === 'free' 
-                  ? (freeUsage.hasUsedAny 
-                      ? '❌ Ilmainen käytetty - Tilaa Basic saadaksesi lisää'
-                      : '🆓 1 ilmainen jäljellä - Käytettävissä CV TAI hakukirjeeseen'
-                    )
-                  : `${tokens} tokenia jäljellä tilauksen jälkeen: ${tokens - totalCost}`
-                }
-              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile Bottom Sheet */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-indigo-200 shadow-2xl z-40">
-        <button
-          onClick={() => setShowMobileMenu(!showMobileMenu)}
-          className="w-full p-4 flex items-center justify-between"
-        >
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-100 rounded-full p-2">
-              <Sparkles className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div className="text-left">
-              <p className="font-bold text-gray-900">Yhteensä: {totalCost} tokenia</p>
-              <p className="text-xs text-gray-500">{tokens - totalCost} jäljellä</p>
-            </div>
-          </div>
-          <ChevronDown className={`w-6 h-6 text-gray-600 transition-transform ${showMobileMenu ? "rotate-180" : ""}`} />
-        </button>
+      {/* MODALIT */}
+      
+      {/* LISÄKYSYMYKSET */}
+      {showQuestions && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isLoading && setShowQuestions(false)} />
+          <div className="relative bg-[#0d1117] border border-gray-800 w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-transparent" />
+            
+            <h3 className="text-2xl font-black text-white mb-2 flex items-center gap-3">
+              <Sparkles className="w-7 h-7 text-orange-500" />
+              Tarkennetaanko hieman?
+            </h3>
+            <p className="text-gray-400 text-sm mb-10">AI haluaa varmistaa, että CV:stä tulee mahdollisimman vakuuttava.</p>
 
-        {showMobileMenu && (
-          <div className="border-t border-gray-200 p-4 max-h-[60vh] overflow-y-auto">
-            <div className="space-y-4 mb-4">
-              {features.canUseATS && (
-                <label className="flex items-start gap-3 p-4 bg-purple-50 rounded-xl border border-purple-200">
-                  <input
-                    type="checkbox"
-                    checked={useATS}
-                    onChange={(e) => setUseATS(e.target.checked)}
-                    className="mt-1 h-5 w-5"
+            <div className="space-y-8 max-h-[50vh] overflow-y-auto pr-4 custom-scrollbar">
+              {questions.map((q) => (
+                <div key={q.id} className="space-y-4 group">
+                  <label className="text-sm font-bold text-gray-200 block transition-colors group-focus-within:text-orange-400">
+                    {q.question}
+                  </label>
+                  {q.why && (
+                    <div className="flex gap-2 items-start text-[10px] text-gray-500 uppercase tracking-widest font-bold">
+                      <span className="text-orange-500/50">Miksi:</span>
+                      <span>{q.why}</span>
+                    </div>
+                  )}
+                  <textarea
+                    className="w-full bg-black/40 border border-gray-800 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-all min-h-[100px] resize-none"
+                    value={answers[q.id] || ""}
+                    onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                    placeholder="Vastaa tähän..."
                   />
-                  <div className="flex-1">
-                    <p className="font-bold text-sm">ATS-optimointi (+10 tok)</p>
-                    <p className="text-xs text-gray-600">Työpaikkakohtainen optimointi</p>
-                    {useATS && (
-                      <textarea
-                        value={jobPosting}
-                        onChange={(e) => setJobPosting(e.target.value)}
-                        placeholder="Työpaikkailmoitus..."
-                        rows={3}
-                        className="w-full mt-2 p-2 border rounded text-xs"
-                      />
-                    )}
-                  </div>
-                </label>
-              )}
-
-              {features.canUseRAG && (
-                <label className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
-                  <input
-                    type="checkbox"
-                    checked={useRAG}
-                    onChange={(e) => setUseRAG(e.target.checked)}
-                    className="mt-1 h-5 w-5"
-                  />
-                  <div className="flex-1">
-                    <p className="font-bold text-sm flex items-center gap-2">
-                      RAG-tietokanta <Crown className="w-4 h-4 text-amber-600" />
-                    </p>
-                    <p className="text-xs text-gray-600">Asiantuntija-artikkeleita (+20 tok)</p>
-                  </div>
-                </label>
-              )}
+                </div>
+              ))}
             </div>
-          </div>
-        )}
 
-        <div className="p-4 pt-0">
-          <Button
-            onClick={handleGenerateCV}
-            disabled={isLoading || tokensLoading || !canCreateCV()}
-            className="w-full py-4 text-lg bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-bold"
-          >
-            {isLoading ? "Luodaan..." : !canCreateCV() ? getBlockedReason() : `Luo CV (${totalCost} tok)`}
-          </Button>
-        </div>
-      </div>
-
-      {/* ✅ CV FOLLOW-UP QUESTIONS MODAL */}
-      {showQuestions && questions.length > 0 && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">
-              Tarvitaan lisätietoja CV:tä varten
-            </h2>
-
-            <p className="text-sm text-gray-600 mb-6">
-              Vastaa alla oleviin kysymyksiin, jotta CV voidaan räätälöidä paremmin
-              tähän työpaikkaan.
-            </p>
-
-            {questions.map((q, index) => (
-              <div key={q.id} className="mb-5">
-                <label className="block font-semibold mb-1">
-                  {index + 1}. {q.question}
-                </label>
-
-                {q.why && (
-                  <p className="text-xs text-gray-500 mb-2">
-                    Miksi tämä kysytään: {q.why}
-                  </p>
-                )}
-
-                <textarea
-                  className="w-full border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  rows={4}
-                  value={answers[q.id] || ""}
-                  onChange={(e) =>
-                    setAnswers(prev => ({
-                      ...prev,
-                      [q.id]: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-            ))}
-
-            <div className="flex justify-end gap-3 mt-6">
-              <Button
-                variant="secondary"
+            <div className="flex gap-4 mt-10">
+              <Button 
+                variant="ghost" 
+                className="flex-1 rounded-2xl text-gray-500 hover:text-white hover:bg-white/5 h-14 font-bold"
                 onClick={() => setShowQuestions(false)}
+                disabled={isLoading}
               >
                 Peruuta
               </Button>
-
-              <Button
-                onClick={handleAnswerQuestions}
+              <Button 
+                className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white rounded-2xl h-14 font-black"
+                onClick={() => handleGenerateCV(answers)}
                 disabled={isLoading}
               >
-                Lähetä vastaukset
+                {isLoading ? "Viimeistellään..." : "Valmista tuli"}
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ✅ CONFIRMATION MODAL */}
+      {/* CONFIRMATION (VIOLATIONS) */}
+ {/* 3. KORJATTU MODAL-KUTSU */}
       {showConfirmation && pendingViolations && (
         <CVConfirmationModal
           violations={pendingViolations}
@@ -955,6 +479,48 @@ export default function CreateCVPage() {
           onEdit={handleEditViolations}
         />
       )}
+
+      {/* LISÄKYSYMYKSET MODAL (Päivitetty kutsu) */}
+      {showQuestions && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isLoading && setShowQuestions(false)} />
+          <div className="relative bg-[#0d1117] border border-gray-800 w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl">
+            {/* ... kysymykset jne ... */}
+            <div className="flex gap-4 mt-10">
+              <Button 
+                variant="ghost" 
+                onClick={() => setShowQuestions(false)}
+                disabled={isLoading}
+              >
+                Peruuta
+              </Button>
+              <Button 
+                className="bg-orange-500 text-white"
+                onClick={() => handleGenerateCV(answers)}
+                disabled={isLoading}
+              >
+                {isLoading ? "Viimeistellään..." : "Valmista tuli"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #1f2937;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #374151;
+        }
+      `}</style>
