@@ -3,21 +3,27 @@
 import { useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useUser } from '@clerk/nextjs';
-import { X } from 'lucide-react';
+import { X, AlertCircle } from 'lucide-react';
+import { createCheckoutSessionAction } from '@/app/actions/stripe';
+import { PRICING, BillingPeriod } from '@/lib/pricing';
+import dynamic from 'next/dynamic';
 
-type BillingPeriod = 'monthly' | 'sixMonths' | 'yearly';
+const PromoCodeRedeem = dynamic(
+  () => import('@/components/promoCode'),
+  { ssr: false }
+);
 
-// Hinnat UI:lle
+// Hinnat UI:lle - nyt SYNKASSA pricing.ts kanssa
 const UI_PRICES = {
   basic: {
-    monthly: { en: '€19 / mo', fi: '19 € / kk' },
-    sixMonths: { en: '€99 / 6 mo', fi: '99 € / 6 kk' },
-    yearly: { en: '€179 / year', fi: '179 € / vuosi' },
+    monthly: { en: '€4.99 / mo', fi: '4,99 € / kk' },
+    sixMonths: { en: '€26.94 / 6 mo', fi: '26,94 € / 6 kk' },
+    yearly: { en: '€50.99 / year', fi: '50,99 € / vuosi' },
   },
   premium: {
-    monthly: { en: '€39 / mo', fi: '39 € / kk' },
-    sixMonths: { en: '€209 / 6 mo', fi: '209 € / 6 kk' },
-    yearly: { en: '€359 / year', fi: '359 € / vuosi' },
+    monthly: { en: '€14.99 / mo', fi: '14,99 € / kk' },
+    sixMonths: { en: '€80.94 / 6 mo', fi: '80,94 € / 6 kk' },
+    yearly: { en: '€152.99 / year', fi: '152,99 € / vuosi' },
   },
 };
 
@@ -129,39 +135,60 @@ function CompareModal({ onClose, isEN }: { onClose: () => void; isEN: boolean })
             </div>
           </div>
 
-          {/* Feature comparison */}
+          {/* Feature comparison table */}
           <div>
             <h4 className="text-lg font-semibold text-amber-400 mb-3">
               {isEN ? 'Key differences' : 'Keskeiset erot'}
             </h4>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between items-center bg-neutral-800/30 rounded-lg p-3">
-                <span className="text-neutral-300">
-                  {isEN ? 'ATS optimization' : 'ATS-optimointi'}
-                </span>
-                <div className="flex gap-8">
-                  <span className="text-red-400">Basic: ✗</span>
-                  <span className="text-green-400">Premium: ✓</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center bg-neutral-800/30 rounded-lg p-3">
-                <span className="text-neutral-300">
-                  {isEN ? 'STAR method cover letters' : 'STAR-menetelmä kirjeisiin'}
-                </span>
-                <div className="flex gap-8">
-                  <span className="text-red-400">Basic: ✗</span>
-                  <span className="text-green-400">Premium: ✓</span>
-                </div>
-              </div>
-              <div className="flex justify-between items-center bg-neutral-800/30 rounded-lg p-3">
-                <span className="text-neutral-300">
-                  {isEN ? 'Save applications' : 'Tallenna hakemuksia'}
-                </span>
-                <div className="flex gap-8">
-                  <span className="text-neutral-300">Basic: 50</span>
-                  <span className="text-amber-400">Premium: 100</span>
-                </div>
-              </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-700">
+                    <th className="text-left py-3 px-2 text-neutral-300 font-semibold">
+                      {isEN ? 'Feature' : 'Ominaisuus'}
+                    </th>
+                    <th className="text-center py-3 px-2 text-neutral-300 font-semibold">Basic</th>
+                    <th className="text-center py-3 px-2 text-amber-400 font-semibold">Premium</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-neutral-800">
+                    <td className="py-3 px-2 text-neutral-300">
+                      {isEN ? 'Tokens/month' : 'Tokenit/kk'}
+                    </td>
+                    <td className="text-center py-3 px-2 text-white">10,000</td>
+                    <td className="text-center py-3 px-2 text-amber-400 font-semibold">100,000</td>
+                  </tr>
+                  <tr className="border-b border-neutral-800">
+                    <td className="py-3 px-2 text-neutral-300">
+                      {isEN ? 'ATS optimization' : 'ATS-optimointi'}
+                    </td>
+                    <td className="text-center py-3 px-2 text-red-400">✗</td>
+                    <td className="text-center py-3 px-2 text-green-400">✓</td>
+                  </tr>
+                  <tr className="border-b border-neutral-800">
+                    <td className="py-3 px-2 text-neutral-300">
+                      {isEN ? 'STAR method cover letters' : 'STAR-menetelmä kirjeisiin'}
+                    </td>
+                    <td className="text-center py-3 px-2 text-red-400">✗</td>
+                    <td className="text-center py-3 px-2 text-green-400">✓</td>
+                  </tr>
+                  <tr className="border-b border-neutral-800">
+                    <td className="py-3 px-2 text-neutral-300">
+                      {isEN ? 'RAG database' : 'RAG-tietokanta'}
+                    </td>
+                    <td className="text-center py-3 px-2 text-red-400">✗</td>
+                    <td className="text-center py-3 px-2 text-green-400">✓</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 px-2 text-neutral-300">
+                      {isEN ? 'Save applications' : 'Tallenna hakemuksia'}
+                    </td>
+                    <td className="text-center py-3 px-2 text-white">50</td>
+                    <td className="text-center py-3 px-2 text-amber-400 font-semibold">100</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -202,20 +229,9 @@ export default function PricingPage() {
 
   const isEN = language === 'en';
 
-  const basicFeatures = [
-    isEN ? 'Unlimited CVs & cover letters' : 'Rajattomasti CV:t ja kirjeet',
-    isEN ? '10,000 tokens/month' : '10 000 tokenia/kk',
-    isEN ? 'Save up to 50 applications' : 'Tallenna 50 hakemusta',
-    isEN ? 'No ATS optimization' : 'Ei ATS-optimointia',
-  ];
-
-  const premiumFeatures = [
-    isEN ? 'Unlimited CVs & cover letters' : 'Rajattomasti CV:t ja kirjeet',
-    isEN ? '100,000 tokens/month' : '100 000 tokenia/kk',
-    isEN ? 'ATS-optimized documents' : 'ATS-optimoidut dokumentit',
-    isEN ? 'STAR method cover letters' : 'STAR-menetelmä kirjeisiin',
-    isEN ? 'Save up to 100 applications' : 'Tallenna 100 hakemusta',
-  ];
+  // Haetaan features suoraan PRICING.ts:stä
+  const basicFeatures = PRICING.basic.features;
+  const premiumFeatures = PRICING.premium.features;
 
   async function handleCheckout(tier: 'basic' | 'premium') {
     if (!user) {
@@ -223,9 +239,8 @@ export default function PricingPage() {
       return;
     }
     
-    // Tässä kutsutaan oikeaa server actionia
-    console.log(`Checkout: ${tier}, ${billing}`);
-    alert(`${tier} ${billing} checkout would happen here`);
+    // ✅ Oikea server action kutsu
+    await createCheckoutSessionAction(tier, billing);
   }
 
   return (
@@ -290,13 +305,31 @@ export default function PricingPage() {
           />
         </div>
 
-        <div className="mt-12 text-center">
+        {/* ✅ Compare plans - nyt isompi ja näkyvämpi */}
+        <div className="mt-16 text-center">
           <button
             onClick={() => setShowCompare(true)}
-            className="text-sm text-neutral-400 hover:text-amber-400 underline transition-colors"
+            className="inline-flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl font-semibold transition-all border border-neutral-700 hover:border-amber-400/50"
           >
-            {isEN ? '🔍 Compare plans in detail' : '🔍 Vertaa paketteja tarkemmin'}
+            <AlertCircle className="w-5 h-5 text-amber-400" />
+            {isEN ? 'Compare plans in detail' : 'Vertaa paketteja tarkemmin'}
           </button>
+        </div>
+
+        {/* ✅ Promo code section */}
+        <div className="mt-16 max-w-md mx-auto">
+          <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 text-center">
+            <h3 className="text-lg font-semibold text-white mb-2">
+              🎁 {isEN ? 'Have a promo code?' : 'Onko sinulla promo-koodi?'}
+            </h3>
+            <p className="text-sm text-neutral-400 mb-4">
+              {isEN ? 'Activate it here!' : 'Aktivoi se tästä!'}
+            </p>
+            <PromoCodeRedeem />
+            <p className="text-xs text-neutral-500 mt-3">
+              💡 {isEN ? 'Tip: Get promo codes from Vipsu' : 'Vinkki: Promo-koodin saa Vipsulta'}
+            </p>
+          </div>
         </div>
       </section>
 

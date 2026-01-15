@@ -202,7 +202,7 @@ export default function SmartHeader() {
                         className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg:white/5 flex items-center gap-2"
                       >
                         <Languages className="w-4 h-4" />
-                        {language === 'en' ? 'Suomeksi' : 'In English'}
+                        {language === 'en' ? 'In English' : 'Suomeksi'}
                       </button>
                       <Link href="/settings">
                         <button className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2">
@@ -255,7 +255,7 @@ export default function SmartHeader() {
                         className="w-full justify-start text-gray-300"
                       >
                         <Languages className="w-5 h-5 mr-3" />{' '}
-                        {language === 'en' ? 'Suomeksi' : 'English'}
+                        {language === 'en' ? 'English' : 'Suomeksi'}
                       </Button>
                       <Link href="/settings">
                         <Button
@@ -296,7 +296,7 @@ export default function SmartHeader() {
                       className="w-full justify-start text-gray-300"
                     >
                       <Languages className="w-5 h-5 mr-3" />{' '}
-                      {language === 'en' ? 'Suomeksi' : 'English'}
+                        {language === 'en' ? 'English' : 'Suomeksi'}
                     </Button>
 
                     {/* Mobile: Auth Buttons */}
