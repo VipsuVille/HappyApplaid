@@ -1,13 +1,15 @@
 'use client';
 
 import { SignUp } from "@clerk/nextjs";
-import { Sparkles, Check, ArrowLeft, Zap, Shield, Clock } from "lucide-react";
+import { Sparkles, X, Zap, Shield, Clock } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 import { clerkPageAppearance } from "@/lib/clerkAppearance";
 import Link from "next/link";
 
 export default function SignUpPage() {
   const { language } = useLanguage();
+  const router = useRouter();
 
   const benefits = [
     {
@@ -46,19 +48,18 @@ export default function SignUpPage() {
       {/* Grid pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:100px_100px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black,transparent)]"></div>
 
+      {/* Close button (X) - top right */}
+      <button
+        onClick={() => router.push('/')}
+        className="absolute top-6 right-6 z-50 p-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md transition-all group"
+        aria-label="Close"
+      >
+        <X className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+      </button>
+
       {/* Content Container */}
       <div className="relative z-10 w-full max-w-6xl">
-        
-        {/* Back to Home Link */}
-        <Link 
-          href="/" 
-          className="absolute top-0 left-4 inline-flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-white transition-colors group mb-8"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          {language === "en" ? "Back" : "Takaisin"}
-        </Link>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-16 lg:mt-0">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           
           {/* Left Side - Sign Up Form */}
           <div className="flex flex-col justify-center">
@@ -77,7 +78,7 @@ export default function SignUpPage() {
                 </span>
                 <br />
                 <span className="text-white italic font-serif">
-                  {language === "en" ? "HappyApplaid" : "HappyApplaid"}
+                  HappyApplaid
                 </span>
               </h1>
               
@@ -91,12 +92,21 @@ export default function SignUpPage() {
             {/* Clerk Sign Up Component */}
             <div className="flex justify-center lg:justify-start">
               <SignUp 
-                appearance={clerkPageAppearance}
+                appearance={{
+                  ...clerkPageAppearance,
+                  elements: {
+                    ...clerkPageAppearance.elements,
+                    // Hide duplicate footer
+                    footerAction: 'hidden',
+                    // Hide Clerk branding
+                    footer: 'hidden',
+                  }
+                }}
                 signInUrl="/sign-in"
               />
             </div>
 
-            {/* Footer Text */}
+            {/* Footer Text - Single instance */}
             <div className="mt-6 text-center lg:text-left">
               <p className="text-sm text-gray-500">
                 {language === "en" ? "Already have an account?" : "Onko sinulla jo tili?"}{" "}
@@ -107,7 +117,7 @@ export default function SignUpPage() {
             </div>
           </div>
 
-          {/* Right Side - Benefits */}
+          {/* Right Side - Benefits (Hidden on mobile) */}
           <div className="hidden lg:flex flex-col justify-center">
             <div className="backdrop-blur-2xl bg-white/5 border border-white/10 rounded-3xl p-8 shadow-2xl shadow-orange-500/10">
               
@@ -139,11 +149,10 @@ export default function SignUpPage() {
               </div>
 
               <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 backdrop-blur-md rounded-2xl p-6 border border-orange-400/30">
-                <div className="flex items-start gap-3 mb-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-3">
                   <div>
                     <p className="font-bold text-white mb-1">
-                      {language === "en" ? "1 Free CV Included" : "1 Ilmainen CV Sisältyy"}
+                      {language === "en" ? "✓ 1 Free CV Included" : "✓ 1 Ilmainen CV Sisältyy"}
                     </p>
                     <p className="text-sm text-gray-400">
                       {language === "en" 
@@ -151,13 +160,10 @@ export default function SignUpPage() {
                         : "Testaa laatuamme ilman riskiä"}
                     </p>
                   </div>
-                </div>
-                
-                <div className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                  
                   <div>
                     <p className="font-bold text-white mb-1">
-                      {language === "en" ? "No Credit Card Required" : "Ei Luottokorttia Tarvita"}
+                      {language === "en" ? "✓ No Credit Card Required" : "✓ Ei Luottokorttia Tarvita"}
                     </p>
                     <p className="text-sm text-gray-400">
                       {language === "en" 
