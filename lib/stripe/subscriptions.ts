@@ -5,11 +5,15 @@ import { stripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { currentUser } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { PRICING } from '../pricing';
+import { BillingPeriod, PRICING } from '../pricing';
 
 export type Tier = 'free' |'basic' | 'premium';
 
-export async function createCheckoutSession(userId: string, tier: Tier) {
+export async function createCheckoutSession(
+  userId: string, 
+  tier: Tier,
+  billingPeriod: BillingPeriod = 'monthly' // default monthly
+){
   const supabaseAdmin = await getSupabaseAdmin();
   
   console.log(`Creating checkout session for user: ${userId}, tier: ${tier}`);
@@ -30,41 +34,27 @@ if (tier === 'free') {
 }
 
 const tierConfig = PRICING[tier];
-
-if (!('stripePriceId' in tierConfig)) {
-  throw new Error(`Tier ${tier} has no Stripe pricing`);
-}
-
-const priceId = tierConfig.stripePriceId.monthly;
-
-  
-  if (!priceId) {
-    throw new Error(`Price ID not found for tier: ${tier}`);
+  if (!('stripePriceId' in tierConfig)) {
+    throw new Error(`Tier ${tier} has no Stripe pricing`);
   }
 
-  console.log(`Using price ID: ${priceId} for tier: ${tier}`);
+  // ✅ MUUTOS: Käytä billing periodia
+  const priceId = tierConfig.stripePriceId[billingPeriod];
+  
+  if (!priceId) {
+    throw new Error(`Price ID not found for tier: ${tier}, period: ${billingPeriod}`);
+  }
+
+  console.log(`Using price ID: ${priceId} for tier: ${tier}, period: ${billingPeriod}`);
 
   const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    line_items: [
-      {
-        price: priceId,
-        quantity: 1,
-      },
-    ],
-    mode: 'subscription',
-    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`,
-    client_reference_id: userId,
-    subscription_data: {
-      metadata: {
-        userId,
-        tier,
-      },
+    // ... rest of your code
+    metadata: {
+      userId,
+      tier,
+      billingPeriod, // ✅ Tallenna myös billing period
     },
   });
-
-  console.log(`Checkout session created: ${session.id}`);
 
   return session;
 }
