@@ -30,6 +30,8 @@ import {
   Database,
   Lightbulb,
   Play,
+  CheckCircle,
+  Star,
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -285,8 +287,8 @@ if (!isLoaded || subLoading) {
   }
 
   // LANDING PAGE (LOGGED OUT) EI KIRJAUTUNUT!
-  if (!isSignedIn) {
-return (
+if (!isSignedIn) {
+  return (
     <div className="min-h-screen bg-gradient-to-br from-[#121212] via-[#0e0e0e] to-[#1a1a1a] font-sans text-[#e7e3dc]">
       {/* Background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -312,18 +314,18 @@ return (
 
               <h1 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">
                 <span className="bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-                  {language === "en" ? "Create Your Profile Once," : "Luo Profiili Kerran,"}
+                  {language === "en" ? "Beat the ATS." : "Voita ATS."}
                 </span>
                 <br />
                 <span className="text-gray-100">
-                  {language === "en" ? "Get Personalized Applications" : "Saa Personoituja Hakemuksia"}
+                  {language === "en" ? "Land Your Dream Job." : "Saa Unelmatyösi."}
                 </span>
               </h1>
 
               <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed mb-8">
                 {language === "en"
-                  ? "Start free with zero risk. Fill your profile once and let our AI create applications in your unique voice."
-                  : "Aloita ilmaiseksi. Täytä profiilisi kerran ja anna tekoälymme luoda hakemuksia sinun äänelläsi."}
+                  ? "AI-powered applications that pass Applicant Tracking Systems and sell you to employers. Job-specific CVs and cover letters using STAR methodology."
+                  : "Tekoälypohjaiset hakemukset jotka läpäisevät ATS-järjestelmät ja myyvät sinut työnantajalle. Työkohtaiset CV:t ja hakukirjeet STAR-metodologialla."}
               </p>
 
               <HowItWorksTimeline />
@@ -357,6 +359,74 @@ return (
                   <Check className="w-4 h-4 text-green-400" />
                   <span>{language === "en" ? "No commitment" : "Ei sitoutumista"}</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ATS Optimization Highlight Section */}
+        <div className="mb-16">
+          <div className="bg-gradient-to-br from-green-900/30 via-emerald-900/20 to-green-800/30 rounded-3xl p-8 md:p-16 shadow-2xl relative overflow-hidden border border-green-500/30">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-green-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl -ml-20 -mb-20"></div>
+            
+            <div className="relative z-10 max-w-4xl mx-auto text-center">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 backdrop-blur-md rounded-full border border-green-400/40 mb-6">
+                <Shield className="w-5 h-5 text-green-300" />
+                <span className="font-bold text-green-200 tracking-wide uppercase text-sm">
+                  {language === "en" ? "ATS Guaranteed" : "ATS Taattu"}
+                </span>
+              </div>
+              
+              <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">
+                {language === "en" ? "Don't Get Filtered Out." : "Älä Jää Seulan Taakse."}
+              </h2>
+              
+              <p className="text-lg md:text-xl text-gray-200 mb-8">
+                {language === "en"
+                  ? "75% of applications never reach human eyes. Our Premium AI optimizes every word to pass Applicant Tracking Systems and uses STAR methodology to make you irresistible to employers."
+                  : "75% hakemuksista ei koskaan pääse ihmisen silmille. Premium-tekoälymme optimoi jokaisen sanan läpäisemään ATS-järjestelmät ja käyttää STAR-metodologiaa tehdäkseen sinusta vastustamattoman työnantajalle."}
+              </p>
+
+              <div className="grid md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-green-500/20">
+                  <Target className="w-10 h-10 text-green-400 mb-3 mx-auto" />
+                  <h3 className="font-bold text-lg mb-2 text-green-300">
+                    {language === "en" ? "Job-Matched" : "Työhön Sovitettu"}
+                  </h3>
+                  <p className="text-sm text-gray-300">
+                    {language === "en" ? "Every CV tailored to specific job requirements" : "Jokainen CV räätälöity työpaikan vaatimuksiin"}
+                  </p>
+                </div>
+                <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-green-500/20">
+                  <CheckCircle className="w-10 h-10 text-green-400 mb-3 mx-auto" />
+                  <h3 className="font-bold text-lg mb-2 text-green-300">
+                    {language === "en" ? "ATS Optimized" : "ATS-Optimoitu"}
+                  </h3>
+                  <p className="text-sm text-gray-300">
+                    {language === "en" ? "Keywords and formatting that pass screening" : "Avainsanat ja muotoilu jotka läpäisevät seulonnan"}
+                  </p>
+                </div>
+                <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-green-500/20">
+                  <Star className="w-10 h-10 text-green-400 mb-3 mx-auto" />
+                  <h3 className="font-bold text-lg mb-2 text-green-300">
+                    {language === "en" ? "STAR Method" : "STAR-Metodi"}
+                  </h3>
+                  <p className="text-sm text-gray-300">
+                    {language === "en" ? "Proven framework that sells your achievements" : "Todistettu viitekehys myymään saavutuksesi"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 backdrop-blur-md p-6 rounded-2xl border border-red-500/20">
+                <p className="text-sm text-gray-200 mb-2">
+                  <strong className="text-red-300">{language === "en" ? "⚠️ Basic Plan:" : "⚠️ Basic-Paketti:"}</strong>
+                </p>
+                <p className="text-sm text-gray-300">
+                  {language === "en"
+                    ? "Creates a general CV that describes you—but doesn't target specific jobs or optimize for ATS systems."
+                    : "Luo yleisen CV:n joka kuvaa sinua—muttei kohdistu tiettyihin töihin eikä optimoi ATS-järjestelmille."}
+                </p>
               </div>
             </div>
           </div>
@@ -467,22 +537,44 @@ return (
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
-              <Target className="w-10 h-10 text-orange-400 mb-4" />
-              <h3 className="font-bold text-lg mb-2 text-gray-100">
-                {language === "en" ? "Job-Specific" : "Työkohtainen"}
+              <Target className="w-10 h-10 text-green-400 mb-4" />
+              <h3 className="font-bold text-lg mb-2 text-gray-100 flex items-center gap-2">
+                {language === "en" ? "ATS Optimized" : "ATS-Optimoitu"}
+                <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">Premium</span>
               </h3>
               <p className="text-sm text-gray-400">
-                {language === "en" ? "Tailored to each job description" : "Räätälöity jokaiseen työpaikkaan"}
+                {language === "en" ? "Pass employer screening systems" : "Läpäise työnantajan seulontajärjestelmät"}
               </p>
             </div>
             
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
-              <Shield className="w-10 h-10 text-green-400 mb-4" />
-              <h3 className="font-bold text-lg mb-2 text-gray-100">
-                {language === "en" ? "Honesty Check" : "Rehellisyystarkistus"}
+              <Star className="w-10 h-10 text-amber-400 mb-4" />
+              <h3 className="font-bold text-lg mb-2 text-gray-100 flex items-center gap-2">
+                {language === "en" ? "STAR Method" : "STAR-Metodi"}
+                <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">Premium</span>
               </h3>
               <p className="text-sm text-gray-400">
-                {language === "en" ? "AI verifies claims" : "AI tarkistaa väitteet"}
+                {language === "en" ? "Proven framework to sell your skills" : "Todistettu viitekehys myydä taitosi"}
+              </p>
+            </div>
+
+            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
+              <Shield className="w-10 h-10 text-green-400 mb-4" />
+              <h3 className="font-bold text-lg mb-2 text-gray-100">
+                {language === "en" ? "Job-Targeted" : "Työkohtainen"}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {language === "en" ? "Every application matched to the job" : "Jokainen hakemus sovitettu työhön"}
+              </p>
+            </div>
+
+            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
+              <FileText className="w-10 h-10 text-blue-400 mb-4" />
+              <h3 className="font-bold text-lg mb-2 text-gray-100">
+                {language === "en" ? "Basic Profile" : "Perusprofiili"}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {language === "en" ? "Describe who you are authentically" : "Kuvaile kuka olet aidosti"}
               </p>
             </div>
 
@@ -496,24 +588,16 @@ return (
               </p>
             </div>
 
-            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
-              <Database className="w-10 h-10 text-amber-400 mb-4" />
-              <h3 className="font-bold text-lg mb-2 text-gray-100 flex items-center gap-2">
-                {language === "en" ? "HR Database" : "HR-Tietokanta"}
-                <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-1 rounded-full">Pro</span>
+            <div className="bg-gray-900/50 backdrop-blur-xl p-6 rounded-3xl border border-white/5 relative overflow-hidden grayscale opacity-60">
+              <div className="absolute top-3 right-3 bg-yellow-500/80 text-black text-[10px] font-bold px-2 py-1 rounded uppercase">
+                {language === "en" ? "Soon" : "Pian"}
+              </div>
+              <FileEdit className="w-10 h-10 text-gray-500 mb-4" />
+              <h3 className="font-bold text-lg mb-2 text-gray-400">
+                {language === "en" ? "More Templates" : "Lisää Pohjia"}
               </h3>
-              <p className="text-sm text-gray-400">
-                {language === "en" ? "RAG expert advice" : "RAG-asiantuntijaneuvonta"}
-              </p>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
-              <Zap className="w-10 h-10 text-orange-400 mb-4" />
-              <h3 className="font-bold text-lg mb-2 text-gray-100">
-                {language === "en" ? "ATS Optimized" : "ATS-Optimoitu"}
-              </h3>
-              <p className="text-sm text-gray-400">
-                {language === "en" ? "Pass screening systems" : "Läpäise seulontajärjestelmät"}
+              <p className="text-sm text-gray-500">
+                {language === "en" ? "Currently few options, more coming" : "Tällä hetkellä muutama, lisää tulossa"}
               </p>
             </div>
 
@@ -521,12 +605,12 @@ return (
               <div className="absolute top-3 right-3 bg-yellow-500/80 text-black text-[10px] font-bold px-2 py-1 rounded uppercase">
                 {language === "en" ? "Soon" : "Pian"}
               </div>
-              <FileEdit className="w-10 h-10 text-gray-500 mb-4" />
+              <Database className="w-10 h-10 text-gray-500 mb-4" />
               <h3 className="font-bold text-lg mb-2 text-gray-400">
-                {language === "en" ? "Templates" : "Pohjat"}
+                {language === "en" ? "HR Knowledge Base" : "HR-Tietokanta"}
               </h3>
               <p className="text-sm text-gray-500">
-                {language === "en" ? "More professional templates" : "Ammattimaiset pohjat"}
+                {language === "en" ? "Expert hiring insights" : "Asiantuntija-rekrytointitietoa"}
               </p>
             </div>
           </div>
@@ -557,7 +641,13 @@ return (
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 mt-0.5" />
                   <span className="text-sm text-gray-300">
-                    {language === "en" ? "1 Free CV + Letter" : "1 Ilmainen CV + Kirje"}
+                    {language === "en" ? "1 Free General CV + Letter" : "1 Ilmainen Yleinen CV + Kirje"}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2 opacity-50">
+                  <Ban className="w-4 h-4 text-gray-500 mt-0.5" />
+                  <span className="text-sm text-gray-500">
+                    {language === "en" ? "No job targeting" : "Ei työkohdennusta"}
                   </span>
                 </li>
                 <li className="flex items-start gap-2 opacity-50">
@@ -589,7 +679,19 @@ return (
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 mt-0.5" />
                   <span className="text-sm text-gray-300">
-                    {language === "en" ? "Unlimited CVs" : "Rajattomat CV:t"}
+                    {language === "en" ? "Unlimited General CVs" : "Rajattomat Yleiset CV:t"}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-blue-400 mt-0.5" />
+                  <span className="text-sm text-gray-300">
+                    {language === "en" ? "Describes your authentic self" : "Kuvaa aitoa sinua"}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2 opacity-50">
+                  <Ban className="w-4 h-4 text-gray-500 mt-0.5" />
+                  <span className="text-sm text-gray-500">
+                    {language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}
                   </span>
                 </li>
               </ul>
@@ -620,7 +722,19 @@ return (
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-amber-400 mt-0.5" />
                   <span className="text-sm font-bold text-amber-200">
-                    {language === "en" ? "ATS + RAG Expert" : "ATS + RAG-Ekspertti"}
+                    {language === "en" ? "✨ ATS Optimized" : "✨ ATS-Optimoitu"}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-amber-400 mt-0.5" />
+                  <span className="text-sm font-bold text-amber-200">
+                    {language === "en" ? "✨ Job-Specific Targeting" : "✨ Työkohtainen Kohdistus"}
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="w-4 h-4 text-amber-400 mt-0.5" />
+                  <span className="text-sm font-bold text-amber-200">
+                    {language === "en" ? "✨ STAR Methodology" : "✨ STAR-Metodologia"}
                   </span>
                 </li>
               </ul>
