@@ -1,774 +1,458 @@
-// app/create-cover-letter/page.tsx - TÄYDELLINEN FREE-VERSIO
-
 "use client";
 
-import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useState, useEffect, useMemo } from "react";
+import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Loader2, Sparkles, Zap, CheckCircle, Crown, AlertCircle, Target, Info, ArrowRight, X, User
+  Sparkles,
+  Target,
+  Zap,
+  Crown,
+  Lock,
+  ChevronRight,
+  Shield,
+  FileEdit,
+  CheckCircle,
+  ArrowRight,
+  Info,
+  AlertCircle,
+  Loader2,
+  Mail,
+  Briefcase,
 } from "lucide-react";
-import { TokenAction, useTokens } from "@/hooks/useTokens";
-import { useFreeUsage } from '@/hooks/useFreeUsage'; // ✅ UUSI
 
-type Language = "finnish" | "english" | "swedish";
-type Style = "formal" | "casual";
-type CoverLetterVersion = "v1" | "v2" | "general";
+import { useTokens } from "@/hooks/useTokens";
+import { useFreeUsage } from '@/hooks/useFreeUsage';
+import { useLanguage } from '@/context/LanguageContext';
 
-interface Question {
-  id: string;
-  question: string;
-  why: string;
-  priority: 'critical' | 'important' | 'optional';
-  suggestions?: string[];
-  helpText?: string;
-}
+// Tuodaan domain-tiedostot
+import { ACTION_COSTS, PlanType, TokenAction } from "@/lib/domain/tokens";
+
+type LetterType = "job_specific" | "general";
+type LetterVersion = "v1" | "v2"; // v1 = basic, v2 = ATS
 
 export default function CreateCoverLetterPage() {
-  const [jobDescription, setJobDescription] = useState("");
-  const [targetRole, setTargetRole] = useState("");
-  const [targetIndustry, setTargetIndustry] = useState("");
-  
-  const [personalNotes, setPersonalNotes] = useState("");
-  const [language, setLanguage] = useState<Language>("finnish");
-  const [style, setStyle] = useState<Style>("formal");
-  const [selectedVersion, setSelectedVersion] = useState<CoverLetterVersion>("v1");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [useRAG, setUseRAG] = useState(false);
-  
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [showQuestions, setShowQuestions] = useState(false);
-  
-  const [showQuestionPrompt, setShowQuestionPrompt] = useState(false);
-  const [pendingQuestions, setPendingQuestions] = useState<Question[]>([]);
-
-  const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { getToken } = useAuth();
+  const { language } = useLanguage();
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [letterType, setLetterType] = useState<LetterType>("job_specific");
+  const [letterVersion, setLetterVersion] = useState<LetterVersion>("v1");
+  const [jobPosting, setJobPosting] = useState("");
+  
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   const { 
-    tokens, isActive, plan_type, features, isLoading: tokensLoading,
-    consumeTokens, canUseAction, getActionCost
+    tokens, 
+    plan_type, 
+    features, 
+    isLoading: tokensLoading 
   } = useTokens();
 
-  // ✅ UUSI: Free Usage Hook
   const freeUsage = useFreeUsage();
 
+  // Käännökset
+  const t = {
+    en: {
+      title: "Create an",
+      titleHighlight: "Impressive",
+      titleEnd: "Cover Letter.",
+      subtitle: "Let AI craft a compelling introduction from your experience. Choose your approach and let it shine.",
+      balance: "Your Balance",
+      sectionStyle: "1. Choose your approach",
+      sectionOptimization: "2. ATS Optimization (Premium)",
+      sectionType: "3. Letter type",
+      jobSpecific: "Job-Specific",
+      jobSpecificDesc: "Tailored for a particular job posting",
+      general: "General",
+      generalDesc: "Universal presentation letter",
+      styleSimple: "Simple",
+      styleSimpleDesc: "Straightforward and professional",
+      styleTechnical: "Technical",
+      styleTechnicalDesc: "Detail-oriented and precise",
+      styleCreative: "Creative",
+      styleCreativeDesc: "Stand-out style that makes an impression",
+      atsToggle: "Optimize for Applicant Tracking Systems",
+      atsInfo: "Paste a job posting below. AI will analyze requirements and highlight the exact skills employers are looking for.",
+      jobPostingPlaceholder: "E.g. 'We are looking for an experienced full-stack developer...'",
+      summary: "Summary",
+      letterGeneration: "Letter Generation",
+      atsAddon: "ATS Add-on",
+      cost: "Cost",
+      free: "FREE",
+      generateNow: "Create Letter Now",
+      generating: "Generating...",
+      premiumOnly: "Premium Only",
+      freeTrialInfo: "As a free user, you can create one cover letter. It won't be saved permanently without a subscription.",
+      processTime: "Process takes about 30 seconds.",
+      noProfile: "Fill in your profile first!",
+      noTokens: (cost: number) => `You need ${cost} tokens.`,
+      freeUsed: "Free trial already used.",
+      success: "✅ Cover letter created successfully!",
+      error: "An error occurred",
+      jobPostingRequired: "Job posting text is required for job-specific letters.",
+    },
+    fi: {
+      title: "Luo",
+      titleHighlight: "Vaikuttava",
+      titleEnd: "Hakukirje.",
+      subtitle: "Anna tekoälyn luoda vakuuttava esittely kokemuksestasi. Valitse lähestymistapa ja anna palaa.",
+      balance: "Saldosi",
+      sectionStyle: "1. Valitse lähestymistapa",
+      sectionOptimization: "2. ATS-optimointi (Premium)",
+      sectionType: "3. Kirjeen tyyppi",
+      jobSpecific: "Työpaikkaan kohdistettu",
+      jobSpecificDesc: "Räätälöity tietylle työpaikkailmoitukselle",
+      general: "Yleinen",
+      generalDesc: "Yleispätevä esittelykirje",
+      styleSimple: "Yksinkertainen",
+      styleSimpleDesc: "Suoraviivainen ja ammattimainen",
+      styleTechnical: "Tekninen",
+      styleTechnicalDesc: "Yksityiskohtainen ja tarkka",
+      styleCreative: "Luova",
+      styleCreativeDesc: "Erottuva tyyli joka jää mieleen",
+      atsToggle: "Optimoi hakujärjestelmille (ATS)",
+      atsInfo: "Liitä työpaikkailmoitus alle. AI analysoi vaatimukset ja nostaa esiin juuri ne taidot, joita työnantaja etsii.",
+      jobPostingPlaceholder: "Esim. 'Haemme kokenutta full-stack kehittäjää...'",
+      summary: "Yhteenveto",
+      letterGeneration: "Hakukirjeen generointi",
+      atsAddon: "ATS-lisä",
+      cost: "Kustannus",
+      free: "ILMAINEN",
+      generateNow: "Luo hakukirje nyt",
+      generating: "Generoidaan...",
+      premiumOnly: "Vain Premium",
+      freeTrialInfo: "Ilmaiskäyttäjänä voit luoda yhden hakukirjeen. Se ei tallennu pysyvästi ilman tilausta.",
+      processTime: "Prosessi kestää noin 30 sekuntia.",
+      noProfile: "Täytä profiilitiedot ensin!",
+      noTokens: (cost: number) => `Tarvitset ${cost} tokenia.`,
+      freeUsed: "Ilmainen kokeilu on jo käytetty.",
+      success: "✅ Hakukirje luotu onnistuneesti!",
+      error: "Tapahtui virhe",
+      jobPostingRequired: "Työpaikkailmoituksen teksti vaaditaan työpaikkaan kohdistettuun kirjeeseen.",
+    }
+  }[language];
+
+  // Dynaaminen hinnoittelu
+  const costs = useMemo(() => {
+    const currentTier = (plan_type as PlanType) || 'free';
+    const tierCosts = ACTION_COSTS[currentTier] || {};
+    
+    let action: TokenAction;
+    
+    if (letterType === 'general') {
+      action = 'cover_letter_general';
+    } else {
+      // job_specific
+      if (letterVersion === 'v2') {
+        action = 'cover_letter_v2'; // ATS-optimoitu (premium only)
+      } else {
+        action = 'cover_letter_v1'; // Perus job-specific
+      }
+    }
+    
+    const cost = tierCosts[action] || 0;
+    
+    return {
+      base: cost,
+      total: cost
+    };
+  }, [plan_type, letterType, letterVersion]);
+
+  // Ladataan profiili
   useEffect(() => {
-    if (isGenerating) {
-      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-        e.preventDefault();
-        e.returnValue = 'Hakukirjettä luodaan. Haluatko varmasti poistua?';
-        return e.returnValue;
-      };
-      window.addEventListener('beforeunload', handleBeforeUnload);
-      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }
-  }, [isGenerating]);
-
-  // ✅ UUSI: Validation Functions
-  const canCreateCoverLetter = () => {
-    if (plan_type === 'free') {
-      return !freeUsage.hasUsedAny && !freeUsage.isLoading;
-    }
-    
-    let action: TokenAction = 'cover_letter_v1';
-    if (selectedVersion === 'general') action = 'cover_letter_general';
-    else if (useRAG) action = 'cover_letter_rag';
-    else if (selectedVersion === 'v2') action = 'cover_letter_v2';
-    
-    const cost = getActionCost(action);
-    return tokens >= cost;
-  };
-
-  const getBlockedReason = () => {
-    if (plan_type === 'free') {
-      if (freeUsage.hasUsedCoverLetter) {
-        return '❌ Olet jo käyttänyt ilmaisen hakukirjeen';
-      }
-      if (freeUsage.hasUsedCV) {
-        return '❌ Käytit ilmaisen tokenisi CV:hen';
-      }
-    }
-    
-    let action: TokenAction = 'cover_letter_v1';
-    if (selectedVersion === 'general') action = 'cover_letter_general';
-    else if (useRAG) action = 'cover_letter_rag';
-    else if (selectedVersion === 'v2') action = 'cover_letter_v2';
-    
-    const cost = getActionCost(action);
-    if (tokens < cost) {
-      return `❌ Tarvitset ${cost} tokenia, sinulla on ${tokens}`;
-    }
-    return null;
-  };
-
-  const handleSubmit = async () => {
-    if (!isLoaded || !isSignedIn || !user?.id) {
-      toast.error('Odota hetki, kirjautuminen käynnissä...');
-      return;
-    }
-
-    if (selectedVersion !== 'general' && !jobDescription.trim()) {
-      setError("Työpaikkailmoitus on pakollinen tälle kirjeelle");
-      return;
-    }
-
-    // ✅ VALIDATION
-    if (!canCreateCoverLetter()) {
-      const reason = getBlockedReason();
-      if (reason) {
-        toast.error(reason, { duration: 6000 });
-        if (plan_type === 'free') {
-          router.push("/pricing");
+    const loadProfile = async () => {
+      if (!user) return;
+      try {
+        setProfileLoading(true);
+        const response = await fetch(`/api/user-profile/${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProfileData(data);
         }
-        return;
+      } catch (error) {
+        console.error("❌ Virhe profiilin latauksessa:", error);
+      } finally {
+        setProfileLoading(false);
       }
-    }
+    };
+    if (userLoaded && user) loadProfile();
+  }, [userLoaded, user]);
 
-    if (selectedVersion === 'v2' && !features.canUseV2) {
-      toast.error("V2 ATS Generator vaatii Premium-tason");
+  const canCreateLetter = () => {
+    if (plan_type === 'free') {
+      return !freeUsage.hasUsedCoverLetter && !freeUsage.isLoading;
+    }
+    return tokens >= costs.total;
+  };
+
+  const handleGenerateLetter = async () => {
+    if (!user) return toast.error(t.error);
+    if (!profileData) {
+      toast.error(t.noProfile);
+      router.push("/profile");
       return;
     }
 
-    if (useRAG && !features.canUseRAG) {
-      toast.error("RAG-tietokanta vaatii Premium-tason");
+    if (!canCreateLetter()) {
+      toast.error(plan_type === 'free' ? t.freeUsed : t.noTokens(costs.total));
       return;
     }
 
-    let action: TokenAction = 'cover_letter_v1';
-    if (selectedVersion === 'general') action = 'cover_letter_general';
-    else if (useRAG) action = 'cover_letter_rag';
-    else if (selectedVersion === 'v2') action = 'cover_letter_v2';
-    
-    const validation = canUseAction(action);
-    if (!validation.allowed && plan_type !== 'free') {
-      toast.error(validation.reason || 'Ei voi generoida hakukirjettä');
+    // Validointi: job_specific vaatii jobPostingin
+    if (letterType === 'job_specific' && !jobPosting.trim()) {
+      toast.error(t.jobPostingRequired);
       return;
     }
 
-    setIsGenerating(true);
-    setError(null);
-
+    setIsLoading(true);
     try {
-      let endpoint = '/api/generate-cover-letter';
-      if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
-      if (selectedVersion === 'general') endpoint = '/api/generate-general-cover-letter';
-
-      const body: any = {
-        personalNotes,
-        language,
-        style,
-        enableRAG: useRAG,
+      const requestBody = {
+        profileData,
+        letterType,
+        letterVersion: letterType === 'job_specific' ? letterVersion : 'v1',
+        jobPosting: letterType === 'job_specific' ? jobPosting : undefined,
+        language: language === 'en' ? 'english' : 'finnish',
       };
 
-      if (selectedVersion === 'general') {
-        body.targetRole = targetRole;
-        body.targetIndustry = targetIndustry;
-      } else {
-        body.jobDescription = jobDescription;
-        body.skipQuestions = false;
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+      const response = await fetch("/api/generate-cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
       });
 
-      const data = await response.json();
+      const result = await response.json();
 
-      if (response.status === 401) {
-        toast.error('Kirjautuminen vanhentunut. Lataa sivu uudelleen.');
-        return;
-      }
-
-      // ✅ FREE ERROR HANDLING
-      if (!response.ok) {
-        if (data.error === 'FREE_COVER_LETTER_ALREADY_USED') {
-          toast.error(data.message || 'Olet jo käyttänyt ilmaisen hakukirjeen!', {
-            duration: 8000,
-            description: 'Aktivoi Basic-tilaus luodaksesi lisää'
-          });
-          router.push('/pricing');
-          return;
-        }
-
-        if (data.error === 'FREE_SLOT_USED_FOR_CV') {
-          toast.error(data.message || 'Käytit ilmaisen tokenisi CV:hen', {
-            duration: 8000,
-            description: 'Aktivoi Basic-tilaus luodaksesi hakukirjeen'
-          });
-          router.push('/pricing');
-          return;
-        }
-      }
-
-      if (data.needsMoreInfo && data.questions && data.questions.length > 0) {
-        setPendingQuestions(data.questions);
-        setShowQuestionPrompt(true);
-        setIsGenerating(false);
-        return;
-      }
-
-      if (data.success && data.coverLetterId) {
-        if (plan_type !== 'free' && isActive) {
-          await consumeTokens(action);
-        }
-
-        toast.success(
-          selectedVersion === 'general' ? "🌟 Esittelykirje luotu!" :
-          useRAG ? "🎯 RAG-optimoitu hakukirje luotu!" :
-          selectedVersion === 'v2' ? "✅ ATS-optimoitu hakukirje luotu!" :
-          "✅ Hakukirje luotu!"
-        );
-        
-        router.push(`/edit-cover-letter/${data.coverLetterId}`);
+      if (response.ok) {
+        toast.success(t.success);
+        router.push(`/edit-cover-letter/${result.id || result.letterId}`);
       } else {
-        throw new Error(data.error || 'Hakukirjeen luonti epäonnistui');
+        throw new Error(result.error || t.error);
       }
-
-    } catch (err) {
-      console.error('❌ Error:', err);
-      setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-      toast.error(err instanceof Error ? err.message : 'Hakukirjeen luonti epäonnistui');
+    } catch (error: any) {
+      toast.error(error.message || t.error);
     } finally {
-      setIsGenerating(false);
+      setIsLoading(false);
     }
   };
 
-  const handleShowQuestions = () => {
-    setQuestions(pendingQuestions);
-    setShowQuestions(true);
-    setShowQuestionPrompt(false);
-  };
-
-  const handleSkipQuestions = async () => {
-    setShowQuestionPrompt(false);
-    setIsGenerating(true);
-
-    try {
-      let endpoint = '/api/generate-cover-letter';
-      if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
-      if (selectedVersion === 'general') endpoint = '/api/generate-general-cover-letter';
-
-      let action: TokenAction = 'cover_letter_v1';
-      if (selectedVersion === 'general') action = 'cover_letter_general';
-      else if (useRAG) action = 'cover_letter_rag';
-      else if (selectedVersion === 'v2') action = 'cover_letter_v2';
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobDescription,
-          personalNotes,
-          language,
-          style,
-          targetRole,
-          targetIndustry,
-          enableRAG: useRAG,
-          skipQuestions: true
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.coverLetterId) {
-        if (plan_type !== 'free' && isActive) {
-          await consumeTokens(action);
-        }
-        toast.success('✅ Hakukirje luotu!');
-        router.push(`/edit-cover-letter/${data.coverLetterId}`);
-      } else {
-        throw new Error(data.error || 'Generointi epäonnistui');
-      }
-
-    } catch (err) {
-      console.error('❌ Error:', err);
-      toast.error('Generointi epäonnistui');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleAnswerQuestions = async () => {
-    const criticalQuestions = questions.filter(q => q.priority === 'critical');
-    const unansweredCritical = criticalQuestions.filter(q => !answers[q.id]?.trim());
-    
-    if (unansweredCritical.length > 0) {
-      setError('Vastaa kaikkiin pakollisiin kysymyksiin');
-      return;
-    }
-
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      let endpoint = '/api/generate-cover-letter';
-      if (selectedVersion === 'v2') endpoint = '/api/generate-cover-letter-v2';
-
-      let action: TokenAction = useRAG ? 'cover_letter_rag' : (selectedVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1');
-
-      const answeredQuestionsArray = questions
-        .filter(q => answers[q.id] && answers[q.id].trim().length > 0)
-        .map(q => ({
-          id: q.id,
-          question: q.question,
-          answer: answers[q.id]
-        }));
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobDescription,
-          personalNotes,
-          language,
-          style,
-          answeredQuestions: answeredQuestionsArray,
-          skipQuestions: true,
-          enableRAG: useRAG
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-
-      if (data.success && data.coverLetterId) {
-        if (plan_type !== 'free' && isActive) {
-          await consumeTokens(action);
-        }
-        setShowQuestions(false);
-        setQuestions([]);
-        setAnswers({});
-        toast.success('✅ Hakukirje luotu vastausten perusteella!');
-        router.push(`/edit-cover-letter/${data.coverLetterId}`);
-      } else {
-        throw new Error(data.error || 'coverLetterId puuttuu');
-      }
-
-    } catch (err) {
-      console.error('❌ Error:', err);
-      setError(err instanceof Error ? err.message : 'Tuntematon virhe');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  if (!isLoaded || tokensLoading) {
+  if (!userLoaded || profileLoading || tokensLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Ladataan...</p>
-        </div>
+      <div className="min-h-screen bg-[#030711] flex flex-col items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+        <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">
+          {language === 'en' ? 'Loading tools...' : 'Ladataan työkaluja...'}
+        </p>
       </div>
     );
   }
 
-  const isPremium = isActive && plan_type !== 'free';
+  // Tarkista onko ATS käytettävissä (vain premium)
+  const canUseATS = plan_type === 'premium' && letterType === 'job_specific';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
-      
-      {showQuestionPrompt && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl max-w-md w-full p-8 border-2 border-white/40">
-            <div className="text-center mb-6">
-              <div className="h-16 w-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">AI:lla olisi lisäkysymyksiä</h3>
-              <p className="text-gray-600">
-                Haluatko vastata {pendingQuestions.length} kysymykseen parempaa laatua varten?
-              </p>
-            </div>
-            <div className="space-y-3">
-              <button onClick={handleShowQuestions} className="w-full px-6 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2">
-                <CheckCircle className="w-5 h-5" /> Näytä kysymykset
-              </button>
-              <button onClick={handleSkipQuestions} disabled={isGenerating} className="w-full px-6 py-4 bg-white border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
-                <ArrowRight className="w-5 h-5" /> Jatka ilman kysymyksiä
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="min-h-screen bg-[#030711] text-[#e7e3dc] selection:bg-orange-500/30">
+      {/* Taustagradientit */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/5 rounded-full blur-[120px]" />
+      </div>
 
-      {isGenerating && (
-        <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md animate-fade-in px-4">
-          <div className="bg-white/90 backdrop-blur-xl border-2 border-white/40 text-gray-900 px-6 py-4 shadow-2xl rounded-2xl">
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
-                <Loader2 className="h-5 w-5 animate-spin text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="font-bold text-lg text-indigo-900">Luodaan hakukirjettä...</p>
-                <p className="text-sm text-gray-600">Tämä kestää n. 20-40 sekuntia</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showQuestions && questions.length > 0 && (
-         <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
-            <div className="max-w-7xl mx-auto px-4 py-6">
-                <div className="bg-white/90 backdrop-blur-xl border-2 border-white/40 rounded-3xl shadow-2xl p-6 relative">
-                     <button
-                        onClick={() => { setShowQuestions(false); setQuestions([]); setAnswers({}); }}
-                        className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full hover:bg-gray-200"
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
-                    <h3 className="font-bold text-lg mb-4">Vastaa kysymyksiin</h3>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto mb-4">
-                        {questions.map((q) => (
-                             <div key={q.id} className="bg-white p-4 rounded-xl border border-gray-200">
-                                 <p className="font-semibold mb-2">{q.question}</p>
-                                 <textarea 
-                                    className="w-full border rounded p-2"
-                                    value={answers[q.id] || ''}
-                                    onChange={(e) => setAnswers({...answers, [q.id]: e.target.value})}
-                                 />
-                             </div>
-                        ))}
-                     </div>
-                     <Button onClick={handleAnswerQuestions} disabled={isGenerating}>
-                        {isGenerating ? <Loader2 className="animate-spin" /> : 'Lähetä vastaukset'}
-                     </Button>
-                </div>
-            </div>
-         </div>
-      )}
-
-      <div className="max-w-6xl mx-auto py-8 px-4 relative z-10">
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-12 md:py-20">
         
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-            Luo Ammattimainen Hakukirje
-          </h1>
-          <p className="text-lg text-gray-700 max-w-3xl mx-auto mt-4">
-            Valitse tilanteeseesi sopiva hakukirjetyyppi.
-          </p>
-        </div>
+        {/* HEADER */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 sm:gap-8 mb-12 sm:mb-16">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
+              <Mail className="w-3.5 h-3.5 text-orange-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">
+                {language === 'en' ? 'AI Letter Builder' : 'AI Hakukirjegeneraattori'}
+              </span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tight text-white leading-tight">
+              {t.title} <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">{t.titleHighlight}</span> {t.titleEnd}
+            </h1>
+            <p className="text-gray-400 max-w-xl text-base sm:text-lg font-medium leading-relaxed">
+              {t.subtitle}
+            </p>
+          </div>
 
-        {/* ✅ FREE WARNING BANNER */}
-        {plan_type === 'free' && freeUsage.hasUsedAny && !freeUsage.isLoading && (
-          <div className="mb-6">
-            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-6 shadow-lg">
-              <div className="flex items-start gap-4">
-                <AlertCircle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-1" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-xl text-amber-900 mb-2">
-                    🚫 Ilmainen käyttö loppu
-                  </h3>
-                  <p className="text-amber-800 mb-4">
-                    {freeUsage.hasUsedCoverLetter 
-                      ? 'Olet jo luonut ilmaisen hakukirjeen. Aktivoi Basic-tilaus luodaksesi lisää.'
-                      : 'Käytit ilmaisen tokenisi CV:hen. Aktivoi Basic-tilaus luodaksesi hakukirjeen.'
-                    }
-                  </p>
-                  <Button
-                    onClick={() => router.push("/pricing")}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-lg"
-                  >
-                    <Crown className="w-5 h-5 mr-2" />
-                    Aktivoi Basic (4,99€/kk) →
-                  </Button>
-                </div>
+          <div className="bg-gray-900/40 backdrop-blur-xl border border-gray-800 p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex items-center gap-4 sm:gap-6">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">{t.balance}</p>
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-xl sm:text-2xl font-black text-white">{tokens.toLocaleString()}</span>
+                <span className="text-xs font-bold text-orange-500">TKN</span>
               </div>
             </div>
+            <div className="w-px h-10 bg-gray-800" />
+            <div className="flex flex-col items-center gap-1">
+              <Crown className={`w-5 h-5 sm:w-6 sm:h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
+              <span className="text-[8px] font-black uppercase tracking-tighter text-gray-500">{plan_type}</span>
+            </div>
           </div>
-        )}
+        </div>
 
-        <div className="bg-white/90 backdrop-blur-xl border-2 border-white/40 rounded-3xl shadow-2xl p-8 relative overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10">
           
-          <div className="space-y-8 relative z-10">
+          {/* VASEN: VALINNAT */}
+          <div className="lg:col-span-8 space-y-6 sm:space-y-10">
+            
+            {/* 1. TYYPPI */}
+            <section className="bg-gray-900/20 backdrop-blur-sm border border-gray-800/50 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-10">
+              <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-white">{t.sectionType}</h3>
+              </div>
 
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Target className="w-6 h-6 text-indigo-600" />
-                VALITSE HAKUKIRJETYYPPI
-              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {[
+                  { id: "job_specific", label: t.jobSpecific, desc: t.jobSpecificDesc, icon: Target },
+                  { id: "general", label: t.general, desc: t.generalDesc, icon: Mail },
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => setLetterType(type.id as LetterType)}
+                    className={`relative p-5 sm:p-6 rounded-2xl sm:rounded-3xl border text-left transition-all duration-300 group ${
+                      letterType === type.id 
+                        ? 'border-orange-500/50 bg-orange-500/5 shadow-[0_0_30px_rgba(249,115,22,0.1)]' 
+                        : 'border-gray-800 bg-black/20 hover:border-gray-700'
+                    }`}
+                  >
+                    <type.icon className={`w-5 h-5 sm:w-6 sm:h-6 mb-3 sm:mb-4 transition-colors ${letterType === type.id ? 'text-orange-400' : 'text-gray-500 group-hover:text-gray-300'}`} />
+                    <p className="font-bold text-white mb-2 text-sm sm:text-base">{type.label}</p>
+                    <p className="text-xs text-gray-500 leading-relaxed">{type.desc}</p>
+                    {letterType === type.id && (
+                      <CheckCircle className="absolute top-3 right-3 sm:top-4 sm:right-4 w-4 h-4 sm:w-5 sm:h-5 text-orange-500 animate-in zoom-in duration-300" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </section>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                <button
-                  type="button"
-                  onClick={() => setSelectedVersion("v1")}
-                  disabled={isGenerating}
-                  className={`p-5 text-left rounded-2xl border-2 transition-all ${
-                    selectedVersion === 'v1' 
-                      ? "bg-gradient-to-br from-indigo-100/80 to-purple-100/80 border-indigo-400/60 shadow-xl scale-[1.02]" 
-                      : "bg-white/60 border-white/40 hover:bg-white/80 hover:shadow-lg"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="h-12 w-12 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-                      <Sparkles className="h-6 w-6 text-white" />
+            {/* 2. ATS OPTIMOINTI (vain job_specific + premium) */}
+            {letterType === 'job_specific' && (
+              <section className={`rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 md:p-10 border transition-all duration-500 ${
+                letterVersion === 'v2' && canUseATS
+                  ? 'bg-emerald-500/5 border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.05)]' 
+                  : 'bg-gray-900/20 border-gray-800/50'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center border transition-colors ${
+                      letterVersion === 'v2' && canUseATS ? 'bg-emerald-500/20 border-emerald-500/30' : 'bg-gray-800/50 border-gray-700'
+                    }`}>
+                      <Shield className={`w-4 h-4 sm:w-5 sm:h-5 ${letterVersion === 'v2' && canUseATS ? 'text-emerald-400' : 'text-gray-500'}`} />
                     </div>
-                    {selectedVersion === 'v1' && <CheckCircle className="text-indigo-600 w-6 h-6" />}
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-bold text-white">{t.sectionOptimization}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{t.atsToggle}</p>
+                    </div>
                   </div>
-                  
-                  <h3 className="text-lg font-bold mb-2 text-gray-900">Työhakemus (Standardi)</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Persoonallinen hakukirje tiettyyn työpaikkaan.
-                  </p>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-500 text-white text-xs font-bold">
-                    {getActionCost('cover_letter_v1')} tokenia
-                  </span>
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => features.canUseV2 ? setSelectedVersion("v2") : null}
-                  disabled={isGenerating || !features.canUseV2}
-                  className={`p-5 text-left rounded-2xl border-2 transition-all ${
-                    !features.canUseV2 
-                      ? "bg-gray-100/60 opacity-70 cursor-not-allowed" 
-                      : selectedVersion === 'v2'
-                      ? "bg-gradient-to-br from-purple-100/80 to-pink-100/80 border-purple-400/60 shadow-xl scale-[1.02]"
-                      : "bg-white/60 border-white/40 hover:bg-white/80 hover:shadow-lg"
-                  }`}
-                >
-                  {!features.canUseV2 && (
-                    <div className="absolute top-3 right-3 bg-amber-500 text-white p-2 rounded-xl z-10">
-                      <Crown className="w-4 h-4" />
+                  {canUseATS ? (
+                    <button 
+                      onClick={() => setLetterVersion(letterVersion === 'v2' ? 'v1' : 'v2')}
+                      className={`relative w-14 h-7 rounded-full transition-colors duration-300 flex-shrink-0 ${letterVersion === 'v2' ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                    >
+                      <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform duration-300 ${letterVersion === 'v2' ? 'translate-x-7' : 'translate-x-0'}`} />
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full flex-shrink-0">
+                      <Lock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500" />
+                      <span className="text-[10px] font-black text-amber-500 uppercase tracking-tighter">{t.premiumOnly}</span>
                     </div>
                   )}
-                  
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="h-12 w-12 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-br from-purple-500 to-pink-600">
-                      <Zap className="h-6 w-6 text-white" />
-                    </div>
-                    {selectedVersion === 'v2' && features.canUseV2 && <CheckCircle className="text-purple-600 w-6 h-6" />}
-                  </div>
-                  
-                  <h3 className="text-lg font-bold mb-2 text-gray-900">ATS-Optimoitu</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Läpäisee automaattiset seulontajärjestelmät.
-                  </p>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-bold">
-                    <Crown className="w-3 h-3 mr-1" />
-                    {getActionCost('cover_letter_v2')} tokenia
-                  </span>
-                </button>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedVersion("general")}
-                  disabled={isGenerating}
-                  className={`p-5 text-left rounded-2xl border-2 transition-all ${
-                    selectedVersion === 'general'
-                      ? "bg-gradient-to-br from-cyan-100/80 to-blue-100/80 border-cyan-400/60 shadow-xl scale-[1.02]"
-                      : "bg-white/60 border-white/40 hover:bg-white/80 hover:shadow-lg"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="h-12 w-12 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-br from-cyan-500 to-blue-600">
-                      <User className="h-6 w-6 text-white" />
-                    </div>
-                    {selectedVersion === 'general' && <CheckCircle className="text-cyan-600 w-6 h-6" />}
-                  </div>
-                  
-                  <h3 className="text-lg font-bold mb-2 text-gray-900">Yleinen Esittely</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Esittelyteksti profiiliisi. Ei tiettyyn työpaikkaan.
-                  </p>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-600 text-white text-xs font-bold">
-                     Basic+ • {getActionCost('cover_letter_general') || 5} tokenia
-                  </span>
-                </button>
-
-              </div>
-            </div>
-
-            {features.canUseRAG && (
-              <div className="p-6 bg-amber-50 rounded-xl border-2 border-amber-200">
-                <div className="flex items-start gap-4">
-                  <input
-                    type="checkbox"
-                    id="use-rag-letter"
-                    checked={useRAG}
-                    onChange={(e) => setUseRAG(e.target.checked)}
-                    className="mt-1 h-5 w-5 text-amber-600"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor="use-rag-letter" className="font-bold text-gray-900 text-lg cursor-pointer flex items-center gap-2">
-                      Käytä RAG-tietokantaa
-                      <Crown className="w-5 h-5 text-amber-600" />
-                      <span className="text-xs bg-amber-200 text-amber-800 px-2 py-1 rounded-full font-bold">
-                        Premium • {getActionCost('cover_letter_rag')} tokenia
-                      </span>
-                    </label>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {selectedVersion === 'general' 
-                        ? "AI hakee tietokannasta parhaat tavat esitellä osaamisesi ilman tiettyä työpaikkailmoitusta."
-                        : "Konsultoi asiantuntija-artikkeleitamme. AI hakee parhaat käytännöt ja optimoi hakukirjeesi laadun."}
+                {/* Työpaikkailmoitus (aina näkyvissä job_specific:ssä) */}
+                <div className="space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="p-3 sm:p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl sm:rounded-2xl flex gap-2 sm:gap-3">
+                    <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-200/70 leading-relaxed">
+                      {t.atsInfo}
                     </p>
                   </div>
+                  <textarea
+                    value={jobPosting}
+                    onChange={(e) => setJobPosting(e.target.value)}
+                    placeholder={t.jobPostingPlaceholder}
+                    className="w-full h-36 sm:h-48 bg-black/40 border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 transition-all placeholder:text-gray-700 resize-none"
+                  />
                 </div>
-              </div>
+              </section>
             )}
-
-            {selectedVersion !== 'general' ? (
-              <div className="animate-fade-in">1
-                <label className="block text-sm font-bold text-gray-900 mb-3 uppercase">
-                  📋 Työpaikkailmoitus <span className="text-red-600">*</span>
-                </label>
-                <textarea
-                  value={jobDescription}
-                  onChange={(e) => setJobDescription(e.target.value)}
-                  disabled={isGenerating}
-                  className="w-full p-5 bg-white/80 border-2 border-white/60 rounded-2xl focus:border-indigo-400 focus:ring-4 focus:ring-indigo-300/30 outline-none min-h-[200px] resize-y"
-                  placeholder="Liitä tähän työpaikkailmoitus..."
-                />
-              </div>
-            ) : (
-              // ✅ GENERAL: Näytä Rooli & Toimiala
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-                <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-3 uppercase">
-                        🎯 Tavoiteltu rooli (Valinnainen)
-                    </label>
-                    <input 
-                        type="text"
-                        value={targetRole}
-                        onChange={(e) => setTargetRole(e.target.value)}
-                        placeholder="Esim. Myyntipäällikkö, Koodari..."
-                        className="w-full p-4 bg-white/80 border-2 border-white/60 rounded-xl focus:border-cyan-400 outline-none"
-                    />
-                    <p className="text-xs text-gray-500 mt-2">Jos tyhjä, AI luo täysin yleisen esittelyn.</p>
-                </div>
-                <div>
-                    <label className="block text-sm font-bold text-gray-900 mb-3 uppercase">
-                        🏭 Toimiala (Valinnainen)
-                    </label>
-                    <input 
-                        type="text"
-                        value={targetIndustry}
-                        onChange={(e) => setTargetIndustry(e.target.value)}
-                        placeholder="Esim. IT, Terveydenhuolto..."
-                        className="w-full p-4 bg-white/80 border-2 border-white/60 rounded-xl focus:border-cyan-400 outline-none"
-                    />
-                </div>
-              </div>
-            )}
-
-            {/* Personal Notes (Always visible) */}
-            <div>
-              <label className="block text-sm font-bold text-gray-900 mb-3 uppercase">
-                ✨ Henkilökohtaiset huomiot
-              </label>
-              <textarea
-                value={personalNotes}
-                onChange={(e) => setPersonalNotes(e.target.value)}
-                disabled={isGenerating}
-                className="w-full p-5 bg-white/80 border-2 border-white/60 rounded-2xl focus:border-purple-400 focus:ring-4 focus:ring-purple-300/30 outline-none min-h-[120px] resize-y"
-                placeholder={selectedVersion === 'general' 
-                  ? "Kerro itsestäsi vapaamuotoisesti, mitä haluat ehdottomasti tuoda esille..."
-                  : "Kerro asioita joita haluat painottaa tässä haussa..."}
-              />
-            </div>
-
-            {/* Settings */}
-            <div className="bg-gradient-to-br from-indigo-100/50 to-purple-100/50 rounded-2xl p-6 border-2 border-white/40">
-              <h3 className="text-xl font-bold text-gray-900 mb-5 flex items-center gap-2">
-                <Info className="h-5 w-5" />
-                Asetukset
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-2 uppercase">
-                    🌐 Kieli
-                  </label>
-                  <select
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value as Language)}
-                    disabled={isGenerating}
-                    className="w-full p-3 bg-white/90 border-2 border-white/60 rounded-xl focus:border-indigo-400"
-                  >
-                    <option value="finnish">🇫🇮 Suomi</option>
-                    <option value="english">🇬🇧 English</option>
-                    <option value="swedish">🇸🇪 Svenska</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-2 uppercase">
-                    🎨 Tyyli
-                  </label>
-                  <select
-                    value={style}
-                    onChange={(e) => setStyle(e.target.value as Style)}
-                    disabled={isGenerating}
-                    className="w-full p-3 bg-white/90 border-2 border-white/60 rounded-xl focus:border-purple-400"
-                  >
-                    <option value="formal">📋 Virallisempi</option>
-                    <option value="casual">💬 Rennompi</option>
-                  </select>
-                </div>
-              </div>
-            </div>
           </div>
 
-          {error && !showQuestions && (
-            <div className="mt-6 bg-red-100/60 border-2 border-red-300/60 rounded-2xl p-4 flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <p className="font-bold text-red-900">{error}</p>
-            </div>
-          )}
+          {/* OIKEA: YHTEENVETO (Sticky) */}
+          <div className="lg:col-span-4">
+            <div className="lg:sticky lg:top-12 space-y-4 sm:space-y-6">
+              <div className="bg-gray-900/40 backdrop-blur-2xl border border-gray-800 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 overflow-hidden relative">
+                {/* Koriste */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
+                
+                <h3 className="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6 sm:mb-8">{t.summary}</h3>
+                
+                <div className="space-y-4 sm:space-y-5 mb-8 sm:mb-10">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-400 font-medium">{t.letterGeneration}</span>
+                    <span className="text-white font-bold">{plan_type === 'free' ? '0' : costs.base} TKN</span>
+                  </div>
 
-          {/* Submit Button */}
-          <div className="mt-8 pt-6 border-t border-white/30 relative z-10">
-            <Button
-              onClick={handleSubmit}
-              disabled={isGenerating || (selectedVersion !== 'general' && !jobDescription.trim())}
-              className={`w-full py-5 px-8 text-lg font-extrabold rounded-2xl border-2 transition-all relative overflow-hidden ${
-                isGenerating || (selectedVersion !== 'general' && !jobDescription.trim())
-                  ? "bg-gray-300/60 text-gray-500 cursor-not-allowed border-gray-400/60"
-                  : "bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 text-white border-white/40 shadow-2xl hover:shadow-indigo-500/50 hover:scale-[1.02]"
-                }`}
-            >
-              <div className="flex items-center justify-center gap-3">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                    <span>PROSESSOIDAAN...</span>
-                  </>
-                ) : (
-                  <>
-                    {useRAG ? <Crown className="w-6 h-6" /> : 
-                     selectedVersion === "v2" ? <Zap className="w-6 h-6" /> : 
-                     selectedVersion === "general" ? <User className="w-6 h-6" /> :
-                     <Sparkles className="w-6 h-6" />}
-                    <span>
-                      {selectedVersion === 'general'
-                        ? `LUO ESITTELYKIRJE (${getActionCost('cover_letter_general')} tok)`
-                        : useRAG 
-                          ? `LUO RAG HAKUKIRJE (${getActionCost('cover_letter_rag')} tok)`
-                          : selectedVersion === "v2"
-                            ? `LUO ATS HAKUKIRJE (${getActionCost('cover_letter_v2')} tok)`
-                            : `LUO HAKUKIRJE (${getActionCost('cover_letter_v1')} tok)`
-                      }
-                    </span>
-                    <ArrowRight className="w-6 h-6" />
-                  </>
+                  <div className="pt-4 sm:pt-5 border-t border-gray-800 flex justify-between items-end">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">{t.cost}</p>
+                      <p className="text-2xl sm:text-3xl font-black text-white">
+                        {plan_type === 'free' ? t.free : `${costs.total}`}
+                        {plan_type !== 'free' && <span className="text-xs text-orange-500 ml-1">TKN</span>}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={handleGenerateLetter}
+                  disabled={isLoading || (letterType === 'job_specific' && !jobPosting.trim())}
+                  className="w-full py-6 sm:py-8 bg-gradient-to-r from-orange-500 to-amber-600 hover:shadow-[0_0_40px_rgba(249,115,22,0.3)] text-white rounded-xl sm:rounded-2xl font-black text-base sm:text-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] group"
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-3">
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <span>{t.generating}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-12 transition-transform" />
+                      <span>{t.generateNow}</span>
+                      <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-1 opacity-50 group-hover:translate-x-1 transition-all" />
+                    </div>
+                  )}
+                </Button>
+
+                {plan_type === 'free' && (
+                  <div className="mt-4 sm:mt-6 flex gap-2 sm:gap-3 p-3 sm:p-4 bg-orange-500/5 rounded-xl sm:rounded-2xl border border-orange-500/10">
+                    <AlertCircle className="w-4 h-4 text-orange-400 shrink-0" />
+                    <p className="text-[10px] text-gray-500 leading-relaxed italic">
+                      {t.freeTrialInfo}
+                    </p>
+                  </div>
                 )}
               </div>
-            </Button>
-            <p className="text-sm text-gray-500 text-center mt-4">
-               {isPremium
-                 ? `${plan_type.toUpperCase()}: ${tokens} tokenia jäljellä`
-                 : "Vaatii tilauksen"}
-            </p>
+
+              {/* LISÄINFO */}
+              <div className="px-4 sm:px-6 py-3 sm:py-4 bg-white/5 border border-white/5 rounded-2xl sm:rounded-3xl">
+                <p className="text-[11px] text-gray-500 text-center leading-relaxed font-medium">
+                  {t.processTime}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

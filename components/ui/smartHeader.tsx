@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/context/LanguageContext';
 import { useSubscription } from '@/context/SubscriptionContext';
+import { useTokens } from '@/hooks/useTokens';
 import { clerkAppearance } from '@/lib/clerkAppearance';
 import {
   FileText,
@@ -24,18 +25,20 @@ import {
   Book,
   ReceiptEuro,
   CircleDollarSign,
+  Sparkles,
 } from 'lucide-react';
 
 export default function SmartHeader() {
   const { subscription, isLoading: isSubscriptionLoading } = useSubscription();
   const { user, isSignedIn, isLoaded: isClerkLoaded } = useUser();
   const { language, toggleLanguage } = useLanguage();
+  const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
   const pathname = usePathname();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  const plan = subscription?.plan_type;
+  const plan = subscription?.plan_type || plan_type;
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -54,6 +57,7 @@ export default function SmartHeader() {
       signIn: 'Sign In',
       signUp: 'Sign Up',
       toggleLang: 'EN',
+      balance: 'Balance',
     },
     fi: {
       home: 'Koti',
@@ -67,6 +71,7 @@ export default function SmartHeader() {
       signIn: 'Kirjaudu',
       signUp: 'Rekisteröidy',
       toggleLang: 'FI',
+      balance: 'Saldosi',
     },
   }[language];
 
@@ -80,7 +85,7 @@ export default function SmartHeader() {
     return () => document.removeEventListener('click', close);
   }, [profileMenuOpen]);
 
-  if (!isClerkLoaded || isSubscriptionLoading) {
+  if (!isClerkLoaded || isSubscriptionLoading || tokensLoading) {
     return <header className="h-16 bg-black/80 backdrop-blur-xl border-b border-white/10" />;
   }
 
@@ -99,15 +104,15 @@ export default function SmartHeader() {
   return (
     <>
       <header className="bg-black/80 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
-        {/* tärkeä: relative, jotta absolute mobiilivalikko ankkuroidaan tähän */}
-        <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center relative">
-          <Link href="/" className="flex items-center">
-            <Image src="/logo.png" alt="HappyApplaid" width={150} height={40} />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex justify-between items-center relative">
+          {/* Logo */}
+          <Link href="/" className="flex items-center flex-shrink-0">
+            <Image src="/logo.png" alt="HappyApplaid" width={120} height={32} className="sm:w-[150px] sm:h-[40px]" />
           </Link>
 
           {/* Desktop Navigation (Logged In) */}
           {isSignedIn && (
-            <nav className="hidden md:flex gap-1">
+            <nav className="hidden lg:flex gap-1 mx-4">
               {navLinks.map(({ href, label, icon: Icon }) => (
                 <Link key={href} href={href}>
                   <Button
@@ -127,7 +132,7 @@ export default function SmartHeader() {
             </nav>
           )}
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Desktop: Pricing Link (Logged Out) */}
             {!isSignedIn && (
               <Link href={pricingAnchor} className="hidden md:block">
@@ -171,11 +176,21 @@ export default function SmartHeader() {
                 </SignUpButton>
               </div>
             ) : (
-              /* Desktop: Profile Menu (Logged In) */
-              <div className="hidden md:flex items-center gap-3">
+              /* Desktop: Token Balance + Profile Menu (Logged In) */
+              <div className="hidden md:flex items-center gap-2 lg:gap-3">
+                {/* Token Balance Display */}
+                <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 px-3 py-1.5 rounded-full flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-sm font-bold text-white">{tokens.toLocaleString()}</span>
+                    <span className="text-[10px] font-bold text-orange-500">TKN</span>
+                  </div>
+                </div>
+
+                {/* Plan Badge */}
                 {plan && (
                   <Link href="/pricing">
-                    <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 px-3 py-1.5 rounded-full">
+                    <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 px-3 py-1.5 rounded-full hover:bg-amber-500/30 transition-colors">
                       <Crown className="w-4 h-4 text-amber-400" />
                       <span className="text-xs font-semibold text-amber-300">
                         {plan.toUpperCase()}
@@ -184,6 +199,7 @@ export default function SmartHeader() {
                   </Link>
                 )}
 
+                {/* Profile Menu */}
                 <div data-profile-menu className="relative">
                   <button
                     onClick={() => setProfileMenuOpen(!profileMenuOpen)}
@@ -199,7 +215,7 @@ export default function SmartHeader() {
                     <div className="absolute right-0 top-12 w-48 bg-gray-900/95 border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden">
                       <button
                         onClick={toggleLanguage}
-                        className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg:white/5 flex items-center gap-2"
+                        className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2"
                       >
                         <Languages className="w-4 h-4" />
                         {language === 'en' ? 'In English' : 'Suomeksi'}
@@ -229,12 +245,29 @@ export default function SmartHeader() {
             </button>
           </div>
 
-          {/* Mobile Menu - Drops below header, ankkuroidaan tähän wrapperiin */}
+          {/* Mobile Menu */}
           {mobileMenuOpen && (
-            <div className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute left-0 top-full w-screen -mx-4 z-50 animate-in slide-in-from-top duration-200">
+            <div className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute left-0 top-full w-screen -mx-3 sm:-mx-4 z-50 animate-in slide-in-from-top duration-200">
               <div className="flex flex-col p-4 gap-2">
                 {isSignedIn ? (
                   <>
+                    {/* Mobile: Token Balance */}
+                    <div className="mb-2 p-3 bg-gray-900/60 rounded-lg border border-gray-800">
+                      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{t.balance}</p>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-orange-400" />
+                        <span className="text-xl font-black text-white">{tokens.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-orange-500">TKN</span>
+                        {plan && (
+                          <>
+                            <div className="w-px h-5 bg-gray-700 mx-1" />
+                            <Crown className="w-4 h-4 text-amber-400" />
+                            <span className="text-xs font-bold text-amber-300">{plan.toUpperCase()}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
                     {navLinks.map(({ href, label, icon: Icon }) => (
                       <Link key={href} href={href}>
                         <Button
@@ -296,7 +329,7 @@ export default function SmartHeader() {
                       className="w-full justify-start text-gray-300"
                     >
                       <Languages className="w-5 h-5 mr-3" />{' '}
-                        {language === 'en' ? 'English' : 'Suomeksi'}
+                      {language === 'en' ? 'English' : 'Suomeksi'}
                     </Button>
 
                     {/* Mobile: Auth Buttons */}
@@ -307,7 +340,7 @@ export default function SmartHeader() {
                         </Button>
                       </SignInButton>
                       <SignUpButton mode="modal" appearance={clerkAppearance}>
-                        <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-600 text:white">
+                        <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-600 text-white">
                           {t.signUp}
                         </Button>
                       </SignUpButton>

@@ -1,4 +1,4 @@
-// lib/stripe/subscriptions.ts - KORJATTU
+// lib/stripe/subscriptions.ts - TÄYSIN KORJATTU
 'use server';
 
 import { stripe } from '@/lib/stripe';
@@ -7,17 +7,18 @@ import { currentUser } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { BillingPeriod, PRICING } from '../pricing';
 
-export type Tier = 'free' |'basic' | 'premium';
+export type Tier = 'free' | 'basic' | 'premium';
 
 export async function createCheckoutSession(
-  userId: string, 
+  userId: string,
   tier: Tier,
-  billingPeriod: BillingPeriod = 'monthly' // default monthly
-){
+  billingPeriod: BillingPeriod = 'monthly'
+) {
   const supabaseAdmin = await getSupabaseAdmin();
-  
-  console.log(`Creating checkout session for user: ${userId}, tier: ${tier}`);
 
+  console.log(`Creating checkout session for user: ${userId}, tier: ${tier}, period: ${billingPeriod}`);
+
+  // Tarkista onko jo aktiivinen tilaus
   const { data: existingSubscription } = await supabaseAdmin
     .from('subscriptions')
     .select('status')
@@ -29,39 +30,61 @@ export async function createCheckoutSession(
     throw new Error('User already has an active subscription');
   }
 
-if (tier === 'free') {
-  throw new Error('Free tier has no checkout');
-}
+  if (tier === 'free') {
+    throw new Error('Free tier has no checkout');
+  }
 
-const tierConfig = PRICING[tier];
+  // Hae tier config
+  const tierConfig = PRICING[tier];
   if (!('stripePriceId' in tierConfig)) {
     throw new Error(`Tier ${tier} has no Stripe pricing`);
   }
 
-  // ✅ MUUTOS: Käytä billing periodia
+  // ✅ Käytä billing periodia
   const priceId = tierConfig.stripePriceId[billingPeriod];
-  
+
   if (!priceId) {
     throw new Error(`Price ID not found for tier: ${tier}, period: ${billingPeriod}`);
   }
 
   console.log(`Using price ID: ${priceId} for tier: ${tier}, period: ${billingPeriod}`);
 
+  // ✅ LUO STRIPE CHECKOUT SESSION
   const session = await stripe.checkout.sessions.create({
-    // ... rest of your code
+    payment_method_types: ['card'],
+    line_items: [
+      {
+        price: priceId,
+        quantity: 1,
+      },
+    ],
+    mode: 'subscription',
+    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing`,
+    client_reference_id: userId,
     metadata: {
       userId,
       tier,
-      billingPeriod, // ✅ Tallenna myös billing period
+      billingPeriod,
+    },
+    subscription_data: {
+      metadata: {
+        userId,
+        tier,
+        billingPeriod,
+      },
     },
   });
+
+  console.log(`Checkout session created: ${session.id}`);
 
   return session;
 }
 
+// ... (loput funktiot pysyvät samana)
 export async function getActiveSubscriptionForMiddleware(userId: string) {
   const supabaseAdmin = await getSupabaseAdmin();
-  
+
   if (!userId) {
     return { active: false, tier: null };
   }
@@ -76,12 +99,9 @@ export async function getActiveSubscriptionForMiddleware(userId: string) {
     return { active: false, tier: null };
   }
 
-  // ✅ KORJAUS: Käytä is_active kenttää suoraan
-  // Jos current_period_end puuttuu tai on mennyt, is_active pitäisi olla false
-  const isActive = data.is_active === true && 
-                   ['active', 'trialing'].includes(data.status);
+  const isActive =
+    data.is_active === true && ['active', 'trialing'].includes(data.status);
 
-  // Tarkista vielä current_period_end jos se on olemassa
   if (isActive && data.current_period_end) {
     const periodEnd = new Date(data.current_period_end);
     if (isNaN(periodEnd.getTime()) || periodEnd <= new Date()) {
@@ -89,15 +109,12 @@ export async function getActiveSubscriptionForMiddleware(userId: string) {
     }
   }
 
-  return { 
+  return {
     active: isActive,
-    tier: data.plan_type as Tier
+    tier: data.plan_type as Tier,
   };
 }
 
-/**
- * Tarkistaa tier-kohtaiset ominaisuudet
- */
 export async function getTierFeatures(planType: string) {
   const tier = planType.toLowerCase() as keyof typeof PRICING;
 
@@ -107,6 +124,7 @@ export async function getTierFeatures(planType: string) {
 
   return PRICING[tier].features;
 }
+
 export async function checkSubscriptionAccess(
   userId: string,
   feature: string
@@ -122,16 +140,12 @@ export async function checkSubscriptionAccess(
   if (!data) return false;
 
   const isActive =
-    data.is_active === true &&
-    ['active', 'trialing'].includes(data.status);
+    data.is_active === true && ['active', 'trialing'].includes(data.status);
 
   if (!isActive) return false;
 
-  // ✅ TÄMÄ PUUTTUI
   const tier = data.plan_type as keyof typeof PRICING;
-
-  // fallback turva
-  const tierFeatures = PRICING[tier]?.featureFlags ?? PRICING.free.features;
+  const tierFeatures = PRICING[tier]?.featureFlags ?? PRICING.free.featureFlags;
 
   switch (feature) {
     case 'v1_generator':
@@ -157,28 +171,27 @@ export async function checkSubscriptionAccess(
   }
 }
 
-
 export async function cancelSubscription() {
   const supabaseAdmin = await getSupabaseAdmin();
   const user = await currentUser();
-  
+
   if (!user || !user.id) {
     throw new Error('Not authenticated');
   }
-  
+
   const userId = user.id;
-  
+
   const { data } = await supabaseAdmin
     .from('subscriptions')
     .select('stripe_subscription_id')
     .eq('user_id', userId)
     .single();
-    
+
   if (!data?.stripe_subscription_id) {
     throw new Error('No active subscription found');
   }
-  
+
   await stripe.subscriptions.cancel(data.stripe_subscription_id);
-  
+
   redirect('/account?canceled=true');
 }
