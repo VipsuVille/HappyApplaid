@@ -457,6 +457,13 @@ Return JSON:
 
     const parsed = JSON.parse(jsonMatch[0]) as GuardianCheckResult;
 
+    // ✅ HARD NORMALIZATION – TÄRKEIN KORJAUS
+parsed.violations = parsed.violations ?? {
+  fabricatedSkills: [],
+  fabricatedEducation: [],
+  fabricatedExperience: []
+};
+
     // ✅ POST-PROCESSING: Poista violations jotka on jo hyväksytty
   // ✅ KORJATTU POST-PROCESSING (masterGuardian.ts)
 
