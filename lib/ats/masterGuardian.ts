@@ -458,61 +458,72 @@ Return JSON:
     const parsed = JSON.parse(jsonMatch[0]) as GuardianCheckResult;
 
     // ✅ POST-PROCESSING: Poista violations jotka on jo hyväksytty
-    if (parsed.violations && safeGroundTruth.approvedViolations) {
-      const { approvedViolations } = safeGroundTruth;
-      
-      if (parsed.violations.fabricatedSkills) {
-        parsed.violations.fabricatedSkills = parsed.violations.fabricatedSkills
-          .filter(skill => {
-            const isApproved = approvedViolations.skills.some(
-              approved => approved.toLowerCase().includes(skill.toLowerCase())
-            );
-            const isRejected = safeGroundTruth.cannotClaim.some(
-              rejected => rejected.toLowerCase().includes(skill.toLowerCase())
-            );
-            return !isApproved && !isRejected;
-          });
-      }
-      
-      if (parsed.violations.fabricatedEducation) {
-        parsed.violations.fabricatedEducation = parsed.violations.fabricatedEducation
-          .filter(edu => {
-            const isApproved = approvedViolations.education.some(
-              approved => approved.toLowerCase().includes(edu.toLowerCase())
-            );
-            const isRejected = safeGroundTruth.cannotClaim.some(
-              rejected => rejected.toLowerCase().includes(edu.toLowerCase())
-            );
-            return !isApproved && !isRejected;
-          });
-      }
-      
-      if (parsed.violations.fabricatedExperience) {
-        parsed.violations.fabricatedExperience = parsed.violations.fabricatedExperience
-          .filter(exp => {
-            const isApproved = approvedViolations.experience.some(
-              approved => approved.toLowerCase().includes(exp.toLowerCase())
-            );
-            const isRejected = safeGroundTruth.cannotClaim.some(
-              rejected => rejected.toLowerCase().includes(exp.toLowerCase())
-            );
-            return !isApproved && !isRejected;
-          });
-      }
+  // ✅ KORJATTU POST-PROCESSING (masterGuardian.ts)
 
-      // Jos kaikki violations poistuivat, hyväksy
-      const hasViolations = 
-        (parsed.violations.fabricatedSkills?.length || 0) > 0 ||
-        (parsed.violations.fabricatedEducation?.length || 0) > 0 ||
-        (parsed.violations.fabricatedExperience?.length || 0) > 0;
+// POST-PROCESSING: Poista violations jotka on jo hyväksytty
+if (parsed.violations && safeGroundTruth.approvedViolations) {
+  const { approvedViolations } = safeGroundTruth;
+  
+  // ✅ TURVAVERKKO: Tarkista että kaikki arrays ovat olemassa
+  if (parsed.violations.fabricatedSkills && Array.isArray(parsed.violations.fabricatedSkills)) {
+    parsed.violations.fabricatedSkills = parsed.violations.fabricatedSkills
+      .filter(skill => {
+        // ✅ LISÄÄ ?. ja || false
+        const isApproved = approvedViolations.skills?.some(
+          approved => approved.toLowerCase().includes(skill.toLowerCase())
+        ) || false;
+        
+        const isRejected = safeGroundTruth.cannotClaim?.some(
+          rejected => rejected.toLowerCase().includes(skill.toLowerCase())
+        ) || false;
+        
+        return !isApproved && !isRejected;
+      });
+  }
+  
+  if (parsed.violations.fabricatedEducation && Array.isArray(parsed.violations.fabricatedEducation)) {
+    parsed.violations.fabricatedEducation = parsed.violations.fabricatedEducation
+      .filter(edu => {
+        const isApproved = approvedViolations.education?.some(
+          approved => approved.toLowerCase().includes(edu.toLowerCase())
+        ) || false;
+        
+        const isRejected = safeGroundTruth.cannotClaim?.some(
+          rejected => rejected.toLowerCase().includes(edu.toLowerCase())
+        ) || false;
+        
+        return !isApproved && !isRejected;
+      });
+  }
+  
+  if (parsed.violations.fabricatedExperience && Array.isArray(parsed.violations.fabricatedExperience)) {
+    parsed.violations.fabricatedExperience = parsed.violations.fabricatedExperience
+      .filter(exp => {
+        const isApproved = approvedViolations.experience?.some(
+          approved => approved.toLowerCase().includes(exp.toLowerCase())
+        ) || false;
+        
+        const isRejected = safeGroundTruth.cannotClaim?.some(
+          rejected => rejected.toLowerCase().includes(exp.toLowerCase())
+        ) || false;
+        
+        return !isApproved && !isRejected;
+      });
+  }
 
-      if (!hasViolations && parsed.riskLevel === 'danger') {
-        parsed.approved = true;
-        parsed.riskLevel = 'safe';
-        parsed.recommendation = 'All items were previously approved by user';
-        parsed.flags = ['auto_approved_from_history'];
-      }
-    }
+  // Jos kaikki violations poistuivat, hyväksy
+  const hasViolations = 
+    (parsed.violations.fabricatedSkills?.length || 0) > 0 ||
+    (parsed.violations.fabricatedEducation?.length || 0) > 0 ||
+    (parsed.violations.fabricatedExperience?.length || 0) > 0;
+
+  if (!hasViolations && parsed.riskLevel === 'danger') {
+    parsed.approved = true;
+    parsed.riskLevel = 'safe';
+    parsed.recommendation = 'All items were previously approved by user';
+    parsed.flags = ['auto_approved_from_history'];
+  }
+}
 
     console.log(`🛡️ Guardian ${stage}:`, {
       approved: parsed.approved,
