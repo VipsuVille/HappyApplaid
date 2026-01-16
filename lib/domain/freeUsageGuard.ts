@@ -12,7 +12,7 @@ export interface FreeUsageStatus {
 }
 
 /**
- * 🎯 MITÄ TÄMÄ TEKEE:
+ *  MITÄ TÄMÄ TEKEE:
  * - Tarkistaa onko free-käyttäjä käyttänyt ilmaisen tokeninsa
  * - Free-käyttäjä saa YHDEN ilmaisen toiminnon (CV TAI hakukirje, ei molempia)
  * - Toimii vaikka käyttäjä olisi aiemmin ollut maksava
