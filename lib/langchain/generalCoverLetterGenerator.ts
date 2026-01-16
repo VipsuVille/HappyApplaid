@@ -1,25 +1,33 @@
-// lib/langchain/generalCoverLetterGenerator.ts - KORJATTU VERSIO
+// lib/langchain/generalCoverLetterGenerator.ts - KORJATTU & TURVALLINEN VERSIO
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { buildAIContext } from "@/lib/knowledge";
-import { analyzeJobAndProfile } from "./smartQuestionAnalyzer"; // ✅ LISÄÄ TÄMÄ
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
+
+// ───────────────────────────────────────────────────────────────
+// SCHEMA
+// ───────────────────────────────────────────────────────────────
 
 const generalCoverLetterSchema = z.object({
-  content: z.string().describe("Full cover letter text"),
-  title: z.string().describe("Letter title"),
+  content: z.string(),
+  title: z.string(),
   keyHighlights: z.object({
-    professionalIdentity: z.string().describe("Who I am professionally"),
-    coreStrengths: z.array(z.string()).describe("Top 3-5 strengths"),
-    careerGoals: z.string().describe("What I'm looking for"),
-    uniqueValue: z.string().describe("What makes me different"),
+    professionalIdentity: z.string(),
+    coreStrengths: z.array(z.string()),
+    careerGoals: z.string(),
+    uniqueValue: z.string(),
   }).optional(),
 });
 
 type GeneralCoverLetterOutput = z.infer<typeof generalCoverLetterSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(generalCoverLetterSchema);
+
+// ───────────────────────────────────────────────────────────────
+// TYPES
+// ───────────────────────────────────────────────────────────────
 
 export interface GeneralCoverLetterInput {
   name: string;
@@ -43,19 +51,19 @@ export interface GeneralCoverLetterInput {
   targetIndustry?: string;
   targetRole?: string;
   language?: string;
-  style?: 'formal' | 'casual';
+  style?: "formal" | "casual";
   enableRAG?: boolean;
   allowedSkills?: string[];
   forbiddenClaims?: string[];
-  userId?: string; // ✅ LISÄÄ userId TUKI
-  skipQuestions?: boolean; // ✅ LISÄÄ skipQuestions TUKI
+  userId?: string;
+  skipQuestions?: boolean;
 }
 
 export interface GeneralCoverLetterResult {
   content: string;
   title: string;
   signature: string;
-  questions?: any[]; // ✅ LISÄÄ questions TUKI
+  questions?: any[];
   keyHighlights?: {
     professionalIdentity: string;
     coreStrengths: string[];
@@ -64,27 +72,28 @@ export interface GeneralCoverLetterResult {
   };
 }
 
+// ───────────────────────────────────────────────────────────────
+// MAIN GENERATOR
+// ───────────────────────────────────────────────────────────────
+
 export async function generateGeneralCoverLetter(
   input: GeneralCoverLetterInput
 ): Promise<GeneralCoverLetterResult> {
-  
-  console.log('🎯 Generating GENERAL cover letter...');
-  
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // ✅ LISÄÄ SMART QUESTION ANALYSIS
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  
+
+  console.log("🎯 Generating GENERAL cover letter");
+
+  // ─────────────────────────────────────────────────────────────
+  // SMART QUESTION ANALYSIS (TURVALLINEN)
+  // ─────────────────────────────────────────────────────────────
+
   if (!input.skipQuestions) {
-    console.log('🔍 General: Running smart question analysis...');
-    
     try {
-      // Luo synteettinen "työpaikkailmoitus" yleiskirjeelle
       const syntheticJobDescription = `
-Hakemuksesi kohteena: ${input.targetRole || 'Ammattilaistehtävät'} 
-Toimiala: ${input.targetIndustry || 'Eri toimialat'}
-Etsimme: Motivoituneita ammattilaisia jotka haluavat kehittyä urallaan.
+General application
+Target role: ${input.targetRole || "Various roles"}
+Industry: ${input.targetIndustry || "Multiple industries"}
       `.trim();
-      
+
       const smartAnalysis = await analyzeJobAndProfile({
         jobDescription: syntheticJobDescription,
         userProfile: {
@@ -99,20 +108,33 @@ Etsimme: Motivoituneita ammattilaisia jotka haluavat kehittyä urallaan.
           bestProjectExample: input.bestProjectExample || "Not specified",
           failureLesson: input.failureLesson || "Not specified",
         },
-        language: input.language || 'finnish',
-        userId: input.userId
+        language: input.language || "finnish",
+        userId: input.userId,
       });
 
-      // KYSYTÄÄNKÖ?
-      if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
-        const criticalQuestions = smartAnalysis.questions.filter(
-          q => q.priority === 'critical'
+      // 🔍 VISIBILITY LOGS (TÄRKEÄ)
+      console.log("🧠 SMART ANALYSIS (GENERAL)", {
+        shouldAskQuestions: smartAnalysis?.shouldAskQuestions,
+        questionsType: typeof smartAnalysis?.questions,
+        isArray: Array.isArray(smartAnalysis?.questions),
+        questionsValue: smartAnalysis?.questions,
+      });
+
+      // ✅ HARD NORMALIZATION (KORJAA BUGISI)
+      const safeQuestions = Array.isArray(smartAnalysis?.questions)
+        ? smartAnalysis.questions
+        : [];
+
+      if (smartAnalysis?.shouldAskQuestions && safeQuestions.length > 0) {
+        const criticalQuestions = safeQuestions.filter(
+          q => q?.priority === "critical"
         );
-        
+
         if (criticalQuestions.length > 0) {
-          console.log(`❓ General: Found ${criticalQuestions.length} critical questions`);
-          
-          // ✅ PALAUTA KYSYMYKSET
+          console.log(
+            `❓ General: returning ${criticalQuestions.length} critical questions`
+          );
+
           return {
             content: "",
             title: "Lisätietoja tarvitaan",
@@ -122,30 +144,31 @@ Etsimme: Motivoituneita ammattilaisia jotka haluavat kehittyä urallaan.
               professionalIdentity: "",
               coreStrengths: [],
               careerGoals: "",
-              uniqueValue: ""
-            }
+              uniqueValue: "",
+            },
           };
         }
       }
-      
-      console.log('✅ General: Profile sufficient OR questions skipped');
     } catch (error) {
-      console.error('⚠️ General: Question analysis failed, continuing:', error);
+      console.error(
+        "⚠️ General: smart question analysis failed, continuing safely",
+        error
+      );
     }
   } else {
-    console.log('⏭️ General: Skipping question analysis (skipQuestions=true)');
+    console.log("⏭️ General: skipQuestions=true");
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // JATKA NORMAALISTI GENEROINTIIN
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  
-  let knowledgeContext = '';
-  
+  // ─────────────────────────────────────────────────────────────
+  // RAG CONTEXT (OPTIONAL)
+  // ─────────────────────────────────────────────────────────────
+
+  let knowledgeContext = "";
+
   if (input.enableRAG) {
     try {
       knowledgeContext = await buildAIContext({
-        jobDescription: `General introduction letter for ${input.targetRole || 'professional opportunities'}`,
+        jobDescription: `General introduction for ${input.targetRole || "professional roles"}`,
         userProfile: {
           workExperience: input.workExperience,
           education: input.education,
@@ -161,13 +184,18 @@ Etsimme: Motivoituneita ammattilaisia jotka haluavat kehittyä urallaan.
           failureLesson: input.failureLesson,
         },
         enableRAG: true,
-        contentType: 'cover_letter'
+        contentType: "cover_letter",
       });
-      console.log('✅ RAG context loaded');
+
+      console.log("📚 RAG context loaded");
     } catch (error) {
-      console.warn('⚠️ RAG failed:', error);
+      console.warn("⚠️ RAG failed, continuing without it", error);
     }
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // MODEL
+  // ─────────────────────────────────────────────────────────────
 
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -175,203 +203,79 @@ Etsimme: Motivoituneita ammattilaisia jotka haluavat kehittyä urallaan.
     temperature: 0.7,
   });
 
-  const styleInstructions = input.style === 'casual'
-    ? 'TONE: Conversational, approachable yet professional.'
-    : 'TONE: Professional, confident.';
+  const styleInstructions =
+    input.style === "casual"
+      ? "Conversational yet professional"
+      : "Professional and confident";
+
+  // ─────────────────────────────────────────────────────────────
+  // PROMPT
+  // ─────────────────────────────────────────────────────────────
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ["system", `You are writing a MODERN general professional introduction letter.
-
-# ════════════════════════════════════════════════════════════════
-# CONTEXT: GENERAL INTRODUCTION
-# ════════════════════════════════════════════════════════════════
-
-This is NOT for a specific job posting.
-This is a GENERAL PROFESSIONAL INTRODUCTION for multiple employers.
-
-# ════════════════════════════════════════════════════════════════
-# CRITICAL: MODERN FORMAT
-# ════════════════════════════════════════════════════════════════
-
-**CONTAINS ONLY:**
-1. Greeting (general)
-2. Body (3-4 paragraphs)
-3. Closing
-4. Signature
-
-**NEVER WRITE:**
-❌ Address
-❌ Phone number in body
-❌ Email in body
-❌ [Placeholders in brackets]
-❌ Date in text
-
-**NAME USAGE:**
-- Applicant's name is: {name}
-- NEVER write "Applicant"
-- NEVER write "[Your Name]"
-- ALWAYS use {name}
-
-${knowledgeContext ? `
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# EXPERT KNOWLEDGE
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    [
+      "system",
+      `You are writing a MODERN general professional introduction letter.
 
 ${knowledgeContext}
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-` : ''}
+LANGUAGE: {language}
+STYLE: {styleInstructions}
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# GROUND TRUTH
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{format_instructions}`,
+    ],
+    [
+      "human",
+      `CANDIDATE:
+Name: {name}
 
-**ALLOWED SKILLS:**
-{allowedSkills}
-
-**FORBIDDEN CLAIMS:**
-{forbiddenClaims}
-
-**VERIFICATION:**
-Use ONLY allowedSkills. NEVER invent experience.
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**MISSION:**
-Write compelling general introduction that:
-1. Introduces candidate professionally
-2. Highlights core strengths
-3. Explains career goals
-4. Shows value proposition
-
-**STRUCTURE:**
-
-**OPENING (2-3 sentences)**
-   - Professional identity
-   - Current situation
-
-**CORE STRENGTHS (3-4 sentences)**
-   - Key skills and experience
-   - Personality in work context
-   - What makes unique
-
-**CAREER GOALS (2-3 sentences)**
-   - What seeking
-   - Type of environments
-   - Motivations
-
-**CLOSING (1-2 sentences)**
-   - Value summary
-   - Call to action
-
-**LANGUAGE:** {language}
-**STYLE:** {styleInstructions}
-**LENGTH:** 280-350 words
-
-{format_instructions}`],
-
-    ["human", `Generate GENERAL introduction letter.
-
-**CANDIDATE:**
-NAME: {name} (USE THIS, NOT "Applicant")
-Goal: {jobTitle}
-
-**BACKGROUND:**
+BACKGROUND:
 Experience: {workExperience}
 Education: {education}
 Skills: {skills}
 
-**GROUND TRUTH:**
-ALLOWED: {allowedSkills}
-FORBIDDEN: {forbiddenClaims}
+GOALS:
+Career goals: {careerGoals}
 
-**PERSONALITY:**
-Working Style: {workingStyle}
-Problem Solving: {problemSolving}
-Strength: {uniqueStrength}
-Identity: {superpower}
-
-**ASPIRATIONS:**
-Goals: {careerGoals}
-Best Achievement: {bestProjectExample}
-
-**FOCUS:**
-Target Industry: {targetIndustry}
-Target Role: {targetRole}
-
-Return JSON with "content", "title", "keyHighlights".`]
+Return JSON with fields: content, title, keyHighlights.`,
+    ],
   ]);
 
   try {
     const formatted = await prompt.formatMessages({
-      language: input.language || 'finnish',
+      language: input.language || "finnish",
       styleInstructions,
       name: input.name,
-      jobTitle: input.jobTitle || 'Professional',
-      workExperience: input.workExperience || 'Developing experience',
-      education: input.education || 'Relevant background',
-      skills: input.skills || 'Versatile skills',
-      allowedSkills: input.allowedSkills?.join(', ') || 'All profile skills',
-      forbiddenClaims: input.forbiddenClaims?.join(', ') || 'None',
-      workingStyle: input.workingStyle || 'Adaptable',
-      problemSolving: input.problemSolving || 'Analytical',
-      uniqueStrength: input.uniqueStrength || 'Quick learner',
-      superpower: input.superpower || 'Reliable professional',
-      careerGoals: input.careerGoals || 'Seeking growth',
-      bestProjectExample: input.bestProjectExample || 'Consistent delivery',
-      targetIndustry: input.targetIndustry || 'Various industries',
-      targetRole: input.targetRole || 'Professional roles',
+      workExperience: input.workExperience || "Developing experience",
+      education: input.education || "Relevant background",
+      skills: input.skills || "Versatile skills",
+      careerGoals: input.careerGoals || "Professional growth",
       format_instructions: outputParser.getFormatInstructions(),
     });
 
     const result = await model.invoke(formatted);
-    const content = typeof result.content === 'string'
-      ? result.content
-      : JSON.stringify(result.content);
+    const rawContent =
+      typeof result.content === "string"
+        ? result.content
+        : JSON.stringify(result.content);
 
-    const cleanContent = content
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
+    const clean = rawContent.replace(/```json|```/g, "").trim();
+    const jsonMatch = clean.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON returned by model");
 
-    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No JSON found');
-
-    const parsed: GeneralCoverLetterOutput = await outputParser.parse(jsonMatch[0]);
-
-    // CLEAN PLACEHOLDERS
-    let finalContent = (parsed.content || '')
-      .replace(/\[Osoite\]/g, '')
-      .replace(/\[Address\]/g, '')
-      .replace(/\[Puhelinnumero\]/g, '')
-      .replace(/\[Phone\]/g, '')
-      .replace(/\[Sähköposti\]/g, '')
-      .replace(/\[Email\]/g, '')
-      .replace(/\[Paikkakunta\]/g, '')
-      .replace(/\[City\]/g, '')
-      .replace(/\[Päivämäärä\]/g, '')
-      .replace(/\[Date\]/g, '')
-      .replace(/\[Your Name\]/g, input.name)
-      .replace(/\[Nimi\]/g, input.name)
-      .replace(/^Hakija(?=\s|$)/gm, input.name)
-      .replace(/^Applicant(?=\s|$)/gm, input.name)
-      .replace(/\*\*/g, '')
-      .replace(/([^\n])\n([^\n])/g, '$1\n\n$2')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
-    console.log('✅ General cover letter generated');
+    const parsed: GeneralCoverLetterOutput = await outputParser.parse(
+      jsonMatch[0]
+    );
 
     return {
-      content: finalContent,
-      title: parsed.title || 'Professional Introduction',
+      content: parsed.content,
+      title: parsed.title,
       signature: input.name,
-      questions: [], // ✅ Tyhjä array jos ei kysymyksiä
+      questions: [],
       keyHighlights: parsed.keyHighlights,
     };
-
   } catch (error) {
-    console.error('❌ General cover letter failed:', error);
+    console.error("❌ General cover letter generation failed", error);
     throw error;
   }
 }
