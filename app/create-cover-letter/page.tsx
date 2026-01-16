@@ -164,112 +164,111 @@ export default function CreateCoverLetterPage() {
   };
 
   // ✅ KORJATTU GENERATE HANDLER
-  const handleGenerateLetter = async () => {
-    if (!user) return toast.error(t.error);
-    if (!profileData) {
-      toast.error(t.noProfile);
-      router.push("/profile");
-      return;
-    }
+// ✅ KORJATTU: Käyttää unified routea
+const handleGenerateLetter = async () => {
+  if (!user) return toast.error(t.error);
+  if (!profileData) {
+    toast.error(t.noProfile);
+    router.push("/profile");
+    return;
+  }
 
-    if (!canCreateLetter()) {
-      toast.error(plan_type === 'free' ? t.freeUsed : t.noTokens(costs.total));
-      return;
-    }
+  if (!canCreateLetter()) {
+    toast.error(plan_type === 'free' ? t.freeUsed : t.noTokens(costs.total));
+    return;
+  }
 
-    if (letterType === 'job_specific' && !jobPosting.trim()) {
-      toast.error(t.jobPostingRequired);
-      return;
-    }
+  if (letterType === 'job_specific' && !jobPosting.trim()) {
+    toast.error(t.jobPostingRequired);
+    return;
+  }
 
-    setIsLoading(true);
+  setIsLoading(true);
+  
+  try {
+    // ✅ YHTENÄINEN ENDPOINT KAIKILLE
+    const endpoint = '/api/generate-cover-letter';
     
-    try {
-      // ✅ REITITYSPÄÄTÖS: Valitse oikea endpoint
-      let endpoint: string;
-      let requestBody: any;
+    // ✅ RAKENNA REQUEST BODY
+    const requestBody: any = {
+      profileData,
+      language: language === 'en' ? 'english' : 'finnish',
+      style: 'formal',
+      letterType,  // ✅ 'job_specific' | 'general'
+    };
 
-      if (letterType === 'general') {
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // A) GENERAL LETTER
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        
-        endpoint = '/api/generate-general-cover-letter';
-        
-        requestBody = {
-          profileData,
-          targetIndustry: targetIndustry || undefined,
-          targetRole: targetRole || undefined,
-          language: language === 'en' ? 'english' : 'finnish',
-          style: 'formal',
-        };
+    // ✅ LISÄÄ TYPE-SPECIFIC KENTÄT
+    if (letterType === 'general') {
+      // General letter
+      requestBody.targetIndustry = targetIndustry || undefined;
+      requestBody.targetRole = targetRole || undefined;
+    } else {
+      // Job-specific letter
+      requestBody.letterVersion = letterVersion;  // ✅ 'v1' | 'v2'
+      requestBody.jobDescription = jobPosting;
+      requestBody.personalNotes = ''; // Lisää jos tarvitaan
+      requestBody.skipQuestions = false; // Tai true jos haluat skipata
+      requestBody.answeredQuestions = []; // Tyhjä aluksi
+    }
 
-        console.log('📤 Sending to GENERAL endpoint:', endpoint);
-        
-      } else {
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // B) JOB-SPECIFIC LETTER
-        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        
-        if (letterVersion === 'v2') {
-          // V2 = ATS-optimoitu
-          endpoint = '/api/generate-cover-letter-v2';
-        } else {
-          // V1 = Perus job-specific
-          endpoint = '/api/finalize-cover-letter';
-        }
+    console.log('📤 Sending to unified endpoint:', {
+      endpoint,
+      letterType,
+      letterVersion: letterType === 'job_specific' ? letterVersion : 'N/A',
+    });
 
-        requestBody = {
-          profileData,
-          jobDescription: jobPosting,
-          language: language === 'en' ? 'english' : 'finnish',
-          style: 'formal',
-          answers: {}, // Tyhjä jos ei kysymyksiä
-        };
+    // ✅ LÄHETÄ PYYNTÖ
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
 
-        console.log(`📤 Sending to ${letterVersion.toUpperCase()} endpoint:`, endpoint);
-      }
+    const result = await response.json();
+    
+    console.log('📥 Response:', result);
 
-      // ✅ LÄHETÄ PYYNTÖ
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-
-      const result = await response.json();
+    // ✅ KÄSITTELE VIRHEET
+    if (!response.ok) {
+      console.error('❌ API Error:', result);
       
-      console.log('📥 Response:', result);
-
-      // ✅ KÄSITTELE VASTAUS
-      if (!response.ok) {
-        console.error('❌ API Error:', result);
-        throw new Error(result.message || result.error || t.error);
-      }
-
-      if (result.needsMoreInfo && result.questions) {
-        console.log('❓ AI needs clarification:', result.questions);
-        // TODO: Näytä kysymysmodaali
-        toast.info('AI tarvitsee lisätietoja');
+      // Tarkista erikoistapaukset
+      if (result.error === 'FREE_COVER_LETTER_ALREADY_USED') {
+        toast.error('Olet jo käyttänyt ilmaisen hakukirjeesi!');
         return;
       }
-
-      // ✅ SUCCESS
-      toast.success(t.success);
       
-      const letterId = result.coverLetterId || result.id;
-      console.log('✅ Redirecting to edit:', letterId);
+      if (result.error === 'NOT_ENOUGH_TOKENS') {
+        toast.error(`Tarvitset ${result.tokensRequired} tokenia`);
+        return;
+      }
       
-      router.push(`/edit-cover-letter/${letterId}`);
-      
-    } catch (error: any) {
-      console.error('❌ Generation error:', error);
-      toast.error(error.message || t.error);
-    } finally {
-      setIsLoading(false);
+      throw new Error(result.message || result.error || t.error);
     }
-  };
 
+    // ✅ KÄSITTELE KYSYMYKSET
+    if (result.needsMoreInfo && result.questions) {
+      console.log('❓ AI needs clarification:', result.questions);
+      // TODO: Näytä kysymysmodaali
+      toast.info('AI tarvitsee lisätietoja');
+      return;
+    }
+
+    // ✅ SUCCESS
+    toast.success(t.success);
+    
+    const letterId = result.coverLetterId;
+    console.log('✅ Redirecting to edit:', letterId);
+    
+    router.push(`/edit-cover-letter/${letterId}`);
+    
+  } catch (error: any) {
+    console.error('❌ Generation error:', error);
+    toast.error(error.message || t.error);
+  } finally {
+    setIsLoading(false);
+  }
+};
   // Loading state
   if (!userLoaded || profileLoading || tokensLoading) {
     return (
