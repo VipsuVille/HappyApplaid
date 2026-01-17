@@ -192,7 +192,13 @@ export async function POST(req: Request) {
         failureLesson: profileData?.failureLesson,
         targetIndustry: targetIndustry || undefined,
         targetRole: targetRole || undefined,
+        
+        // 🚧 RAG COMING SOON - placeholder for future
+        enableRAG: false, // ✅ ALWAYS FALSE until frontend enables it
+        allowedSkills: groundTruth.technicalSkills,
+        forbiddenClaims: groundTruth.cannotClaim,
         userId: userId,
+        skipQuestions: false, // ✅ Enable smart questions for general letters
       };
 
       coverLetterData = await generateGeneralCoverLetter(generalInput);
@@ -257,6 +263,7 @@ export async function POST(req: Request) {
         bestProjectExample: profileData?.bestProjectExample,
         failureLesson: profileData?.failureLesson,
         userId: userId,
+        skipQuestions: false, // ✅ Enable smart questions
       };
 
       // Generate
@@ -373,7 +380,7 @@ export async function POST(req: Request) {
       features: {
         v1: tierFeatures.canUseV1,
         v2: tierFeatures.canUseV2,
-        rag: tierFeatures.canUseRAG,
+        rag: false, // 🚧 Coming soon
       },
       guardianCheck: {
         approved: guardianCheck.approved,
