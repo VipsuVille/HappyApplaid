@@ -150,8 +150,7 @@ export async function generateCoherentCoverLetter(input: CoverLetterV2Input) {
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 0: SMART QUESTION ANALYSIS (CRITICAL - PREVENTS HALLUCINATIONS)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  if (!input.skipQuestions) {
+if (!input.skipQuestions) {
     console.log('🧠 Running smart analysis...');
     
     try {
@@ -177,12 +176,12 @@ export async function generateCoherentCoverLetter(input: CoverLetterV2Input) {
           userId: input.userId
         });
 
-        // 🛡️ NORMALIZE - Guarantee questions is ALWAYS an array
+        // 🛡️ NORMALIZE - CRITICAL: Takaa että questions on AINA array
         smartAnalysis = {
           shouldAskQuestions: rawAnalysis?.shouldAskQuestions ?? false,
           canGenerateWithoutQuestions: rawAnalysis?.canGenerateWithoutQuestions ?? true,
           confidence: rawAnalysis?.confidence ?? 70,
-          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [],
+          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [], // ✅ EI VOI OLLA UNDEFINED
           reasoning: rawAnalysis?.reasoning ?? 'Analysis completed'
         };
       } catch (error) {
@@ -191,19 +190,21 @@ export async function generateCoherentCoverLetter(input: CoverLetterV2Input) {
           shouldAskQuestions: false,
           canGenerateWithoutQuestions: true,
           confidence: 70,
-          questions: [],
+          questions: [], // ✅ AINA ARRAY
           reasoning: 'Analysis failed, proceeding with available data'
         };
       }
 
-      const safeQuestions = smartAnalysis.questions; // Already guaranteed to be array
+      // ✅ NYT safeQuestions on AINA array - ei voi crashata
+      const safeQuestions = smartAnalysis.questions;
 
       console.log('🧠 SmartAnalysis result:', {
         shouldAsk: smartAnalysis.shouldAskQuestions,
-        questionsCount: safeQuestions.length,
+        questionsCount: safeQuestions.length, // ✅ SAFE
         confidence: smartAnalysis.confidence
       });
 
+      // ✅ TURVATTU FILTER - ei voi enää kaatua
       if (smartAnalysis.shouldAskQuestions && safeQuestions.length > 0) {
         const criticalQuestions = safeQuestions.filter(
           q => q && q.priority === 'critical'

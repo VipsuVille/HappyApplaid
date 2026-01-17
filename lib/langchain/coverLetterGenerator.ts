@@ -56,8 +56,7 @@ export async function generateCoverLetterV1(
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // SMART QUESTION ANALYSIS (PREVENTS FABRICATION)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  if (!input.skipQuestions) {
+if (!input.skipQuestions) {
     console.log('🧠 V1: Running smart question analysis...');
     
     try {
@@ -83,12 +82,12 @@ export async function generateCoverLetterV1(
           userId: input.userId
         });
 
-        // 🛡️ NORMALIZE
+        // 🛡️ NORMALIZE - CRITICAL: Estää undefined.filter() crashin
         smartAnalysis = {
           shouldAskQuestions: rawAnalysis?.shouldAskQuestions ?? false,
           canGenerateWithoutQuestions: rawAnalysis?.canGenerateWithoutQuestions ?? true,
           confidence: rawAnalysis?.confidence ?? 70,
-          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [],
+          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [], // ✅ TURVATTU
           reasoning: rawAnalysis?.reasoning ?? 'Analysis completed'
         };
       } catch (error) {
@@ -97,19 +96,21 @@ export async function generateCoverLetterV1(
           shouldAskQuestions: false,
           canGenerateWithoutQuestions: true,
           confidence: 70,
-          questions: [],
+          questions: [], // ✅ AINA ARRAY
           reasoning: 'Analysis failed'
         };
       }
 
+      // ✅ NYT TÄMÄ ON AINA ARRAY
       const safeQuestions = smartAnalysis.questions;
 
       console.log('🧠 V1 SmartAnalysis:', {
         shouldAsk: smartAnalysis.shouldAskQuestions,
-        questionsCount: safeQuestions.length,
+        questionsCount: safeQuestions.length, // ✅ SAFE
         confidence: smartAnalysis.confidence
       });
 
+      // ✅ TURVATTU FILTER - ei voi kaatua
       if (smartAnalysis.shouldAskQuestions && safeQuestions.length > 0) {
         const criticalQuestions = safeQuestions.filter(
           q => q && q.priority === 'critical'
@@ -135,7 +136,6 @@ export async function generateCoverLetterV1(
   } else {
     console.log('⏭️ V1: Skipping questions (skipQuestions=true)');
   }
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // GENERATION (FULLY DYNAMIC - NO HARDCODING)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

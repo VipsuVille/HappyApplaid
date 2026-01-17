@@ -86,7 +86,6 @@ export async function generateGeneralCoverLetter(
   // ─────────────────────────────────────────────────────────────
   // SMART QUESTION ANALYSIS (PREVENTS HALLUCINATIONS)
   // ─────────────────────────────────────────────────────────────
-
   if (!input.skipQuestions) {
     console.log('🧠 Running smart analysis for general letter...');
     
@@ -120,12 +119,12 @@ Industry: ${input.targetIndustry || "Multiple industries"}
           userId: input.userId,
         });
 
-        // 🛡️ NORMALIZE
+        // 🛡️ NORMALIZE - CRITICAL FIX
         smartAnalysis = {
           shouldAskQuestions: rawAnalysis?.shouldAskQuestions ?? false,
           canGenerateWithoutQuestions: rawAnalysis?.canGenerateWithoutQuestions ?? true,
           confidence: rawAnalysis?.confidence ?? 70,
-          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [],
+          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [], // ✅ TURVATTU
           reasoning: rawAnalysis?.reasoning ?? 'Analysis completed'
         };
       } catch (error) {
@@ -134,19 +133,21 @@ Industry: ${input.targetIndustry || "Multiple industries"}
           shouldAskQuestions: false,
           canGenerateWithoutQuestions: true,
           confidence: 70,
-          questions: [],
+          questions: [], // ✅ AINA ARRAY
           reasoning: 'Analysis failed'
         };
       }
 
+      // ✅ NYT TÄMÄ ON AINA ARRAY - EI VOI CRASHATA
       const safeQuestions = smartAnalysis.questions;
 
       console.log('🧠 General SmartAnalysis:', {
         shouldAsk: smartAnalysis.shouldAskQuestions,
-        questionsCount: safeQuestions.length,
+        questionsCount: safeQuestions.length, // ✅ SAFE
         confidence: smartAnalysis.confidence
       });
 
+      // ✅ TURVATTU FILTER
       if (smartAnalysis.shouldAskQuestions && safeQuestions.length > 0) {
         const criticalQuestions = safeQuestions.filter(
           q => q && q.priority === "critical"
@@ -159,7 +160,7 @@ Industry: ${input.targetIndustry || "Multiple industries"}
             content: "",
             title: "Lisätietoja tarvitaan",
             signature: input.name,
-            questions: criticalQuestions, // ✅ PALAUTTAA KYSYMYKSET
+            questions: criticalQuestions,
             keyHighlights: {
               professionalIdentity: "",
               coreStrengths: [],
@@ -178,7 +179,6 @@ Industry: ${input.targetIndustry || "Multiple industries"}
   } else {
     console.log('⏭️ General: Skipping questions (skipQuestions=true)');
   }
-
   // ─────────────────────────────────────────────────────────────
   // RAG CONTEXT (OPTIONAL - ONLY IF ENABLED)
   // ─────────────────────────────────────────────────────────────
