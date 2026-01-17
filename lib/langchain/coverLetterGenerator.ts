@@ -1,8 +1,12 @@
-// lib/langchain/coverLetterGenerator.ts - KORJATTU VERSIO
+// lib/langchain/coverLetterGenerator.ts - V1 WITH SMARTANALYSIS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { analyzeJobAndProfile } from "./smartQuestionAnalyzer"; // ✅ LISÄÄ TÄMÄ IMPORT
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
+
+// ═══════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════
 
 export interface CoverLetterInput {
   jobDescription: string;
@@ -27,12 +31,8 @@ export interface CoverLetterInput {
   personalNotes?: string;
   language?: string;
   style?: "formal" | "casual";
-  enableRAG?: boolean;
-  allowedSkills?: string[];
-  forbiddenClaims?: string[];
-  groundTruthWarning?: string;
+  userId?: string;
   skipQuestions?: boolean;
-  userId?: string; // ✅ LISÄÄ userId TUKI
 }
 
 export interface CoverLetterOutput {
@@ -40,23 +40,24 @@ export interface CoverLetterOutput {
   title: string;
   signature: string;
   questions?: any[];
-  job_match_score?: number;
-  personality_hooks?: string[];
-  key_differentiators?: string[];
-  data_quality?: any;
 }
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN GENERATOR
+// ═══════════════════════════════════════════════════════════════
 
 export async function generateCoverLetterV1(
   input: CoverLetterInput
 ): Promise<CoverLetterOutput> {
-  
-  // ✅ LISÄÄ TÄMÄ LOHKO ENNEN MODEL-LUONTIA
+
+  console.log('🚀 V1 Generator starting...');
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // SMART QUESTION ANALYSIS (sama kuin V2:ssa)
+  // SMART QUESTION ANALYSIS (PREVENTS FABRICATION)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  
+
   if (!input.skipQuestions) {
-    console.log('🔍 V1: Running smart question analysis...');
+    console.log('🧠 V1: Running smart question analysis...');
     
     try {
       const smartAnalysis = await analyzeJobAndProfile({
@@ -75,44 +76,49 @@ export async function generateCoverLetterV1(
           personalNotes: input.personalNotes || "Not specified",
         },
         language: input.language || 'finnish',
-        userId: input.userId // ✅ Välitä userId historiatarkistukseen
+        userId: input.userId
       });
 
-      // KYSYTÄÄNKÖ?
-      if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
-        const criticalQuestions = smartAnalysis.questions.filter(
-          q => q.priority === 'critical'
+      // 🛡️ HARD NORMALIZATION (PREVENTS undefined.filter CRASH)
+      const safeQuestions = Array.isArray(smartAnalysis?.questions)
+        ? smartAnalysis.questions
+        : [];
+
+      console.log('🧠 V1 SmartAnalysis:', {
+        shouldAsk: smartAnalysis?.shouldAskQuestions,
+        questionsCount: safeQuestions.length
+      });
+
+      if (smartAnalysis?.shouldAskQuestions && safeQuestions.length > 0) {
+        const criticalQuestions = safeQuestions.filter(
+          q => q?.priority === 'critical'
         );
-        
+
         if (criticalQuestions.length > 0) {
-          console.log(`❓ V1: Found ${criticalQuestions.length} critical questions`);
-          
-          // ✅ PALAUTA KYSYMYKSET (sama formaatti kuin V2)
+          console.log(`❓ V1: Returning ${criticalQuestions.length} critical questions`);
+
           return {
             content: "",
             title: "Lisätietoja tarvitaan",
             signature: input.name,
             questions: criticalQuestions,
-            job_match_score: 6,
-            personality_hooks: [],
-            key_differentiators: [],
-            data_quality: null
           };
         }
       }
+
+      console.log('✅ V1: Profile sufficient');
       
-      console.log('✅ V1: Profile sufficient OR questions skipped');
     } catch (error) {
-      console.error('⚠️ V1: Question analysis failed, continuing anyway:', error);
+      console.error('⚠️ V1: Question analysis failed, continuing safely:', error);
     }
   } else {
-    console.log('⏭️ V1: Skipping question analysis (skipQuestions=true)');
+    console.log('⏭️ V1: Skipping questions (skipQuestions=true)');
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // JATKA NORMAALISTI GENEROINTIIN
+  // GENERATION (FULLY DYNAMIC - NO HARDCODING)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  
+
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: "gpt-4o-mini",
@@ -123,9 +129,9 @@ export async function generateCoverLetterV1(
   const isFinnish = targetLanguage.includes('fi') || targetLanguage.includes('suom');
   const languageName = isFinnish ? 'suomi' : 'englanti';
   
-  console.log(`🌍 Kieli: ${languageName} (input: ${input.language})`);
+  console.log(`🌍 Language: ${languageName}`);
 
-  // EXTRACT REAL PROJECTS
+  // Extract real projects (DYNAMIC - FROM ACTUAL DATA)
   const realProjects = [];
   
   if (input.bestProjectExample && input.bestProjectExample.length > 20) {
@@ -153,157 +159,151 @@ export async function generateCoverLetterV1(
   const hasRealProjects = realProjects.length > 0;
   const projectsText = hasRealProjects 
     ? realProjects.join('\n\n') 
-    : 'Ei yksityiskohtaisia projektikuvauksia - käytä yleisiä vahvuuksia';
+    : 'No detailed project descriptions - use general strengths';
 
-  console.log(`📋 Todellisia projekteja: ${realProjects.length}`);
+  console.log(`📋 Real projects: ${realProjects.length}`);
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `Olet ammattimainen hakukirjeen kirjoittaja. Kirjoitat MODERNEJA, SELKEITÄ hakukirjeitä.
+    ['system', `You are a professional cover letter writer. Write MODERN, CLEAR cover letters.
 
 # ════════════════════════════════════════════════════════════════
-# KRIITTINEN: MODERNI HAKUKIRJEEN FORMAATTI
+# CRITICAL: MODERN COVER LETTER FORMAT
 # ════════════════════════════════════════════════════════════════
 
-**HAKUKIRJE SISÄLTÄÄ VAIN:**
-1. Otsikko (työn nimi)
-2. Tervehdys
-3. Leipäteksti (3-4 kappaletta)
-4. Lopetus
-5. Allekirjoitus
+**COVER LETTER CONTAINS ONLY:**
+1. Greeting
+2. Body text (3-4 paragraphs)
+3. Closing
+4. Signature
 
-**ÄLÄ KOSKAAN KIRJOITA:**
-❌ Hakijan osoitetta
-❌ Hakijan puhelinnumeroa
-❌ Hakijan sähköpostia
-❌ Yrityksen osoitetta
-❌ [Paikkamerkkejä hakasulkeissa]
-❌ Päivämäärää tekstiin (se lisätään automaattisesti)
+**NEVER WRITE:**
+❌ Applicant's address
+❌ Applicant's phone number
+❌ Applicant's email
+❌ Company address
+❌ [Placeholders in brackets]
+❌ Date in body text (added automatically)
 
-**KRIITTINEN: NIMEN KÄYTTÖ**
-- Hakijan nimi on: {name}
-- ÄLÄ KOSKAAN kirjoita "Hakija"
-- ÄLÄ KOSKAAN kirjoita "[Your Name]"
-- Käytä AINA nimeä {name}
+**CRITICAL: NAME USAGE**
+- Applicant's name is: {name}
+- NEVER write "Applicant"
+- NEVER write "[Your Name]"
+- ALWAYS use name {name}
 
 # ════════════════════════════════════════════════════════════════
-# REPRESENTATION, NOT FABRICATION
+# NO HARDCODING - REPRESENTATION FROM ACTUAL DATA
 # ════════════════════════════════════════════════════════════════
 
-**HAKUKIRJE EI OLE CV** - Se on MYYNTIPUHE jossa:
-✅ Tuodaan vahvuudet ELOON kiinnostavasti
-✅ Kuvataan todellisia taitoja VAKUUTTAVASTI
-✅ Näytetään ARVO työnantajalle
-❌ EI listata kuivia faktoja
+**RULE 1: LANGUAGE**
+TARGET LANGUAGE: {languageName}
+- EVERY WORD in language: {languageName}
 
-**SÄÄNTÖ 1: KIELI**
-KOHDEKIELI: {languageName}
-- JOKAINEN SANA kielellä: {languageName}
-
-**SÄÄNTÖ 2: EDUSTAMINEN (EI VALEHTELU)**
+**RULE 2: ONLY USE WHAT'S IN THE PROFILE**
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# MITÄ SAA TEHDÄ
+# WHAT YOU CAN DO
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Jos käyttäjällä on taito/kokemus:
+If user has skill/experience:
 
-✅ "Olen kehittänyt ohjelmointitaitojani käytännön projekteissa"
-   → OK kun skills sisältää "ohjelmointi"
+✅ "I've developed programming skills through practical projects"
+   → OK when skills contains "programming"
 
-✅ "Minulla on kokemusta asiakaspalvelusta"
-   → OK kun workExperience sisältää asiakastyötä
+✅ "I have customer service experience"
+   → OK when workExperience contains customer work
 
-✅ "Olen työskennellyt projektien parissa joissa..."
-   → OK kun workExperience tai bestProject kuvaa työtä
+✅ "I've worked on projects where..."
+   → OK when workExperience or bestProject describes work
 
-✅ "Hallitsen [taidon] ja olen soveltanut sitä..."
-   → OK kun taito on skills-listassa
+✅ "I master [skill] and have applied it..."
+   → OK when skill is in skills list
 
-✅ "Olen innostunut oppimaan lisää [aiheesta]"
-   → AINA OK
+✅ "I'm excited to learn more about [topic]"
+   → ALWAYS OK
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# MITÄ EI SAA TEHDÄ
+# WHAT YOU CANNOT DO
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-❌ "Kehitin automaattisen järjestelmän joka..."
-   → EI OK jos ei ole realProjects:issa
+❌ "I developed an automated system that..."
+   → NOT OK if not in realProjects
 
-❌ "Loin 50-käyttäjän sovelluksen..."
-   → EI OK jos ei ole yksityiskohtia
+❌ "I created a 50-user application..."
+   → NOT OK if no details provided
 
-❌ Mitään yksityiskohtaisia projektikuvauksia jos niitä ei ole annettu
+❌ Any detailed project descriptions if not provided
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**RAKENNE (280-350 sanaa):**
+**STRUCTURE (280-350 words):**
 
-**KAPPALE 1: AVAUS (2-3 lausetta)**
-- Miksi juuri TÄMÄ rooli kiinnostaa
-- Yhteys omaan taustaan
+**PARAGRAPH 1: OPENING (2-3 sentences)**
+- Why THIS role interests you
+- Connection to your background
 
-**KAPPALE 2-3: VAHVUUDET (4-6 lausetta)**
-- Todelliset taidot kiinnostavasti
-- Persoonallisuus työssä
-- Konkreettiset esimerkit
+**PARAGRAPHS 2-3: STRENGTHS (4-6 sentences)**
+- Real skills presented interestingly
+- Personality at work
+- Concrete examples FROM PROFILE
 
-**KAPPALE 4: LOPETUS (2-3 lausetta)**
-- Innostus roolista
-- Halukkuus keskustella
-- Kiitos
+**PARAGRAPH 4: CLOSING (2-3 sentences)**
+- Enthusiasm for role
+- Willingness to discuss
+- Thanks
 
-Kirjoita PUHTAASTI kielellä {languageName}. Käytä nimeä {name}.`],
+Write PURELY in language {languageName}. Use name {name}.`],
 
-    ['human', `Kirjoita MODERNI hakukirje kielellä {languageName}.
+    ['human', `Write MODERN cover letter in language {languageName}.
 
-**TYÖPAIKAN KUVAUS:**
+**JOB DESCRIPTION:**
 {jobDescription}
 
-**HAKIJAN TIEDOT:**
-NIMI: {name} (KÄYTÄ TÄTÄ, EI "Hakija")
-Taidot: {skills}
-Työkokemus: {workExperience}
-Koulutus: {education}
+**APPLICANT INFO:**
+NAME: {name} (USE THIS, NOT "Applicant")
+Skills: {skills}
+Work Experience: {workExperience}
+Education: {education}
 
-**TODELLISET PROJEKTIT:**
+**REAL PROJECTS (USE THESE):**
 {realProjects}
 
-**PERSOONALLISUUS:**
-- Työskentelytyyli: {workingStyle}
-- Ongelmanratkaisu: {problemSolving}
-- Vahvuus: {uniqueStrength}
-- Supervoima: {superpower}
+**PERSONALITY:**
+- Working Style: {workingStyle}
+- Problem Solving: {problemSolving}
+- Strength: {uniqueStrength}
+- Superpower: {superpower}
 
-**MOTIVAATIO:**
-- Tavoitteet: {careerGoals}
-- Arvot: {valuesExample}
+**MOTIVATION:**
+- Goals: {careerGoals}
+- Values: {valuesExample}
 
-**HUOMIOT:**
+**NOTES:**
 {personalNotes}
 
-Luo hakukirje NYT kielellä {languageName}.`]
+Create cover letter NOW in language {languageName}.
+USE ONLY INFORMATION FROM ABOVE. NO FABRICATION.`]
   ]);
 
   try {
     const formatted = await prompt.formatMessages({
       languageName,
-      name: input.name || 'Hakija',
-      jobDescription: input.jobDescription || 'Ei määritelty',
-      skills: input.skills || 'Kehittyvät taidot',
+      name: input.name || 'Applicant',
+      jobDescription: input.jobDescription || 'Not specified',
+      skills: input.skills || 'Developing skills',
       workExperience: typeof input.workExperience === 'string' 
         ? input.workExperience 
-        : JSON.stringify(input.workExperience || 'Rakentaa kokemusta'),
+        : JSON.stringify(input.workExperience || 'Building experience'),
       education: typeof input.education === 'string'
         ? input.education
-        : JSON.stringify(input.education || 'Jatkuva oppija'),
+        : JSON.stringify(input.education || 'Continuous learner'),
       realProjects: projectsText,
-      workingStyle: input.workingStyle || 'Mukautuva',
-      problemSolving: input.problemSolving || 'Looginen',
-      uniqueStrength: input.uniqueStrength || 'Sitoutunut',
-      superpower: input.superpower || 'Motivoitunut',
-      careerGoals: input.careerGoals || 'Ammatillinen kasvu',
-      valuesExample: input.valuesExample || 'Rehellisyys',
-      personalNotes: input.personalNotes || 'Ei lisätietoja'
+      workingStyle: input.workingStyle || 'Adaptable',
+      problemSolving: input.problemSolving || 'Logical',
+      uniqueStrength: input.uniqueStrength || 'Committed',
+      superpower: input.superpower || 'Motivated',
+      careerGoals: input.careerGoals || 'Professional growth',
+      valuesExample: input.valuesExample || 'Honesty',
+      personalNotes: input.personalNotes || 'No additional info'
     });
 
     const result = await model.invoke(formatted);
@@ -312,7 +312,7 @@ Luo hakukirje NYT kielellä {languageName}.`]
       ? result.content 
       : JSON.stringify(result.content);
 
-    // POISTA PLACEHOLDERIT
+    // Remove placeholders
     content = content
       .replace(/\[Osoite\]/g, '')
       .replace(/\[Puhelinnumero\]/g, '')
@@ -326,7 +326,7 @@ Luo hakukirje NYT kielellä {languageName}.`]
       .replace(/\n\s*\n\s*\n/g, '\n\n')
       .trim();
 
-    // VARMISTA ALLEKIRJOITUS
+    // Ensure signature
     const signatureFinnish = `Ystävällisin terveisin,\n\n${input.name || 'Hakija'}`;
     const signatureEnglish = `Best regards,\n\n${input.name || 'Applicant'}`;
     
@@ -334,21 +334,17 @@ Luo hakukirje NYT kielellä {languageName}.`]
       content += '\n\n' + (isFinnish ? signatureFinnish : signatureEnglish);
     }
 
-    console.log(`✅ Luotu ${content.length} merkkiä kielellä ${languageName}`);
+    console.log(`✅ V1 generated ${content.length} characters in ${languageName}`);
 
     return {
       content,
-      title: input.jobDescription?.substring(0, 80) || 'Hakukirje',
-      signature: input.name || 'Hakija',
+      title: input.jobDescription?.substring(0, 80) || 'Cover Letter',
+      signature: input.name || 'Applicant',
       questions: [],
-      job_match_score: 8,
-      personality_hooks: [],
-      key_differentiators: [],
-      data_quality: null
     };
 
   } catch (error) {
-    console.error('❌ Hakukirjeen luonti epäonnistui:', error);
+    console.error('❌ V1 generation failed:', error);
     throw error;
   }
 }

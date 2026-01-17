@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter/route.ts - UNIFIED REITTI
+// app/api/generate-cover-letter/route.ts - FINAL CORRECTED VERSION
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -11,7 +11,6 @@ import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/master
 import { PRICING } from "@/lib/pricing";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
-import crypto from 'crypto';
 import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
 
 // ════════════════════════════════════════════════════════════════
@@ -32,42 +31,6 @@ function generateTitle(input: { name: string; targetRole?: string; targetIndustr
   if (input.targetRole) return `${input.name} - ${input.targetRole} Esittely`;
   if (input.targetIndustry) return `${input.name} - ${input.targetIndustry} Ammattilainen`;
   return `${input.name} - Ammatillinen Esittely`;
-}
-
-function generateQuestionId(questionText: string): string {
-  return crypto.createHash('sha256').update(questionText.toLowerCase().trim()).digest('hex').substring(0, 16);
-}
-
-async function saveUserResponse(
-  userId: string,
-  questionText: string,
-  answer: string,
-  context: string,
-  jobTitle: string
-): Promise<boolean> {
-  try {
-    const questionId = generateQuestionId(questionText);
-    const { error } = await supabaseAdmin.from('user_responses').upsert({
-      user_id: userId,
-      question_id: questionId,
-      question_text: questionText,
-      answer: answer,
-      answer_length: answer.length,
-      question_category: 'cover_letter',
-      asked_in_context: context,
-      job_title_context: jobTitle,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id,question_id' });
-
-    if (error) {
-      console.error('Failed to save response:', error);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error('Error in saveUserResponse:', error);
-    return false;
-  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -94,21 +57,18 @@ export async function POST(req: Request) {
       personalNotes,
       language,
       style,
-      letterType,      // ✅ UUSI: 'job_specific' | 'general'
-      letterVersion,   // ✅ UUSI: 'v1' | 'v2' (vain job_specific)
-      targetIndustry,  // ✅ Vain general
-      targetRole,      // ✅ Vain general
-      answeredQuestions, // ✅ ARRAY!
-      skipQuestions,
+      letterType,
+      letterVersion,
+      targetIndustry,
+      targetRole,
     } = requestData;
 
-    // ✅ 1. MÄÄRITÄ ACTION OIKEIN
+    // ✅ 1. DETERMINE ACTION
     let action: TokenAction;
     
     if (letterType === 'general') {
       action = 'cover_letter_general';
     } else {
-      // job_specific
       if (letterVersion === 'v2') {
         action = 'cover_letter_v2';
       } else {
@@ -124,7 +84,7 @@ export async function POST(req: Request) {
       hasJobDescription: !!jobDescription
     });
 
-    // ✅ 2. HAE SUBSCRIPTION
+    // ✅ 2. GET SUBSCRIPTION
     const { data: subscription, error: subError } = await supabaseAdmin
       .from('subscriptions')
       .select('plan_type, tokens, status, is_active')
@@ -204,69 +164,39 @@ export async function POST(req: Request) {
     
     if (letterType === 'general') {
       console.log('📝 Generating GENERAL cover letter...');
-
-      const generalInput = profileData ? {
-        name: profileData.name,
-        email: profileData.email,
-        phone: profileData.phone,
-        jobTitle: profileData.jobTitle,
-        education: convertProfileToApiFormat(profileData).education,
-        workExperience: convertProfileToApiFormat(profileData).workExperience,
-        skills: profileData.skills,
+      
+      const generalInput = {
+        name: profileData?.name || requestData.name,
+        email: profileData?.email || requestData.email,
+        phone: profileData?.phone || requestData.phone,
+        jobTitle: profileData?.jobTitle,
+        education: profileData 
+          ? convertProfileToApiFormat(profileData).education 
+          : requestData.education,
+        workExperience: profileData 
+          ? convertProfileToApiFormat(profileData).workExperience 
+          : requestData.workExperience,
+        skills: profileData?.skills || requestData.skills,
         language: language || "finnish",
         style: style || "formal",
-        workingStyle: profileData.workingStyle,
-        problemSolving: profileData.problemSolving,
-        energySources: profileData.energySources,
-        uniqueStrength: profileData.uniqueStrength,
-        learningStyle: profileData.learningStyle,
-        teamRole: profileData.teamRole,
-        valuesExample: profileData.valuesExample,
-        superpower: profileData.superpower,
-        careerGoals: profileData.careerGoals,
-        bestProjectExample: profileData.bestProjectExample,
-        failureLesson: profileData.failureLesson,
+        workingStyle: profileData?.workingStyle,
+        problemSolving: profileData?.problemSolving,
+        energySources: profileData?.energySources,
+        uniqueStrength: profileData?.uniqueStrength,
+        learningStyle: profileData?.learningStyle,
+        teamRole: profileData?.teamRole,
+        valuesExample: profileData?.valuesExample,
+        superpower: profileData?.superpower,
+        careerGoals: profileData?.careerGoals,
+        bestProjectExample: profileData?.bestProjectExample,
+        failureLesson: profileData?.failureLesson,
         targetIndustry: targetIndustry || undefined,
         targetRole: targetRole || undefined,
-        enableRAG: tierFeatures.canUseRAG,
-        allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim,
         userId: userId,
-        skipQuestions: skipQuestions || false,
-      } : {
-        name: requestData.name,
-        email: requestData.email,
-        phone: requestData.phone,
-        jobTitle: requestData.jobTitle,
-        education: requestData.education,
-        workExperience: requestData.workExperience,
-        skills: requestData.skills,
-        language: language || "finnish",
-        style: style || "formal",
-        targetIndustry: targetIndustry || undefined,
-        targetRole: targetRole || undefined,
-        enableRAG: tierFeatures.canUseRAG,
-        allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim,
-        userId: userId,
-        skipQuestions: skipQuestions || false,
       };
 
       coverLetterData = await generateGeneralCoverLetter(generalInput);
 
-      // Jos kysymyksiä
-      if (coverLetterData.questions && coverLetterData.questions.length > 0 && !skipQuestions) {
-        console.log(`❓ General needs clarification: ${coverLetterData.questions.length} questions`);
-        return NextResponse.json({
-          success: true,
-          needsMoreInfo: true,
-          questions: coverLetterData.questions,
-          title: coverLetterData.title,
-          reason: 'AI tarvitsee lisätietoja'
-        });
-      }
-
-      // Guardian check
       guardianCheck = await masterConsistencyCheckAI(
         coverLetterData.content,
         groundTruth,
@@ -280,22 +210,6 @@ export async function POST(req: Request) {
           message: 'Sisältö ei täytä laatuvaatimuksia',
           violations: guardianCheck.violations,
         }, { status: 400 });
-      }
-
-      // Tallenna vastaukset
-      if (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0) {
-        console.log(`💾 Saving ${answeredQuestions.length} answers...`);
-        extractedTitle = generateTitle({
-          name: generalInput.name,
-          targetRole,
-          targetIndustry
-        });
-        
-        const savePromises = answeredQuestions.map((item: any) => 
-          saveUserResponse(userId, item.question, item.answer, 'cover_letter_general', extractedTitle)
-        );
-        
-        await Promise.allSettled(savePromises);
       }
 
       extractedTitle = generateTitle({
@@ -316,51 +230,33 @@ export async function POST(req: Request) {
 
       console.log(`📝 Generating ${letterVersion === 'v2' ? 'V2 ATS' : 'V1'} cover letter...`);
 
-      const jobInput = profileData ? {
+      const jobInput = {
         jobDescription,
         personalNotes,
         language: language || "finnish",
         style: style || "formal",
-        name: profileData.name,
-        email: profileData.email,
-        phone: profileData.phone,
-        education: convertProfileToApiFormat(profileData).education,
-        workExperience: convertProfileToApiFormat(profileData).workExperience,
-        skills: profileData.skills,
-        workingStyle: profileData.workingStyle,
-        problemSolving: profileData.problemSolving,
-        energySources: profileData.energySources,
-        uniqueStrength: profileData.uniqueStrength,
-        learningStyle: profileData.learningStyle,
-        teamRole: profileData.teamRole,
-        valuesExample: profileData.valuesExample,
-        superpower: profileData.superpower,
-        careerGoals: profileData.careerGoals,
-        bestProjectExample: profileData.bestProjectExample,
-        failureLesson: profileData.failureLesson,
-        enableRAG: tierFeatures.canUseRAG,
-        allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim,
+        name: profileData?.name || requestData.name,
+        email: profileData?.email || requestData.email,
+        phone: profileData?.phone || requestData.phone,
+        education: profileData 
+          ? convertProfileToApiFormat(profileData).education 
+          : requestData.education,
+        workExperience: profileData 
+          ? convertProfileToApiFormat(profileData).workExperience 
+          : requestData.workExperience,
+        skills: profileData?.skills || requestData.skills,
+        workingStyle: profileData?.workingStyle,
+        problemSolving: profileData?.problemSolving,
+        energySources: profileData?.energySources,
+        uniqueStrength: profileData?.uniqueStrength,
+        learningStyle: profileData?.learningStyle,
+        teamRole: profileData?.teamRole,
+        valuesExample: profileData?.valuesExample,
+        superpower: profileData?.superpower,
+        careerGoals: profileData?.careerGoals,
+        bestProjectExample: profileData?.bestProjectExample,
+        failureLesson: profileData?.failureLesson,
         userId: userId,
-        skipQuestions: skipQuestions || false,
-        answeredQuestions: answeredQuestions || [],
-      } : {
-        jobDescription,
-        personalNotes,
-        language: language || "finnish",
-        style: style || "formal",
-        name: requestData.name,
-        email: requestData.email,
-        phone: requestData.phone,
-        education: requestData.education,
-        workExperience: requestData.workExperience,
-        skills: requestData.skills,
-        enableRAG: tierFeatures.canUseRAG,
-        allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim,
-        userId: userId,
-        skipQuestions: skipQuestions || false,
-        answeredQuestions: answeredQuestions || [],
       };
 
       // Generate
@@ -368,17 +264,6 @@ export async function POST(req: Request) {
         coverLetterData = await generateCoherentCoverLetter(jobInput);
       } else {
         coverLetterData = await generateCoverLetterV1(jobInput);
-      }
-
-      // Jos kysymyksiä
-      if (coverLetterData.questions && coverLetterData.questions.length > 0 && !skipQuestions) {
-        console.log(`❓ ${letterVersion} needs clarification: ${coverLetterData.questions.length} questions`);
-        return NextResponse.json({
-          success: true,
-          needsMoreInfo: true,
-          questions: coverLetterData.questions,
-          title: coverLetterData.title,
-        });
       }
 
       // Guardian
@@ -406,15 +291,6 @@ export async function POST(req: Request) {
             jobDescription
           );
         }
-      }
-
-      // Tallenna vastaukset
-      if (answeredQuestions && Array.isArray(answeredQuestions) && answeredQuestions.length > 0) {
-        extractedTitle = extractJobTitleFromDescription(jobDescription);
-        const savePromises = answeredQuestions.map((item: any) =>
-          saveUserResponse(userId, item.question, item.answer, `cover_letter_${letterVersion}`, extractedTitle)
-        );
-        await Promise.allSettled(savePromises);
       }
 
       extractedTitle = extractJobTitleFromDescription(jobDescription);

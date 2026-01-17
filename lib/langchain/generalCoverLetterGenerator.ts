@@ -1,15 +1,14 @@
-// lib/langchain/generalCoverLetterGenerator.ts - KORJATTU & TURVALLINEN VERSIO
+// lib/langchain/generalCoverLetterGenerator.ts - FINAL CORRECTED
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { buildAIContext } from "@/lib/knowledge";
-import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 
-// ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // SCHEMA
-// ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 
 const generalCoverLetterSchema = z.object({
   content: z.string(),
@@ -22,12 +21,11 @@ const generalCoverLetterSchema = z.object({
   }).optional(),
 });
 
-type GeneralCoverLetterOutput = z.infer<typeof generalCoverLetterSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(generalCoverLetterSchema);
 
-// ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // TYPES
-// ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 
 export interface GeneralCoverLetterInput {
   name: string;
@@ -52,18 +50,13 @@ export interface GeneralCoverLetterInput {
   targetRole?: string;
   language?: string;
   style?: "formal" | "casual";
-  enableRAG?: boolean;
-  allowedSkills?: string[];
-  forbiddenClaims?: string[];
   userId?: string;
-  skipQuestions?: boolean;
 }
 
 export interface GeneralCoverLetterResult {
   content: string;
   title: string;
   signature: string;
-  questions?: any[];
   keyHighlights?: {
     professionalIdentity: string;
     coreStrengths: string[];
@@ -72,9 +65,9 @@ export interface GeneralCoverLetterResult {
   };
 }
 
-// ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // MAIN GENERATOR
-// ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 
 export async function generateGeneralCoverLetter(
   input: GeneralCoverLetterInput
@@ -82,121 +75,36 @@ export async function generateGeneralCoverLetter(
 
   console.log("🎯 Generating GENERAL cover letter");
 
-  // ─────────────────────────────────────────────────────────────
-  // SMART QUESTION ANALYSIS (TURVALLINEN)
-  // ─────────────────────────────────────────────────────────────
-
-  if (!input.skipQuestions) {
-    try {
-      const syntheticJobDescription = `
-General application
-Target role: ${input.targetRole || "Various roles"}
-Industry: ${input.targetIndustry || "Multiple industries"}
-      `.trim();
-
-      const smartAnalysis = await analyzeJobAndProfile({
-        jobDescription: syntheticJobDescription,
-        userProfile: {
-          name: input.name || "Not specified",
-          workExperience: input.workExperience || "Not specified",
-          education: input.education || "Not specified",
-          skills: input.skills || "Not specified",
-          workingStyle: input.workingStyle || "Not specified",
-          problemSolving: input.problemSolving || "Not specified",
-          uniqueStrength: input.uniqueStrength || "Not specified",
-          careerGoals: input.careerGoals || "Not specified",
-          bestProjectExample: input.bestProjectExample || "Not specified",
-          failureLesson: input.failureLesson || "Not specified",
-        },
-        language: input.language || "finnish",
-        userId: input.userId,
-      });
-
-      // 🔍 VISIBILITY LOGS (TÄRKEÄ)
-      console.log("🧠 SMART ANALYSIS (GENERAL)", {
-        shouldAskQuestions: smartAnalysis?.shouldAskQuestions,
-        questionsType: typeof smartAnalysis?.questions,
-        isArray: Array.isArray(smartAnalysis?.questions),
-        questionsValue: smartAnalysis?.questions,
-      });
-
-      // ✅ HARD NORMALIZATION (KORJAA BUGISI)
-      const safeQuestions = Array.isArray(smartAnalysis?.questions)
-        ? smartAnalysis.questions
-        : [];
-
-      if (smartAnalysis?.shouldAskQuestions && safeQuestions.length > 0) {
-        const criticalQuestions = safeQuestions.filter(
-          q => q?.priority === "critical"
-        );
-
-        if (criticalQuestions.length > 0) {
-          console.log(
-            `❓ General: returning ${criticalQuestions.length} critical questions`
-          );
-
-          return {
-            content: "",
-            title: "Lisätietoja tarvitaan",
-            signature: input.name,
-            questions: criticalQuestions,
-            keyHighlights: {
-              professionalIdentity: "",
-              coreStrengths: [],
-              careerGoals: "",
-              uniqueValue: "",
-            },
-          };
-        }
-      }
-    } catch (error) {
-      console.error(
-        "⚠️ General: smart question analysis failed, continuing safely",
-        error
-      );
-    }
-  } else {
-    console.log("⏭️ General: skipQuestions=true");
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // RAG CONTEXT (OPTIONAL)
-  // ─────────────────────────────────────────────────────────────
-
+  // RAG context (optional)
   let knowledgeContext = "";
 
-  if (input.enableRAG) {
-    try {
-      knowledgeContext = await buildAIContext({
-        jobDescription: `General introduction for ${input.targetRole || "professional roles"}`,
-        userProfile: {
-          workExperience: input.workExperience,
-          education: input.education,
-          skills: input.skills,
-          workingStyle: input.workingStyle,
-          problemSolving: input.problemSolving,
-          uniqueStrength: input.uniqueStrength,
-          learningStyle: input.learningStyle,
-          teamRole: input.teamRole,
-          superpower: input.superpower,
-          careerGoals: input.careerGoals,
-          bestProjectExample: input.bestProjectExample,
-          failureLesson: input.failureLesson,
-        },
-        enableRAG: true,
-        contentType: "cover_letter",
-      });
+  try {
+    knowledgeContext = await buildAIContext({
+      jobDescription: `General introduction for ${input.targetRole || "professional roles"}`,
+      userProfile: {
+        workExperience: input.workExperience,
+        education: input.education,
+        skills: input.skills,
+        workingStyle: input.workingStyle,
+        problemSolving: input.problemSolving,
+        uniqueStrength: input.uniqueStrength,
+        learningStyle: input.learningStyle,
+        teamRole: input.teamRole,
+        superpower: input.superpower,
+        careerGoals: input.careerGoals,
+        bestProjectExample: input.bestProjectExample,
+        failureLesson: input.failureLesson,
+      },
+      enableRAG: true,
+      contentType: "cover_letter",
+    });
 
-      console.log("📚 RAG context loaded");
-    } catch (error) {
-      console.warn("⚠️ RAG failed, continuing without it", error);
-    }
+    console.log("📚 RAG context loaded");
+  } catch (error) {
+    console.warn("⚠️ RAG failed, continuing without it", error);
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // MODEL
-  // ─────────────────────────────────────────────────────────────
-
+  // Model
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: "gpt-4o-mini",
@@ -208,10 +116,7 @@ Industry: ${input.targetIndustry || "Multiple industries"}
       ? "Conversational yet professional"
       : "Professional and confident";
 
-  // ─────────────────────────────────────────────────────────────
-  // PROMPT
-  // ─────────────────────────────────────────────────────────────
-
+  // Prompt
   const prompt = ChatPromptTemplate.fromMessages([
     [
       "system",
@@ -236,6 +141,8 @@ Skills: {skills}
 
 GOALS:
 Career goals: {careerGoals}
+Target role: {targetRole}
+Target industry: {targetIndustry}
 
 Return JSON with fields: content, title, keyHighlights.`,
     ],
@@ -250,6 +157,8 @@ Return JSON with fields: content, title, keyHighlights.`,
       education: input.education || "Relevant background",
       skills: input.skills || "Versatile skills",
       careerGoals: input.careerGoals || "Professional growth",
+      targetRole: input.targetRole || "various roles",
+      targetIndustry: input.targetIndustry || "multiple industries",
       format_instructions: outputParser.getFormatInstructions(),
     });
 
@@ -263,15 +172,14 @@ Return JSON with fields: content, title, keyHighlights.`,
     const jsonMatch = clean.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("No JSON returned by model");
 
-    const parsed: GeneralCoverLetterOutput = await outputParser.parse(
-      jsonMatch[0]
-    );
+    const parsed = await outputParser.parse(jsonMatch[0]);
+
+    console.log('✅ General cover letter generated');
 
     return {
       content: parsed.content,
       title: parsed.title,
       signature: input.name,
-      questions: [],
       keyHighlights: parsed.keyHighlights,
     };
   } catch (error) {

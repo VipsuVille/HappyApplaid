@@ -1,15 +1,52 @@
-// lib/langchain/coverLetterGeneratorV2.ts - KORJATTU TYYPITYS
+// lib/langchain/coverLetterGeneratorV2.ts - FINAL WITH SMARTANALYSIS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
-import { analyzeJobAndProfile, type SmartQuestion } from "./smartQuestionAnalyzer";
-import type { GroundTruth } from "@/lib/ats/masterGuardian";
 import { buildAIContext } from "@/lib/knowledge";
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 
-// ✅ SCHEMA
-const coherentCoverLetterSchema = z.object({
+// ═══════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════
+
+export interface CoverLetterV2Input {
+  jobDescription: string;
+  personalNotes?: string;
+  language?: string;
+  style?: "formal" | "casual";
+  
+  name: string;
+  email: string;
+  phone: string;
+  age?: number;
+  
+  education?: string;
+  workExperience?: string;
+  skills?: string;
+  
+  workingStyle?: string;
+  problemSolving?: string;
+  energySources?: string;
+  uniqueStrength?: string;
+  learningStyle?: string;
+  teamRole?: string;
+  valuesExample?: string;
+  superpower?: string;
+  careerGoals?: string;
+  bestProjectExample?: string;
+  failureLesson?: string;
+  
+  userId?: string;
+  skipQuestions?: boolean;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCHEMA
+// ═══════════════════════════════════════════════════════════════
+
+const v2Schema = z.object({
   fullText: z.string().optional(),
   questions: z.array(z.object({
     id: z.string(),
@@ -32,12 +69,12 @@ const coherentCoverLetterSchema = z.object({
   }).optional(),
 });
 
-type CoherentCoverLetter = z.infer<typeof coherentCoverLetterSchema>;
-const outputParser = StructuredOutputParser.fromZodSchema(coherentCoverLetterSchema);
+const outputParser = StructuredOutputParser.fromZodSchema(v2Schema);
 
-/**
- * ✅ ANALYZE JOB
- */
+// ═══════════════════════════════════════════════════════════════
+// JOB ANALYZER (DYNAMIC - NO HARDCODING)
+// ═══════════════════════════════════════════════════════════════
+
 async function analyzeJobPosting(jobDescription: string) {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -47,10 +84,10 @@ async function analyzeJobPosting(jobDescription: string) {
 
   const prompt = `You are analyzing a UNIQUE job posting. NO predefined assumptions.
 
-**DETECT:**
-- Industry (infer from text)
+**DETECT FROM TEXT:**
+- Industry (infer semantically)
 - Company size (infer from text)
-- Keywords (extract semantically)
+- Keywords (extract from actual text)
 - Required skills (extract from text)
 - Experience level (infer from text)
 
@@ -59,13 +96,13 @@ ${jobDescription}
 
 Return JSON:
 {
-  "detected_industry": "industry name",
+  "detected_industry": "actual industry from text",
   "company_size": "startup|small|medium|large|enterprise",
-  "keywords": ["keyword1", "keyword2"],
-  "required_skills": ["skill1", "skill2"],
-  "required_experience": "X years" or "Entry level",
-  "company_name": "Company Name",
-  "job_title": "Job Title"
+  "keywords": ["actual", "keywords", "from", "text"],
+  "required_skills": ["actual", "skills", "mentioned"],
+  "required_experience": "X years or Entry level",
+  "company_name": "Actual Company Name",
+  "job_title": "Actual Job Title"
 }`;
 
   try {
@@ -75,164 +112,160 @@ Return JSON:
       : JSON.stringify(response.content);
     
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return { 
-      detected_industry: "unknown",
-      company_size: "unknown",
-      keywords: [], 
-      required_skills: [], 
-      required_experience: "Not specified", 
-      company_name: "the company", 
-      job_title: "this position" 
-    };
+    if (!jsonMatch) {
+      return {
+        detected_industry: "unknown",
+        company_size: "unknown",
+        keywords: [],
+        required_skills: [],
+        required_experience: "Not specified",
+        company_name: "the company",
+        job_title: "this position"
+      };
+    }
     
     return JSON.parse(jsonMatch[0]);
   } catch (error) {
     console.error('Job analysis failed:', error);
-    return { 
+    return {
       detected_industry: "unknown",
       company_size: "unknown",
-      keywords: [], 
-      required_skills: [], 
-      required_experience: "Not specified",       company_name: "the company", 
-      job_title: "this position" 
+      keywords: [],
+      required_skills: [],
+      required_experience: "Not specified",
+      company_name: "the company",
+      job_title: "this position"
     };
   }
 }
 
-/**
- * ✅ MAIN GENERATOR - KORJATTU TYYPITYS
- */
-export async function generateCoherentCoverLetter(input: {
-  jobDescription: string;
-  name: string;
-  email: string;
-  phone: string;
-  age?: number;
-  workExperience?: string;
-  education?: string;
-  skills?: string;
-  workingStyle?: string;
-  problemSolving?: string;
-  energySources?: string;
-  uniqueStrength?: string;
-  learningStyle?: string;
-  teamRole?: string;
-  superpower?: string;
-  valuesExample?: string;
-  personalNotes?: string;
-  careerGoals?: string;
-  bestProjectExample?: string;
-  failureLesson?: string;
-  language?: string;
-  style?: "formal" | "casual";
-  enableRAG?: boolean;
-  allowedSkills?: string[];
-  forbiddenClaims?: string[];
-  
-  // ✅ LISÄTTY PUUTTUVAT KENTÄT:
-  skipQuestions?: boolean;
-  answeredQuestions?: Record<string, string>;
-  userId?: string; // ✅ TÄMÄ PUUTTUI!
-}) {
+// ═══════════════════════════════════════════════════════════════
+// MAIN GENERATOR (FULLY DYNAMIC)
+// ═══════════════════════════════════════════════════════════════
+
+export async function generateCoherentCoverLetter(input: CoverLetterV2Input) {
   console.log('🔍 V2: Flexible job-profile analysis (ATS + RAG)...');
-  
-  // ✅ KORJAUS: Jos skipQuestions=true, ohita kysymysanalyysi KOKONAAN
-  if (input.skipQuestions) {
-    console.log('⏭️ Skipping question analysis (skipQuestions=true)');
-  } else {
-    // ✅ STEP 0: Smart analysis - NYT KÄYTTÄÄ userId:tä
-    const smartAnalysis = await analyzeJobAndProfile({
-      jobDescription: input.jobDescription,
-      userProfile: {
-        name: input.name || "Not specified",
-        workExperience: input.workExperience || "Not specified",
-        education: input.education || "Not specified",
-        skills: input.skills || "Not specified",
-        workingStyle: input.workingStyle || "Not specified",
-        problemSolving: input.problemSolving || "Not specified",
-        uniqueStrength: input.uniqueStrength || "Not specified",
-        careerGoals: input.careerGoals || "Not specified",
-        bestProjectExample: input.bestProjectExample || "Not specified",
-        failureLesson: input.failureLesson || "Not specified",
-        personalNotes: input.personalNotes || "Not specified",
-      },
-      language: input.language || 'finnish',
-      userId: input.userId // ✅ VÄLITÄ userId ANALYZERILLE
-    });
-    // KYSYTÄÄNKÖ?
-    if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
-      const criticalQuestions = smartAnalysis.questions.filter(
-        q => q.priority === 'critical'
-      );
-      
-      if (criticalQuestions.length > 0) {
-        console.log(`❓ Found ${criticalQuestions.length} critical questions`);
-        
-        return {
-          fullText: "",
-          content: "",
-          title: "Lisätietoja tarvitaan",
-          signature: input.name,
-          questions: criticalQuestions,
-          keyPoints: {
-            personalityHook: "",
-            experienceHighlight: "",
-            skillsMatch: "",
-            motivation: ""
-          },
-          atsData: {
-            matchedKeywords: [],
-            missingExperience: true,
-            readabilityScore: 0
-          },
-          hasWorkExperience: false,
-          needsMoreInfo: true
-        };
-      }
-    }
-  }
 
-  console.log('✅ Profile sufficient OR questions skipped');
-  console.log('🔍 Analyzing job...');
-  
-  // STEP 1: Analyze job
-  const jobAnalysis = await analyzeJobPosting(input.jobDescription);
-  console.log(`📊 Detected: ${jobAnalysis.detected_industry}, ${jobAnalysis.company_size}`);
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 0: SMART QUESTION ANALYSIS (CRITICAL - PREVENTS HALLUCINATIONS)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  const hasWorkExperience = input.workExperience && input.workExperience.length > 100;
-
-  // ✅ STEP 2: LOAD RAG CONTEXT
-  let knowledgeContext = '';
-  
-  if (input.enableRAG) {
+  if (!input.skipQuestions) {
+    console.log('🧠 Running smart analysis...');
+    
     try {
-      knowledgeContext = await buildAIContext({
+      const smartAnalysis = await analyzeJobAndProfile({
         jobDescription: input.jobDescription,
         userProfile: {
+          name: input.name || "Not specified",
           workExperience: input.workExperience || "Not specified",
           education: input.education || "Not specified",
           skills: input.skills || "Not specified",
           workingStyle: input.workingStyle || "Not specified",
           problemSolving: input.problemSolving || "Not specified",
           uniqueStrength: input.uniqueStrength || "Not specified",
-          learningStyle: input.learningStyle || "Not specified",
-          teamRole: input.teamRole || "Not specified",
-          superpower: input.superpower || "Not specified",
           careerGoals: input.careerGoals || "Not specified",
           bestProjectExample: input.bestProjectExample || "Not specified",
           failureLesson: input.failureLesson || "Not specified",
+          personalNotes: input.personalNotes || "Not specified",
         },
-        enableRAG: true,
-        contentType: 'cover_letter'
+        language: input.language || 'finnish',
+        userId: input.userId
       });
-      console.log('✅ RAG context loaded');
+
+      // 🛡️ HARD NORMALIZATION (PREVENTS undefined.filter CRASH)
+      const safeQuestions = Array.isArray(smartAnalysis?.questions)
+        ? smartAnalysis.questions
+        : [];
+
+      console.log('🧠 SmartAnalysis result:', {
+        shouldAsk: smartAnalysis?.shouldAskQuestions,
+        questionsCount: safeQuestions.length
+      });
+
+      if (smartAnalysis?.shouldAskQuestions && safeQuestions.length > 0) {
+        const criticalQuestions = safeQuestions.filter(
+          q => q?.priority === 'critical'
+        );
+
+        if (criticalQuestions.length > 0) {
+          console.log(`❓ V2: Returning ${criticalQuestions.length} critical questions`);
+
+          return {
+            fullText: "",
+            content: "",
+            title: "Lisätietoja tarvitaan",
+            signature: input.name,
+            questions: criticalQuestions,
+            keyPoints: {
+              personalityHook: "",
+              experienceHighlight: "",
+              skillsMatch: "",
+              motivation: ""
+            },
+            atsData: {
+              matchedKeywords: [],
+              missingExperience: true,
+              readabilityScore: 0
+            },
+            hasWorkExperience: false,
+            needsMoreInfo: true
+          };
+        }
+      }
+
+      console.log('✅ Profile sufficient OR questions skipped');
+      
     } catch (error) {
-      console.warn('⚠️ RAG failed, continuing without:', error);
-      knowledgeContext = '';
+      console.error('⚠️ SmartAnalysis failed, continuing safely:', error);
     }
   } else {
-    console.log('📋 RAG disabled');
+    console.log('⏭️ V2: Skipping questions (skipQuestions=true)');
   }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 1: ANALYZE JOB (DYNAMIC - EXTRACTS FROM ACTUAL TEXT)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  console.log('🔍 Analyzing job posting...');
+  const jobAnalysis = await analyzeJobPosting(input.jobDescription);
+  console.log(`📊 Detected: ${jobAnalysis.detected_industry}, ${jobAnalysis.company_size}`);
+
+  const hasWorkExperience = input.workExperience && input.workExperience.length > 100;
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 2: BUILD RAG CONTEXT (OPTIONAL - PREMIUM FEATURE)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  let knowledgeContext = '';
+  try {
+    knowledgeContext = await buildAIContext({
+      jobDescription: input.jobDescription,
+      userProfile: {
+        workExperience: input.workExperience || "Not specified",
+        education: input.education || "Not specified",
+        skills: input.skills || "Not specified",
+        workingStyle: input.workingStyle || "Not specified",
+        problemSolving: input.problemSolving || "Not specified",
+        uniqueStrength: input.uniqueStrength || "Not specified",
+        learningStyle: input.learningStyle || "Not specified",
+        teamRole: input.teamRole || "Not specified",
+        superpower: input.superpower || "Not specified",
+        careerGoals: input.careerGoals || "Not specified",
+        bestProjectExample: input.bestProjectExample || "Not specified",
+        failureLesson: input.failureLesson || "Not specified",
+      },
+      enableRAG: true,
+      contentType: 'cover_letter'
+    });
+    console.log('✅ RAG context loaded');
+  } catch (error) {
+    console.warn('⚠️ RAG failed, continuing without:', error);
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 3: GENERATE COVER LETTER (FULLY DYNAMIC)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -240,23 +273,24 @@ export async function generateCoherentCoverLetter(input: {
     temperature: 0.5,
   });
 
-  const styleInstructions = input.style === 'casual' 
-    ? `TONE: Conversational yet professional.`
-    : `TONE: Professional and structured.`;
+  const styleInstructions = input.style === 'casual'
+    ? 'Conversational yet professional'
+    : 'Professional and structured';
 
-  const ageInstruction = input.age 
-    ? `OPENING: Start with age and professional identity.`
-    : `OPENING: Start with professional identity.`;
+  const ageInstruction = input.age
+    ? 'OPENING: Start with age and professional identity.'
+    : 'OPENING: Start with professional identity.';
 
-  // ✅ STEP 3: BUILD PROMPT
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", `You are writing an ATS-optimized cover letter for THIS SPECIFIC job.
 
-**DETECTED JOB CONTEXT:**
+**NO HARDCODING - ALL FROM ANALYSIS:**
 Industry: {detectedIndustry}
-Company Size: {companySize}
-ATS Keywords: {keywords}
-Requirements: {requiredSkills}
+Company: {companyName}
+Role: {jobTitle}
+Size: {companySize}
+Keywords: {keywords}
+Skills Needed: {requiredSkills}
 
 ${knowledgeContext ? `
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -268,24 +302,12 @@ ${knowledgeContext}
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# GROUND TRUTH - CANDIDATE'S ACTUAL SKILLS
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**ALLOWED SKILLS (candidate has):**
-{allowedSkills}
-
-**FORBIDDEN CLAIMS (candidate does NOT have):**
-{forbiddenClaims}
-
-**VERIFICATION PROTOCOL:**
-NEVER fabricate skills. Use ONLY allowedSkills.
-
 **YOUR MISSION:**
-1. Match candidate to THIS job
-2. Use ONLY allowedSkills
+1. Match candidate to THIS specific job
+2. Use ONLY verified skills from profile
 3. Natural ATS keyword integration
 4. MAX 350 words
+5. NO FABRICATION - only what's in the profile
 
 **LANGUAGE:** {language}
 **STYLE:** {styleInstructions}
@@ -294,27 +316,23 @@ NEVER fabricate skills. Use ONLY allowedSkills.
 
     ["human", `Generate cover letter.
 
-**JOB:**
+**JOB DESCRIPTION:**
 {jobDescription}
 
-**JOB ANALYSIS:**
+**DETECTED JOB INFO:**
 Industry: {detectedIndustry}
-Keywords: {keywords}
-Skills Needed: {requiredSkills}
-Experience: {experienceLevel}
 Company: {companyName}
 Role: {jobTitle}
+Keywords: {keywords}
+Skills: {requiredSkills}
+Experience: {experienceLevel}
 
-**CANDIDATE:**
+**CANDIDATE PROFILE:**
 Name: {name}
 Age: {age}
 Education: {education}
 Experience: {workExperience}
 Skills: {skills}
-
-**GROUND TRUTH:**
-ALLOWED: {allowedSkills}
-FORBIDDEN: {forbiddenClaims}
 
 **PERSONALITY:**
 Style: {workingStyle}
@@ -326,7 +344,7 @@ Team: {teamRole}
 Identity: {superpower}
 Values: {valuesExample}
 
-**STORIES:**
+**ACHIEVEMENTS:**
 Goals: {careerGoals}
 Best Project: {bestProjectExample}
 Learning: {failureLesson}
@@ -336,28 +354,26 @@ Learning: {failureLesson}
 
 {ageInstruction}
 
-Return JSON with ONLY "fullText" field. Do NOT return "questions".`]
+Return JSON with "fullText" field. Do NOT return "questions" (analysis phase is complete).`]
   ]);
 
   try {
     const formattedPrompt = await prompt.formatMessages({
       detectedIndustry: jobAnalysis.detected_industry,
       companySize: jobAnalysis.company_size,
+      companyName: jobAnalysis.company_name,
+      jobTitle: jobAnalysis.job_title,
       keywords: jobAnalysis.keywords.join(", ") || "Not specified",
       requiredSkills: jobAnalysis.required_skills.join(", ") || "Not specified",
       experienceLevel: jobAnalysis.required_experience,
-      companyName: jobAnalysis.company_name,
-      jobTitle: jobAnalysis.job_title,
       styleInstructions,
       language: input.language || "Finnish",
-      jobDescription: input.jobDescription || "Not specified",
-      name: input.name || "Not specified",
+      jobDescription: input.jobDescription,
+      name: input.name,
       age: input.age ? `${input.age} years` : 'Not specified',
-      workExperience: input.workExperience || "Limited formal experience",
+      workExperience: input.workExperience || "Developing experience",
       education: input.education || "Not specified",
       skills: input.skills || "Developing",
-      allowedSkills: input.allowedSkills?.join(", ") || "All skills from profile",
-      forbiddenClaims: input.forbiddenClaims?.join(", ") || "None",
       workingStyle: input.workingStyle || "Not specified",
       problemSolving: input.problemSolving || "Not specified",
       energySources: input.energySources || "Not specified",
@@ -372,68 +388,71 @@ Return JSON with ONLY "fullText" field. Do NOT return "questions".`]
       personalNotes: input.personalNotes || "Not specified",
       ageInstruction,
       format_instructions: outputParser.getFormatInstructions(),
-});
-const result = await model.invoke(formattedPrompt);
-const content = typeof result.content === 'string' 
-  ? result.content 
-  : JSON.stringify(result.content);
+    });
 
-const cleanContent = content
-  .replace(/```json/g, '')
-  .replace(/```/g, '')
-  .trim();
+    const result = await model.invoke(formattedPrompt);
+    const content = typeof result.content === 'string'
+      ? result.content
+      : JSON.stringify(result.content);
 
-const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-if (!jsonMatch) throw new Error('No valid JSON');
+    const cleanContent = content
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .trim();
 
-const parsed = await outputParser.parse(jsonMatch[0]);
+    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No valid JSON from V2');
 
-// ✅ KORJAUS: Jos AI palautti kysymyksiä vaikka skipQuestions=true, IGNOROI NE
-if (input.skipQuestions && parsed.questions && parsed.questions.length > 0) {
-  console.warn(`⚠️ AI returned ${parsed.questions.length} questions despite skipQuestions=true - IGNORING`);
-  parsed.questions = []; // Tyhjennä kysymykset
+    const parsed = await outputParser.parse(jsonMatch[0]);
+
+    // 🛡️ SAFETY: If AI returned questions despite skipQuestions=true, ignore them
+    if (input.skipQuestions && parsed.questions && parsed.questions.length > 0) {
+      console.warn(`⚠️ AI returned questions despite skipQuestions=true - IGNORING`);
+      parsed.questions = [];
+    }
+
+    console.log('✅ V2 generation complete');
+
+    return {
+      fullText: parsed.fullText,
+      content: parsed.fullText,
+      title: jobAnalysis.job_title || "Cover Letter",
+      signature: input.name,
+      keyPoints: parsed.keyPoints || {
+        personalityHook: "",
+        experienceHighlight: "",
+        skillsMatch: "",
+        motivation: ""
+      },
+      atsData: parsed.atsData || {
+        matchedKeywords: [],
+        missingExperience: false,
+        readabilityScore: 7
+      },
+      jobAnalysis,
+      hasWorkExperience,
+    };
+  } catch (error) {
+    console.error('❌ V2 Generator error:', error);
+    throw new Error("V2 generation failed");
+  }
 }
 
-// ✅ NORMAL: Return letter
-return {
-  fullText: parsed.fullText,
-  content: parsed.fullText,
-  title: jobAnalysis.job_title || "Cover Letter",
-  signature: input.name,
-  keyPoints: parsed.keyPoints || {
-    personalityHook: "",
-    experienceHighlight: "",
-    skillsMatch: "",
-    motivation: ""
-  },
-  atsData: parsed.atsData || {
-    matchedKeywords: [],
-    missingExperience: false,
-    readabilityScore: 7
-  },
-  jobAnalysis,
-  hasWorkExperience,
-};
-} catch (error) {
-console.error('❌ V2 Generator error:', error);
-throw new Error("Generator failed:");
-}
-}
-export function generateATSReport(data: { atsData: CoherentCoverLetter['atsData'] }) {
-return {
-keywords_used: data.atsData?.matchedKeywords.length || 0,
-total_keywords: data.atsData?.matchedKeywords.length || 0,
-keyword_match_score: Math.round(((data.atsData?.matchedKeywords.length || 0) / 15) * 100),
-ats_compatibility_score: (data.atsData?.readabilityScore || 5) * 10,
-critical_keywords_used: data.atsData?.matchedKeywords || [],
-missing_keywords: [],
-improvement_suggestions: [
-(data.atsData?.matchedKeywords.length || 0) < 8
-? "Consider adding more relevant terms"
-: "Good keyword coverage",
-(data.atsData?.readabilityScore || 5) < 6
-? "Simplify language"
-: "Good readability",
-],
-};
+export function generateATSReport(data: { atsData: any }) {
+  return {
+    keywords_used: data.atsData?.matchedKeywords.length || 0,
+    total_keywords: data.atsData?.matchedKeywords.length || 0,
+    keyword_match_score: Math.round(((data.atsData?.matchedKeywords.length || 0) / 15) * 100),
+    ats_compatibility_score: (data.atsData?.readabilityScore || 5) * 10,
+    critical_keywords_used: data.atsData?.matchedKeywords || [],
+    missing_keywords: [],
+    improvement_suggestions: [
+      (data.atsData?.matchedKeywords.length || 0) < 8
+        ? "Consider adding more relevant terms"
+        : "Good keyword coverage",
+      (data.atsData?.readabilityScore || 5) < 6
+        ? "Simplify language"
+        : "Good readability",
+    ],
+  };
 }
