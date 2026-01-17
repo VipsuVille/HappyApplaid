@@ -38,6 +38,10 @@ function generateTitle(input: { name: string; targetRole?: string; targetIndustr
 // ════════════════════════════════════════════════════════════════
 
 export async function POST(req: Request) {
+  // 🔍 VERSION TRACKER - DO NOT REMOVE
+  const ROUTE_VERSION = '2025-01-17-DEFENSIVE-V3';
+  console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
+  
   const authData = await auth();
   const userId = authData.userId;
 
