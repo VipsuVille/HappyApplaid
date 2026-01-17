@@ -98,37 +98,57 @@ Target role: ${input.targetRole || "Various roles"}
 Industry: ${input.targetIndustry || "Multiple industries"}
       `.trim();
 
-      const smartAnalysis = await analyzeJobAndProfile({
-        jobDescription: syntheticJobDescription,
-        userProfile: {
-          name: input.name || "Not specified",
-          workExperience: input.workExperience || "Not specified",
-          education: input.education || "Not specified",
-          skills: input.skills || "Not specified",
-          workingStyle: input.workingStyle || "Not specified",
-          problemSolving: input.problemSolving || "Not specified",
-          uniqueStrength: input.uniqueStrength || "Not specified",
-          careerGoals: input.careerGoals || "Not specified",
-          bestProjectExample: input.bestProjectExample || "Not specified",
-          failureLesson: input.failureLesson || "Not specified",
-        },
-        language: input.language || "finnish",
-        userId: input.userId,
-      });
+      // 🛡️ DEFENSIVE WRAPPER
+      let smartAnalysis;
+      try {
+        const rawAnalysis = await analyzeJobAndProfile({
+          jobDescription: syntheticJobDescription,
+          userProfile: {
+            name: input.name || "Not specified",
+            workExperience: input.workExperience || "Not specified",
+            education: input.education || "Not specified",
+            skills: input.skills || "Not specified",
+            workingStyle: input.workingStyle || "Not specified",
+            problemSolving: input.problemSolving || "Not specified",
+            uniqueStrength: input.uniqueStrength || "Not specified",
+            careerGoals: input.careerGoals || "Not specified",
+            bestProjectExample: input.bestProjectExample || "Not specified",
+            failureLesson: input.failureLesson || "Not specified",
+          },
+          language: input.language || "finnish",
+          userId: input.userId,
+        });
 
-      // 🛡️ HARD NORMALIZATION (PREVENTS undefined.filter CRASH)
-      const safeQuestions = Array.isArray(smartAnalysis?.questions)
-        ? smartAnalysis.questions
-        : [];
+        // 🛡️ NORMALIZE
+        smartAnalysis = {
+          shouldAskQuestions: rawAnalysis?.shouldAskQuestions ?? false,
+          canGenerateWithoutQuestions: rawAnalysis?.canGenerateWithoutQuestions ?? true,
+          confidence: rawAnalysis?.confidence ?? 70,
+          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [],
+          reasoning: rawAnalysis?.reasoning ?? 'Analysis completed'
+        };
+      } catch (error) {
+        console.error('⚠️ General SmartAnalysis failed:', error);
+        smartAnalysis = {
+          shouldAskQuestions: false,
+          canGenerateWithoutQuestions: true,
+          confidence: 70,
+          questions: [],
+          reasoning: 'Analysis failed'
+        };
+      }
+
+      const safeQuestions = smartAnalysis.questions;
 
       console.log('🧠 General SmartAnalysis:', {
-        shouldAsk: smartAnalysis?.shouldAskQuestions,
-        questionsCount: safeQuestions.length
+        shouldAsk: smartAnalysis.shouldAskQuestions,
+        questionsCount: safeQuestions.length,
+        confidence: smartAnalysis.confidence
       });
 
-      if (smartAnalysis?.shouldAskQuestions && safeQuestions.length > 0) {
+      if (smartAnalysis.shouldAskQuestions && safeQuestions.length > 0) {
         const criticalQuestions = safeQuestions.filter(
-          q => q?.priority === "critical"
+          q => q && q.priority === "critical"
         );
 
         if (criticalQuestions.length > 0) {

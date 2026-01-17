@@ -154,38 +154,58 @@ export async function generateCoherentCoverLetter(input: CoverLetterV2Input) {
     console.log('🧠 Running smart analysis...');
     
     try {
-      const smartAnalysis = await analyzeJobAndProfile({
-        jobDescription: input.jobDescription,
-        userProfile: {
-          name: input.name || "Not specified",
-          workExperience: input.workExperience || "Not specified",
-          education: input.education || "Not specified",
-          skills: input.skills || "Not specified",
-          workingStyle: input.workingStyle || "Not specified",
-          problemSolving: input.problemSolving || "Not specified",
-          uniqueStrength: input.uniqueStrength || "Not specified",
-          careerGoals: input.careerGoals || "Not specified",
-          bestProjectExample: input.bestProjectExample || "Not specified",
-          failureLesson: input.failureLesson || "Not specified",
-          personalNotes: input.personalNotes || "Not specified",
-        },
-        language: input.language || 'finnish',
-        userId: input.userId
-      });
+      // 🛡️ DEFENSIVE WRAPPER - Prevents ANY crash possibility
+      let smartAnalysis;
+      try {
+        const rawAnalysis = await analyzeJobAndProfile({
+          jobDescription: input.jobDescription,
+          userProfile: {
+            name: input.name || "Not specified",
+            workExperience: input.workExperience || "Not specified",
+            education: input.education || "Not specified",
+            skills: input.skills || "Not specified",
+            workingStyle: input.workingStyle || "Not specified",
+            problemSolving: input.problemSolving || "Not specified",
+            uniqueStrength: input.uniqueStrength || "Not specified",
+            careerGoals: input.careerGoals || "Not specified",
+            bestProjectExample: input.bestProjectExample || "Not specified",
+            failureLesson: input.failureLesson || "Not specified",
+            personalNotes: input.personalNotes || "Not specified",
+          },
+          language: input.language || 'finnish',
+          userId: input.userId
+        });
 
-      // 🛡️ HARD NORMALIZATION (PREVENTS undefined.filter CRASH)
-      const safeQuestions = Array.isArray(smartAnalysis?.questions)
-        ? smartAnalysis.questions
-        : [];
+        // 🛡️ NORMALIZE - Guarantee questions is ALWAYS an array
+        smartAnalysis = {
+          shouldAskQuestions: rawAnalysis?.shouldAskQuestions ?? false,
+          canGenerateWithoutQuestions: rawAnalysis?.canGenerateWithoutQuestions ?? true,
+          confidence: rawAnalysis?.confidence ?? 70,
+          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [],
+          reasoning: rawAnalysis?.reasoning ?? 'Analysis completed'
+        };
+      } catch (error) {
+        console.error('⚠️ SmartAnalysis failed completely:', error);
+        smartAnalysis = {
+          shouldAskQuestions: false,
+          canGenerateWithoutQuestions: true,
+          confidence: 70,
+          questions: [],
+          reasoning: 'Analysis failed, proceeding with available data'
+        };
+      }
+
+      const safeQuestions = smartAnalysis.questions; // Already guaranteed to be array
 
       console.log('🧠 SmartAnalysis result:', {
-        shouldAsk: smartAnalysis?.shouldAskQuestions,
-        questionsCount: safeQuestions.length
+        shouldAsk: smartAnalysis.shouldAskQuestions,
+        questionsCount: safeQuestions.length,
+        confidence: smartAnalysis.confidence
       });
 
-      if (smartAnalysis?.shouldAskQuestions && safeQuestions.length > 0) {
+      if (smartAnalysis.shouldAskQuestions && safeQuestions.length > 0) {
         const criticalQuestions = safeQuestions.filter(
-          q => q?.priority === 'critical'
+          q => q && q.priority === 'critical'
         );
 
         if (criticalQuestions.length > 0) {
