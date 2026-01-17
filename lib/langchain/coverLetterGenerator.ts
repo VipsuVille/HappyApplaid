@@ -7,7 +7,8 @@ import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
-
+const GENERATOR_VERSION = '2025-01-17-V4-FIXED';
+console.log(`🔍 GENERAL VERSION: ${GENERATOR_VERSION}`);
 export interface CoverLetterInput {
   jobDescription: string;
   name: string;

@@ -6,7 +6,8 @@ import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { buildAIContext } from "@/lib/knowledge";
 import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
-
+const GENERATOR_VERSION = '2025-01-17-V4-FIXED';
+console.log(`🔍 GENERAL VERSION: ${GENERATOR_VERSION}`);
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
