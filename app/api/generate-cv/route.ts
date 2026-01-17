@@ -214,7 +214,9 @@ function validateCVContent(result: any): { isValid: boolean; reason?: string } {
 export async function POST(req: Request) {
   const startTime = Date.now();
   console.log("🚀 CV Generation API (Oppiva Versio)");
-
+  // 🔍 VERSION TRACKER - DO NOT REMOVE
+  const ROUTE_VERSION = '2025-01-17-DEFENSIVE-V3';
+  console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
   try {
     const { userId } = await auth();
     if (!userId) {

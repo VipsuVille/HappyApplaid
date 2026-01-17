@@ -760,7 +760,9 @@ export async function generateCVWithPersonalityExtraction(
   console.log('   - User:', userData.name);
   console.log('   - Type:', userData.cvType);
   console.log('   - Skip Questions:', userData.skipQuestions);
-  
+    // 🔍 VERSION TRACKER - DO NOT REMOVE
+  const ROUTE_VERSION = '2025-01-17-DEFENSIVE-V3';
+  console.log(`🔍 ROUTE VERSIONoooooooooooooon: ${ROUTE_VERSION}`);
   const timer = new PerformanceTimer();
   timer.start("Total Generation");
   
