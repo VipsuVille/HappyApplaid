@@ -1,5 +1,5 @@
 // lib/ats/masterGuardian.ts - OPPIVA VERSIO
-
+const _REBUILD_FORCE = "REBUILD_001";
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { supabaseAdmin } from '@/lib/supabase';
@@ -465,48 +465,35 @@ parsed.violations = parsed.violations ?? {
 };
 
   // ✅ KORJATTU JA VARMISTETTU POST-PROCESSING
-if (parsed && parsed.violations && safeGroundTruth) {
-    const approvedViolations = safeGroundTruth.approvedViolations || { skills: [], education: [], experience: [] };
-    const cannotClaim = safeGroundTruth.cannotClaim || [];
-
-    // Varmistetaan, että jokainen avain on olemassa ja on Array, ennen kuin kutsutaan .filter
-    const violations = {
-        fabricatedSkills: Array.isArray(parsed.violations.fabricatedSkills) ? parsed.violations.fabricatedSkills : [],
-        fabricatedEducation: Array.isArray(parsed.violations.fabricatedEducation) ? parsed.violations.fabricatedEducation : [],
-        fabricatedExperience: Array.isArray(parsed.violations.fabricatedExperience) ? parsed.violations.fabricatedExperience : []
-    };
-
-    // Apufunktio suodatukseen (estää 'undefined' virheet filterin sisällä)
-    const secureFilter = (list: string[], approved: string[]) => {
-        return list.filter(item => {
-            if (!item) return false;
-            const isApproved = (approved || []).some(
-                appr => appr.toLowerCase().includes(item.toLowerCase())
-            );
-            const isRejected = (cannotClaim || []).some(
-                rej => rej.toLowerCase().includes(item.toLowerCase())
-            );
-            return !isApproved && !isRejected;
-        });
-    };
-
-    // Päivitetään suodatetut listat takaisin objektiin
-    parsed.violations.fabricatedSkills = secureFilter(violations.fabricatedSkills, approvedViolations.skills);
-    parsed.violations.fabricatedEducation = secureFilter(violations.fabricatedEducation, approvedViolations.education);
-    parsed.violations.fabricatedExperience = secureFilter(violations.fabricatedExperience, approvedViolations.experience);
-
-    // Lasketaan jäljellä olevat rikkomukset turvallisesti
-    const hasViolations = 
-        (parsed.violations.fabricatedSkills?.length || 0) > 0 ||
-        (parsed.violations.fabricatedEducation?.length || 0) > 0 ||
-        (parsed.violations.fabricatedExperience?.length || 0) > 0;
-
-    if (!hasViolations && parsed.riskLevel === 'danger') {
-        parsed.approved = true;
-        parsed.riskLevel = 'safe';
-        parsed.recommendation = 'Kaikki löydökset olivat käyttäjän aiemmin hyväksymiä.';
-        parsed.flags = [...(parsed.flags || []), 'auto_approved_from_history'];
+// ✅ Etsi kohta: if (parsed && parsed.violations && safeGroundTruth) {
+if (parsed && safeGroundTruth) {
+    // Pakotetaan violations-objekti ja sen alalistat olemassaoloon
+    if (!parsed.violations) {
+        parsed.violations = { fabricatedSkills: [], fabricatedEducation: [], fabricatedExperience: [] };
     }
+    
+    const v = parsed.violations;
+    const skills = Array.isArray(v.fabricatedSkills) ? v.fabricatedSkills : [];
+    const edu = Array.isArray(v.fabricatedEducation) ? v.fabricatedEducation : [];
+    const exp = Array.isArray(v.fabricatedExperience) ? v.fabricatedExperience : [];
+
+    const approved = safeGroundTruth.approvedViolations || { skills: [], education: [], experience: [] };
+
+    // Kirjoitetaan suodatus auki niin, ettei se voi epäonnistua
+    parsed.violations.fabricatedSkills = skills.filter(item => {
+        if (!item || typeof item !== 'string') return false;
+        return !(approved.skills || []).some(a => a.toLowerCase().includes(item.toLowerCase()));
+    });
+
+    parsed.violations.fabricatedEducation = edu.filter(item => {
+        if (!item || typeof item !== 'string') return false;
+        return !(approved.education || []).some(a => a.toLowerCase().includes(item.toLowerCase()));
+    });
+
+    parsed.violations.fabricatedExperience = exp.filter(item => {
+        if (!item || typeof item !== 'string') return false;
+        return !(approved.experience || []).some(a => a.toLowerCase().includes(item.toLowerCase()));
+    });
 }
     console.log(`🛡️ Guardian ${stage}:`, {
       approved: parsed.approved,
