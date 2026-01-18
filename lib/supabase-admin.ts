@@ -1,24 +1,31 @@
 // lib/supabase-admin.ts
-'use server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+"use server";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase admin environment variables');
-}
+let _adminClient: SupabaseClient | null = null;
 
-let _supabaseAdmin: SupabaseClient | null = null;
+/**
+ * ✅ ADMIN CLIENT
+ * - EI tarkista envtejä importissa
+ * - Heittää virheen vasta kutsussa
+ */
+export function getSupabaseAdmin(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-export async function getSupabaseAdmin() {
-  if (!_supabaseAdmin) {
-    _supabaseAdmin = createClient(supabaseUrl, supabaseKey, {
+  if (!url || !serviceKey) {
+    throw new Error("Missing Supabase admin environment variables");
+  }
+
+  if (!_adminClient) {
+    _adminClient = createClient(url, serviceKey, {
       auth: {
+        persistSession: false,
         autoRefreshToken: false,
-        persistSession: false
-      }
+      },
     });
   }
-  return _supabaseAdmin;
+
+  return _adminClient;
 }
