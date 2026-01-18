@@ -1,22 +1,45 @@
 // app/api/generate-cover-letter/route.ts - FINAL CORRECTED VERSION
+// 🔍 DEBUG: Tarkista mikä import kaataa
+console.log('🔍 [1/10] Route module loading...');
 
 import { NextResponse } from "next/server";
+console.log('✅ [2/10] NextResponse imported');
+
 import { auth } from "@clerk/nextjs/server";
+console.log('✅ [3/10] Clerk auth imported');
+
 import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGeneratorV2";
+console.log('✅ [4/10] V2 generator imported');
+
 import { generateCoverLetterV1 } from "@/lib/langchain/coverLetterGenerator";
+console.log('✅ [5/10] V1 generator imported');
+
 import { generateGeneralCoverLetter } from "@/lib/langchain/generalCoverLetterGenerator";
+console.log('✅ [6/10] General generator imported');
+
 import { supabaseAdmin } from "@/lib/supabase";
+console.log('✅ [7/10] Supabase imported');
+
 import { convertProfileToApiFormat } from "@/types";
+console.log('✅ [8/10] Types imported');
+
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
+console.log('✅ [9/10] Guardian imported');
+
 import { PRICING } from "@/lib/pricing";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
+console.log('✅ [10/10] ALL IMPORTS OK');
   import { BUILD_ID } from '@/lib/buildId';
 
 // ════════════════════════════════════════════════════════════════
 // HELPERS
 // ════════════════════════════════════════════════════════════════
+// app/api/generate-cover-letter/route.ts
+
+
+
 
 function extractJobTitleFromDescription(jobDescription: string): string {
   if (!jobDescription) return "Hakukirje";
@@ -40,7 +63,13 @@ function generateTitle(input: { name: string; targetRole?: string; targetIndustr
 
 export async function POST(req: Request) {
   // 🔍 VERSION TRACKER - DO NOT REMOVE
-  const ROUTE_VERSION = '2025-01-17-DEFENSIVE-V3';
+    const ROUTE_VERSION = '2025-01-18-20-30-DEBUG';
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🔥 POST FUNCTION STARTED');
+  console.log('🔥 ROUTE VERSION:', ROUTE_VERSION);
+  console.log('🔥 TIME:', new Date().toISOString());
+  console.log('═══════════════════════════════════════════════════');
+
   console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
 
   console.log('═══════════════════════════════════════════════════');

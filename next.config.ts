@@ -2,16 +2,19 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // ✅ PAKOTA UUSI BUILD JOKA KERTA
+  generateBuildId: async () => {
+    return `build-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  },
+
   // Kuvien optimointi
   images: {
     remotePatterns: [
-      // DALL-E kuvat
       {
         protocol: "https",
         hostname: "oaidalleapiprodscus.blob.core.windows.net",
         pathname: "/private/**",
       },
-      // Supabase kuvat
       {
         protocol: "https",
         hostname: "xgwwnqzbbzpdvgnchpzn.supabase.co",
@@ -20,7 +23,6 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Ympäristömuuttujat
   env: {
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
