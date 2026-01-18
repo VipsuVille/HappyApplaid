@@ -7,7 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
 import { ACTION_COSTS, type TokenAction } from "@/lib/domain/tokens";
 import { convertProfileToApiFormat } from "@/types";
-import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
+import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
 import crypto from 'crypto';
 import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
 
@@ -493,7 +493,7 @@ if (shouldRunGuardian) {
     ${result.html?.education_section || ''}
   `.trim();
   
-  const guardianCheck = await masterConsistencyCheckAI(
+  const guardianCheck = await masterGuardianValidatorV2(
     fullCVText,
     groundTruth,
     'generation'

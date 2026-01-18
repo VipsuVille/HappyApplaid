@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGeneratorV2";
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
-import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
+import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
 import { PRICING } from "@/lib/pricing"; // ✅ KORJAUS: Käytä PRICING suoraan
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
@@ -343,7 +343,7 @@ export async function POST(req: Request) {
 
     // MASTER GUARDIAN
     console.log('🛡️ Running Master Guardian...');
-    const guardianCheck = await masterConsistencyCheckAI(
+    const guardianCheck = await masterGuardianValidatorV2(
       coverLetterData.content,
       groundTruth,
       'generation'

@@ -6,7 +6,7 @@ import { generateCoverLetterV1 } from "@/lib/langchain/coverLetterGenerator";
 import { generateGeneralCoverLetter } from "@/lib/langchain/generalCoverLetterGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
-import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
+import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
 import { PRICING } from "@/lib/pricing";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
     if (!finalContent) throw new Error("AI failed to generate content");
 
     // 8. Guardian & ATS
-    const guardianCheck = await masterConsistencyCheckAI(finalContent, groundTruth, 'generation');
+    const guardianCheck = await masterGuardianValidatorV2(finalContent, groundTruth, 'generation');
     if (guardianCheck.riskLevel === 'danger') {
       return NextResponse.json({ error: 'CONSISTENCY_VIOLATION', violations: guardianCheck.violations }, { status: 400 });
     }

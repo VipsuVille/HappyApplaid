@@ -5,7 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { generateGeneralCoverLetter } from "@/lib/langchain/generalCoverLetterGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
-import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
+import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
 import { getTierFeatures } from "@/lib/stripe/subscriptions";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import crypto from 'crypto';
@@ -304,7 +304,7 @@ if (tier === 'free') {
     // ✅ 10. MASTER GUARDIAN
     console.log('🛡️ Running Master Guardian...');
 
-    const guardianCheck = await masterConsistencyCheckAI(
+    const guardianCheck = await masterGuardianValidatorV2(
       coverLetterData.content,
       groundTruth,
       'generation'

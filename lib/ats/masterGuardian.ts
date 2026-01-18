@@ -331,7 +331,7 @@ Return ONLY valid JSON with all required fields.`]
 // CONSISTENCY CHECK (OPPIVA)
 // ════════════════════════════════════════════════════════════════
 
-export async function masterConsistencyCheckAI(
+export async function masterGuardianValidatorV2(
   generatedContent: string,
   groundTruth: GroundTruth | null,
   stage: 'generation' | 'edit'

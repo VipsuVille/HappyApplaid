@@ -16,7 +16,7 @@ import type { LangChainCVInput } from "@/lib/profileDataTransform";
 
 import {
   extractGroundTruthAI,
-  masterConsistencyCheckAI,
+  masterGuardianValidatorV2,
   type GroundTruth,
 } from "@/lib/ats/masterGuardian";
 
