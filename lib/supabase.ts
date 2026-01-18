@@ -1,104 +1,112 @@
-// lib/supabase.ts - KORJATTU KONFIGURAATIO
+// lib/supabase.ts
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-import { createClient } from '@supabase/supabase-js';
-
-// ✅ YMPÄRISTÖMUUTTUJAT
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl) {
-  throw new Error('❌ Missing NEXT_PUBLIC_SUPABASE_URL');
+/**
+ * 🔒 Apufunktio:
+ * ENV tarkistetaan VASTA KÄYTÖSSÄ, ei importissa
+ */
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
+  }
+  return value;
 }
 
-if (!supabaseAnonKey) {
-  throw new Error('❌ Missing NEXT_PUBLIC_SUPABASE_ANON_KEY');
-}
+/* ------------------------------------------------------------------ */
+/*  PUBLIC SUPABASE CLIENT (selain + RLS)                              */
+/* ------------------------------------------------------------------ */
 
-// ✅ PUBLIC CLIENT (selain + RLS)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-  global: {
-    headers: {
-      'x-client-info': 'supabase-js-web',
-    },
-  },
-});
+let _publicClient: SupabaseClient | null = null;
 
-// ✅ ADMIN CLIENT (palvelin + ohittaa RLS)
-// HUOM: Käytä VAIN API routeissa!
-export const supabaseAdmin = createClient(
-  supabaseUrl,
-  supabaseServiceKey || supabaseAnonKey, // Fallback if service key missing
-  {
+/**
+ * Käytä tätä:
+ *  - selaimessa
+ *  - API routeissa, joissa RLS riittää
+ */
+export function getSupabase(): SupabaseClient {
+  if (_publicClient) return _publicClient;
+
+  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const anonKey = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  _publicClient = createClient(url, anonKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
     },
     global: {
       headers: {
-        'x-client-info': 'supabase-js-admin',
+        "x-client-info": "supabase-js-public",
       },
     },
-  }
-);
+  });
 
-// ✅ TARKISTA SERVICE ROLE KEY
-if (!supabaseServiceKey) {
-  console.error('⚠️ CRITICAL: SUPABASE_SERVICE_ROLE_KEY missing!');
-  console.error('   Admin operations will fail or use wrong permissions.');
-  console.error('   Add to .env.local:');
-  console.error('   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key');
-}
-
-console.log('✅ Supabase initialized');
-console.log(`   URL: ${supabaseUrl}`);
-console.log(`   Admin mode: ${!!supabaseServiceKey ? '✅' : '❌ MISSING'}`);
-
-/**
- * ✅ ALLEKIRJOITETUT URL:T
- */
-export async function generateSignedUrl(
-  bucket: string,
-  fileName: string,
-  expiresIn: number = 60 * 60 * 24 * 30 // 30 päivää
-): Promise<string> {
-  try {
-    const { data, error } = await supabase
-      .storage
-      .from(bucket)
-      .createSignedUrl(fileName, expiresIn);
-
-    if (error) {
-      console.error('Signed URL error:', error);
-      throw new Error(`Error generating URL: ${error.message}`);
-    }
-    
-    if (!data?.signedUrl) {
-      throw new Error('URL generation failed - no URL returned');
-    }
-
-    return data.signedUrl;
-  } catch (error) {
-    console.error('Error generating signed URL:', {
-      bucket,
-      fileName,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    throw error;
-  }
+  return _publicClient;
 }
 
 /**
- * ✅ CLERK JWT AUTH CLIENT (käytetään jos tarvitaan user-kontekstia)
+ * 🔁 Yhteensopivuus vanhan koodin kanssa:
+ *   import { supabase } from "@/lib/supabase"
  */
-export const getSupabaseClient = async (clerkToken?: string) => {
-  if (!clerkToken) return supabase;
-  
-  return createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = {
+  from: (table: string) => getSupabase().from(table),
+  storage: getSupabase().storage,
+};
+
+/* ------------------------------------------------------------------ */
+/*  ADMIN SUPABASE CLIENT (server only, ohittaa RLS)                  */
+/* ------------------------------------------------------------------ */
+
+let _adminClient: SupabaseClient | null = null;
+
+/**
+ * ⚠️ Käytä VAIN API routeissa / server actions
+ */
+export function getSupabaseAdmin(): SupabaseClient {
+  if (_adminClient) return _adminClient;
+
+  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const serviceKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+
+  _adminClient = createClient(url, serviceKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      headers: {
+        "x-client-info": "supabase-js-admin",
+      },
+    },
+  });
+
+  return _adminClient;
+}
+
+/**
+ * 🔁 BACKWARD COMPATIBILITY - supabaseAdmin
+ * Vanhat tiedostot käyttävät: import { supabaseAdmin } from '@/lib/supabase'
+ */
+export const supabaseAdmin = {
+  from: (table: string) => getSupabaseAdmin().from(table),
+  storage: getSupabaseAdmin().storage,
+  rpc: (fn: string, params?: any) => getSupabaseAdmin().rpc(fn, params),
+};
+
+/* ------------------------------------------------------------------ */
+/*  CLERK JWT - SUPABASE CLIENT                                       */
+/* ------------------------------------------------------------------ */
+
+export function getSupabaseWithClerkToken(
+  clerkToken?: string
+): SupabaseClient {
+  if (!clerkToken) return getSupabase();
+
+  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const anonKey = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  return createClient(url, anonKey, {
     global: {
       headers: {
         Authorization: `Bearer ${clerkToken}`,
@@ -109,32 +117,37 @@ export const getSupabaseClient = async (clerkToken?: string) => {
       autoRefreshToken: false,
     },
   });
-};
+}
 
-/**
- * ✅ BACKGROUND IMAGE URL
- */
-export const getBackgroundImageUrl = (userId: string, filename: string): string => {
+/* ------------------------------------------------------------------ */
+/*  STORAGE / IMAGE HELPERS                                            */
+/* ------------------------------------------------------------------ */
+
+export function getBackgroundImageUrl(
+  userId: string,
+  filename: string
+): string {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return "";
+
   if (filename.startsWith("http")) return filename;
   if (filename.includes("backgrounds/")) {
-    return `${supabaseUrl}/storage/v1/object/public/cv_files/${filename}`;
+    return `${url}/storage/v1/object/public/cv_files/${filename}`;
   }
-  return `${supabaseUrl}/storage/v1/object/public/cv_files/backgrounds/${userId}/${filename}`;
-};
 
-/**
- * ✅ PROFILE IMAGE URL
- */
-export const getProfileImageUrl = (filePath: string): string | null => {
-  if (!filePath) return null;
+  return `${url}/storage/v1/object/public/cv_files/backgrounds/${userId}/${filename}`;
+}
+
+export function getProfileImageUrl(filePath: string): string | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url || !filePath) return null;
   if (filePath.startsWith("http")) return filePath;
-  return `${supabaseUrl}/storage/v1/object/public/cv_files/${filePath}`;
-};
+  return `${url}/storage/v1/object/public/cv_files/${filePath}`;
+}
 
-/**
- * ✅ IMAGE TO BASE64 (PDF:lle)
- */
-export const getImageAsBase64 = async (imageUrl: string): Promise<string | null> => {
+export async function getImageAsBase64(
+  imageUrl: string
+): Promise<string | null> {
   try {
     if (imageUrl.startsWith("data:image/")) {
       return imageUrl;
@@ -146,32 +159,29 @@ export const getImageAsBase64 = async (imageUrl: string): Promise<string | null>
       return null;
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const contentType =
+      response.headers.get("content-type") || "image/jpeg";
 
     return `data:${contentType};base64,${buffer.toString("base64")}`;
   } catch (error) {
     console.error("Error converting image to base64:", error);
     return null;
   }
-};
+}
 
-/**
- * ✅ PREPARE IMAGE FOR PDF
- */
-export const prepareImageForPDF = async (imageUrl: string | null): Promise<string | null> => {
+export async function prepareImageForPDF(
+  imageUrl: string | null
+): Promise<string | null> {
   if (!imageUrl) return null;
 
   try {
     const response = await fetch(imageUrl, { method: "HEAD" });
     if (response.ok) {
       return imageUrl;
-    } else {
-      return await getImageAsBase64(imageUrl);
     }
+    return await getImageAsBase64(imageUrl);
   } catch {
-    console.warn(`Image not accessible, converting to base64: ${imageUrl}`);
     return await getImageAsBase64(imageUrl);
   }
-};
+}
