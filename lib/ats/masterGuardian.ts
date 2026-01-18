@@ -457,63 +457,57 @@ Return JSON:
 
     const parsed = JSON.parse(jsonMatch[0]) as GuardianCheckResult;
 
-    // ✅ POST-PROCESSING: Poista violations jotka on jo hyväksytty
-    if (parsed.violations && safeGroundTruth.approvedViolations) {
-      const { approvedViolations } = safeGroundTruth;
-      
-      if (parsed.violations.fabricatedSkills) {
-        parsed.violations.fabricatedSkills = parsed.violations.fabricatedSkills
-          .filter(skill => {
-            const isApproved = approvedViolations.skills.some(
-              approved => approved.toLowerCase().includes(skill.toLowerCase())
-            );
-            const isRejected = safeGroundTruth.cannotClaim.some(
-              rejected => rejected.toLowerCase().includes(skill.toLowerCase())
-            );
-            return !isApproved && !isRejected;
-          });
-      }
-      
-      if (parsed.violations.fabricatedEducation) {
-        parsed.violations.fabricatedEducation = parsed.violations.fabricatedEducation
-          .filter(edu => {
-            const isApproved = approvedViolations.education.some(
-              approved => approved.toLowerCase().includes(edu.toLowerCase())
-            );
-            const isRejected = safeGroundTruth.cannotClaim.some(
-              rejected => rejected.toLowerCase().includes(edu.toLowerCase())
-            );
-            return !isApproved && !isRejected;
-          });
-      }
-      
-      if (parsed.violations.fabricatedExperience) {
-        parsed.violations.fabricatedExperience = parsed.violations.fabricatedExperience
-          .filter(exp => {
-            const isApproved = approvedViolations.experience.some(
-              approved => approved.toLowerCase().includes(exp.toLowerCase())
-            );
-            const isRejected = safeGroundTruth.cannotClaim.some(
-              rejected => rejected.toLowerCase().includes(exp.toLowerCase())
-            );
-            return !isApproved && !isRejected;
-          });
-      }
+    // ✅ HARD NORMALIZATION – TÄRKEIN KORJAUS
+parsed.violations = parsed.violations ?? {
+  fabricatedSkills: [],
+  fabricatedEducation: [],
+  fabricatedExperience: []
+};
 
-      // Jos kaikki violations poistuivat, hyväksy
-      const hasViolations = 
+  // ✅ KORJATTU JA VARMISTETTU POST-PROCESSING
+if (parsed && parsed.violations && safeGroundTruth) {
+    const approvedViolations = safeGroundTruth.approvedViolations || { skills: [], education: [], experience: [] };
+    const cannotClaim = safeGroundTruth.cannotClaim || [];
+
+    // Varmistetaan, että jokainen avain on olemassa ja on Array, ennen kuin kutsutaan .filter
+    const violations = {
+        fabricatedSkills: Array.isArray(parsed.violations.fabricatedSkills) ? parsed.violations.fabricatedSkills : [],
+        fabricatedEducation: Array.isArray(parsed.violations.fabricatedEducation) ? parsed.violations.fabricatedEducation : [],
+        fabricatedExperience: Array.isArray(parsed.violations.fabricatedExperience) ? parsed.violations.fabricatedExperience : []
+    };
+
+    // Apufunktio suodatukseen (estää 'undefined' virheet filterin sisällä)
+    const secureFilter = (list: string[], approved: string[]) => {
+        return list.filter(item => {
+            if (!item) return false;
+            const isApproved = (approved || []).some(
+                appr => appr.toLowerCase().includes(item.toLowerCase())
+            );
+            const isRejected = (cannotClaim || []).some(
+                rej => rej.toLowerCase().includes(item.toLowerCase())
+            );
+            return !isApproved && !isRejected;
+        });
+    };
+
+    // Päivitetään suodatetut listat takaisin objektiin
+    parsed.violations.fabricatedSkills = secureFilter(violations.fabricatedSkills, approvedViolations.skills);
+    parsed.violations.fabricatedEducation = secureFilter(violations.fabricatedEducation, approvedViolations.education);
+    parsed.violations.fabricatedExperience = secureFilter(violations.fabricatedExperience, approvedViolations.experience);
+
+    // Lasketaan jäljellä olevat rikkomukset turvallisesti
+    const hasViolations = 
         (parsed.violations.fabricatedSkills?.length || 0) > 0 ||
         (parsed.violations.fabricatedEducation?.length || 0) > 0 ||
         (parsed.violations.fabricatedExperience?.length || 0) > 0;
 
-      if (!hasViolations && parsed.riskLevel === 'danger') {
+    if (!hasViolations && parsed.riskLevel === 'danger') {
         parsed.approved = true;
         parsed.riskLevel = 'safe';
-        parsed.recommendation = 'All items were previously approved by user';
-        parsed.flags = ['auto_approved_from_history'];
-      }
+        parsed.recommendation = 'Kaikki löydökset olivat käyttäjän aiemmin hyväksymiä.';
+        parsed.flags = [...(parsed.flags || []), 'auto_approved_from_history'];
     }
-
+}
     console.log(`🛡️ Guardian ${stage}:`, {
       approved: parsed.approved,
       risk: parsed.riskLevel,
