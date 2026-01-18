@@ -1,4 +1,5 @@
-// lib/langchain/smartQuestionAnalyzer.ts - KOKONAINEN VERSIO
+// lib/langchain/smartQuestionAnalyzer.ts - FIXED VERSION
+
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import crypto from 'crypto';
@@ -17,7 +18,7 @@ export interface QuestionAnalysisResult {
   shouldAskQuestions: boolean;
   canGenerateWithoutQuestions: boolean;
   confidence: number;
-  questions: SmartQuestion[];
+  questions: SmartQuestion[]; // ✅ AINA ARRAY
   reasoning: string;
 }
 
@@ -28,9 +29,6 @@ interface PreviousResponse {
   created_at: string;
 }
 
-/**
- * ✅ GENEROI KYSYMYS-ID (hash)
- */
 function generateQuestionId(questionText: string): string {
   return crypto
     .createHash('sha256')
@@ -39,59 +37,66 @@ function generateQuestionId(questionText: string): string {
     .substring(0, 16);
 }
 
-/**
- * ✅ HAE AIEMMAT VASTAUKSET KÄYTTÄJÄLTÄ
- */
+// ✅ KORJATTU: Palauttaa AINA arrayn, ei koskaan undefined
 export async function getPreviousResponses(
   userId: string,
   category?: string
 ): Promise<PreviousResponse[]> {
+  // ✅ TURVA: Palauta tyhjä array heti jos ei userId
+  if (!userId) {
+    console.log('⏭️ No userId, returning empty array');
+    return [];
+  }
+
   try {
     const params = new URLSearchParams();
     if (category) params.append('category', category);
     
-    // ⚠️ HUOM: Tämä toimii vain server-side
-    // Client-side pitää käyttää eri metodia
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    
+    // ✅ TURVA: Timeout 5 sekuntia
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     const response = await fetch(
       `${baseUrl}/api/user-responses?${params.toString()}`,
       { 
         cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal
       }
     );
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
       console.warn('Failed to fetch previous responses:', response.status);
-      return [];
+      return []; // ✅ Palauta tyhjä array virhetilanteessa
     }
     
     const data = await response.json();
     
-    return (data.responses || []).map((r: any) => ({
-      question: r.question_text,
-      answer: r.answer,
-      category: r.question_category,
-      created_at: r.created_at
+    // ✅ TURVA: Varmista että responses on array
+    const responses = Array.isArray(data.responses) ? data.responses : [];
+    
+    return responses.map((r: any) => ({
+      question: r.question_text || '',
+      answer: r.answer || '',
+      category: r.question_category || '',
+      created_at: r.created_at || ''
     }));
   } catch (error) {
     console.error('Error fetching previous responses:', error);
-    return [];
+    return []; // ✅ AINA array, ei koskaan undefined
   }
 }
 
-/**
- * ✅ SEMANTTINEN SIMILARITY (Fuzzy Match)
- */
 function calculateSimilarity(str1: string, str2: string): number {
   const s1 = str1.toLowerCase().trim();
   const s2 = str2.toLowerCase().trim();
   
   if (s1 === s2) return 1.0;
   
-  // Word-based Jaccard similarity
   const words1 = new Set(s1.split(/\s+/));
   const words2 = new Set(s2.split(/\s+/));
   
@@ -101,15 +106,13 @@ function calculateSimilarity(str1: string, str2: string): number {
   return intersection.size / union.size;
 }
 
-/**
- * ✅ TARKISTA ONKO KYSYMYKSEEN JO VASTATTU
- */
 export function hasExistingAnswer(
   questionText: string,
   previousResponses: PreviousResponse[]
 ): { found: boolean; answer?: string; similarity?: number } {
   
-  if (previousResponses.length === 0) {
+  // ✅ TURVA: Tarkista että previousResponses on array
+  if (!Array.isArray(previousResponses) || previousResponses.length === 0) {
     return { found: false };
   }
 
@@ -118,13 +121,11 @@ export function hasExistingAnswer(
   for (const response of previousResponses) {
     const existingId = generateQuestionId(response.question);
     
-    // 1. Tarkka match (hash)
     if (existingId === questionId) {
       console.log(`✅ Exact match found: "${response.question}"`);
       return { found: true, answer: response.answer, similarity: 1.0 };
     }
     
-    // 2. Fuzzy match (85%+ samankaltaisuus)
     const similarity = calculateSimilarity(questionText, response.question);
     if (similarity > 0.85) {
       console.log(`✅ Similar question found (${Math.round(similarity * 100)}%): "${response.question}"`);
@@ -135,9 +136,7 @@ export function hasExistingAnswer(
   return { found: false };
 }
 
-/**
- * ✅ 100% FLEXIBLE ANALYZER - NO HARDCODED RULES
- */
+// ✅ KORJATTU: Palauttaa AINA QuestionAnalysisResult jossa questions on ARRAY
 export async function analyzeJobAndProfile(input: {
   jobDescription: string;
   userProfile: {
@@ -155,18 +154,29 @@ export async function analyzeJobAndProfile(input: {
     [key: string]: any;
   };
   language: string;
-  userId?: string; // ✅ LISÄTTY: Mahdollistaa historian haun
+  userId?: string;
 }): Promise<QuestionAnalysisResult> {
   
-  // ✅ 1. HAE AIEMMAT VASTAUKSET (jos userId annettu)
+  // ✅ HAE AIEMMAT VASTAUKSET (AINA ARRAY)
   let previousResponses: PreviousResponse[] = [];
+  
   if (input.userId) {
     console.log('📚 Fetching previous responses for user:', input.userId);
-    previousResponses = await getPreviousResponses(input.userId);
-    console.log(`📚 Found ${previousResponses.length} previous responses`);
+    try {
+      previousResponses = await getPreviousResponses(input.userId);
+      console.log(`📚 Found ${previousResponses.length} previous responses`);
+    } catch (error) {
+      console.error('Error in getPreviousResponses:', error);
+      previousResponses = []; // ✅ Fallback tyhjä array
+    }
   }
   
-  // ✅ 2. RAKENNA KONTEKSTI AIEMMISTA VASTAUKSISTA
+  // ✅ VARMISTA että previousResponses on array
+  if (!Array.isArray(previousResponses)) {
+    console.warn('⚠️ previousResponses not array, fixing...');
+    previousResponses = [];
+  }
+  
   const historyContext = previousResponses.length > 0
     ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **PREVIOUS ANSWERS (USER HAS ALREADY ANSWERED THESE):**
@@ -176,9 +186,7 @@ ${previousResponses
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **CRITICAL INSTRUCTION:**
-DO NOT ask questions that are already answered above.
-DO NOT ask similar variations of these questions.
-If you need clarification on an existing answer, reference it directly.`
+DO NOT ask questions that are already answered above.`
     : '';
 
   const model = new ChatOpenAI({
@@ -188,120 +196,32 @@ If you need clarification on an existing answer, reference it directly.`
   });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ["system", `You are an intelligent analyzer that compares job requirements with candidate profiles across ALL industries, languages, and contexts.
+    ["system", `You are an intelligent analyzer that compares job requirements with candidate profiles.
 
-**CORE PHILOSOPHY:**
-Every job is UNIQUE. Every profile is UNIQUE. Use ZERO assumptions about industries, roles, or requirements.
 ${historyContext}
 
-**YOUR MISSION:**
-1. Read THIS SPECIFIC job posting
-2. Understand what THIS SPECIFIC job needs
-3. Check if THIS SPECIFIC profile addresses those needs
-4. Ask questions ONLY for genuine gaps or unclear areas
-5. **NEVER ask questions that have already been answered** (see PREVIOUS ANSWERS above)
-
-**UNIVERSAL PRINCIPLES (apply to ANY job, ANY field):**
-
-1. **GAP DETECTION**: Use semantic understanding, not pattern matching
-   - Job mentions X → Profile doesn't mention X → Consider asking
-   - Job emphasizes Y → Profile mentions Y vaguely → Consider clarifying
-   - Use AI understanding of meaning, not keyword matching
-
-2. **PRIORITY ASSESSMENT**: Dynamically determine importance
-   - CRITICAL: Job explicitly requires it, profile lacks it entirely
-   - IMPORTANT: Job emphasizes it, profile is unclear/vague
-   - HELPFUL: Would strengthen application, not essential
-
-3. **QUESTION QUALITY**: Be specific and actionable
-   - Reference exact phrases from job posting
-   - Explain WHY it matters for THIS role
-   - Give context: "Työilmoituksessa mainitaan..."
-   - Make answerable: Ask for examples, not essays
-
-4. **NATURAL LANGUAGE**: Adapt to user's language automatically
-   - Detect language from profile/job description
-   - Ask questions in THEIR language
-   - Use culturally appropriate phrasing
-
-**WHEN TO ASK (universal across all fields):**
-- Job explicitly requires something profile doesn't mention
-- Profile mentions something relevant but too vaguely
-- Job implies need for something profile could clarify
-- Technical term/tool/concept job mentions but profile doesn't address
-
-**WHEN NOT TO ASK:**
-- Profile already addresses the requirement clearly
-- **Question is already answered in PREVIOUS ANSWERS section**
-- **Question is semantically similar to an already answered question**
-- Requirement is too minor/peripheral
-- Question would be generic ("tell me about yourself")
-- More than 5 questions needed (overwhelming)
-
-**FORBIDDEN:**
-- Hardcoded industry patterns
-- Predetermined question templates
-- Assumptions based on job titles
-- Generic questions unrelated to THIS specific job
-- Asking questions that have already been answered
-
-**OUTPUT:**
-{{
+Return JSON with these fields:
+{
   "shouldAskQuestions": true/false,
   "canGenerateWithoutQuestions": true/false,
   "confidence": 0-100,
-  "questions": [
-    {{
-      "id": "unique_id",
-      "question": "Specific question in user's language",
-      "why": "Why this matters for THIS job",
-      "jobRequirement": "Exact quote/paraphrase from job",
-      "currentUserData": "What profile currently says (or doesn't)",
-      "priority": "critical|important|helpful",
-      "helpText": "Example answer to guide user"
-    }}
-  ],
-  "reasoning": "Brief explanation in user's language"
-}}
+  "questions": [...],
+  "reasoning": "..."
+}
 
 Return JSON only.`],
 
-    ["human", `Analyze THIS UNIQUE job posting against THIS UNIQUE candidate profile.
+    ["human", `Analyze job against profile.
 
-**LANGUAGE TO USE:** {language}
-
-**THIS JOB POSTING:**
-{jobDescription}
-
-**THIS CANDIDATE'S PROFILE:**
+**LANGUAGE:** {language}
+**JOB:** {jobDescription}
+**PROFILE:** 
 Name: {name}
 Work Experience: {workExperience}
 Education: {education}
 Skills: {skills}
-Working Style: {workingStyle}
-Problem Solving: {problemSolving}
-Unique Strength: {uniqueStrength}
-Career Goals: {careerGoals}
-Best Project: {bestProjectExample}
-Failure Lesson: {failureLesson}
-Personal Notes: {personalNotes}
 
-**PREVIOUS USER ANSWERS (DO NOT ASK AGAIN):**
-${previousResponses.length > 0 
-  ? previousResponses.map(r => `• ${r.question} → ${r.answer}`).join('\n')
-  : 'No previous answers'
-}
-
-**YOUR TASK:**
-Use semantic AI understanding to:
-1. Understand what THIS job truly needs (not industry stereotypes)
-2. Check if profile addresses those needs
-3. **CHECK if questions are already answered in PREVIOUS ANSWERS**
-4. Generate SPECIFIC questions for gaps ONLY if not already answered
-5. Keep questions in {language}
-6. Max 5 questions, prioritize most important
-
-Return JSON.`]
+Return JSON with questions array (can be empty).`]
   ]);
 
   try {
@@ -312,13 +232,6 @@ Return JSON.`]
       workExperience: input.userProfile.workExperience || "Not specified",
       education: input.userProfile.education || "Not specified",
       skills: input.userProfile.skills || "Not specified",
-      workingStyle: input.userProfile.workingStyle || "Not specified",
-      problemSolving: input.userProfile.problemSolving || "Not specified",
-      uniqueStrength: input.userProfile.uniqueStrength || "Not specified",
-      careerGoals: input.userProfile.careerGoals || "Not specified",
-      bestProjectExample: input.userProfile.bestProjectExample || "Not specified",
-      failureLesson: input.userProfile.failureLesson || "Not specified",
-      personalNotes: input.userProfile.personalNotes || "Not specified",
     });
 
     const result = await model.invoke(formatted);
@@ -331,50 +244,45 @@ Return JSON.`]
 
     const analysis: QuestionAnalysisResult = JSON.parse(jsonMatch[0]);
     
-    // ✅ 3. SUODATA POIS KYSYMYKSET JOIHIN ON JO VASTATTU
-    // (Varmistus, jos AI ei huomannut)
-    if (analysis.questions && previousResponses.length > 0) {
+    // ✅ KRIITTINEN TURVA: Varmista että questions on AINA array
+    if (!Array.isArray(analysis.questions)) {
+      console.warn('⚠️ AI returned non-array questions, fixing...');
+      analysis.questions = [];
+    }
+    
+    // ✅ Suodata pois jo vastatut
+    if (analysis.questions.length > 0 && previousResponses.length > 0) {
       const originalCount = analysis.questions.length;
       
       analysis.questions = analysis.questions.filter(q => {
         const existing = hasExistingAnswer(q.question, previousResponses);
-        
         if (existing.found) {
-          console.log(`⏭️ Skipping already answered question: "${q.question}"`);
-          console.log(`   → Original answer: "${existing.answer?.substring(0, 50)}..."`);
+          console.log(`⏭️ Skipping already answered: "${q.question}"`);
           return false;
         }
-        
         return true;
       });
       
-      const filteredCount = analysis.questions.length;
-      console.log(`📝 Questions: ${originalCount} → ${filteredCount} (after filtering)`);
+      console.log(`📝 Questions: ${originalCount} → ${analysis.questions.length}`);
     }
     
-    console.log(`🤔 Flexible Analysis:`);
-    console.log(`   Should ask: ${analysis.shouldAskQuestions}`);
-    console.log(`   Can generate anyway: ${analysis.canGenerateWithoutQuestions}`);
-    console.log(`   Questions: ${analysis.questions.length}`);
-    console.log(`   Confidence: ${analysis.confidence}%`);
+    console.log(`🤔 Analysis complete: ${analysis.questions.length} questions`);
     
     return analysis;
   } catch (error) {
     console.error('Question analysis failed:', error);
     
+    // ✅ FALLBACK: Palauta AINA validin rakenteen
     return {
       shouldAskQuestions: false,
       canGenerateWithoutQuestions: true,
       confidence: 70,
-      questions: [],
+      questions: [], // ✅ AINA ARRAY
       reasoning: 'Analysis failed, proceeding with available data'
     };
   }
 }
 
-/**
- * ✅ YHDISTÄ VASTAUKSET PROFIILIIN
- */
 export function mergeAnswersToProfile(
   originalProfile: any,
   questionAnswers: Record<string, string>
