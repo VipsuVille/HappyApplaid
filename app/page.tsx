@@ -447,7 +447,7 @@ if (!isSignedIn) {
               </div>
               
               <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">
-                {language === "en" ? "Your Digital Twin." : "Sinun Digitaalinen Kaksosesi."}
+                {language === "en" ? "Your Digital Tqweqweqwewin." : "Sinun Digitaalinen Kaksosesi."}
               </h2>
               
               <p className="text-lg md:text-xl text-gray-300 mb-8">
