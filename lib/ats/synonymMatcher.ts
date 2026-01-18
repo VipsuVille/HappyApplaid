@@ -131,6 +131,9 @@ keyword: escapeTemplateString(keyword),
 /**
  * ✅ ANALYSOI USEITA AVAINSANOJA
  */
+/**
+ * ✅ ANALYSOI USEITA AVAINSANOJA (Suojattu versio)
+ */
 export async function analyzeKeywordsUniversal(
   keywords: string[],
   coverLetterText: string,
@@ -151,31 +154,34 @@ export async function analyzeKeywordsUniversal(
     missing: number;
   };
 }> {
-  console.log(`🔍 Analyzing ${keywords.length} keywords with AI...`);
+  // Lisätään loki, jotta näet Vercelin streamissa, että uusi koodi on ajossa
+  console.log(`🔍 ATS_ANALYSIS_V3: Analyzing ${keywords.length} keywords...`);
   
+  // 1. Haetaan kaikki matchit rinnakkain
   const matches = await Promise.all(
     keywords.map(keyword => 
       findKeywordUniversal(keyword, coverLetterText, jobDescription, language)
     )
   );
   
-  // 4. Analysoi matchit TURVALLISESTI
-  // Suodatetaan ensin pois mahdolliset epäonnistuneet matchit (null/undefined)
+  // 2. KRIITTINEN SUOJAUS: Suodatetaan pois mahdolliset null/undefined vastaukset
+  // Tämä estää "Cannot read properties of undefined (reading 'filter')" -virheen
   const safeMatches = (matches || []).filter(m => m !== null && m !== undefined);
   
+  // 3. Lajitellaan tulokset tyypeittäin (käyttäen safeMatches-taulukkoa)
   const exactMatches = safeMatches.filter(m => m.matchType === 'exact');
   const synonymMatches = safeMatches.filter(m => m.matchType === 'synonym');
   const relatedMatches = safeMatches.filter(m => m.matchType === 'related');
   const partialMatches = safeMatches.filter(m => m.matchType === 'partial');
   const missing = safeMatches.filter(m => m.matchType === 'none');
   
-  // Lasketaan pisteet varmistaen, ettei jaeta nollalla
+  // 4. Lasketaan kokonaispisteet turvallisesti
   const totalConfidence = safeMatches.reduce((sum, m) => sum + (m.confidence || 0), 0);
   const overallScore = keywords.length > 0 
     ? Math.round((totalConfidence / keywords.length) * 100)
     : 0;
   
-  console.log(`✅ Analysis complete: ${overallScore}% match`);
+  console.log(`✅ ATS Analysis complete: ${overallScore}% match (${safeMatches.length}/${keywords.length} processed)`);
   
   return {
     exactMatches,
@@ -193,7 +199,6 @@ export async function analyzeKeywordsUniversal(
     }
   };
 }
-
 /**
  * ✅ USER-FRIENDLY SELITYS
  */
