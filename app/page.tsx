@@ -308,7 +308,7 @@ if (!isSignedIn) {
               <div className="inline-flex items-center gap-2 px-6 py-3 bg-black/40 backdrop-blur-md rounded-full border border-orange-400/30 shadow-xl mb-6">
                 <Sparkles className="w-6 h-6 text-orange-400" />
                 <span className="font-bold text-orange-300">
-                  {language === "en" ? "Your Digital Twin" : "Digitaalinen Kaksosesi"}
+                  {language === "en" ? "Your Digital Trrrwin" : "Digitaalinen Kaksosesi"}
                 </span>
               </div>
 
