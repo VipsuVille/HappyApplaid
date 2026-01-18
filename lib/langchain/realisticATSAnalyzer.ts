@@ -191,12 +191,13 @@ export async function analyzeRealisticATSUniversal(
     coverLang.language
   ) as UniversalAnalysisResult;
 
-  const exactMatches = analysis.exactMatches.map(m => m.keyword);
-  const synonymMatches = analysis.synonymMatches.map(m => m.keyword);
-  const relatedMatches = analysis.relatedMatches.map(m => m.keyword);
-  const missingCritical = analysis.missing.map(m => m.keyword);
+// ✅ KORJATTU: Lisätty fallbackit tyhjille taulukoille
+  const exactMatches = (analysis?.exactMatches || []).map(m => m?.keyword).filter(Boolean);
+  const synonymMatches = (analysis?.synonymMatches || []).map(m => m?.keyword).filter(Boolean);
+  const relatedMatches = (analysis?.relatedMatches || []).map(m => m?.keyword).filter(Boolean);
+  const missingCritical = (analysis?.missing || []).map(m => m?.keyword).filter(Boolean);
 
-  const score = analysis.overallScore;
+  const score = analysis?.overallScore || 0;
 
   // 5. Varoitusviesti
   let warningMessage: string | undefined;

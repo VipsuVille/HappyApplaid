@@ -159,15 +159,20 @@ export async function analyzeKeywordsUniversal(
     )
   );
   
-  const exactMatches = matches.filter(m => m.matchType === 'exact');
-  const synonymMatches = matches.filter(m => m.matchType === 'synonym');
-  const relatedMatches = matches.filter(m => m.matchType === 'related');
-  const partialMatches = matches.filter(m => m.matchType === 'partial');
-  const missing = matches.filter(m => m.matchType === 'none');
+  // 4. Analysoi matchit TURVALLISESTI
+  // Suodatetaan ensin pois mahdolliset epäonnistuneet matchit (null/undefined)
+  const safeMatches = (matches || []).filter(m => m !== null && m !== undefined);
   
-  const totalConfidence = matches.reduce((sum, m) => sum + m.confidence, 0);
-  const overallScore = matches.length > 0 
-    ? Math.round((totalConfidence / matches.length) * 100)
+  const exactMatches = safeMatches.filter(m => m.matchType === 'exact');
+  const synonymMatches = safeMatches.filter(m => m.matchType === 'synonym');
+  const relatedMatches = safeMatches.filter(m => m.matchType === 'related');
+  const partialMatches = safeMatches.filter(m => m.matchType === 'partial');
+  const missing = safeMatches.filter(m => m.matchType === 'none');
+  
+  // Lasketaan pisteet varmistaen, ettei jaeta nollalla
+  const totalConfidence = safeMatches.reduce((sum, m) => sum + (m.confidence || 0), 0);
+  const overallScore = keywords.length > 0 
+    ? Math.round((totalConfidence / keywords.length) * 100)
     : 0;
   
   console.log(`✅ Analysis complete: ${overallScore}% match`);
