@@ -1,5 +1,8 @@
 // lib/langchain/coverLetterGeneratorV2.ts - FINAL WITH SMARTANALYSIS
 
+const FORCE_REBUILD = 'v20250119_0002';
+
+
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";

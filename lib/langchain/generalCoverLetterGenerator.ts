@@ -1,4 +1,6 @@
 // lib/langchain/generalCoverLetterGenerator.ts - FINAL CORRECTED
+// 🔥 FORCE NEW CHUNK HASH
+const FORCE_REBUILD = 'v20250119_0001';
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -81,7 +83,7 @@ import { BUILD_ID } from '@/lib/buildId';
 const VERSION = `NUCLEAR-${BUILD_ID}-GENERAL`;
 console.log(`🔥 GENERAL VERSION: ${VERSION}`);
 
-export async function generateGeneralCoverLetter(
+  export async function generateGeneralCoverLetter(
   input: GeneralCoverLetterInput
 ): Promise<GeneralCoverLetterResult> {
   console.log(`🚀 Starting ${VERSION}`);
