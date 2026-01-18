@@ -76,10 +76,15 @@ export interface GeneralCoverLetterResult {
 // ═══════════════════════════════════════════════════════════════
 // MAIN GENERATOR
 // ═══════════════════════════════════════════════════════════════
+import { BUILD_ID } from '@/lib/buildId';
+
+const VERSION = `NUCLEAR-${BUILD_ID}-GENERAL`;
+console.log(`🔥 GENERAL VERSION: ${VERSION}`);
 
 export async function generateGeneralCoverLetter(
   input: GeneralCoverLetterInput
 ): Promise<GeneralCoverLetterResult> {
+  console.log(`🚀 Starting ${VERSION}`);
 
   console.log("🎯 Generating GENERAL cover letter");
 

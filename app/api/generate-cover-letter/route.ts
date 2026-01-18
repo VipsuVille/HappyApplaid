@@ -12,6 +12,7 @@ import { PRICING } from "@/lib/pricing";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
+  import { BUILD_ID } from '@/lib/buildId';
 
 // ════════════════════════════════════════════════════════════════
 // HELPERS
@@ -41,8 +42,15 @@ export async function POST(req: Request) {
   // 🔍 VERSION TRACKER - DO NOT REMOVE
   const ROUTE_VERSION = '2025-01-17-DEFENSIVE-V3';
   console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
+
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🔥 NUCLEAR BUILD:', BUILD_ID);
+  console.log('🔥 TIME:', new Date().toISOString());
+  console.log('═══════════════════════════════════════════════════');
   
   const authData = await auth();
+
+
   const userId = authData.userId;
 
   if (!userId) {
