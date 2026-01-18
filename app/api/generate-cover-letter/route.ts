@@ -1,189 +1,93 @@
-// app/api/generate-cover-letter/route.ts - FINAL CORRECTED VERSION
-// 🔍 DEBUG: Tarkista mikä import kaataa
-console.log('🔍 [1/10] Route module loading...');
-
+// app/api/generate-cover-letter/route.ts
 import { NextResponse } from "next/server";
-console.log('✅ [2/10] NextResponse imported');
-
 import { auth } from "@clerk/nextjs/server";
-console.log('✅ [3/10] Clerk auth imported');
-
 import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGeneratorV2";
-console.log('✅ [4/10] V2 generator imported');
-
 import { generateCoverLetterV1 } from "@/lib/langchain/coverLetterGenerator";
-console.log('✅ [5/10] V1 generator imported');
-
 import { generateGeneralCoverLetter } from "@/lib/langchain/generalCoverLetterGenerator";
-console.log('✅ [6/10] General generator imported');
-
 import { supabaseAdmin } from "@/lib/supabase";
-console.log('✅ [7/10] Supabase imported');
-
 import { convertProfileToApiFormat } from "@/types";
-console.log('✅ [8/10] Types imported');
-
 import { extractGroundTruthAI, masterConsistencyCheckAI } from "@/lib/ats/masterGuardian";
-console.log('✅ [9/10] Guardian imported');
-
 import { PRICING } from "@/lib/pricing";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
-console.log('✅ [10/10] ALL IMPORTS OK');
-  import { BUILD_ID } from '@/lib/buildId';
 
-// ════════════════════════════════════════════════════════════════
-// HELPERS
-// ════════════════════════════════════════════════════════════════
-// app/api/generate-cover-letter/route.ts
+// 🔥 PAKOTA REBUILD JA UUSI CHUNK HASH
+const BUILD_VERSION = "2025-01-19-01-00-FINAL-STABLE";
 
-
-
+// --- HELPERS ---
 
 function extractJobTitleFromDescription(jobDescription: string): string {
   if (!jobDescription) return "Hakukirje";
-  const firstLine = jobDescription.split('\n')[0].trim();
-  if (firstLine.length < 10) {
-    const firstTwoLines = jobDescription.split('\n').slice(0, 2).join(' ').trim();
-    return firstTwoLines.substring(0, 80).trim() || "Hakukirje";
-  }
-  return firstLine.substring(0, 80).trim();
+  const lines = jobDescription.split('\n').filter(l => l.trim().length > 0);
+  if (lines.length === 0) return "Hakukirje";
+  return lines[0].substring(0, 80).trim();
 }
 
 function generateTitle(input: { name: string; targetRole?: string; targetIndustry?: string }): string {
-  if (input.targetRole) return `${input.name} - ${input.targetRole} Esittely`;
-  if (input.targetIndustry) return `${input.name} - ${input.targetIndustry} Ammattilainen`;
-  return `${input.name} - Ammatillinen Esittely`;
+  if (input.targetRole) return `${input.name} - ${input.targetRole}`;
+  if (input.targetIndustry) return `${input.name} - ${input.targetIndustry}`;
+  return `${input.name} - Hakukirje`;
 }
 
-// ════════════════════════════════════════════════════════════════
-// MAIN ROUTE
-// ════════════════════════════════════════════════════════════════
+// --- MAIN ROUTE ---
 
 export async function POST(req: Request) {
-  // 🔍 VERSION TRACKER - DO NOT REMOVE
-    const ROUTE_VERSION = '2025-01-18-20-30-DEBUG';
-  console.log('═══════════════════════════════════════════════════');
-  console.log('🔥 POST FUNCTION STARTED');
-  console.log('🔥 ROUTE VERSION:', ROUTE_VERSION);
-  console.log('🔥 TIME:', new Date().toISOString());
-  console.log('═══════════════════════════════════════════════════');
-
-  console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
-
-  console.log('═══════════════════════════════════════════════════');
-  console.log('🔥 NUCLEAR BUILD:', BUILD_ID);
-  console.log('🔥 TIME:', new Date().toISOString());
-  console.log('═══════════════════════════════════════════════════');
+  console.log(`🚀 [${BUILD_VERSION}] POST Request started`);
   
   const authData = await auth();
-
-
   const userId = authData.userId;
 
   if (!userId) {
-    console.error('❌ No userId from auth()');
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log(`✅ Auth OK: ${userId}`);
-
   try {
     const requestData = await req.json();
-    
     const {
       profileData,
       jobDescription,
       personalNotes,
-      language,
-      style,
+      language = "finnish",
+      style = "formal",
       letterType,
       letterVersion,
       targetIndustry,
       targetRole,
+      skipQuestions = false
     } = requestData;
 
-    // ✅ 1. DETERMINE ACTION
-    let action: TokenAction;
-    
-    if (letterType === 'general') {
-      action = 'cover_letter_general';
-    } else {
-      if (letterVersion === 'v2') {
-        action = 'cover_letter_v2';
-      } else {
-        action = 'cover_letter_v1';
-      }
-    }
+    // 1. Määritä Action & Tier
+    let action: TokenAction = letterType === 'general' ? 'cover_letter_general' : (letterVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1');
 
-    console.log(`📝 Cover Letter Request:`, {
-      userId,
-      letterType,
-      letterVersion: letterType === 'job_specific' ? letterVersion : 'N/A',
-      action,
-      hasJobDescription: !!jobDescription
-    });
-
-    // ✅ 2. GET SUBSCRIPTION
-    const { data: subscription, error: subError } = await supabaseAdmin
+    const { data: subscription } = await supabaseAdmin
       .from('subscriptions')
       .select('plan_type, tokens, status, is_active')
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (subError || !subscription) {
-      return NextResponse.json(
-        { error: 'SUBSCRIPTION_REQUIRED', message: 'Tilaus vaaditaan' },
-        { status: 403 }
-      );
+    if (!subscription) {
+      return NextResponse.json({ error: 'SUBSCRIPTION_REQUIRED' }, { status: 403 });
     }
 
-    const tier = subscription.plan_type as 'free' | 'basic' | 'premium';
-    const isActive = subscription.is_active === true && 
-                     ['active', 'trialing'].includes(subscription.status || '');
+    const tier = (subscription.plan_type as 'free' | 'basic' | 'premium') || 'free';
+    const isActive = subscription.is_active === true;
 
-    // ✅ 3. FREE TIER CHECK
+    // 2. Free Tier Tarkistus
     if (tier === 'free') {
-      console.log('🆓 Free tier user - checking usage...');
       const freeStatus = await checkFreeUsage(userId, 'cover_letter');
-      
       if (!freeStatus.canUse) {
-        console.error(`❌ Free cover letter not available: ${freeStatus.reason}`);
-        return NextResponse.json({
-          error: freeStatus.reason,
-          message: 'Ilmainen hakukirje on jo käytetty',
-          hasUsedCV: freeStatus.hasUsedCV,
-          hasUsedCoverLetter: freeStatus.hasUsedCoverLetter,
-        }, { status: 403 });
+        return NextResponse.json({ error: freeStatus.reason, message: 'Ilmainen kokeilu käytetty' }, { status: 403 });
       }
     }
 
-    // ✅ 4. TOKEN VALIDATION
-    const required = ACTION_COSTS[tier]?.[action];
-
-    if (required === undefined) {
-      return NextResponse.json({
-        error: 'ACTION_NOT_ALLOWED',
-        message: `${action} vaatii korkeamman tason`,
-        currentTier: tier
-      }, { status: 403 });
-    }
-
+    // 3. Token Tarkistus
+    const required = ACTION_COSTS[tier]?.[action] || 0;
     if (tier !== 'free' && isActive && subscription.tokens < required) {
-      return NextResponse.json({
-        error: 'NOT_ENOUGH_TOKENS',
-        message: `Tarvitaan ${required} tokenia`,
-        tokensRequired: required,
-        tokensAvailable: subscription.tokens
-      }, { status: 403 });
+      return NextResponse.json({ error: 'NOT_ENOUGH_TOKENS', required }, { status: 403 });
     }
 
-    console.log(`✅ Token check passed: ${tier} tier, ${required} tokens`);
-
-    // ✅ 5. PREPARE INPUT
-    const tierFeatures = PRICING[tier].featureFlags;
-
+    // 4. Hae Profiili ja Ground Truth
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
@@ -191,254 +95,116 @@ export async function POST(req: Request) {
       .single();
 
     const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
-    console.log(`🛡️ Ground Truth extracted`);
 
-    // ✅ 6. ROUTE BASED ON letterType
+    // 5. Generointi (Suojattu)
     let coverLetterData: any;
     let extractedTitle: string;
-    let guardianCheck: any;
-    let atsAnalysis: any = null;
 
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // A) GENERAL LETTER
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
+    const commonInput = {
+      ...requestData,
+      userId,
+      name: profileData?.name || userProfile?.name,
+      email: profileData?.email || userProfile?.email,
+      phone: profileData?.phone || userProfile?.phone,
+      education: profileData ? convertProfileToApiFormat(profileData).education : userProfile?.education,
+      workExperience: profileData ? convertProfileToApiFormat(profileData).workExperience : userProfile?.workExperience,
+      skills: profileData?.skills || userProfile?.skills,
+      allowedSkills: groundTruth.technicalSkills,
+      forbiddenClaims: groundTruth.cannotClaim,
+      skipQuestions: skipQuestions
+    };
+
     if (letterType === 'general') {
-      console.log('📝 Generating GENERAL cover letter...');
-      
-      const generalInput = {
-        name: profileData?.name || requestData.name,
-        email: profileData?.email || requestData.email,
-        phone: profileData?.phone || requestData.phone,
-        jobTitle: profileData?.jobTitle,
-        education: profileData 
-          ? convertProfileToApiFormat(profileData).education 
-          : requestData.education,
-        workExperience: profileData 
-          ? convertProfileToApiFormat(profileData).workExperience 
-          : requestData.workExperience,
-        skills: profileData?.skills || requestData.skills,
-        language: language || "finnish",
-        style: style || "formal",
-        workingStyle: profileData?.workingStyle,
-        problemSolving: profileData?.problemSolving,
-        energySources: profileData?.energySources,
-        uniqueStrength: profileData?.uniqueStrength,
-        learningStyle: profileData?.learningStyle,
-        teamRole: profileData?.teamRole,
-        valuesExample: profileData?.valuesExample,
-        superpower: profileData?.superpower,
-        careerGoals: profileData?.careerGoals,
-        bestProjectExample: profileData?.bestProjectExample,
-        failureLesson: profileData?.failureLesson,
-        targetIndustry: targetIndustry || undefined,
-        targetRole: targetRole || undefined,
-        
-        // 🚧 RAG COMING SOON - placeholder for future
-        enableRAG: false, // ✅ ALWAYS FALSE until frontend enables it
-        allowedSkills: groundTruth.technicalSkills,
-        forbiddenClaims: groundTruth.cannotClaim,
-        userId: userId,
-        skipQuestions: false, // ✅ Enable smart questions for general letters
-      };
-
-      coverLetterData = await generateGeneralCoverLetter(generalInput);
-
-      guardianCheck = await masterConsistencyCheckAI(
-        coverLetterData.content,
-        groundTruth,
-        'generation'
-      );
-
-      if (guardianCheck.riskLevel === 'danger') {
-        console.error('🚨 GUARDIAN REJECTED');
-        return NextResponse.json({
-          error: 'CONSISTENCY_VIOLATION',
-          message: 'Sisältö ei täytä laatuvaatimuksia',
-          violations: guardianCheck.violations,
-        }, { status: 400 });
-      }
-
-      extractedTitle = generateTitle({
-        name: generalInput.name,
-        targetRole,
-        targetIndustry
-      });
-    }
-
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // B) JOB-SPECIFIC LETTER
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    
-    else {
-      if (!jobDescription) {
-        return NextResponse.json({ error: "Job description required" }, { status: 400 });
-      }
-
-      console.log(`📝 Generating ${letterVersion === 'v2' ? 'V2 ATS' : 'V1'} cover letter...`);
-
-      const jobInput = {
-        jobDescription,
-        personalNotes,
-        language: language || "finnish",
-        style: style || "formal",
-        name: profileData?.name || requestData.name,
-        email: profileData?.email || requestData.email,
-        phone: profileData?.phone || requestData.phone,
-        education: profileData 
-          ? convertProfileToApiFormat(profileData).education 
-          : requestData.education,
-        workExperience: profileData 
-          ? convertProfileToApiFormat(profileData).workExperience 
-          : requestData.workExperience,
-        skills: profileData?.skills || requestData.skills,
-        workingStyle: profileData?.workingStyle,
-        problemSolving: profileData?.problemSolving,
-        energySources: profileData?.energySources,
-        uniqueStrength: profileData?.uniqueStrength,
-        learningStyle: profileData?.learningStyle,
-        teamRole: profileData?.teamRole,
-        valuesExample: profileData?.valuesExample,
-        superpower: profileData?.superpower,
-        careerGoals: profileData?.careerGoals,
-        bestProjectExample: profileData?.bestProjectExample,
-        failureLesson: profileData?.failureLesson,
-        userId: userId,
-        skipQuestions: false, // ✅ Enable smart questions
-      };
-
-      // Generate
-      if (letterVersion === 'v2') {
-        coverLetterData = await generateCoherentCoverLetter(jobInput);
-      } else {
-        coverLetterData = await generateCoverLetterV1(jobInput);
-      }
-
-      // Guardian
-      guardianCheck = await masterConsistencyCheckAI(
-        coverLetterData.content || coverLetterData.fullText,
-        groundTruth,
-        'generation'
-      );
-
-      if (guardianCheck.riskLevel === 'danger') {
-        console.error('🚨 GUARDIAN REJECTED');
-        return NextResponse.json({
-          error: 'CONSISTENCY_VIOLATION',
-          violations: guardianCheck.violations,
-        }, { status: 400 });
-      }
-
-      // ATS Analysis (V2 only)
-      if (letterVersion === 'v2') {
-        const atsDetection = await detectATSUsageAI(jobDescription);
-        if (atsDetection.usesATS) {
-          console.log('📊 Running ATS analysis...');
-          atsAnalysis = await analyzeRealisticATSUniversal(
-            coverLetterData.content || coverLetterData.fullText,
-            jobDescription
-          );
-        }
-      }
-
+      coverLetterData = await generateGeneralCoverLetter(commonInput);
+      extractedTitle = generateTitle({ name: commonInput.name, targetRole, targetIndustry });
+    } else {
+      if (!jobDescription) throw new Error("Job description missing");
+      coverLetterData = letterVersion === 'v2' 
+        ? await generateCoherentCoverLetter(commonInput)
+        : await generateCoverLetterV1(commonInput);
       extractedTitle = extractJobTitleFromDescription(jobDescription);
     }
 
-    // ✅ 7. SAVE TO DB
+    // 🔥 KRIITTINEN KORJAUS: Varmista että questions on AINA array ennen käsittelyä
+    const safeQuestions = Array.isArray(coverLetterData?.questions) ? coverLetterData.questions : [];
+
+    // 6. Jos AI tarvitsee lisätietoja
+    if (safeQuestions.length > 0 && !skipQuestions) {
+      console.log(`❓ Returning ${safeQuestions.length} questions to user`);
+      return NextResponse.json({
+        success: true,
+        needsMoreInfo: true,
+        questions: safeQuestions,
+        title: extractedTitle
+      });
+    }
+
+    // 7. Sisällön validointi
+    const finalContent = coverLetterData.content || coverLetterData.fullText;
+    if (!finalContent) throw new Error("AI failed to generate content");
+
+    // 8. Guardian & ATS
+    const guardianCheck = await masterConsistencyCheckAI(finalContent, groundTruth, 'generation');
+    if (guardianCheck.riskLevel === 'danger') {
+      return NextResponse.json({ error: 'CONSISTENCY_VIOLATION', violations: guardianCheck.violations }, { status: 400 });
+    }
+
+    let atsAnalysis = null;
+    if (letterVersion === 'v2' && jobDescription) {
+      const atsDetection = await detectATSUsageAI(jobDescription);
+      if (atsDetection.usesATS) {
+        atsAnalysis = await analyzeRealisticATSUniversal(finalContent, jobDescription);
+      }
+    }
+
+    // 9. Tallennus
     const { data: coverLetter, error: insertError } = await supabaseAdmin
       .from("cover_letters")
       .insert({
         user_id: userId,
         title: extractedTitle,
-        language: language || 'finnish',
+        language,
         content: {
-          job_description: jobDescription || null,
-          cover_letter_content: coverLetterData.content || coverLetterData.fullText,
+          cover_letter_content: finalContent,
           signature: coverLetterData.signature,
-          body: coverLetterData.content || coverLetterData.fullText,
-          applicant_info: profileData ? {
-            name: profileData.name,
-            email: profileData.email,
-            phone: profileData.phone,
-            ...(profileData.personalityTraits && {
-              personalityTraits: profileData.personalityTraits
-            })
-          } : null
+          body: finalContent,
+          applicant_info: { name: commonInput.name, email: commonInput.email }
         },
         ai_data: {
-          html: { content: coverLetterData.content || coverLetterData.fullText },
-          styles: { main_style: 'font-family: "Merriweather", serif; line-height: 1.7;' },
           tier,
-          cost_per_letter: required,
-          ground_truth: groundTruth,
-          guardian_check: {
-            approved: guardianCheck.approved,
-            riskLevel: guardianCheck.riskLevel,
-            violations: guardianCheck.violations,
-            timestamp: new Date().toISOString()
-          },
           letter_type: letterType,
-          ...(atsAnalysis && { ats_analysis: atsAnalysis }),
-          generation_params: {
-            style: style || 'formal',
-            language: language || 'finnish',
-            tier,
-            generator_version: letterType === 'general' ? 'general-v1' : letterVersion
-          }
+          guardian_check: guardianCheck,
+          ats_analysis: atsAnalysis,
+          generator_version: letterType === 'general' ? 'general-v1' : letterVersion
         }
       })
-      .select()
-      .single();
+      .select().single();
 
-    if (insertError || !coverLetter) {
-      console.error('❌ Insert error:', insertError);
-      throw insertError;
-    }
+    if (insertError) throw insertError;
 
-    console.log(`✅ Cover letter saved: ${coverLetter.id}`);
-
-    // ✅ 8. CONSUME TOKENS
+    // 10. Tokenien kulutus
     if (tier === 'free') {
       await consumeFreeUsage(userId, 'cover_letter');
     } else if (isActive && required > 0) {
       await supabaseAdmin
         .from('subscriptions')
-        .update({
-          tokens: subscription.tokens - required,
-          updated_at: new Date().toISOString()
-        })
+        .update({ tokens: subscription.tokens - required })
         .eq('user_id', userId);
     }
 
-    // ✅ 9. SUCCESS RESPONSE
     return NextResponse.json({
       success: true,
       coverLetterId: coverLetter.id,
       title: extractedTitle,
-      tier,
       tokensUsed: required,
-      tokensRemaining: tier !== 'free' ? subscription.tokens - required : 0,
-      features: {
-        v1: tierFeatures.canUseV1,
-        v2: tierFeatures.canUseV2,
-        rag: false, // 🚧 Coming soon
-      },
-      guardianCheck: {
-        approved: guardianCheck.approved,
-        riskLevel: guardianCheck.riskLevel,
-      },
-      ...(atsAnalysis && {
-        atsResults: {
-          detected: true,
-          score: atsAnalysis.score || 0,
-        }
-      }),
+      atsResults: atsAnalysis ? { detected: true, score: atsAnalysis.score } : { detected: false }
     });
 
-  } catch (error) {
-    console.error("❌ Error generating cover letter:", error);
+  } catch (error: any) {
+    console.error("❌ CRITICAL ROUTE ERROR:", error);
     return NextResponse.json({
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: error.message || "Internal Server Error",
+      details: "Check server logs for Filter-error tracing"
     }, { status: 500 });
   }
 }
