@@ -200,11 +200,11 @@ export async function POST(req: Request) {
       atsResults: atsAnalysis ? { detected: true, score: atsAnalysis.score } : { detected: false }
     });
 
-  } catch (error: any) {
-    console.error("❌ CRITICAL ROUTE ERROR:", error);
-    return NextResponse.json({
-      error: error.message || "Internal Server Error",
-      details: "Check server logs for Filter-error tracing"
-    }, { status: 500 });
-  }
+} catch (error: any) {
+  console.error("❌ CRITICAL ROUTE ERROR:", error);
+  return NextResponse.json({
+    error: error.message || "Internal Server Error",
+    questions: [], // ✅ Lisätty tyhjä taulukko estämään frontendin .filter() kaatuminen
+    details: "Check server logs for Filter-error tracing"
+  }, { status: 500 });
 }

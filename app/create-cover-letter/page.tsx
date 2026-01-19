@@ -247,12 +247,12 @@ const handleGenerateLetter = async () => {
     }
 
     // ✅ KÄSITTELE KYSYMYKSET
-    if (result.needsMoreInfo && result.questions) {
-      console.log('❓ AI needs clarification:', result.questions);
-      // TODO: Näytä kysymysmodaali
-      toast.info('AI tarvitsee lisätietoja');
-      return;
-    }
+if (result?.needsMoreInfo && Array.isArray(result?.questions)) {
+  const criticalQuestions = result.questions.filter((q: any) => q?.priority === "critical");
+  console.log('❓ AI needs clarification:', criticalQuestions);
+  toast.info('AI tarvitsee lisätietoja');
+  return;
+}
 
     // ✅ SUCCESS
     toast.success(t.success);
