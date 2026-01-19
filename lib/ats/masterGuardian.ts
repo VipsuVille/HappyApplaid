@@ -338,39 +338,37 @@ export async function masterGuardianValidatorV2(
 ): Promise<GuardianCheckResult> {
   
   if (!groundTruth) {
-    console.warn('⚠️ Guardian: No ground truth, approving with warning');
     return {
       approved: true,
       riskLevel: 'safe',
-      violations: {},
-      recommendation: 'No ground truth available - manual review recommended',
+      violations: { fabricatedSkills: [], fabricatedEducation: [], fabricatedExperience: [] },
+      recommendation: 'No ground truth available',
       flags: ['no_ground_truth']
     };
   }
   
   if (!generatedContent || generatedContent.trim().length < 50) {
-    console.warn('⚠️ Guardian: Content too short, approving');
     return {
       approved: true,
       riskLevel: 'safe',
-      violations: {},
-      recommendation: 'Content too short to validate',
+      violations: { fabricatedSkills: [], fabricatedEducation: [], fabricatedExperience: [] },
+      recommendation: 'Content too short',
       flags: ['short_content']
     };
   }
   
   const safeGroundTruth: GroundTruth = {
-    technicalSkills: groundTruth.technicalSkills || [],
-    softSkills: groundTruth.softSkills || [],
-    education: groundTruth.education || [],
-    certifications: groundTruth.certifications || [],
-    workHistory: groundTruth.workHistory || [],
-    achievements: groundTruth.achievements || [],
-    cannotClaim: groundTruth.cannotClaim || [],
-    personalityTraits: groundTruth.personalityTraits || [],
+    technicalSkills: Array.isArray(groundTruth.technicalSkills) ? groundTruth.technicalSkills : [],
+    softSkills: Array.isArray(groundTruth.softSkills) ? groundTruth.softSkills : [],
+    education: Array.isArray(groundTruth.education) ? groundTruth.education : [],
+    certifications: Array.isArray(groundTruth.certifications) ? groundTruth.certifications : [],
+    workHistory: Array.isArray(groundTruth.workHistory) ? groundTruth.workHistory : [],
+    achievements: Array.isArray(groundTruth.achievements) ? groundTruth.achievements : [],
+    cannotClaim: Array.isArray(groundTruth.cannotClaim) ? groundTruth.cannotClaim : [],
+    personalityTraits: Array.isArray(groundTruth.personalityTraits) ? groundTruth.personalityTraits : [],
     careerLevel: groundTruth.careerLevel || 'mid',
     yearsOfExperience: groundTruth.yearsOfExperience || 0,
-    approvedViolations: groundTruth.approvedViolations
+    approvedViolations: groundTruth.approvedViolations || { skills: [], education: [], experience: [] }
   };
 
   try {
@@ -380,141 +378,64 @@ export async function masterGuardianValidatorV2(
       temperature: 0.1,
     });
 
-    // ✅ RAKENNA KONTEKSTI HYVÄKSYTYISTÄ JA HYLKÄTYISTÄ
-    const approvedContext = safeGroundTruth.approvedViolations 
-      ? `
+    const approvedContext = `
+**USER HAS PREVIOUSLY APPROVED THESE (DO NOT FLAG):**
+- Skills: ${(safeGroundTruth.approvedViolations?.skills || []).join(', ')}
+- Education: ${(safeGroundTruth.approvedViolations?.education || []).join(', ')}
+- Experience: ${(safeGroundTruth.approvedViolations?.experience || []).join(', ')}`;
 
-**USER HAS PREVIOUSLY APPROVED THESE (✅ SAFE, DO NOT FLAG):**
-- Skills: ${safeGroundTruth.approvedViolations.skills.join(', ') || 'None'}
-- Education: ${safeGroundTruth.approvedViolations.education.join(', ') || 'None'}
-- Experience: ${safeGroundTruth.approvedViolations.experience.join(', ') || 'None'}
-
-IMPORTANT: If content matches approved items above, it is SAFE.
-`
-      : '';
-
-    const rejectedContext = safeGroundTruth.cannotClaim.length > 0
-      ? `
-
-**USER HAS REJECTED THESE (❌ MUST NOT USE):**
-${safeGroundTruth.cannotClaim.join(', ')}
-
-CRITICAL: If any of these appear, mark as DANGER violation.
-`
-      : '';
-
-    const prompt = `You are a CV fact-checker. Check for severe fabrications only.
-
-GROUND TRUTH (verified user data):
-- Technical Skills: ${safeGroundTruth.technicalSkills.join(', ') || 'None listed'}
-- Education: ${safeGroundTruth.education.join(', ') || 'None listed'}
-- Work History: ${safeGroundTruth.workHistory.join('; ') || 'None listed'}
-${approvedContext}
-${rejectedContext}
-
-GENERATED CV CONTENT:
-${generatedContent.substring(0, 2000)}
-
-VALIDATION RULES:
-1. ✅ APPROVE if content contains:
-   - Skills/education/experience from technicalSkills/education/workHistory lists
-   - Skills/education/experience from APPROVED list
-   - Generic qualities (motivated, team player, etc.)
-
-2. ❌ REJECT (danger) if content contains:
-   - Skills NOT in technicalSkills list AND NOT in approved list
-   - Education NOT in education list AND NOT in approved list
-   - Work experience NOT in workHistory AND NOT in approved list
-   - **ANYTHING from the REJECTED list**
-
-3. ⚠️ WARNING if:
-   - Content is vague but not clearly fabricated
-   - Minor embellishments that don't change core facts
-
-Return JSON:
-{
-  "approved": boolean,
-  "riskLevel": "safe" | "warning" | "danger",
-  "violations": {
-    "fabricatedSkills": [],
-    "fabricatedEducation": [],
-    "fabricatedExperience": []
-  },
-  "recommendation": string,
-  "flags": []
-}`;
+    const prompt = `Check for fabrications.
+    GROUND TRUTH: ${JSON.stringify(safeGroundTruth)}
+    ${approvedContext}
+    CONTENT: ${generatedContent.substring(0, 2000)}
+    Return JSON with fields: approved, riskLevel, violations (fabricatedSkills[], fabricatedEducation[], fabricatedExperience[]), recommendation, flags.`;
 
     const result = await model.invoke(prompt);
     const content = getMessageContent(result);
-    
-    const cleaned = content
-      .replace(/```json\s*/g, '')
-      .replace(/```\s*/g, '')
-      .trim();
-    
+    const cleaned = content.replace(/```json\s*|```/g, '').trim();
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON in Guardian response');
 
-    const parsed = JSON.parse(jsonMatch[0]) as GuardianCheckResult;
+    let parsed = JSON.parse(jsonMatch[0]);
 
- // ✅ HARD NORMALIZATION – TÄRKEIN KORJAUS
-    if (!parsed.violations) {
-      parsed.violations = {
-        fabricatedSkills: [],
-        fabricatedEducation: [],
-        fabricatedExperience: []
-      };
-    }
+    // 🔥 KRIITTINEN KORJAUS: Pakota violations-objekti ja sen alalistat olemassaoloon
+    const rawViolations = parsed.violations || {};
+    const finalViolations = {
+      fabricatedSkills: Array.isArray(rawViolations.fabricatedSkills) ? rawViolations.fabricatedSkills : [],
+      fabricatedEducation: Array.isArray(rawViolations.fabricatedEducation) ? rawViolations.fabricatedEducation : [],
+      fabricatedExperience: Array.isArray(rawViolations.fabricatedExperience) ? rawViolations.fabricatedExperience : []
+    };
 
-    // ✅ VARMISTETTU POST-PROCESSING (Tämä kohta aiheutti .filter virheen)
-    if (parsed && safeGroundTruth) {
-      const v = parsed.violations;
-      
-      // Pakotetaan kaikki kentät taulukoiksi, ettei .filter voi epäonnistua
-      const skills = Array.isArray(v.fabricatedSkills) ? v.fabricatedSkills : [];
-      const edu = Array.isArray(v.fabricatedEducation) ? v.fabricatedEducation : [];
-      const exp = Array.isArray(v.fabricatedExperience) ? v.fabricatedExperience : [];
+    const approved = safeGroundTruth.approvedViolations || { skills: [], education: [], experience: [] };
+    const appSkills = Array.isArray(approved.skills) ? approved.skills : [];
+    const appEdu = Array.isArray(approved.education) ? approved.education : [];
+    const appExp = Array.isArray(approved.experience) ? approved.experience : [];
 
-      // Varmistetaan että hyväksytyt listat ovat olemassa
-      const approved = safeGroundTruth.approvedViolations || { skills: [], education: [], experience: [] };
-      const approvedSkills = Array.isArray(approved.skills) ? approved.skills : [];
-      const approvedEdu = Array.isArray(approved.education) ? approved.education : [];
-      const approvedExp = Array.isArray(approved.experience) ? approved.experience : [];
-
-      // Suodatus joka EI VOI epäonnistua
-      parsed.violations.fabricatedSkills = skills.filter(item => {
-        if (!item || typeof item !== 'string') return false;
-        return !approvedSkills.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
-      });
-
-      parsed.violations.fabricatedEducation = edu.filter(item => {
-        if (!item || typeof item !== 'string') return false;
-        return !approvedEdu.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
-      });
-
-      parsed.violations.fabricatedExperience = exp.filter(item => {
-        if (!item || typeof item !== 'string') return false;
-        return !approvedExp.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
-      });
-    }
-
-    console.log(`🛡️ Guardian ${stage}:`, {
-      approved: parsed.approved,
-      risk: parsed.riskLevel,
-      violationsCount: Object.values(parsed.violations || {}).flat().length
-    });
+    // 🔥 TÄMÄ KOHTA EI ENÄÄ VOI OLLA UNDEFINED
+    parsed.violations = {
+      fabricatedSkills: finalViolations.fabricatedSkills.filter((item: any) => {
+        if (typeof item !== 'string') return false;
+        return !appSkills.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
+      }),
+      fabricatedEducation: finalViolations.fabricatedEducation.filter((item: any) => {
+        if (typeof item !== 'string') return false;
+        return !appEdu.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
+      }),
+      fabricatedExperience: finalViolations.fabricatedExperience.filter((item: any) => {
+        if (typeof item !== 'string') return false;
+        return !appExp.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
+      })
+    };
 
     return parsed;
+
   } catch (error) {
     console.error('❌ Guardian check failed:', error);
-    
     return {
       approved: true,
       riskLevel: 'warning',
-      violations: { 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      recommendation: 'Guardian check failed - manual review recommended',
+      violations: { fabricatedSkills: [], fabricatedEducation: [], fabricatedExperience: [] },
+      recommendation: 'Guardian error - manual review recommended',
       flags: ['guardian_error']
     };
   }
