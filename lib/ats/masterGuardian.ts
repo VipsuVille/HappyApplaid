@@ -457,52 +457,54 @@ Return JSON:
 
     const parsed = JSON.parse(jsonMatch[0]) as GuardianCheckResult;
 
-    // ✅ HARD NORMALIZATION – TÄRKEIN KORJAUS
-parsed.violations = parsed.violations ?? {
-  fabricatedSkills: [],
-  fabricatedEducation: [],
-  fabricatedExperience: []
-};
-
-  // ✅ KORJATTU JA VARMISTETTU POST-PROCESSING
-// ✅ Etsi kohta: if (parsed && parsed.violations && safeGroundTruth) {
-if (parsed && safeGroundTruth) {
-    // Pakotetaan violations-objekti ja sen alalistat olemassaoloon
+ // ✅ HARD NORMALIZATION – TÄRKEIN KORJAUS
     if (!parsed.violations) {
-        parsed.violations = { fabricatedSkills: [], fabricatedEducation: [], fabricatedExperience: [] };
+      parsed.violations = {
+        fabricatedSkills: [],
+        fabricatedEducation: [],
+        fabricatedExperience: []
+      };
     }
-    
-    const v = parsed.violations;
-    const skills = Array.isArray(v.fabricatedSkills) ? v.fabricatedSkills : [];
-    const edu = Array.isArray(v.fabricatedEducation) ? v.fabricatedEducation : [];
-    const exp = Array.isArray(v.fabricatedExperience) ? v.fabricatedExperience : [];
 
-    const approved = safeGroundTruth.approvedViolations || { skills: [], education: [], experience: [] };
+    // ✅ VARMISTETTU POST-PROCESSING (Tämä kohta aiheutti .filter virheen)
+    if (parsed && safeGroundTruth) {
+      const v = parsed.violations;
+      
+      // Pakotetaan kaikki kentät taulukoiksi, ettei .filter voi epäonnistua
+      const skills = Array.isArray(v.fabricatedSkills) ? v.fabricatedSkills : [];
+      const edu = Array.isArray(v.fabricatedEducation) ? v.fabricatedEducation : [];
+      const exp = Array.isArray(v.fabricatedExperience) ? v.fabricatedExperience : [];
 
-    // Kirjoitetaan suodatus auki niin, ettei se voi epäonnistua
-    parsed.violations.fabricatedSkills = skills.filter(item => {
+      // Varmistetaan että hyväksytyt listat ovat olemassa
+      const approved = safeGroundTruth.approvedViolations || { skills: [], education: [], experience: [] };
+      const approvedSkills = Array.isArray(approved.skills) ? approved.skills : [];
+      const approvedEdu = Array.isArray(approved.education) ? approved.education : [];
+      const approvedExp = Array.isArray(approved.experience) ? approved.experience : [];
+
+      // Suodatus joka EI VOI epäonnistua
+      parsed.violations.fabricatedSkills = skills.filter(item => {
         if (!item || typeof item !== 'string') return false;
-        return !(approved.skills || []).some(a => a.toLowerCase().includes(item.toLowerCase()));
-    });
+        return !approvedSkills.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
+      });
 
-    parsed.violations.fabricatedEducation = edu.filter(item => {
+      parsed.violations.fabricatedEducation = edu.filter(item => {
         if (!item || typeof item !== 'string') return false;
-        return !(approved.education || []).some(a => a.toLowerCase().includes(item.toLowerCase()));
-    });
+        return !approvedEdu.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
+      });
 
-    parsed.violations.fabricatedExperience = exp.filter(item => {
+      parsed.violations.fabricatedExperience = exp.filter(item => {
         if (!item || typeof item !== 'string') return false;
-        return !(approved.experience || []).some(a => a.toLowerCase().includes(item.toLowerCase()));
-    });
-}
+        return !approvedExp.some(a => a && a.toLowerCase().includes(item.toLowerCase()));
+      });
+    }
+
     console.log(`🛡️ Guardian ${stage}:`, {
       approved: parsed.approved,
       risk: parsed.riskLevel,
-      violations: Object.values(parsed.violations || {}).flat().length
+      violationsCount: Object.values(parsed.violations || {}).flat().length
     });
 
     return parsed;
-
   } catch (error) {
     console.error('❌ Guardian check failed:', error);
     
