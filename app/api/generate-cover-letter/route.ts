@@ -1,4 +1,3 @@
-// app/api/generate-cover-letter/route.ts
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateCoherentCoverLetter } from "@/lib/langchain/coverLetterGeneratorV2";
@@ -7,13 +6,11 @@ import { generateGeneralCoverLetter } from "@/lib/langchain/generalCoverLetterGe
 import { supabaseAdmin } from "@/lib/supabase";
 import { convertProfileToApiFormat } from "@/types";
 import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
-import { PRICING } from "@/lib/pricing";
 import { detectATSUsageAI, analyzeRealisticATSUniversal } from "@/lib/langchain/realisticATSAnalyzer";
 import { ACTION_COSTS, TokenAction } from '@/lib/domain/tokens';
 import { checkFreeUsage, consumeFreeUsage } from "@/lib/domain/freeUsageGuard";
 
-// 🔥 PAKOTA REBUILD JA UUSI CHUNK HASH
-const BUILD_VERSION = "2025-01-19-01-00-FINAL-STABLE";
+const BUILD_VERSION = "2025-01-19-02-00-FIXED";
 
 // --- HELPERS ---
 
@@ -94,16 +91,17 @@ export async function POST(req: Request) {
       .eq('user_id', userId)
       .single();
 
+    // Varmistetaan että extractGroundTruthAI ei kaadu vaikka userProfile puuttuisi
     const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
 
-    // 5. Generointi (Suojattu)
+    // 5. Generointi
     let coverLetterData: any;
     let extractedTitle: string;
 
     const commonInput = {
       ...requestData,
       userId,
-      name: profileData?.name || userProfile?.name,
+      name: profileData?.name || userProfile?.name || "Hakija",
       email: profileData?.email || userProfile?.email,
       phone: profileData?.phone || userProfile?.phone,
       education: profileData ? convertProfileToApiFormat(profileData).education : userProfile?.education,
@@ -118,19 +116,20 @@ export async function POST(req: Request) {
       coverLetterData = await generateGeneralCoverLetter(commonInput);
       extractedTitle = generateTitle({ name: commonInput.name, targetRole, targetIndustry });
     } else {
-      if (!jobDescription) throw new Error("Job description missing");
+      if (!jobDescription) {
+         return NextResponse.json({ error: "Job description missing" }, { status: 400 });
+      }
       coverLetterData = letterVersion === 'v2' 
         ? await generateCoherentCoverLetter(commonInput)
         : await generateCoverLetterV1(commonInput);
       extractedTitle = extractJobTitleFromDescription(jobDescription);
     }
 
-    // 🔥 KRIITTINEN KORJAUS: Varmista että questions on AINA array ennen käsittelyä
+    // Varmista että questions on AINA array
     const safeQuestions = Array.isArray(coverLetterData?.questions) ? coverLetterData.questions : [];
 
     // 6. Jos AI tarvitsee lisätietoja
     if (safeQuestions.length > 0 && !skipQuestions) {
-      console.log(`❓ Returning ${safeQuestions.length} questions to user`);
       return NextResponse.json({
         success: true,
         needsMoreInfo: true,
@@ -145,19 +144,28 @@ export async function POST(req: Request) {
 
     // 8. Guardian & ATS
     const guardianCheck = await masterGuardianValidatorV2(finalContent, groundTruth, 'generation');
+    
+    // Suojaus: Varmista että violations on olemassa objektina
+    const safeViolations = guardianCheck.violations || { 
+        fabricatedSkills: [], 
+        fabricatedEducation: [], 
+        fabricatedExperience: [] 
+    };
+
     if (guardianCheck.riskLevel === 'danger') {
-      return NextResponse.json({ error: 'CONSISTENCY_VIOLATION', violations: guardianCheck.violations }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'CONSISTENCY_VIOLATION', 
+        violations: safeViolations 
+      }, { status: 400 });
     }
 
     let atsAnalysis = null;
     if (letterVersion === 'v2' && jobDescription) {
-      const atsDetection = await detectATSUsageAI(jobDescription);
-      if (atsDetection.usesATS) {
-        atsAnalysis = await analyzeRealisticATSUniversal(finalContent, jobDescription);
-      }
+      // KORJATTU JÄRJESTYS: (jobDescription, finalContent)
+      atsAnalysis = await analyzeRealisticATSUniversal(jobDescription, finalContent);
     }
 
-    // 9. Tallennus
+    // 9. Tallennus Supabaseen
     const { data: coverLetter, error: insertError } = await supabaseAdmin
       .from("cover_letters")
       .insert({
@@ -166,7 +174,7 @@ export async function POST(req: Request) {
         language,
         content: {
           cover_letter_content: finalContent,
-          signature: coverLetterData.signature,
+          signature: coverLetterData.signature || "",
           body: finalContent,
           applicant_info: { name: commonInput.name, email: commonInput.email }
         },
@@ -188,7 +196,7 @@ export async function POST(req: Request) {
     } else if (isActive && required > 0) {
       await supabaseAdmin
         .from('subscriptions')
-        .update({ tokens: subscription.tokens - required })
+        .update({ tokens: Math.max(0, subscription.tokens - required) })
         .eq('user_id', userId);
     }
 
@@ -200,11 +208,12 @@ export async function POST(req: Request) {
       atsResults: atsAnalysis ? { detected: true, score: atsAnalysis.score } : { detected: false }
     });
 
-} catch (error: any) {
-  console.error("❌ CRITICAL ROUTE ERROR:", error);
-  return NextResponse.json({
-    error: error.message || "Internal Server Error",
-    questions: [], // ✅ Lisätty tyhjä taulukko estämään frontendin .filter() kaatuminen
-    details: "Check server logs for Filter-error tracing"
-  }, { status: 500 });
-}}
+  } catch (error: any) {
+    console.error("❌ CRITICAL ROUTE ERROR:", error);
+    return NextResponse.json({
+      error: error.message || "Internal Server Error",
+      questions: [],
+      details: error.stack || "No stack trace"
+    }, { status: 500 });
+  }
+}
