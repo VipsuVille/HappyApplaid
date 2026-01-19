@@ -105,6 +105,7 @@ export default function SmartHeader() {
     <>
       <header className="bg-black/80 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex justify-between items-center relative">
+          
           {/* Logo */}
           <Link href="/" className="flex items-center flex-shrink-0">
             <Image src="/logo.png" alt="HappyApplaid" width={120} height={32} className="sm:w-[150px] sm:h-[40px]" />
@@ -133,125 +134,109 @@ export default function SmartHeader() {
           )}
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Desktop: Pricing Link (Logged Out) */}
-            {!isSignedIn && (
-              <Link href={pricingAnchor} className="hidden md:block">
-                <Button variant="ghost" size="sm" className="text-gray-300 hover:text-orange-300">
-                  <PricingIcon className="w-4 h-4 mr-1" />
-                  {t.pricing}
-                </Button>
-              </Link>
-            )}
-
-            {/* Desktop: Language Toggle (Logged Out) */}
-            {!isSignedIn && (
+            
+            {/* Desktop Action Bar (Language + Auth/Profile) */}
+            <div className="hidden lg:flex items-center gap-3">
+              
+              {/* Common Language Toggle for Desktop */}
               <Button
                 onClick={toggleLanguage}
                 variant="ghost"
                 size="sm"
-                className="hidden md:flex bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10"
+                className="bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10"
               >
                 <Languages className="w-4 h-4 mr-1" />
                 {t.toggleLang}
               </Button>
-            )}
 
-            {/* Desktop: Auth Buttons (Logged Out) */}
-            {!isSignedIn ? (
-              <div className="hidden md:flex items-center gap-2">
-                <SignInButton mode="modal" appearance={clerkAppearance}>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-gray-300 hover:text-white hover:bg-white/10"
-                  >
-                    {t.signIn}
-                  </Button>
-                </SignInButton>
-
-                <SignUpButton mode="modal" appearance={clerkAppearance}>
-                  <Button className="bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:from-orange-600 hover:to-amber-700">
-                    {t.signUp}
-                  </Button>
-                </SignUpButton>
-              </div>
-            ) : (
-              /* Desktop: Token Balance + Profile Menu (Logged In) */
-              <div className="hidden md:flex items-center gap-2 lg:gap-3">
-                {/* Token Balance Display */}
-                <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 px-3 py-1.5 rounded-full flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm font-bold text-white">{tokens.toLocaleString()}</span>
-                    <span className="text-[10px] font-bold text-orange-500">TKN</span>
-                  </div>
-                </div>
-
-                {/* Plan Badge */}
-                {plan && (
-                  <Link href="/pricing">
-                    <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 px-3 py-1.5 rounded-full hover:bg-amber-500/30 transition-colors">
-                      <Crown className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-300">
-                        {plan.toUpperCase()}
-                      </span>
-                    </div>
+              {!isSignedIn ? (
+                <>
+                  <Link href={pricingAnchor}>
+                    <Button variant="ghost" size="sm" className="text-gray-300 hover:text-orange-300">
+                      <PricingIcon className="w-4 h-4 mr-1" />
+                      {t.pricing}
+                    </Button>
                   </Link>
-                )}
-
-                {/* Profile Menu */}
-                <div data-profile-menu className="relative">
-                  <button
-                    onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                    className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
-                  >
-                    <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-full text-xs flex items-center justify-center font-bold">
-                      {user?.firstName?.[0] ?? 'U'}
+                  <div className="flex items-center gap-2">
+                    <SignInButton mode="modal" appearance={clerkAppearance}>
+                      <Button size="sm" variant="ghost" className="text-gray-300 hover:text-white hover:bg-white/10">
+                        {t.signIn}
+                      </Button>
+                    </SignInButton>
+                    <SignUpButton mode="modal" appearance={clerkAppearance}>
+                      <Button className="bg-gradient-to-r from-orange-500 to-amber-600 text-white">
+                        {t.signUp}
+                      </Button>
+                    </SignUpButton>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Token Balance */}
+                  <div className="bg-gray-900/60 backdrop-blur-sm border border-gray-800 px-3 py-1.5 rounded-full flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-bold text-white">{tokens.toLocaleString()}</span>
+                      <span className="text-[10px] font-bold text-orange-500">TKN</span>
                     </div>
-                    <ChevronDown className="w-4 h-4 text-gray-300" />
-                  </button>
+                  </div>
 
-                  {profileMenuOpen && (
-                    <div className="absolute right-0 top-12 w-48 bg-gray-900/95 border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden">
-                      <button
-                        onClick={toggleLanguage}
-                        className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2"
-                      >
-                        <Languages className="w-4 h-4" />
-                        {language === 'en' ? 'In English' : 'Suomeksi'}
-                      </button>
-                      <Link href="/settings">
-                        <button className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2">
-                          <Settings className="w-4 h-4" /> {t.settings}
-                        </button>
-                      </Link>
-                      <SignOutButton>
-                        <button className="w-full px-4 py-2 text-sm text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2 border-t border-white/5">
-                          <LogOut className="w-4 h-4" /> {t.signOut}
-                        </button>
-                      </SignOutButton>
-                    </div>
+                  {/* Plan Badge */}
+                  {plan && (
+                    <Link href="/pricing">
+                      <div className="flex items-center gap-2 bg-amber-500/20 border border-amber-400/30 px-3 py-1.5 rounded-full hover:bg-amber-500/30 transition-colors">
+                        <Crown className="w-4 h-4 text-amber-400" />
+                        <span className="text-xs font-semibold text-amber-300">{plan.toUpperCase()}</span>
+                      </div>
+                    </Link>
                   )}
-                </div>
-              </div>
-            )}
 
-            {/* Mobile: Hamburger Menu Toggle */}
+                  {/* Profile Menu (Language toggle removed from here) */}
+                  <div data-profile-menu className="relative">
+                    <button
+                      onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                      className="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+                    >
+                      <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-full text-xs flex items-center justify-center font-bold">
+                        {user?.firstName?.[0] ?? 'U'}
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-gray-300" />
+                    </button>
+
+                    {profileMenuOpen && (
+                      <div className="absolute right-0 top-12 w-48 bg-gray-900/95 border border-white/10 rounded-lg shadow-2xl z-50 overflow-hidden">
+                        <Link href="/settings">
+                          <button className="w-full px-4 py-2 text-sm text-left text-gray-200 hover:bg-white/5 flex items-center gap-2">
+                            <Settings className="w-4 h-4" /> {t.settings}
+                          </button>
+                        </Link>
+                        <SignOutButton>
+                          <button className="w-full px-4 py-2 text-sm text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2 border-t border-white/5">
+                            <LogOut className="w-4 h-4" /> {t.signOut}
+                          </button>
+                        </SignOutButton>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Mobile: Hamburger Menu Toggle (Visible below lg) */}
             <button
-              className="md:hidden p-2 text-gray-300 hover:bg-white/5 rounded-lg"
+              className="lg:hidden p-2 text-gray-300 hover:bg-white/5 rounded-lg"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
 
-          {/* Mobile Menu */}
+          {/* Mobile Menu (Visible below lg) */}
           {mobileMenuOpen && (
-            <div className="md:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute left-0 top-full w-screen -mx-3 sm:-mx-4 z-50 animate-in slide-in-from-top duration-200">
+            <div className="lg:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute left-0 top-full w-screen -mx-3 sm:-mx-4 z-50 animate-in slide-in-from-top duration-200">
               <div className="flex flex-col p-4 gap-2">
                 {isSignedIn ? (
                   <>
-                    {/* Mobile: Token Balance */}
                     <div className="mb-2 p-3 bg-gray-900/60 rounded-lg border border-gray-800">
                       <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{t.balance}</p>
                       <div className="flex items-center gap-2">
@@ -270,31 +255,20 @@ export default function SmartHeader() {
 
                     {navLinks.map(({ href, label, icon: Icon }) => (
                       <Link key={href} href={href}>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start text-gray-300 hover:text-orange-300"
-                        >
+                        <Button variant="ghost" className="w-full justify-start text-gray-300 hover:text-orange-300">
                           <Icon className="w-5 h-5 mr-3" />
                           {label}
                         </Button>
                       </Link>
                     ))}
 
-                    {/* Mobile: Language & Settings */}
                     <div className="pt-2 border-t border-white/10 space-y-2">
-                      <Button
-                        onClick={toggleLanguage}
-                        variant="ghost"
-                        className="w-full justify-start text-gray-300"
-                      >
-                        <Languages className="w-5 h-5 mr-3" />{' '}
-                        {language === 'en' ? 'English' : 'Suomeksi'}
+                      <Button onClick={toggleLanguage} variant="ghost" className="w-full justify-start text-gray-300">
+                        <Languages className="w-5 h-5 mr-3" />
+                        {language === 'en' ? 'In English' : 'Suomeksi'}
                       </Button>
                       <Link href="/settings">
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start text-gray-300"
-                        >
+                        <Button variant="ghost" className="w-full justify-start text-gray-300">
                           <Settings className="w-5 h-5 mr-3" /> {t.settings}
                         </Button>
                       </Link>
@@ -308,41 +282,20 @@ export default function SmartHeader() {
                 ) : (
                   <>
                     <Link href="/">
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-gray-300"
-                      >
-                        <Home className="w-5 h-5 mr-3" /> {t.home}
-                      </Button>
+                      <Button variant="ghost" className="w-full justify-start text-gray-300"><Home className="w-5 h-5 mr-3" /> {t.home}</Button>
                     </Link>
                     <Link href={pricingAnchor}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-gray-300"
-                      >
-                        <PricingIcon className="w-5 h-5 mr-3" /> {t.pricing}
-                      </Button>
+                      <Button variant="ghost" className="w-full justify-start text-gray-300"><PricingIcon className="w-5 h-5 mr-3" /> {t.pricing}</Button>
                     </Link>
-                    <Button
-                      onClick={toggleLanguage}
-                      variant="ghost"
-                      className="w-full justify-start text-gray-300"
-                    >
-                      <Languages className="w-5 h-5 mr-3" />{' '}
-                      {language === 'en' ? 'English' : 'Suomeksi'}
+                    <Button onClick={toggleLanguage} variant="ghost" className="w-full justify-start text-gray-300">
+                      <Languages className="w-5 h-5 mr-3" /> {language === 'en' ? 'English' : 'Suomeksi'}
                     </Button>
-
-                    {/* Mobile: Auth Buttons */}
                     <div className="pt-2 border-t border-white/10 space-y-2">
                       <SignInButton mode="modal" appearance={clerkAppearance}>
-                        <Button variant="ghost" className="w-full text-gray-300">
-                          {t.signIn}
-                        </Button>
+                        <Button variant="ghost" className="w-full text-gray-300">{t.signIn}</Button>
                       </SignInButton>
                       <SignUpButton mode="modal" appearance={clerkAppearance}>
-                        <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-600 text-white">
-                          {t.signUp}
-                        </Button>
+                        <Button className="w-full bg-gradient-to-r from-orange-500 to-amber-600 text-white">{t.signUp}</Button>
                       </SignUpButton>
                     </div>
                   </>

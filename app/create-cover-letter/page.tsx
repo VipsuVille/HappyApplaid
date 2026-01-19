@@ -198,7 +198,7 @@ export default function CreateCoverLetterPage() {
 
       if (data.success) {
         toast.success(t.success);
-        router.push(`/cover-letter/${data.coverLetterId}`);
+        router.push(`/edit-cover-letter/${data.coverLetterId}`);
       }
     } catch (error) {
       toast.error(t.error);
