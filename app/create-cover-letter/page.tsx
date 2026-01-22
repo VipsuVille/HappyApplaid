@@ -527,11 +527,9 @@ export default function CreateCoverLetterPage() {
                   <div className="pt-5 border-t border-gray-800">
                     <p className="text-[10px]font-bold text-gray-500 uppercase mb-1">{t.cost}</p>
 <p className="text-3xl font-black text-white">
-  {plan_type === 'free' ? t.free : `$${costs.total}`}
 
 {plan_type === 'free' ? t.free : (
   <>
-    <span className="text-xs opacity-70">$</span>
     {costs.total}
   </>
 )}{plan_type !== 'free' && <span className="text-xs text-orange-500 ml-1">TKN</span>}

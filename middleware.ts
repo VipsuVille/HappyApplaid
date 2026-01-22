@@ -111,7 +111,7 @@ export default clerkMiddleware(async (auth, req) => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com https://api.openai.com https://*.supabase.co wss://*.clerk.com",
+"connect-src 'self' https://www.happyapplaid.com https://happyapplaid.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com https://api.openai.com https://*.supabase.co wss://*.clerk.com",
     "frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com",
   ].join('; ');
   response.headers.set('Content-Security-Policy', csp);
