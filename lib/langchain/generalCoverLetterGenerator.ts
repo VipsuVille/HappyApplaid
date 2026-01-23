@@ -24,13 +24,18 @@ const generalCoverLetterSchema = z.object({
 const outputParser = StructuredOutputParser.fromZodSchema(generalCoverLetterSchema);
 
 export interface GeneralCoverLetterInput {
-  name: string;
-  email: string;
-  phone: string;
+  // ✅ HENKILÖTIEDOT - EI PAKOLLISIA (ei lähetetä AI:lle)
+  name?: string;
+  email?: string;
+  phone?: string;
+  
+  // PROFIILITIEDOT
   workExperience?: string;
   education?: string;
   skills?: string;
   languages?: string;
+  
+  // PERSOONALLISUUS
   workingStyle?: string;
   problemSolving?: string;
   energySources?: string;
@@ -39,16 +44,24 @@ export interface GeneralCoverLetterInput {
   teamRole?: string;
   valuesExample?: string;
   superpower?: string;
+  
+  // TAVOITTEET
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
+  
+  // ASETUKSET
   targetIndustry?: string;
   targetRole?: string;
   language?: string;
   style?: "formal" | "casual";
   enableRAG?: boolean;
+  
+  // GUARDIAN
   allowedSkills?: string[];
   forbiddenClaims?: string[];
+  
+  // META
   userId?: string;
   skipQuestions?: boolean;
 }
@@ -117,134 +130,174 @@ export async function generateGeneralCoverLetter(
     temperature: 0.75,
   });
 
-  const prompt = ChatPromptTemplate.fromMessages([
-    ["system", `You are creating a PERSONAL INTRODUCTION that captures who this person truly IS.
+ const prompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are creating a PERSONAL INTRODUCTION written in FIRST PERSON.
 
 ${knowledgeContext ? `**CONTEXT:**\n${knowledgeContext}\n\n` : ''}
 
 # ═══════════════════════════════════════════════════════
-# MISSION: 3/10 INTERPRETATION LEVEL
+# CRITICAL REQUIREMENTS
 # ═══════════════════════════════════════════════════════
 
-Build a personal introduction with balanced interpretation:
-- 1/10 = Repeat profile verbatim (too safe ❌)
-- **3/10 = Connect dots, make grounded inferences (TARGET ✅)**
-- 7/10 = Speculate wildly (too risky ❌)
+**1. ALWAYS WRITE IN FIRST PERSON**
+- Use "I am...", "I work...", "I have..."
+- NEVER use third person ("he/she/they")
+- This is the person speaking about themselves
+
+**2. NEVER USE THE PERSON'S NAME IN THE TEXT**
+- Name will be added separately
+- Always refer to yourself as "I" or "me"
+
+**3. LENGTH: 300-400 WORDS**
+- Approximately 2/3 of an A4 page
+- Substantial but concise
+- Enough to give full picture of the person
+
+**4. PRIVACY PROTECTION**
+Do NOT include in the generated text:
+- Full name
+- Email address
+- Phone number
+- Full home address
+
+General location (city/country) is OK if relevant to the story.
 
 # ═══════════════════════════════════════════════════════
-# CORE PRINCIPLES
+# UNIVERSAL APPROACH - WORKS FOR EVERYONE
 # ═══════════════════════════════════════════════════════
 
-**1. SYNTHESIS OVER LISTING**
-Don't list traits - build a coherent persona.
+This system must work equally well for:
 
-Process:
-1. Read ALL fields
-2. Identify PATTERNS (2+ fields saying similar thing)
-3. Spot CONTRADICTIONS (these show depth)
-4. Pick a CORE PERSONA:
-   - The Quiet Professional (works independently but reliably)
-   - The Team Energizer (thrives in collaborative settings)
-   - The Problem Hunter (seeks challenges proactively)
-   - The Builder (creates systems/processes)
-   - The Connector (bridges people/ideas)
-   - The Learner (growth-focused)
-5. Write NARRATIVE that explains the person
+**AGE:** 18 years old → 70 years old
+**EXPERIENCE:** 0 years → 40+ years
+**EDUCATION:** No degree → PhD
+**INDUSTRY:** ANY (tech, retail, healthcare, construction, arts, etc.)
+**BACKGROUND:** ANY country, culture, language
+**EMPLOYMENT STATUS:** Student, employed, unemployed, retired, career changer
 
-**2. GROUNDED INFERENCE RULES**
+**ADAPTATION RULES:**
 
-✅ ALLOWED (3/10 level):
-- Pattern recognition: "X + Y suggests Z"
-  Example: problemSolving="2h debug" + energySources="helping others"
-  → "Patient problem-solver who finds satisfaction in helping others succeed"
+📚 **Little/No Experience:**
+- Focus on: Skills, education, projects, potential
+- Highlight: Learning ability, fresh perspective
+- Avoid: Apologizing for lack of experience
+- Example approach: "My studies in [field] have equipped me with..."
 
-- Contextualization: Make specific examples reveal general traits
-  Example: "Fixed bug at 3AM" 
-  → "Reliable under pressure - doesn't just work 9-5"
+💼 **Experienced Professional:**
+- Focus on: Impact, progression, achievements
+- Highlight: Patterns across roles, expertise depth
+- Avoid: Just listing job titles
+- Example approach: "Throughout my career in [field], I have..."
 
-- Gap reframing: Turn absence into opportunity
-  Example: workExperience="" + education="Computer Science 2024"
-  → "Brings fresh perspective unburdened by legacy thinking"
+🔄 **Career Changer:**
+- Focus on: Transferable skills, intentional growth
+- Highlight: Unique combination of backgrounds
+- Avoid: Explaining "why switching"
+- Example approach: "I bring a rare blend of [old] and [new]..."
 
-❌ NOT ALLOWED (7/10 level):
-- Inventing facts: "Probably has leadership experience"
-- Assuming motivations without evidence
-- Exaggerating: "Expert" when profile says "I've used"
+😟 **Employment Gap:**
+- Focus on: Current activities, future direction
+- Highlight: What you're doing NOW
+- Avoid: Mentioning or explaining the gap
+- Example approach: "I am currently focusing on..."
 
-**3. HANDLING DIFFERENT PROFILES**
+👴 **Senior Professional:**
+- Focus on: Deep expertise, mentorship, strategic view
+- Highlight: Years of proven impact
+- Avoid: Age references, "retiring soon"
+- Example approach: "With extensive experience in [field]..."
 
-🎓 RECENT GRADUATE (no work experience):
-- ❌ DON'T: "Limited experience but..."
-- ✅ DO: "Demonstrates professional capabilities through [projects]"
-- FOCUS ON: Learning agility, project work, academic achievements
-- INFERENCE: If bestProject is detailed → "hands-on capability"
+# ═══════════════════════════════════════════════════════
+# STRUCTURE (3 PARAGRAPHS)
+# ═══════════════════════════════════════════════════════
 
-💼 EXPERIENCED PROFESSIONAL (5+ years):
-- ❌ DON'T: Just list job titles
-- ✅ DO: Extract IMPACT from experience descriptions
-- FOCUS ON: Patterns across roles, growth trajectory
-- INFERENCE: If workExperience shows progression → "strategic career builder"
+**Paragraph 1: WHO AM I (100-130 words)**
+- Professional identity or current focus
+- Background (education/experience - whatever is strongest)
+- Key skills with concrete examples
+- What makes me unique
 
-🔄 CAREER CHANGER:
-- ❌ DON'T: "Switching from X to Y"
-- ✅ DO: "Brings rare combination of X skills into Y field"
-- FOCUS ON: Transferable skills, intentional growth
-- INFERENCE: If oldField + newField overlap → "bridges domains"
+**Paragraph 2: HOW I WORK (100-130 words)**
+- Working style and approach
+- Concrete example of problem-solving or achievement
+- What drives and motivates me
+- How I collaborate or contribute
 
-😟 UNEMPLOYED / GAP:
-- ❌ DON'T: Mention unemployment
-- ✅ DO: Focus on current learning/goals
-- FOCUS ON: What they're doing NOW, future direction
-- INFERENCE: If careerGoals is specific → "purposeful transition"
+**Paragraph 3: WHERE I'M GOING (100-130 words)**
+- Career goals or aspirations
+- What I'm looking for next
+- How my values align with future direction
+- Confident closing statement
 
-**4. LANGUAGE REQUIREMENTS**
+# ═══════════════════════════════════════════════════════
+# WRITING GUIDELINES
+# ═══════════════════════════════════════════════════════
 
-❌ FORBIDDEN PHRASES (too generic):
+**TONE:**
+- Confident but humble
+- Authentic and human
+- Professional but warm
+- Appropriate for TARGET_LANGUAGE and WRITING_STYLE
+
+**STYLE:**
+- Specific over generic
+- Active voice ("I build" not "I have experience in")
+- Evidence-based (every claim backed by profile data)
+- Natural, conversational language
+
+**FORBIDDEN PHRASES (too generic):**
 "motivated professional" | "strong communication skills" | "team player"
 "results-driven" | "passionate about" | "proactive" | "dynamic"
 
-✅ REQUIRED STYLE:
-- Specific over general: "Debugged for 2 hours" not "problem-solver"
-- Active voice: "Builds" not "has experience in building"
-- Evidence-based: "Mentored 3 colleagues" not "mentoring skills"
-- Conversational but credible: Like a smart friend describing them
-
-**5. STRUCTURE**
-
-Paragraph 1: WHO they are (core persona + key evidence)
-Paragraph 2: HOW they work (style + examples)
-Paragraph 3: WHERE they're going (goals + fit)
-
-Length: 200-400 words (adapt to available data)
-
-**6. QUALITY CHECKS**
-
-Before finalizing, ask:
-- [ ] Could this describe someone else? → Add specifics
-- [ ] Did I make any unsupported claims? → Remove or ground them
-- [ ] Did I apologize for gaps? → Reframe positively
-- [ ] Did I use corporate buzzwords? → Replace with evidence
-- [ ] Did I connect multiple fields? → Add synthesis
+**REQUIRED APPROACH:**
+- Use concrete examples from profile
+- Show, don't tell
+- Make claims you can back up
+- Write like a real person talking
 
 # ═══════════════════════════════════════════════════════
-# UNIVERSAL FLEXIBILITY
+# INTERPRETATION LEVEL: 3/10
 # ═══════════════════════════════════════════════════════
 
-- Works for ANY language (finnish, english, swedish...)
-- Works for ANY industry (tech, retail, healthcare...)
-- Works for ANY experience level (0-30 years)
-- NO HARDCODED VALUES
-- NO ASSUMPTIONS about culture or background
+- 1/10 = Copy profile verbatim (boring)
+- **3/10 = Connect dots, make grounded inferences (TARGET)**
+- 7/10 = Speculate wildly (risky)
+
+**ALLOWED:**
+- Pattern recognition: If multiple fields suggest same trait
+- Contextualization: Make examples reveal general capabilities
+- Gap reframing: Turn absence into different strength
+
+**NOT ALLOWED:**
+- Inventing facts not in profile
+- Exaggerating ("expert" when profile says "beginner")
+- Making claims without evidence
+
+# ═══════════════════════════════════════════════════════
+# QUALITY CHECKS
+# ═══════════════════════════════════════════════════════
+
+Before returning, verify:
+- [ ] Everything in first person ("I", not "he/she")
+- [ ] No name used in text
+- [ ] Length 300-400 words
+- [ ] No private contact info in text
+- [ ] Concrete examples, not generic claims
+- [ ] Works regardless of age/experience/industry
+- [ ] Person sounds authentic and unique
 
 {format_instructions}`],
 
-    ["human", `Create personal introduction for this individual.
+  ["human", `Create a personal introduction in FIRST PERSON.
+
+**CRITICAL:** 
+- Write as "I am...", "I work...", "I have..."
+- Do NOT use the person's name
+- Length: 300-400 words
+- No email/phone in text
 
 **TARGET_LANGUAGE:** {language}
 **WRITING_STYLE:** {style}
-
-**PERSON:**
-Name: {name}
 
 **BACKGROUND:**
 Work Experience: {workExperience}
@@ -271,9 +324,13 @@ Goals: {careerGoals}
 Target Area: {targetIndustry}
 Target Role: {targetRole}
 
-Remember: 3/10 interpretation level. Connect dots, but stay grounded in evidence.
+Adapt your approach based on what data is available.
+If little experience → focus on potential and learning.
+If extensive experience → focus on impact and expertise.
+
+Write 300-400 words in first person.
 Return JSON with: content, title, keyHighlights`]
-  ]);
+]);
 
   try {
     const formatted = await prompt.formatMessages({
@@ -331,7 +388,7 @@ console.log('✅ [GENERAL] Introduction created');
 return {
   content: finalContent,
   title: parsed.title || "Personal Introduction",
-  signature: input.name,
+  signature: input.name || "", // ✅ TYHJÄ STRING JOS EI NIMEÄ
   questions: [],
   keyHighlights: parsed.keyHighlights,
 };

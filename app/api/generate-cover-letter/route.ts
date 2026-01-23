@@ -112,14 +112,26 @@ function formatWorkExperience(experiences: any[]): string {
   
   return experiences.map(exp => {
     const parts = [];
+    
+    // Perusinfo
     if (exp.position) parts.push(exp.position);
     if (exp.company) parts.push(`@ ${exp.company}`);
     if (exp.duration) parts.push(`(${exp.duration})`);
     
     let result = parts.join(' ');
     
+    // Kuvaus
     if (exp.description) result += `\n${exp.description}`;
-    if (exp.achievements) result += `\nSaavutukset: ${exp.achievements}`;
+    
+    // ✅ UUDET KENTÄT (jos on täytetty):
+    if (exp.biggestAchievement) result += `\nSuurin saavutus: ${exp.biggestAchievement}`;
+    if (exp.whatYouLearned) result += `\nOpin: ${exp.whatYouLearned}`;
+    if (exp.howYourStrengthShowed) result += `\nVahvuuteni: ${exp.howYourStrengthShowed}`;
+    
+    // Vapaaehtoinen lisädata
+    if (exp.metrics) result += `\nTulokset: ${exp.metrics}`;
+    if (exp.toolsUsed) result += `\nTyökalut: ${exp.toolsUsed}`;
+    if (exp.teamSize) result += `\nTiimin koko: ${exp.teamSize}`;
     
     return result;
   }).join('\n\n');
@@ -130,10 +142,36 @@ function formatEducation(education: any[]): string {
   
   return education.map(edu => {
     const parts = [];
+    
     if (edu.degree) parts.push(edu.degree);
     if (edu.school) parts.push(`@ ${edu.school}`);
     if (edu.year) parts.push(`(${edu.year})`);
     if (edu.isOngoing) parts.push('- Kesken');
+    
+    let result = parts.join(' ');
+    
+    // ✅ UUDET KENTÄT:
+    if (edu.whyThisField) result += `\nMiksi valitsin: ${edu.whyThisField}`;
+    if (edu.proudestMoment) result += `\nYlpein hetki: ${edu.proudestMoment}`;
+    if (edu.specialization) result += `\nErikoistuminen: ${edu.specialization}`;
+    
+    return result;
+  }).join('\n');
+}
+
+function formatSkills(skills: any[]): string {
+  if (!Array.isArray(skills) || skills.length === 0) return "";
+  
+  return skills.map(skill => {
+    let parts = [skill.name];
+    
+    // Taso
+    const levels = ['Perusteet', 'Hyvä', 'Vahva', 'Erinomainen', 'Ekspertti'];
+    if (skill.proficiency) parts.push(`(${levels[skill.proficiency - 1] || 'Tuntematon'})`);
+    
+    // ✅ KONKREETTINEN ESIMERKKI (tärkein!)
+    if (skill.concreteExample) parts.push(`- ${skill.concreteExample}`);
+    if (skill.impact) parts.push(`→ Vaikutus: ${skill.impact}`);
     
     return parts.join(' ');
   }).join('\n');
@@ -142,11 +180,21 @@ function formatEducation(education: any[]): string {
 function formatLanguages(languages: any[]): string {
   if (!Array.isArray(languages) || languages.length === 0) return "";
   
-  return languages.map(lang => 
-    `${lang.language || ''}: ${lang.level || ''}`
-  ).join(', ');
+  return languages.map(lang => {
+    const levels = ['Perusteet', 'Keskitaso', 'Hyvä', 'Erinomainen', 'Äidinkieli'];
+    const parts = [lang.language || 'Tuntematon kieli'];
+    
+    // Taidot
+    if (lang.speaking) parts.push(`Puhuminen: ${levels[lang.speaking - 1]}`);
+    if (lang.writing) parts.push(`Kirjoitus: ${levels[lang.writing - 1]}`);
+    
+    // ✅ KÄYTTÖKONTEKSTI (tärkein!)
+    if (lang.whereUsed) parts.push(`- ${lang.whereUsed}`);
+    if (lang.certification) parts.push(`(Sertifikaatti: ${lang.certification})`);
+    
+    return parts.join(', ');
+  }).join('\n');
 }
-
 // ════════════════════════════════════════════════════════════════
 // MAIN ROUTE
 // ════════════════════════════════════════════════════════════════
@@ -258,67 +306,68 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    // ✅ MUUNNA ARRAY-KENTÄT STRINGEIKSI
-    const workExperienceText = Array.isArray(userProfile.work_experience)
-      ? formatWorkExperience(userProfile.work_experience)
-      : (userProfile.work_experience || "");
-    
-    const educationText = Array.isArray(userProfile.education)
-      ? formatEducation(userProfile.education)
-      : (userProfile.education || "");
-    
-    const languagesText = Array.isArray(userProfile.languages)
-      ? formatLanguages(userProfile.languages)
-      : (userProfile.languages || "");
+  // ✅ MUUNNA ARRAY-KENTÄT ENSIN
+const workExperienceText = Array.isArray(userProfile.work_experience)
+  ? formatWorkExperience(userProfile.work_experience)
+  : (userProfile.work_experience || "");
 
-    console.log(`📊 Profile loaded - Work: ${workExperienceText.length} chars, Edu: ${educationText.length} chars`);
+const educationText = Array.isArray(userProfile.education)
+  ? formatEducation(userProfile.education)
+  : (userProfile.education || "");
 
-    const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
+// ✅ SKILLS FORMATOINTI (jos strukturoitu)
+const skillsText = Array.isArray(userProfile.skills)
+  ? formatSkills(userProfile.skills)
+  : (userProfile.skills || "");
 
-    const input = {
-      userId,
-      name: userProfile?.name || "Hakija",
-      email: userProfile?.email,
-      phone: userProfile?.phone,
-      
-      // ✅ MUUNNETUT KENTÄT
-      workExperience: workExperienceText,
-      education: educationText,
-      skills: userProfile?.skills || "",
-      languages: languagesText,
-      
-      // PERSOONALLISUUS
-      workingStyle: userProfile?.working_style || "",
-      problemSolving: userProfile?.problem_solving || "",
-      energySources: userProfile?.energy_sources || "",
-      uniqueStrength: userProfile?.unique_strength || "",
-      learningStyle: userProfile?.learning_style || "",
-      teamRole: userProfile?.team_role || "",
-      valuesExample: userProfile?.values_example || "",
-      superpower: userProfile?.superpower || "",
-      
-      // LISÄTIEDOT
-      careerGoals: userProfile?.career_goals || "",
-      bestProjectExample: userProfile?.best_project_example || "",
-      failureLesson: userProfile?.failure_lesson || "",
-      
-      // ASETUKSET
-      targetIndustry: targetIndustry || "",
-      targetRole: targetRole || "",
-      language,
-      style,
-      enableRAG, // ← Välitetään generaattorille
-      
-      // JOB-SPECIFIC
-      jobDescription: jobDescription || "",
-      personalNotes: personalNotes || "",
-      
-      // GUARDIAN
-      allowedSkills: groundTruth.technicalSkills,
-      forbiddenClaims: groundTruth.cannotClaim,
-      skipQuestions
-    };
+const languagesText = Array.isArray(userProfile.languages)
+  ? formatLanguages(userProfile.languages)
+  : (userProfile.languages || "");
 
+console.log(`📊 Profile loaded - Work: ${workExperienceText.length} chars, Skills: ${skillsText.length} chars`);
+
+const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
+
+const input = {
+  userId,
+  // ❌ POISTETTU: name, email, phone
+  
+  workExperience: workExperienceText,
+  education: educationText,
+  skills: skillsText, // ✅ FORMATOITU
+  languages: languagesText,
+  
+  // PERSOONALLISUUS
+  workingStyle: userProfile?.working_style || "",
+  problemSolving: userProfile?.problem_solving || "",
+  energySources: userProfile?.energy_sources || "",
+  uniqueStrength: userProfile?.unique_strength || "",
+  learningStyle: userProfile?.learning_style || "",
+  teamRole: userProfile?.team_role || "",
+  valuesExample: userProfile?.values_example || "",
+  superpower: userProfile?.superpower || "",
+  
+  // LISÄTIEDOT
+  careerGoals: userProfile?.career_goals || "",
+  bestProjectExample: userProfile?.best_project_example || "",
+  failureLesson: userProfile?.failure_lesson || "",
+  
+  // ASETUKSET
+  targetIndustry: targetIndustry || "",
+  targetRole: targetRole || "",
+  language,
+  style,
+  enableRAG,
+  
+  // JOB-SPECIFIC (vain v1/v2:lle)
+  jobDescription: jobDescription || "",
+  personalNotes: personalNotes || "",
+  
+  // GUARDIAN
+  allowedSkills: groundTruth.technicalSkills,
+  forbiddenClaims: groundTruth.cannotClaim,
+  skipQuestions
+};
     // ════════════════════════════════════════════════════════════════
     // 4. GENERATE COVER LETTER
     // ════════════════════════════════════════════════════════════════
@@ -329,10 +378,10 @@ export async function POST(req: Request) {
     
     if (letterType === 'general') {
       result = await generateGeneralCoverLetter(input);
-    } else {
-      result = letterVersion === 'v2' 
-        ? await generateCoherentCoverLetter(input) 
-        : await generateCoverLetterV1(input);
+   // } else {
+   //   result = letterVersion === 'v2' 
+   //     ? await generateCoherentCoverLetter(input) 
+   //     : await generateCoverLetterV1(input);
     }
 
     // Return questions if needed
@@ -398,31 +447,39 @@ export async function POST(req: Request) {
     // 7. SAVE COVER LETTER
     // ════════════════════════════════════════════════════════════════
 
-    const { data: saved, error: saveErr } = await supabaseAdmin
-      .from("cover_letters")
-      .insert({
-        user_id: userId,
-        title: letterType === 'general' 
-          ? `${input.name} - Yleinen` 
-          : extractJobTitleFromDescription(jobDescription),
-        language,
-        content: { 
-          body: finalContent, 
-          signature: result.signature || input.name || ""
-        },
-        ai_data: { 
-          tier, 
-          letter_type: letterType, 
-          ats_analysis: atsAnalysis, 
-          generator_version: letterVersion || 'v1',
-          style,
-          target_industry: targetIndustry,
-          target_role: targetRole,
-          key_highlights: result.keyHighlights
-        }
-      })
-      .select()
-      .single();
+
+const { data: saved, error: saveErr } = await supabaseAdmin
+  .from("cover_letters")
+  .insert({
+    user_id: userId,
+    title: letterType === 'general' 
+      ? `${userProfile.name} - Yleinen` 
+      : extractJobTitleFromDescription(jobDescription),
+    language,
+    content: { 
+      body: finalContent, 
+      signature: userProfile.name || "", // ← NIMI LISÄTÄÄN VASTA TÄSSÄ
+      contactInfo: { // ← YHTEYSTIEDOT LISÄTÄÄN VASTA TÄSSÄ
+        name: userProfile.name,
+        email: userProfile.email,
+        phone: userProfile.phone,
+        location: userProfile.location
+      }
+    },
+    ai_data: { 
+      tier, 
+      letter_type: letterType, 
+      ats_analysis: atsAnalysis, 
+      generator_version: letterVersion || 'v1',
+      style,
+      target_industry: targetIndustry,
+      target_role: targetRole,
+      key_highlights: result.keyHighlights
+    }
+  })
+  .select()
+  .single();
+ 
 
     if (saveErr) throw saveErr;
 
