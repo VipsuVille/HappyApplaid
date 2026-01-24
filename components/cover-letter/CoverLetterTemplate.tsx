@@ -1,268 +1,251 @@
-// components/cover-letter/CoverLetterTemplate.tsx - KORJATTU RAKENNE
-import React from 'react';
-import DOMPurify from 'dompurify';
+"use client";
+import React from "react";
+
+// ════════════════════════════════════════════════════════════════
+// TYPES
+// ════════════════════════════════════════════════════════════════
+
+interface CoverLetterData {
+  // Header info
+  name: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  
+  // Job info
+  jobTitle?: string;
+  companyName?: string;
+  
+  // AI content
+  content: string; // The main letter text
+  title?: string;
+  keyHighlights?: string[];
+  
+  // Settings
+  language?: string;
+  style?: 'professional' | 'casual' | 'creative';
+}
 
 interface CoverLetterTemplateProps {
-  data: {
-    title: string;
-    content: {
-      job_description?: string;
-      cover_letter_content?: string;
-      applicant_info?: any;
-      signature?: string;
-      body: string;
-    };
-  };
-  ai_data: {
-    html: {
-      content: string;
-    };
-    styles: {
-      main_style: string;
-    };
-    personality_analysis?: any;
-  };
+  data: CoverLetterData;
   isEditing?: boolean;
-  isPdfPreview?: boolean;
-  onContentChange?: (field: string, value: string) => void;
+  onContentChange?: (field: keyof CoverLetterData, value: any) => void;
 }
+
+// ════════════════════════════════════════════════════════════════
+// COMPONENT
+// ════════════════════════════════════════════════════════════════
 
 const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
   data,
-  ai_data,
   isEditing = false,
-  isPdfPreview = false,
-  onContentChange
+  onContentChange,
 }) => {
-  const renderSignature = () => {
-    const name = data.content?.applicant_info?.name || 
-                 data.content?.applicant_info?.full_name || 
-                 'Hakija';
-    const closing = 'Ystävällisin terveisin';
-
-    if (isEditing) {
-      return (
-        <div className="signature-editor mt-8">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => onContentChange?.('content.applicant_info.name', e.target.value)}
-            className="w-full border border-gray-300 rounded p-2"
-            placeholder="Nimi"
-          />
-        </div>
-      );
-    }
-
-    return (
-      <div style={{ marginTop: '30px' }}>
-        <div style={{ 
-          fontSize: '11pt',
-          color: '#555',
-          marginBottom: '16px',
-          fontFamily: '"Merriweather", serif',
-        }}>
-          {closing}
-        </div>
-        
-        <div style={{ 
-          borderBottom: '3px solid #3498db', 
-          width: '180px', 
-          marginBottom: '8px',
-          WebkitPrintColorAdjust: 'exact',
-          printColorAdjust: 'exact',
-        } as React.CSSProperties}></div>
-        
-        <div style={{ 
-          fontFamily: '"Dancing Script", cursive', 
-          fontSize: '22pt',
-          color: '#2c3e50',
-          fontWeight: 700,
-          letterSpacing: '0.5px',
-        }}>
-          {name}
-        </div>
-      </div>
-    );
-  };
-
-  const getJobTitle = () => {
-    if (data.content?.job_description) {
-      const firstLine = data.content.job_description.split('\n')[0];
-      return firstLine.substring(0, 60).trim();
-    }
-    return data.title || 'Työhakemus';
-  };
-
-  const renderContent = () => {
-    if (isEditing) {
-      return (
-        <textarea
-          value={data.content.body || ''}
-          onChange={(e) => onContentChange?.('content.cover_letter_content', e.target.value)}
-          className="w-full border border-gray-300 rounded p-2"
-          rows={15}
-          placeholder="Kirjoita hakukirjeen sisältö tähän..."
-        />
-      );
-    }
-
-    const bodyContent = data.content.body || '';
-    
-    if (isPdfPreview || typeof window === 'undefined') {
-      return (
-        <div 
-          style={{
-            fontFamily: '"Merriweather", serif',
-            fontSize: '11pt',
-            lineHeight: 1.65,
-            whiteSpace: 'pre-wrap',
-            color: '#2c3e50',
-            textAlign: 'justify',
-          }}
-          dangerouslySetInnerHTML={{ __html: bodyContent }} 
-        />
-      );
-    }
-    
-    const cleanHtml = DOMPurify.sanitize(bodyContent);
-    return (
-      <div 
-        style={{
-          fontFamily: '"Merriweather", serif',
-          fontSize: '11pt',
-          lineHeight: 1.65,
-          whiteSpace: 'pre-wrap',
-          color: '#2c3e50',
-          textAlign: 'justify',
-        }}
-        dangerouslySetInnerHTML={{ __html: cleanHtml }} 
-      />
-    );
-  };
+  const today = new Date().toLocaleDateString(
+    data.language === 'english' ? 'en-US' : 'fi-FI',
+    { year: 'numeric', month: 'long', day: 'numeric' }
+  );
 
   return (
-    <div style={{
-      width: '210mm',
-      height: '297mm',
-      boxSizing: 'border-box',
-      fontFamily: '"Merriweather", serif',
-      backgroundColor: 'white',
-      color: '#2c3e50',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      {/* ✅ VASEN REUNAN DEKORATIIVINEN ELEMENTTI - Ei häiritse ATS:ää */}
-      <div style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: '8mm',
-        background: 'linear-gradient(180deg, #3498db 0%, #2980b9 50%, #3498db 100%)',
-        zIndex: 0,
-        WebkitPrintColorAdjust: 'exact',
-        printColorAdjust: 'exact',
-      } as React.CSSProperties} />
+    <div
+      className="cover-letter-paper bg-white mx-auto relative shadow-2xl"
+      style={{
+        width: "210mm",
+        minHeight: "297mm",
+        fontFamily: "'Inter', 'Helvetica', sans-serif",
+        color: "#1a202c",
+        padding: "25mm 20mm",
+      }}
+    >
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* HEADER - Contact Info */}
+      {/* ════════════════════════════════════════════════════════════════ */}
       
-      {/* ✅ HIENOVARAINEN AKSENTTI YLÄREUNASSA */}
-      <div style={{
-        position: 'absolute',
-        left: '8mm',
-        top: 0,
-        right: 0,
-        height: '3mm',
-        background: 'linear-gradient(90deg, #3498db 0%, transparent 100%)',
-        zIndex: 0,
-        WebkitPrintColorAdjust: 'exact',
-        printColorAdjust: 'exact',
-      } as React.CSSProperties} />
-      {/* ✅ FONTTIEN LATAUS */}
-      <link
-        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Merriweather:wght@300;400;700&display=swap"
-        rel="stylesheet"
-      />
-
-      {/* ✅ GLOBAL STYLES */}
-      <style>
-        {`
-          @media print {
-            body {
-              width: 210mm !important;
-              height: 297mm !important;
-              margin: 0 !important;
-            }
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-          }
-
-          .cover-letter-content p {
-            margin-bottom: 16px;
-            line-height: 1.65;
-            text-indent: 0;
-          }
-
-          .cover-letter-content p:first-of-type {
-            margin-top: 0;
-          }
-
-          .cover-letter-content p:last-of-type {
-            margin-bottom: 0;
-          }
-        `}
-      </style>
-
-      {/* ✅ SISÄLTÖ - VAIN HAKUKIRJE */}
-      <div style={{ 
-        padding: '20mm 25mm 20mm 25mm',
-        height: '100%', 
-        boxSizing: 'border-box',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
+      <div className="mb-12">
+        {/* Name */}
         {isEditing ? (
-          <div>
-            <h1>
-              <input
-                type="text"
-                value={getJobTitle()}
-                onChange={(e) => onContentChange?.('title', e.target.value)}
-                className="w-full border-b-2 border-gray-300 focus:border-blue-500 outline-none text-xl font-bold mb-4"
-                placeholder="Hakukirjeen otsikko"
-              />
-            </h1>
-            {renderContent()}
-            {renderSignature()}
-          </div>
+          <input
+            className="text-3xl font-bold text-gray-900 w-full mb-2 px-2 py-1 border-b-2 border-gray-200 focus:border-blue-500 outline-none"
+            value={data.name || ""}
+            onChange={(e) => onContentChange?.("name", e.target.value)}
+            placeholder="Your Name"
+          />
         ) : (
-          <>
-            {/* ✅ OTSIKKO - VAIN JOS ON OTSIKKO */}
-            <h1 style={{ 
-              fontSize: '16pt', 
-              fontWeight: '700', 
-              marginBottom: '20px',
-              color: '#2c3e50',
-              borderBottom: '3px solid #3498db',
-              paddingBottom: '10px',
-              WebkitPrintColorAdjust: 'exact',
-              printColorAdjust: 'exact',
-              letterSpacing: '0.3px',
-            } as React.CSSProperties}>
-              {getJobTitle()}
-            </h1>
-            
-            {/* ✅ SISÄLTÖ */}
-            <div className="cover-letter-content" style={{ flex: 1, marginBottom: '20px' }}>
-              {renderContent()}
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {data.name}
+          </h1>
+        )}
+
+        {/* Contact Details */}
+        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+          {data.email && (
+            <div className="flex items-center gap-1">
+              <span>📧</span>
+              {isEditing ? (
+                <input
+                  className="px-1 border-b border-gray-300 outline-none"
+                  value={data.email}
+                  onChange={(e) => onContentChange?.("email", e.target.value)}
+                />
+              ) : (
+                <span>{data.email}</span>
+              )}
             </div>
-            
-            {/* ✅ ALLEKIRJOITUS */}
-            {renderSignature()}
-          </>
+          )}
+          
+          {data.phone && (
+            <div className="flex items-center gap-1">
+              <span>📞</span>
+              {isEditing ? (
+                <input
+                  className="px-1 border-b border-gray-300 outline-none"
+                  value={data.phone}
+                  onChange={(e) => onContentChange?.("phone", e.target.value)}
+                />
+              ) : (
+                <span>{data.phone}</span>
+              )}
+            </div>
+          )}
+          
+          {data.location && (
+            <div className="flex items-center gap-1">
+              <span>📍</span>
+              {isEditing ? (
+                <input
+                  className="px-1 border-b border-gray-300 outline-none"
+                  value={data.location}
+                  onChange={(e) => onContentChange?.("location", e.target.value)}
+                />
+              ) : (
+                <span>{data.location}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* DATE & RECIPIENT */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      <div className="mb-8 text-sm text-gray-600">
+        <p className="mb-4">{today}</p>
+        
+        {data.companyName && (
+          <div>
+            {isEditing ? (
+              <input
+                className="font-semibold text-gray-900 px-1 border-b border-gray-300 outline-none mb-1 w-full"
+                value={data.companyName}
+                onChange={(e) => onContentChange?.("companyName", e.target.value)}
+                placeholder="Company Name"
+              />
+            ) : (
+              <p className="font-semibold text-gray-900">{data.companyName}</p>
+            )}
+          </div>
         )}
       </div>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* SUBJECT LINE */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      {data.title && (
+        <div className="mb-6">
+          {isEditing ? (
+            <input
+              className="text-lg font-semibold text-gray-900 w-full px-2 py-1 border-b-2 border-gray-200 outline-none"
+              value={data.title}
+              onChange={(e) => onContentChange?.("title", e.target.value)}
+              placeholder="Subject / Title"
+            />
+          ) : (
+            <p className="text-lg font-semibold text-gray-900">
+              {data.title}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* MAIN CONTENT */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      <div className="mb-12">
+        {isEditing ? (
+          <textarea
+            className="w-full min-h-[400px] p-4 border-2 border-gray-200 rounded-lg text-gray-800 leading-relaxed text-base outline-none focus:border-blue-500"
+            value={data.content || ""}
+            onChange={(e) => onContentChange?.("content", e.target.value)}
+            placeholder="Write your cover letter content here..."
+            style={{
+              lineHeight: "1.8",
+              fontSize: "11pt",
+            }}
+          />
+        ) : (
+          <div 
+            className="prose prose-lg max-w-none"
+            style={{
+              lineHeight: "1.8",
+              fontSize: "11pt",
+            }}
+          >
+            {data.content.split('\n\n').map((paragraph, idx) => (
+              <p key={idx} className="mb-4 text-gray-800">
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* KEY HIGHLIGHTS (Optional) */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      {data.keyHighlights && data.keyHighlights.length > 0 && !isEditing && (
+        <div className="mb-12 p-6 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
+          <h3 className="text-sm font-bold text-blue-900 uppercase tracking-wide mb-3">
+            Key Strengths
+          </h3>
+          <ul className="space-y-2">
+            {data.keyHighlights.map((highlight, idx) => (
+              <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                <span className="text-blue-500 mt-0.5">✓</span>
+                <span>{highlight}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* SIGNATURE */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      <div className="mt-12">
+        <p className="text-gray-800 mb-8">
+          {data.language === 'english' ? 'Sincerely,' : 'Ystävällisin terveisin,'}
+        </p>
+        
+        <p className="text-2xl text-blue-700 opacity-80" 
+           style={{ fontFamily: "'Brush Script MT', cursive" }}>
+          {data.name}
+        </p>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* FOOTER - Optional style indicator */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      {isEditing && (
+        <div className="absolute bottom-4 right-4 text-xs text-gray-400">
+          Style: {data.style || 'professional'}
+        </div>
+      )}
     </div>
   );
 };
