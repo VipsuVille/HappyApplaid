@@ -288,8 +288,10 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      default:
-        throw new Error(`Unknown type: ${body}`);
+      default: {
+        const exhaustiveCheck: never = body;
+        throw new Error(`Unknown type: ${(body as BaseCoverLetterRequest).type}`);
+      }
     }
 
     console.log('✅ [AI] Generation complete');
@@ -348,7 +350,8 @@ export async function POST(request: NextRequest) {
     // STEP 6: Return success
     return NextResponse.json({
       success: true,
-      coverLetter: savedLetter,
+      coverLetterId: savedLetter.id, // ✅ Suoraan ID
+      title: savedLetter.title,
       message: `${body.type} cover letter generated successfully`,
       
       // Include ATS analysis in response if available
