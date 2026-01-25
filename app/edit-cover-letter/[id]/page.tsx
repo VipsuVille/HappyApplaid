@@ -8,7 +8,7 @@ import {
   Type, AlignLeft, Palette, Eye, Edit3, Sparkles,
   GripVertical, Plus, Minus, Copy, RotateCcw
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase'; // ✅ KRIITTINEN MUUTOS
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -98,7 +98,7 @@ export default function EditCoverLetterPage() {
       if (!userId || !id) return;
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from('cover_letters')
           .select('*')
           .eq('id', id)
@@ -183,7 +183,7 @@ export default function EditCoverLetterPage() {
         body: paragraphs.join('\n\n'),
       };
 
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('cover_letters')
         .update({
           title: letterData.title,
@@ -240,7 +240,7 @@ export default function EditCoverLetterPage() {
     if (!confirm('Haluatko varmasti poistaa tämän hakukirjeen?')) return;
     
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('cover_letters')
         .delete()
         .eq('id', id)
