@@ -301,7 +301,6 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       title: result.title,
       language: body.language || 'finnish',
-      type: body.type, // Store the type for reference
       content: {
         body: result.content,
         signature: body.name || '',
