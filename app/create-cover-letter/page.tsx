@@ -241,13 +241,19 @@ export default function CreateCoverLetterPage() {
           language: letterLanguage,
           style: letterStyle,
           
-          // ✅ PROFIILIDATA (lähetetään aina)
+          // ✅ PROFIILIDATA (muunnetaan stringeiksi)
           name: profileData?.name,
           email: profileData?.email,
           phone: profileData?.phone,
-          workExperience: profileData?.work_experience,
-          education: profileData?.education,
-          skills: profileData?.skills,
+          workExperience: typeof profileData?.work_experience === 'string' 
+            ? profileData.work_experience 
+            : JSON.stringify(profileData?.work_experience || []),
+          education: typeof profileData?.education === 'string'
+            ? profileData.education
+            : JSON.stringify(profileData?.education || []),
+          skills: Array.isArray(profileData?.skills)
+            ? profileData.skills.join(', ')
+            : profileData?.skills || '',
           
           // ✅ PERSOONALLISUUS
           workingStyle: profileData?.working_style,
