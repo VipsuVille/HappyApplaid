@@ -233,6 +233,21 @@ export default function CoverLetterPreviewPage() {
     );
   }
 
+  // ✅ KORJAUS: Varmista että kaikki pakolliset kentät on olemassa
+  const coverLetterData = {
+    name: letter.ai_data?.name || letter.content?.name || "Hakija",
+    email: letter.ai_data?.email || letter.content?.email || "",
+    phone: letter.ai_data?.phone || letter.content?.phone || "",
+    location: letter.ai_data?.location || letter.content?.location || "",
+    jobTitle: letter.content?.job_title || letter.ai_data?.job_title || "",
+    companyName: letter.content?.company_name || letter.ai_data?.company_name || "",
+    title: letter.title || 'Hakukirje',
+    content: letter.content?.body || letter.ai_data?.html?.content || '',
+    keyHighlights: letter.ai_data?.key_highlights || [],
+    language: letter.content?.language || 'finnish',
+    style: letter.content?.style || 'professional'
+  };
+
   return (
     <>
       <style jsx global>{`
@@ -284,14 +299,7 @@ export default function CoverLetterPreviewPage() {
       >
         <CoverLetterContainer data-template-type="standard" className="mx-auto">
           <CoverLetterTemplate
-            data={{
-              title: letter.title || 'Hakukirje',
-              content: letter.content || {}
-            }}
-            ai_data={letter.ai_data || {
-              html: { content: letter.content?.body || '' },
-              styles: { main_style: '' }
-            }}
+            data={coverLetterData}
             isEditing={false}
             isPdfPreview={isPDFGeneration}
           />

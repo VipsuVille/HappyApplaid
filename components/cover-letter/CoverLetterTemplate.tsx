@@ -29,6 +29,7 @@ interface CoverLetterData {
 interface CoverLetterTemplateProps {
   data: CoverLetterData;
   isEditing?: boolean;
+  isPdfPreview?: boolean; // ✅ LISÄTTY
   onContentChange?: (field: keyof CoverLetterData, value: any) => void;
 }
 
@@ -39,6 +40,7 @@ interface CoverLetterTemplateProps {
 const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
   data,
   isEditing = false,
+  isPdfPreview = false, // ✅ LISÄTTY
   onContentChange,
 }) => {
   const today = new Date().toLocaleDateString(
@@ -209,7 +211,7 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
       {data.keyHighlights && data.keyHighlights.length > 0 && !isEditing && (
         <div className="mb-12 p-6 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
           <h3 className="text-sm font-bold text-blue-900 uppercase tracking-wide mb-3">
-            Key Strengths
+            {data.language === 'english' ? 'Key Strengths' : 'Avainosaamisalueet'}
           </h3>
           <ul className="space-y-2">
             {data.keyHighlights.map((highlight, idx) => (
@@ -244,6 +246,13 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
       {isEditing && (
         <div className="absolute bottom-4 right-4 text-xs text-gray-400">
           Style: {data.style || 'professional'}
+        </div>
+      )}
+
+      {/* ✅ PDF DEBUG INFO (vain kehityksessä) */}
+      {isPdfPreview && process.env.NODE_ENV === 'development' && (
+        <div className="absolute top-2 right-2 text-xs text-gray-400 bg-yellow-100 px-2 py-1 rounded">
+          PDF Mode
         </div>
       )}
     </div>

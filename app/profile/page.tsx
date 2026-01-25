@@ -62,13 +62,15 @@ interface WorkExperience {
   position: string;
   duration: string;
   description: string;
-  isCurrent: boolean; // ✅ UUSI: Nykyinen työ
+  isCurrent: boolean;
   biggestAchievement?: string;
   whatYouLearned?: string;
   howYourStrengthShowed?: string;
+  
+  // ✅ LISÄÄ NÄMÄ PUUTTUVAT KENTÄT:
   teamSize?: number;
-  metrics?: string;
   toolsUsed?: string;
+  metrics?: string;
 }
 
 interface Education {
@@ -319,20 +321,21 @@ const EnhancedProfilePage: React.FC = () => {
           }
           
           // ✅ KRIITTINEN KORJAUS: Varmista että skills on AINA array
-          const normalizedSkills = Array.isArray(data.profile.skills)
-            ? data.profile.skills
-            : typeof data.profile.skills === 'string'
-            ? [] // Jos string, muuta tyhjäksi arrayks
-            : [];
-          
-          setProfileData({
-            ...data.profile,
-            profileImage: imageUrl,
-            workExperience: Array.isArray(data.profile.workExperience) ? data.profile.workExperience : [],
-            education: Array.isArray(data.profile.education) ? data.profile.education : [],
-            languages: Array.isArray(data.profile.languages) ? data.profile.languages : [],
-            skills: normalizedSkills, // ✅ Aina array
-          });
+         const normalizedSkills = Array.isArray(data.profile.skills)
+  ? data.profile.skills
+  : typeof data.profile.skills === 'string'
+  ? [] // Jos string, muuta tyhjäksi arrayks
+  : [];
+
+setProfileData({
+  ...data.profile,
+  profileImage: imageUrl,
+  workExperience: data.profile.workExperience || [],
+  education: data.profile.education || [],
+  languages: data.profile.languages || [],
+  skills: normalizedSkills, // ✅ AINA ARRAY
+});
+
         }
       }
     } catch (error) {
@@ -621,8 +624,8 @@ const EnhancedProfilePage: React.FC = () => {
     const hasExperience = profileData.workExperience.length > 0 || profileData.education.length > 0;
     
     // ✅ KORJATTU: Turvallinen skills-tarkistus
-    const skills = Array.isArray(profileData.skills) ? profileData.skills : [];
-    const hasSkills = skills.length >= 3;
+  const skills = Array.isArray(profileData.skills) ? profileData.skills : [];
+  const hasSkills = skills.length >= 3;
 
     const scores = [
       essential.percentage,
