@@ -1,4 +1,4 @@
-// app/create-cover-letter/page.tsx - KORJATTU VERSIO
+// app/create-cover-letter/page.tsx - KORJATTU TYPE-LOGIIKKA
 
 "use client";
 
@@ -20,8 +20,8 @@ import {
   AlertCircle,
   Loader2,
   Briefcase,
-  Globe,      // ← UUSI: Kielivalinta-ikoni
-  Palette,    // ← UUSI: Tyylivalinta-ikoni
+  Globe,
+  Palette,
 } from "lucide-react";
 
 import { useTokens } from "@/hooks/useTokens";
@@ -32,8 +32,8 @@ import CVConfirmationModal from "@/components/CVConfirmationModal";
 
 type LetterType = "job_specific" | "general";
 type LetterVersion = "v1" | "v2";
-type LetterLanguage = "finnish" | "english" | "swedish"; // ← UUSI
-type LetterStyle = "formal" | "casual"; // ← UUSI
+type LetterLanguage = "finnish" | "english" | "swedish";
+type LetterStyle = "formal" | "casual";
 
 export default function CreateCoverLetterPage() {
   const router = useRouter();
@@ -47,14 +47,12 @@ export default function CreateCoverLetterPage() {
   const [targetIndustry, setTargetIndustry] = useState("");
   const [targetRole, setTargetRole] = useState("");
   
-  // ✅ UUDET STATE:t
   const [letterLanguage, setLetterLanguage] = useState<LetterLanguage>("finnish");
   const [letterStyle, setLetterStyle] = useState<LetterStyle>("formal");
   
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
-  // --- GUARDIAN STATE ---
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingViolations, setPendingViolations] = useState<any>(null);
 
@@ -63,7 +61,6 @@ export default function CreateCoverLetterPage() {
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
 
-  // ✅ PÄIVITETYT TRANSLATIONS
   const t = {
     en: {
       title: "Create an",
@@ -72,8 +69,8 @@ export default function CreateCoverLetterPage() {
       subtitle: "Let AI craft a compelling introduction.",
       balance: "Your Balance",
       sectionType: "1. Letter type",
-      sectionLanguage: "2. Language & Style", // ← UUSI
-      sectionOptimization: "3. ATS Optimization (Premium)", // ← Numero muuttui
+      sectionLanguage: "2. Language & Style",
+      sectionOptimization: "3. ATS Optimization (Premium)",
       jobSpecific: "Job-Specific",
       jobSpecificDesc: "Tailored for a job posting",
       general: "General Introduction",
@@ -83,7 +80,6 @@ export default function CreateCoverLetterPage() {
       jobPostingPlaceholder: "Job posting text...",
       targetIndustryPlaceholder: "e.g. Technology...",
       targetRolePlaceholder: "e.g. Software Engineer...",
-      // ✅ UUDET KÄÄNNÖKSET
       languageLabel: "Letter Language",
       languageHelp: "Which language should the letter be written in?",
       styleLabel: "Writing Style",
@@ -115,8 +111,8 @@ export default function CreateCoverLetterPage() {
       subtitle: "Anna AI:n luoda vakuuttava esittely.",
       balance: "Saldosi",
       sectionType: "1. Kirjeen tyyppi",
-      sectionLanguage: "2. Kieli & Tyyli", // ← UUSI
-      sectionOptimization: "3. ATS-optimointi (Premium)", // ← Numero muuttui
+      sectionLanguage: "2. Kieli & Tyyli",
+      sectionOptimization: "3. ATS-optimointi (Premium)",
       jobSpecific: "Työpaikkaan kohdistettu",
       jobSpecificDesc: "Räätälöity ilmoitukselle",
       general: "Yleinen esittely",
@@ -126,7 +122,6 @@ export default function CreateCoverLetterPage() {
       jobPostingPlaceholder: "Työpaikkailmoitus...",
       targetIndustryPlaceholder: "esim. Teknologia...",
       targetRolePlaceholder: "esim. Kehittäjä...",
-      // ✅ UUDET KÄÄNNÖKSET
       languageLabel: "Kirjeen kieli",
       languageHelp: "Millä kielellä kirje kirjoitetaan?",
       styleLabel: "Kirjoitustyyli",
@@ -153,13 +148,28 @@ export default function CreateCoverLetterPage() {
     }
   }[isFinnish ? 'fi' : 'en'];
 
+  // ✅ KORJATTU: Määritetään API:n odottama `type`
+  const apiType = useMemo(() => {
+    if (letterType === 'general') {
+      return 'general';
+    } else {
+      // job_specific
+      return letterVersion === 'v2' ? 'ats-v2' : 'ats-v1';
+    }
+  }, [letterType, letterVersion]);
+
   // Calculate costs
   const costs = useMemo(() => {
     const currentTier = (plan_type as PlanType) || 'free';
     const tierCosts = ACTION_COSTS[currentTier] || {};
-    let action: TokenAction = letterType === 'general' 
-      ? 'cover_letter_general' 
-      : (letterVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1');
+    
+    let action: TokenAction;
+    if (letterType === 'general') {
+      action = 'cover_letter_general';
+    } else {
+      action = letterVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1';
+    }
+    
     const cost = tierCosts[action] || 0;
     return { base: cost, total: cost };
   }, [plan_type, letterType, letterVersion]);
@@ -184,11 +194,9 @@ export default function CreateCoverLetterPage() {
     if (userLoaded && user) loadProfile();
   }, [userLoaded, user]);
 
-  // ✅ VALIDOI PROFIILI
   const isProfileValid = useMemo(() => {
     if (!profileData) return false;
     
-    // Tarkista että vähintään nimi ja yksi persoonallisuuskysymys on täytetty
     const hasName = profileData.name && profileData.name.length > 0;
     const hasPersonality = 
       (profileData.working_style && profileData.working_style.length >= 50) ||
@@ -200,7 +208,6 @@ export default function CreateCoverLetterPage() {
 
   // --- GENERATE HANDLER ---
   const handleGenerateLetter = async (confirmedViolations?: any) => {
-    // ✅ VALIDOI ENNEN LÄHETYSTÄ
     if (!isProfileValid) {
       toast.error(t.noProfile);
       router.push('/profile');
@@ -212,25 +219,51 @@ export default function CreateCoverLetterPage() {
       return;
     }
 
+    console.log('🚀 Starting generation with type:', apiType);
+
     setIsLoading(true);
     try {
       const response = await fetch("/api/generate-cover-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // ✅ PERUSDATA
-          jobDescription: letterType === 'job_specific' ? jobPosting : "",
-          targetIndustry: letterType === 'general' ? targetIndustry : "",
-          targetRole: letterType === 'general' ? targetRole : "",
-          letterType,
-          letterVersion,
+          // ✅ KORJATTU: Käytetään unified API:n odottamaa type-parametria
+          type: apiType, // 'general' | 'ats-v1' | 'ats-v2'
           
-          // ✅ KIELI & TYYLI (EI ENÄÄ KOVAKOODATTU)
+          // ✅ Job-specific data (vain jos ats-v1 tai ats-v2)
+          jobDescription: letterType === 'job_specific' ? jobPosting : undefined,
+          
+          // ✅ General-specific data (vain jos general)
+          targetIndustry: letterType === 'general' ? targetIndustry : undefined,
+          targetRole: letterType === 'general' ? targetRole : undefined,
+          
+          // ✅ KIELI & TYYLI
           language: letterLanguage,
           style: letterStyle,
           
-          // ✅ RAG (aktivoi aina general-tyypissä)
-    enableRAG: false, // ← Kovakoodattu false kunnes valmis
+          // ✅ PROFIILIDATA (lähetetään aina)
+          name: profileData?.name,
+          email: profileData?.email,
+          phone: profileData?.phone,
+          workExperience: profileData?.work_experience,
+          education: profileData?.education,
+          skills: profileData?.skills,
+          
+          // ✅ PERSOONALLISUUS
+          workingStyle: profileData?.working_style,
+          problemSolving: profileData?.problem_solving,
+          uniqueStrength: profileData?.unique_strength,
+          superpower: profileData?.superpower,
+          energySources: profileData?.energy_sources,
+          learningStyle: profileData?.learning_style,
+          teamRole: profileData?.team_role,
+          valuesExample: profileData?.values_example,
+          careerGoals: profileData?.career_goals,
+          bestProjectExample: profileData?.best_project_example,
+          failureLesson: profileData?.failure_lesson,
+          
+          // ✅ RAG (tulossa)
+          enableRAG: false,
           
           // ✅ GUARDIAN
           confirmedViolations: confirmedViolations || null,
@@ -239,6 +272,8 @@ export default function CreateCoverLetterPage() {
       });
 
       const data = await response.json();
+
+      console.log('📨 API Response:', data);
 
       if (response.status === 400 && data.needsConfirmation) {
         setPendingViolations(data.violations);
@@ -250,8 +285,11 @@ export default function CreateCoverLetterPage() {
       if (data.success) {
         toast.success(t.success);
         router.push(`/edit-cover-letter/${data.coverLetterId}`);
+      } else {
+        toast.error(data.error || t.error);
       }
     } catch (error) {
+      console.error('❌ Generation error:', error);
       toast.error(t.error);
     } finally {
       if (!showConfirmation) setIsLoading(false);
@@ -327,9 +365,7 @@ export default function CreateCoverLetterPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-10">
             
-            {/* ═══════════════════════════════════════════════════════
-                SECTION 1: LETTER TYPE
-            ═══════════════════════════════════════════════════════ */}
+            {/* SECTION 1: LETTER TYPE */}
             <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
               <div className="flex items-center gap-3 mb-8">
                 <Briefcase className="w-10 h-10 p-2 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30" />
@@ -358,9 +394,7 @@ export default function CreateCoverLetterPage() {
               </div>
             </section>
 
-            {/* ═══════════════════════════════════════════════════════
-                SECTION 2: KIELI & TYYLI (UUSI!)
-            ═══════════════════════════════════════════════════════ */}
+            {/* SECTION 2: KIELI & TYYLI */}
             <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
               <div className="flex items-center gap-3 mb-8">
                 <Globe className="w-10 h-10 p-2 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30" />
@@ -382,7 +416,7 @@ export default function CreateCoverLetterPage() {
                     <button
                       key={lang.id}
                       onClick={() => setLetterLanguage(lang.id as LetterLanguage)}
-                      className={`p-4 rounded-2xl border text-left transition-all ${
+                      className={`relative p-4 rounded-2xl border text-left transition-all ${
                         letterLanguage === lang.id
                           ? 'border-blue-500/50 bg-blue-500/10'
                           : 'border-gray-800 bg-black/20 hover:border-gray-700'
@@ -430,9 +464,7 @@ export default function CreateCoverLetterPage() {
               </div>
             </section>
 
-            {/* ═══════════════════════════════════════════════════════
-                SECTION 3: ATS OPTIMIZATION (numero muuttui 2→3)
-            ═══════════════════════════════════════════════════════ */}
+            {/* SECTION 3: ATS OPTIMIZATION */}
             {letterType === 'job_specific' && (
               <section className={`rounded-[2.5rem] p-10 border ${
                 letterVersion === 'v2' && canUseATS ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-900/20 border-gray-800/50'
@@ -510,7 +542,6 @@ export default function CreateCoverLetterPage() {
                     <span className="text-white font-bold">{plan_type === 'free' ? '0' : costs.base} TKN</span>
                   </div>
                   
-                  {/* ✅ NÄYTÄ VALITUT ASETUKSET */}
                   <div className="pt-4 border-t border-gray-800 space-y-3">
                     <div className="flex items-center gap-2 text-xs">
                       <Globe className="w-4 h-4 text-blue-400" />
@@ -522,69 +553,74 @@ export default function CreateCoverLetterPage() {
                       <span className="text-gray-400">Tyyli:</span>
                       <span className="text-white font-bold capitalize">{letterStyle}</span>
                     </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Target className="w-4 h-4 text-orange-400" />
+                      <span className="text-gray-400">Tyyppi:</span>
+                      <span className="text-white font-bold uppercase">{apiType}</span>
+                    </div>
                   </div>
                   
                   <div className="pt-5 border-t border-gray-800">
-                    <p className="text-[10px]font-bold text-gray-500 uppercase mb-1">{t.cost}</p>
-<p className="text-3xl font-black text-white">
-
-{plan_type === 'free' ? t.free : (
-  <>
-    {costs.total}
-  </>
-)}{plan_type !== 'free' && <span className="text-xs text-orange-500 ml-1">TKN</span>}
-</p>
-</div>
-</div>
-<Button
-              onClick={() => handleGenerateLetter()}
-              disabled={isLoading || !isProfileValid || (letterType === 'job_specific' && !jobPosting.trim())}
-              className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
-            >
-              {isLoading ? (
-                <><Loader2 className="w-5 h-5 animate-spin mr-2" />{t.generating}</>
-              ) : (
-                <><Sparkles className="w-5 h-5 mr-2" />{t.generateNow}<ArrowRight className="w-5 h-5 ml-2 opacity-50" /></>
-              )}
-            </Button>
-            
-            {/* ✅ PROFIILIVAROITUS */}
-            {!isProfileValid && (
-              <div className="mt-6 flex gap-3 p-4 bg-red-500/10 rounded-2xl border border-red-500/20">
-                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                <div>
-                  <p className="text-xs font-bold text-red-400 mb-1">{t.noProfile}</p>
-                  <button 
-                    onClick={() => router.push('/profile')}
-                    className="text-xs text-red-300 underline hover:text-red-200"
-                  >
-                    Täytä profiili →
-                  </button>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">{t.cost}</p>
+                    <p className="text-3xl font-black text-white">
+                      {plan_type === 'free' ? t.free : (
+                        <>
+                          {costs.total}
+                          <span className="text-xs text-orange-500 ml-1">TKN</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </div>
+
+                <Button
+                  onClick={() => handleGenerateLetter()}
+                  disabled={isLoading || !isProfileValid || (letterType === 'job_specific' && !jobPosting.trim())}
+                  className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
+                >
+                  {isLoading ? (
+                    <><Loader2 className="w-5 h-5 animate-spin mr-2" />{t.generating}</>
+                  ) : (
+                    <><Sparkles className="w-5 h-5 mr-2" />{t.generateNow}<ArrowRight className="w-5 h-5 ml-2 opacity-50" /></>
+                  )}
+                </Button>
+                
+                {!isProfileValid && (
+                  <div className="mt-6 flex gap-3 p-4 bg-red-500/10 rounded-2xl border border-red-500/20">
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-red-400 mb-1">{t.noProfile}</p>
+                      <button 
+                        onClick={() => router.push('/profile')}
+                        className="text-xs text-red-300 underline hover:text-red-200"
+                      >
+                        Täytä profiili →
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {plan_type === 'free' && (
+                  <div className="mt-6 flex gap-3 p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10">
+                    <AlertCircle className="w-4 h-4 text-orange-400 shrink-0" />
+                    <p className="text-[10px] text-gray-500 italic">{t.freeTrialInfo}</p>
+                  </div>
+                )}
               </div>
-            )}
-            
-            {plan_type === 'free' && (
-              <div className="mt-6 flex gap-3 p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10">
-                <AlertCircle className="w-4 h-4 text-orange-400 shrink-0" />
-                <p className="text-[10px] text-gray-500 italic">{t.freeTrialInfo}</p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  {/* GUARDIAN MODAL */}
-  {showConfirmation && pendingViolations && (
-    <CVConfirmationModal
-      violations={pendingViolations}
-      onApprove={handleApproveViolations}
-      onReject={handleRejectViolations}
-      onEdit={handleEditViolations}
-    />
-  )}
-</div>
-);
+      {/* GUARDIAN MODAL */}
+      {showConfirmation && pendingViolations && (
+        <CVConfirmationModal
+          violations={pendingViolations}
+          onApprove={handleApproveViolations}
+          onReject={handleRejectViolations}
+          onEdit={handleEditViolations}
+        />
+      )}
+    </div>
+  );
 }
