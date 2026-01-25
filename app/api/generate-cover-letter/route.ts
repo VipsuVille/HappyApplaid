@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase';
 import { generateGeneralCoverLetterSafely } from '@/lib/langchain/generalCoverLetterGenerator';
 // TODO: Lisää kun valmiina:
 // import { generateATSCoverLetterV1 } from '@/lib/langchain/atsCoverLetterV1Generator';
@@ -332,7 +332,7 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    const { data: savedLetter, error: saveError } = await supabase
+    const { data: savedLetter, error: saveError } = await supabaseAdmin
       .from('cover_letters')
       .insert(coverLetterData)
       .select()
