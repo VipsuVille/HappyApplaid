@@ -1,611 +1,465 @@
-// app/edit-cover-letter/[id]/page.tsx - ✅ TÄYSIN KORJATTU
+// app/edit-cover-letter/[id]/page.tsx
+// ✅ FINAL: Sidebar-sisältö valitsin lisätty
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
-import { 
-  Save, ArrowLeft, Trash2, Download, Loader2, 
-  Type, AlignLeft, Palette, Eye, Edit3,
-  GripVertical, Plus, Minus, RotateCcw
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  Download,
+  Palette,
+  LayoutPanelLeft,
+  AlignHorizontalJustifyCenter,
+  User,
+  Sparkles,
+  X
 } from 'lucide-react';
-
-// ✅ KÄYTÄ OIKEAA TEMPLATEA
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
 
-// ════════════════════════════════════════════════════════════════
-// TYPES
-// ════════════════════════════════════════════════════════════════
-
-interface CoverLetterData {
+interface CoverLetter {
   id: string;
   user_id: string;
   title: string;
-  language: string;
-  content: {
-    body: string;
-    signature?: string;
-    contactInfo?: {
-      name: string;
-      email: string;
-      phone: string;
-      location: string;
-    };
-  };
-  ai_data?: {
-    style?: 'professional' | 'casual' | 'creative';
-    key_highlights?: string[];
-    name?: string; // Fallback jos contactInfo puuttuu
-    email?: string;
-    phone?: string;
-    location?: string;
-  };
+  content: any;
+  ai_data: any;
   created_at: string;
   updated_at: string;
 }
 
 interface StyleSettings {
-  headerColor: string; // ✅ UUSI: Harmaan laatikon väri
-  headerLayout: 'top' | 'left'; // ✅ UUSI: Layout vaihto
-  fontSize: number;
-  lineHeight: number;
+  headerColor: string;
+  headerLayout: 'top' | 'left';
+  sidebarContent: 'contact' | 'highlights' | 'none';
 }
-
-// ════════════════════════════════════════════════════════════════
-// COMPONENT
-// ════════════════════════════════════════════════════════════════
 
 export default function EditCoverLetterPage() {
   const params = useParams();
   const router = useRouter();
-  const { userId } = useAuth();
-  const id = params?.id as string;
+  const { getToken, userId } = useAuth();
+  const letterId = params.id as string;
 
-  const [letterData, setLetterData] = useState<CoverLetterData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingParagraph, setEditingParagraph] = useState<number | null>(null);
-  
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  const [letterData, setLetterData] = useState<CoverLetter | null>(null);
+  const [editedParagraphs, setEditedParagraphs] = useState<string[]>([]);
+
+  // ✅ STYLE SETTINGS (header + sidebar sisältö)
   const [styleSettings, setStyleSettings] = useState<StyleSettings>({
-    headerColor: '#E8E6E1', // ✅ Default harmaa
-    headerLayout: 'top', // ✅ Default ylhäällä
-    fontSize: 11,
-    lineHeight: 1.8,
+    headerColor: 'rgb(181, 152, 79)', // Kultainen/pronssi oletus
+    headerLayout: 'top',
+    sidebarContent: 'contact', // Oletus: yhteystiedot
   });
 
-  const [paragraphs, setParagraphs] = useState<string[]>([]);
+  const letterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (letterData?.content?.body) {
-      setParagraphs(letterData.content.body.split('\n\n').filter(p => p.trim()));
-    }
-  }, [letterData?.content?.body]);
-
-  // ✅ LOAD DATA
-  useEffect(() => {
-    const loadCoverLetter = async () => {
-      if (!userId || !id) {
-        console.log('⏭️ Missing userId or id');
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        console.log(`🔍 Loading cover letter: ${id}`);
-
-        const response = await fetch(`/api/cover-letters/${id}`);
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to load');
-        }
-
-        const { coverLetter: data } = await response.json();
-        
-        if (data) {
-          console.log('✅ Cover letter loaded:', data.title);
-          setLetterData(data);
-        } else {
-          setErrorMessage('Hakukirjettä ei löytynyt');
-        }
-
-      } catch (err) {
-        console.error('❌ Error loading:', err);
-        setErrorMessage(
-          err instanceof Error ? err.message : 'Lataus epäonnistui'
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+    if (!userId) return;
     loadCoverLetter();
-  }, [id, userId]);
+  }, [userId, letterId]);
 
-  // ✅ HANDLERS
-  const handleParagraphChange = (index: number, value: string) => {
-    const newParagraphs = [...paragraphs];
-    newParagraphs[index] = value;
-    setParagraphs(newParagraphs);
-  };
-
-  const handleParagraphDelete = (index: number) => {
-    setParagraphs(paragraphs.filter((_, i) => i !== index));
-  };
-
-  const handleParagraphAdd = (index: number) => {
-    const newParagraphs = [...paragraphs];
-    newParagraphs.splice(index + 1, 0, '');
-    setParagraphs(newParagraphs);
-    setEditingParagraph(index + 1);
-  };
-
-  const handleParagraphMove = (index: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === paragraphs.length - 1) return;
-
-    const newParagraphs = [...paragraphs];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    [newParagraphs[index], newParagraphs[targetIndex]] = [newParagraphs[targetIndex], newParagraphs[index]];
-    setParagraphs(newParagraphs);
-  };
-
-  const handleStyleChange = (setting: keyof StyleSettings, value: any) => {
-    setStyleSettings(prev => ({ ...prev, [setting]: value }));
-  };
-
-  const handleResetStyles = () => {
-    setStyleSettings({
-      headerColor: '#E8E6E1',
-      headerLayout: 'top',
-      fontSize: 11,
-      lineHeight: 1.8,
-    });
-  };
-
-  // ✅ SAVE
-  const handleSave = async () => {
-    if (!letterData || !userId) return;
-    setIsSaving(true);
+  const loadCoverLetter = async () => {
+    setLoading(true);
+    setError(null);
 
     try {
-      const updatedContent = {
-        ...letterData.content,
-        body: paragraphs.join('\n\n'),
-      };
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No authentication token');
 
-      const response = await fetch(`/api/cover-letters/${id}`, {
+      const response = await fetch(`/api/cover-letters/${letterId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error('Failed to load cover letter');
+
+      const data = await response.json();
+      setLetterData(data.coverLetter);
+
+      const content = data.coverLetter.content?.body || data.coverLetter.ai_data?.html?.content || '';
+      const paragraphs = content.split('\n\n').filter((p: string) => p.trim());
+      setEditedParagraphs(paragraphs);
+
+      // ✅ Lataa tallennetut style-asetukset
+      if (data.coverLetter.content?.headerColor) {
+        setStyleSettings((prev) => ({
+          ...prev,
+          headerColor: data.coverLetter.content.headerColor,
+        }));
+      }
+      if (data.coverLetter.content?.headerLayout) {
+        setStyleSettings((prev) => ({
+          ...prev,
+          headerLayout: data.coverLetter.content.headerLayout,
+        }));
+      }
+      if (data.coverLetter.content?.sidebarContent) {
+        setStyleSettings((prev) => ({
+          ...prev,
+          sidebarContent: data.coverLetter.content.sidebarContent,
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading cover letter:', error);
+      setError('Hakukirjeen lataaminen epäonnistui');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleParagraphChange = (index: number, value: string) => {
+    const updated = [...editedParagraphs];
+    updated[index] = value;
+    setEditedParagraphs(updated);
+  };
+
+  const handleSave = async () => {
+    if (!letterData || !userId) return;
+
+    setSaving(true);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No authentication token');
+
+      const updatedContent = editedParagraphs.join('\n\n');
+
+      const response = await fetch(`/api/cover-letters/${letterId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
-          title: letterData.title,
-          content: updatedContent,
-          updated_at: new Date().toISOString(),
+          content: {
+            ...letterData.content,
+            body: updatedContent,
+            headerColor: styleSettings.headerColor,
+            headerLayout: styleSettings.headerLayout,
+            sidebarContent: styleSettings.sidebarContent,
+          },
+          ai_data: {
+            ...letterData.ai_data,
+            html: {
+              ...letterData.ai_data?.html,
+              content: updatedContent,
+            },
+          },
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Save failed');
-      }
+      if (!response.ok) throw new Error('Failed to save changes');
 
-      const updated = await response.json();
-
-      setLetterData(updated);
-      setSuccessMessage('✅ Tallennettu!');
-      setTimeout(() => setSuccessMessage(null), 3000);
-      setIsEditing(false);
-      setEditingParagraph(null);
+      alert('✅ Muutokset tallennettu!');
     } catch (error) {
-      console.error('Save error:', error);
-      setErrorMessage('Tallennus epäonnistui');
-      setTimeout(() => setErrorMessage(null), 3000);
+      console.error('Error saving:', error);
+      alert('❌ Tallennus epäonnistui');
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
-  // ✅ DOWNLOAD PDF
   const handleDownloadPDF = async () => {
-    setIsDownloading(true);
+    setDownloading(true);
     try {
       const response = await fetch('/api/generate-cover-letter-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ letterId: id }),
+        body: JSON.stringify({ letterId }),
       });
 
       if (!response.ok) throw new Error('PDF generation failed');
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Hakukirje_${letterData?.title || 'document'}.pdf`;
+      a.download = `hakukirje_${letterData?.title || 'muokattu'}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
     } catch (error) {
-      console.error('PDF error:', error);
-      alert('PDF:n luonti epäonnistui');
+      console.error('PDF download failed:', error);
+      alert('PDF:n lataus epäonnistui');
     } finally {
-      setIsDownloading(false);
+      setDownloading(false);
     }
   };
 
-  // ✅ DELETE
-  const handleDelete = async () => {
-    if (!confirm('Haluatko varmasti poistaa tämän hakukirjeen?')) return;
-    
-    setIsDeleting(true);
-    try {
-      const response = await fetch(`/api/cover-letters/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Delete failed');
-      }
-      
-      router.push('/my-cover-letters');
-    } catch (error) {
-      console.error('Delete error:', error);
-      alert('Poisto epäonnistui');
-      setIsDeleting(false);
-    }
+  const resetStyles = () => {
+    setStyleSettings({
+      headerColor: 'rgb(181, 152, 79)',
+      headerLayout: 'top',
+      sidebarContent: 'contact',
+    });
   };
 
-  // --- LOADING STATE ---
-  if (isLoading || !letterData) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-amber-500/20 blur-3xl rounded-full"></div>
-          <div className="relative backdrop-blur-2xl bg-slate-900/80 border border-slate-700/50 rounded-3xl shadow-2xl p-12 text-center">
-            <Loader2 className="w-16 h-16 animate-spin text-orange-400 mx-auto mb-6" />
-            <p className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-              {errorMessage || 'Ladataan hakukirjettä...'}
-            </p>
-            {errorMessage && (
-              <button
-                onClick={() => router.push('/my-cover-letters')}
-                className="mt-6 px-6 py-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 hover:bg-slate-700 transition-all"
-              >
-                ← Takaisin
-              </button>
-            )}
-          </div>
+      <div className="min-h-screen bg-[#030711] flex items-center justify-center">
+        <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-2xl p-8 text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-orange-500 mx-auto mb-4" />
+          <p className="text-lg font-bold text-gray-100">Ladataan hakukirjettä...</p>
         </div>
       </div>
     );
   }
 
-  // ✅ KORJATTU DATA-MAPPING (sama kuin my-cover-letters)
+  if (error || !letterData) {
+    return (
+      <div className="min-h-screen bg-[#030711] flex items-center justify-center p-4">
+        <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-2xl p-8 text-center max-w-md">
+          <div className="h-16 w-16 bg-gradient-to-br from-red-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-white text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-100 mb-4">Virhe</h2>
+          <p className="text-red-400 mb-6">{error || 'Hakukirjettä ei löytynyt'}</p>
+          <Link
+            href="/my-cover-letters"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Takaisin
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const coverLetterData = {
-    name: letterData.content?.contactInfo?.name || letterData.ai_data?.name || "Hakija",
-    email: letterData.content?.contactInfo?.email || letterData.ai_data?.email || "",
-    phone: letterData.content?.contactInfo?.phone || letterData.ai_data?.phone || "",
-    location: letterData.content?.contactInfo?.location || letterData.ai_data?.location || "",
-    jobTitle: "",
-    companyName: "",
+    name: letterData.content?.contactInfo?.name || letterData.ai_data?.name || 'Hakija',
+    email: letterData.content?.contactInfo?.email || letterData.ai_data?.email || '',
+    phone: letterData.content?.contactInfo?.phone || letterData.ai_data?.phone || '',
+    location: letterData.content?.contactInfo?.location || letterData.ai_data?.location || '',
+    jobTitle: letterData.content?.job_title || '',
+    companyName: letterData.content?.company_name || '',
     title: letterData.title,
-    content: paragraphs.join('\n\n'), // ✅ Live-päivitys
+    content: editedParagraphs.join('\n\n'),
     keyHighlights: letterData.ai_data?.key_highlights || [],
-    language: letterData.language || 'finnish',
-    style: (letterData.ai_data?.style || 'professional') as 'professional' | 'casual' | 'creative',
-    
-    // ✅ LISÄÄ UUDET ASETUKSET
+    language: letterData.content?.language || 'finnish',
+    style: (letterData.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
     headerColor: styleSettings.headerColor,
     headerLayout: styleSettings.headerLayout,
+    sidebarContent: styleSettings.sidebarContent,
   };
 
-  // --- MAIN RENDER ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 font-sans text-slate-100 relative overflow-hidden">
-      
-      {/* ANIMATED BACKGROUND */}
+    <div className="min-h-screen bg-[#030711] text-[#e7e3dc]">
+      {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-gradient-to-br from-orange-500/8 to-slate-700/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
       </div>
 
-      {/* TOP BAR */}
-      <div className="px-4 md:px-8 py-4 mt-20 sticky top-20 z-40">
-        <div className="max-w-[1800px] mx-auto backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-2xl shadow-2xl p-4">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <button 
-                onClick={() => router.push('/my-cover-letters')}
-                className="group relative p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all"
+      <div className="relative z-10 max-w-[1800px] mx-auto p-4 md:p-8">
+        {/* Header */}
+        <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/my-cover-letters"
+                className="h-10 w-10 flex items-center justify-center rounded-xl bg-gray-800/50 hover:bg-gray-700/50 transition-colors"
               >
-                <ArrowLeft className="w-5 h-5 text-slate-300 group-hover:text-orange-400 transition-colors" />
-              </button>
-              
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent truncate">
-                  {letterData.title || 'Nimetön hakukirje'}
+                <ArrowLeft className="w-5 h-5 text-gray-300" />
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+                  Muokkaa hakukirjettä
                 </h1>
+                <p className="text-sm text-gray-400 mt-1">{letterData.title}</p>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {!isEditing ? (
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="group relative px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl font-bold text-white shadow-lg hover:shadow-xl transition-all"
-                >
-                  <div className="relative flex items-center gap-2">
-                    <Edit3 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Muokkaa</span>
-                  </div>
-                </button>
-              ) : (
-                <>
-                  <button 
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditingParagraph(null);
-                    }}
-                    className="px-4 py-3 bg-slate-800/50 border border-slate-700/50 text-slate-300 rounded-xl hover:bg-slate-700/50 transition-all font-semibold flex items-center gap-2"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span className="hidden sm:inline">Esikatsele</span>
-                  </button>
-                  <button 
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="group relative px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl font-bold text-white shadow-lg hover:shadow-xl disabled:opacity-50 transition-all"
-                  >
-                    <div className="relative flex items-center gap-2">
-                      {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                      <span className="hidden sm:inline">Tallenna</span>
-                    </div>
-                  </button>
-                </>
-              )}
-              
-              <button 
+
+            <div className="flex gap-2">
+              <button
                 onClick={handleDownloadPDF}
-                disabled={isDownloading}
-                className="group relative p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all"
-                title="Lataa PDF"
+                disabled={downloading}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
               >
-                {isDownloading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
+                {downloading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Ladataan...</>
                 ) : (
-                  <Download className="w-5 h-5 text-slate-300 group-hover:text-blue-400 transition-colors" />
+                  <><Download className="w-4 h-4" /> Lataa PDF</>
                 )}
               </button>
-              
-              <button 
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="group relative p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-red-500/20 hover:border-red-500/50 transition-all"
-                title="Poista"
+
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
               >
-                {isDeleting ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-red-400" />
+                {saving ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Tallennetaan...</>
                 ) : (
-                  <Trash2 className="w-5 h-5 text-slate-400 group-hover:text-red-400 transition-colors" />
+                  <><Save className="w-4 h-4" /> Tallenna</>
                 )}
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* NOTIFICATIONS */}
-      {successMessage && (
-        <div className="fixed top-32 right-6 z-50 animate-slide-in-right">
-          <div className="backdrop-blur-2xl bg-green-500/20 border border-green-400/30 rounded-2xl shadow-2xl p-4 flex items-center gap-3">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <p className="font-bold text-green-100">{successMessage}</p>
+        {/* ✅ STYLE CONTROLS */}
+        <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-100 flex items-center gap-2">
+              <Palette className="w-5 h-5 text-orange-400" />
+              Ulkoasu
+            </h2>
+            <button
+              onClick={resetStyles}
+              className="text-xs text-gray-400 hover:text-orange-400 transition-colors flex items-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              Palauta oletukset
+            </button>
           </div>
-        </div>
-      )}
 
-      {errorMessage && (
-        <div className="fixed top-32 right-6 z-50 animate-slide-in-right">
-          <div className="backdrop-blur-2xl bg-red-500/20 border border-red-400/30 rounded-2xl shadow-2xl p-4 flex items-center gap-3">
-            <p className="font-bold text-red-100">{errorMessage}</p>
-          </div>
-        </div>
-      )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Header väri */}
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Header-väri</label>
+              <input
+                type="color"
+                value={styleSettings.headerColor.startsWith('rgb') 
+                  ? '#B59850' 
+                  : styleSettings.headerColor}
+                onChange={(e) =>
+                  setStyleSettings((prev) => ({ ...prev, headerColor: e.target.value }))
+                }
+                className="w-full h-10 rounded-lg border border-gray-700 bg-gray-800 cursor-pointer"
+              />
+            </div>
 
-      {/* MAIN CONTENT */}
-      <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-8 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* LEFT SIDEBAR - STYLE CONTROLS */}
-          {isEditing && (
-            <div className="lg:col-span-3 space-y-6">
-              
-              {/* ✅ UUSI: Header Customization */}
-              <div className="backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-purple-400" />
-                  Header Asetukset
-                </h3>
-                
-                <div className="space-y-4">
-                  {/* Värinvalitsin */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-300 mb-2">
-                      Taustaväri
-                    </label>
-                    <input
-                      type="color"
-                      value={styleSettings.headerColor}
-                      onChange={(e) => handleStyleChange('headerColor', e.target.value)}
-                      className="w-full h-12 rounded-lg cursor-pointer"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">{styleSettings.headerColor}</p>
-                  </div>
-
-                  {/* Layout toggle */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-300 mb-2">
-                      Layout
-                    </label>
-                    <select
-                      value={styleSettings.headerLayout}
-                      onChange={(e) => handleStyleChange('headerLayout', e.target.value as 'top' | 'left')}
-                      className="w-full px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-200 focus:outline-none focus:border-orange-500/50"
-                    >
-                      <option value="top">Ylhäällä (vaaka)</option>
-                      <option value="left">Vasemmalla (pysty)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-slate-100 mb-4">Pika-toiminnot</h3>
-                <button 
-                  onClick={handleResetStyles}
-                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-700/50 transition-all flex items-center gap-2"
+            {/* Layout */}
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Layout</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'top' }))}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                    styleSettings.headerLayout === 'top'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
+                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                  }`}
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  Palauta oletusarvot
+                  <AlignHorizontalJustifyCenter className="w-4 h-4" />
+                  Vaaka
+                </button>
+                <button
+                  onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'left' }))}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                    styleSettings.headerLayout === 'left'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
+                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                  }`}
+                >
+                  <LayoutPanelLeft className="w-4 h-4" />
+                  Pysty
                 </button>
               </div>
-
             </div>
-          )}
 
-          {/* CENTER: COVER LETTER PREVIEW */}
-          <div className={isEditing ? "lg:col-span-9" : "lg:col-span-12"}>
-            <div className="backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-3xl shadow-2xl p-8 overflow-hidden">
-              <div className="overflow-x-auto overflow-y-auto pb-6 custom-scrollbar flex justify-center bg-slate-950/30 rounded-2xl border border-slate-800/50 inner-shadow max-h-[80vh]">
-                
-                {/* ✅ KÄYTÄ OIKEAA TEMPLATEA + KORJATTU SKAALAUS */}
-                <div className="transform lg:scale-[0.85] md:scale-[0.6] scale-[0.35] origin-top min-w-[210mm] min-h-[297mm]">
+            {/* ✅ UUSI: Sidebar/Header sisältö */}
+            <div>
+              <label className="block text-sm font-bold text-gray-300 mb-2">Sivupalkin sisältö</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'contact' }))}
+                  className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                    styleSettings.sidebarContent === 'contact'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
+                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                  }`}
+                  title="Yhteystiedot"
+                >
+                  <User className="w-4 h-4 mx-auto" />
+                </button>
+                <button
+                  onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'highlights' }))}
+                  className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                    styleSettings.sidebarContent === 'highlights'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
+                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                  }`}
+                  title="Vahvuudet"
+                >
+                  <Sparkles className="w-4 h-4 mx-auto" />
+                </button>
+                <button
+                  onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'none' }))}
+                  className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                    styleSettings.sidebarContent === 'none'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
+                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                  }`}
+                  title="Ei mitään"
+                >
+                  <X className="w-4 h-4 mx-auto" />
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {styleSettings.sidebarContent === 'contact' && 'Näyttää yhteystiedot'}
+                {styleSettings.sidebarContent === 'highlights' && 'Näyttää vahvuudet'}
+                {styleSettings.sidebarContent === 'none' && 'Ei näytä mitään'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Editor */}
+          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
+            <h2 className="text-xl font-bold text-gray-100 mb-4">Muokkaa sisältöä</h2>
+            <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
+              {editedParagraphs.map((paragraph, index) => (
+                <div key={index}>
+                  <label className="block text-sm font-bold text-gray-400 mb-2">
+                    Kappale {index + 1}
+                  </label>
+                  <textarea
+                    value={paragraph}
+                    onChange={(e) => handleParagraphChange(index, e.target.value)}
+                    className="w-full min-h-[120px] p-4 bg-gray-900/50 border border-gray-700 rounded-xl text-gray-100 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all resize-y"
+                    style={{ lineHeight: '1.6' }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
+            <h2 className="text-xl font-bold text-gray-100 mb-4">Esikatselu</h2>
+            <div
+              className="relative w-full overflow-hidden bg-gray-900/20 rounded-xl"
+              style={{
+                height: '800px',
+                boxShadow: 'inset 0 4px 6px -1px rgba(0, 0, 0, 0.3)',
+              }}
+            >
+              <div className="absolute inset-0 overflow-y-auto flex justify-center py-4">
+                <div className="transform scale-[0.70] origin-top">
                   <CoverLetterContainer
+                    ref={letterRef}
                     data-template-type="standard"
-                    className="shadow-2xl bg-white mt-6 mb-6"
+                    className="shadow-lg bg-white"
                   >
-                    <CoverLetterTemplate
-                      data={coverLetterData}
-                      isPdfPreview={false}
-                      isEditing={false}
-                    />
+                    <CoverLetterTemplate data={coverLetterData} isPdfPreview={false} isEditing={false} />
                   </CoverLetterContainer>
                 </div>
-
               </div>
-
-              {/* ✅ MUOKKAUS-UI */}
-              {isEditing && (
-                <div className="mt-8 p-6 bg-slate-800/30 border border-slate-700/50 rounded-2xl">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <Edit3 className="w-5 h-5 text-orange-400" />
-                    Muokkaa tekstiä
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    {paragraphs.map((paragraph, index) => (
-                      <div key={index} className="relative group">
-                        
-                        {/* Toiminnot */}
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-slate-400">Kappale {index + 1}</span>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleParagraphMove(index, 'up')}
-                              disabled={index === 0}
-                              className="p-1 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-30"
-                              title="Siirrä ylös"
-                            >
-                              <GripVertical className="w-4 h-4 text-white" />
-                            </button>
-                            <button
-                              onClick={() => handleParagraphAdd(index)}
-                              className="p-1 bg-green-600 rounded hover:bg-green-700"
-                              title="Lisää kappale"
-                            >
-                              <Plus className="w-4 h-4 text-white" />
-                            </button>
-                            <button
-                              onClick={() => handleParagraphDelete(index)}
-                              className="p-1 bg-red-600 rounded hover:bg-red-700"
-                              title="Poista"
-                            >
-                              <Minus className="w-4 h-4 text-white" />
-                            </button>
-                          </div>
-                        </div>
-                        
-                        {/* Textarea */}
-                        <textarea
-                          value={paragraph}
-                          onChange={(e) => handleParagraphChange(index, e.target.value)}
-                          className="w-full p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-orange-500/50 resize-none min-h-[100px]"
-                          placeholder="Kirjoita kappale..."
-                        />
-                      </div>
-                    ))}
-                    
-                    {/* Lisää uusi kappale */}
-                    <button
-                      onClick={() => {
-                        setParagraphs([...paragraphs, '']);
-                        setEditingParagraph(paragraphs.length);
-                      }}
-                      className="w-full py-3 border-2 border-dashed border-slate-700 rounded-xl text-slate-400 hover:border-orange-500/50 hover:text-orange-400 transition-all flex items-center justify-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Lisää uusi kappale
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-
         </div>
       </div>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          height: 8px;
-          width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.15);
-          border-radius: 4px;
-        }
-        .inner-shadow {
-          box-shadow: inset 0 0 30px rgba(0,0,0,0.3);
-        }
-        @keyframes slide-in-right {
-          from {
-            opacity: 0;
-            transform: translateX(100px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        .animate-slide-in-right {
-          animation: slide-in-right 0.3s ease-out;
-        }
-      `}</style>
     </div>
   );
 }
