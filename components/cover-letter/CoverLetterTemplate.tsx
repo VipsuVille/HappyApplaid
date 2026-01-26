@@ -1,3 +1,4 @@
+// components/cover-letter/CoverLetterTemplate.tsx - ✨ KAUNIS VERSIO
 "use client";
 import React from "react";
 
@@ -6,22 +7,15 @@ import React from "react";
 // ════════════════════════════════════════════════════════════════
 
 interface CoverLetterData {
-  // Header info
   name: string;
   email?: string;
   phone?: string;
   location?: string;
-  
-  // Job info
   jobTitle?: string;
   companyName?: string;
-  
-  // AI content
-  content: string; // The main letter text
+  content: string;
   title?: string;
   keyHighlights?: string[];
-  
-  // Settings
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
 }
@@ -29,7 +23,7 @@ interface CoverLetterData {
 interface CoverLetterTemplateProps {
   data: CoverLetterData;
   isEditing?: boolean;
-  isPdfPreview?: boolean; // ✅ LISÄTTY
+  isPdfPreview?: boolean;
   onContentChange?: (field: keyof CoverLetterData, value: any) => void;
 }
 
@@ -40,7 +34,7 @@ interface CoverLetterTemplateProps {
 const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
   data,
   isEditing = false,
-  isPdfPreview = false, // ✅ LISÄTTY
+  isPdfPreview = false,
   onContentChange,
 }) => {
   const today = new Date().toLocaleDateString(
@@ -50,208 +44,317 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
 
   return (
     <div
-      className="cover-letter-paper bg-white mx-auto relative shadow-2xl"
+      className="cover-letter-paper bg-white mx-auto relative"
       style={{
         width: "210mm",
         minHeight: "297mm",
-        fontFamily: "'Inter', 'Helvetica', sans-serif",
+        fontFamily: "'Merriweather', serif",
         color: "#1a202c",
-        padding: "25mm 20mm",
+        position: "relative",
       }}
     >
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* HEADER - Contact Info */}
+      {/* SININEN YLÄPALKKI (kuten CV:ssä) */}
       {/* ════════════════════════════════════════════════════════════════ */}
       
-      <div className="mb-12">
-        {/* Name */}
-        {isEditing ? (
-          <input
-            className="text-3xl font-bold text-gray-900 w-full mb-2 px-2 py-1 border-b-2 border-gray-200 focus:border-blue-500 outline-none"
-            value={data.name || ""}
-            onChange={(e) => onContentChange?.("name", e.target.value)}
-            placeholder="Your Name"
-          />
-        ) : (
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {data.name}
-          </h1>
-        )}
+      <div 
+        className="blue-bar"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "80px",
+          background: "linear-gradient(135deg, #2563eb 0%, #1e40af 100%)",
+          WebkitPrintColorAdjust: "exact",
+          printColorAdjust: "exact",
+        }}
+      />
 
-        {/* Contact Details */}
-        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-          {data.email && (
-            <div className="flex items-center gap-1">
-              <span>📧</span>
-              {isEditing ? (
-                <input
-                  className="px-1 border-b border-gray-300 outline-none"
-                  value={data.email}
-                  onChange={(e) => onContentChange?.("email", e.target.value)}
-                />
-              ) : (
-                <span>{data.email}</span>
-              )}
-            </div>
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* CONTENT WRAPPER */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      <div style={{ padding: "100px 50px 50px 50px", position: "relative", zIndex: 1 }}>
+        
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* HEADER - Nimi ja yhteystiedot */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        
+        <div className="mb-8">
+          {/* Name */}
+          {isEditing ? (
+            <input
+              className="text-4xl font-bold text-gray-900 w-full mb-3 px-2 py-1 border-b-2 border-gray-200 focus:border-blue-500 outline-none"
+              value={data.name || ""}
+              onChange={(e) => onContentChange?.("name", e.target.value)}
+              placeholder="Your Name"
+              style={{ fontFamily: "'Merriweather', serif" }}
+            />
+          ) : (
+            <h1 
+              className="text-4xl font-bold mb-3"
+              style={{ 
+                color: "#1e40af",
+                fontFamily: "'Merriweather', serif",
+              }}
+            >
+              {data.name}
+            </h1>
           )}
+
+          {/* Contact Details - Yksi rivi, kuten CV:ssä */}
+          <div 
+            className="flex flex-wrap gap-4 text-sm"
+            style={{ 
+              color: "#475569",
+              fontFamily: "'Open Sans', sans-serif",
+            }}
+          >
+            {data.email && (
+              <div className="flex items-center gap-1.5">
+                <span style={{ color: "#2563eb" }}>✉</span>
+                {isEditing ? (
+                  <input
+                    className="px-1 border-b border-gray-300 outline-none bg-transparent"
+                    value={data.email}
+                    onChange={(e) => onContentChange?.("email", e.target.value)}
+                  />
+                ) : (
+                  <span>{data.email}</span>
+                )}
+              </div>
+            )}
+            
+            {data.phone && (
+              <div className="flex items-center gap-1.5">
+                <span style={{ color: "#2563eb" }}>☎</span>
+                {isEditing ? (
+                  <input
+                    className="px-1 border-b border-gray-300 outline-none bg-transparent"
+                    value={data.phone}
+                    onChange={(e) => onContentChange?.("phone", e.target.value)}
+                  />
+                ) : (
+                  <span>{data.phone}</span>
+                )}
+              </div>
+            )}
+            
+            {data.location && (
+              <div className="flex items-center gap-1.5">
+                <span style={{ color: "#2563eb" }}>📍</span>
+                {isEditing ? (
+                  <input
+                    className="px-1 border-b border-gray-300 outline-none bg-transparent"
+                    value={data.location}
+                    onChange={(e) => onContentChange?.("location", e.target.value)}
+                  />
+                ) : (
+                  <span>{data.location}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Erotinviiva */}
+        <div 
+          className="mb-8"
+          style={{
+            height: "2px",
+            background: "linear-gradient(to right, #2563eb, transparent)",
+            opacity: 0.3,
+          }}
+        />
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* PÄIVÄMÄÄRÄ & VASTAANOTTAJA */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        
+        <div className="mb-8" style={{ fontSize: "10pt", color: "#64748b" }}>
+          <p className="mb-4">{today}</p>
           
-          {data.phone && (
-            <div className="flex items-center gap-1">
-              <span>📞</span>
+          {data.companyName && (
+            <div>
               {isEditing ? (
                 <input
-                  className="px-1 border-b border-gray-300 outline-none"
-                  value={data.phone}
-                  onChange={(e) => onContentChange?.("phone", e.target.value)}
+                  className="font-semibold text-gray-900 px-1 border-b border-gray-300 outline-none mb-1 w-full"
+                  value={data.companyName}
+                  onChange={(e) => onContentChange?.("companyName", e.target.value)}
+                  placeholder="Company Name"
                 />
               ) : (
-                <span>{data.phone}</span>
-              )}
-            </div>
-          )}
-          
-          {data.location && (
-            <div className="flex items-center gap-1">
-              <span>📍</span>
-              {isEditing ? (
-                <input
-                  className="px-1 border-b border-gray-300 outline-none"
-                  value={data.location}
-                  onChange={(e) => onContentChange?.("location", e.target.value)}
-                />
-              ) : (
-                <span>{data.location}</span>
+                <p className="font-semibold" style={{ color: "#1e293b" }}>
+                  {data.companyName}
+                </p>
               )}
             </div>
           )}
         </div>
-      </div>
 
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* DATE & RECIPIENT */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      
-      <div className="mb-8 text-sm text-gray-600">
-        <p className="mb-4">{today}</p>
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* OTSIKKO (jos on) */}
+        {/* ════════════════════════════════════════════════════════════════ */}
         
-        {data.companyName && (
-          <div>
+        {data.title && (
+          <div className="mb-6">
             {isEditing ? (
               <input
-                className="font-semibold text-gray-900 px-1 border-b border-gray-300 outline-none mb-1 w-full"
-                value={data.companyName}
-                onChange={(e) => onContentChange?.("companyName", e.target.value)}
-                placeholder="Company Name"
+                className="text-lg font-semibold text-gray-900 w-full px-2 py-1 border-b-2 border-gray-200 outline-none"
+                value={data.title}
+                onChange={(e) => onContentChange?.("title", e.target.value)}
+                placeholder="Subject / Title"
               />
             ) : (
-              <p className="font-semibold text-gray-900">{data.companyName}</p>
+              <p 
+                className="text-lg font-semibold"
+                style={{ 
+                  color: "#1e40af",
+                  fontFamily: "'Merriweather', serif",
+                }}
+              >
+                {data.title}
+              </p>
             )}
           </div>
         )}
-      </div>
 
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* SUBJECT LINE */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      
-      {data.title && (
-        <div className="mb-6">
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* PÄÄSISÄLTÖ - Kirjeen teksti */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        
+        <div className="mb-12">
           {isEditing ? (
-            <input
-              className="text-lg font-semibold text-gray-900 w-full px-2 py-1 border-b-2 border-gray-200 outline-none"
-              value={data.title}
-              onChange={(e) => onContentChange?.("title", e.target.value)}
-              placeholder="Subject / Title"
+            <textarea
+              className="w-full min-h-[400px] p-4 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500"
+              value={data.content || ""}
+              onChange={(e) => onContentChange?.("content", e.target.value)}
+              placeholder="Write your cover letter content here..."
+              style={{
+                lineHeight: "1.8",
+                fontSize: "11pt",
+                fontFamily: "'Merriweather', serif",
+                color: "#334155",
+              }}
             />
           ) : (
-            <p className="text-lg font-semibold text-gray-900">
-              {data.title}
-            </p>
+            <div 
+              className="prose prose-lg max-w-none"
+              style={{
+                lineHeight: "1.8",
+                fontSize: "11pt",
+                fontFamily: "'Merriweather', serif",
+                color: "#334155",
+              }}
+            >
+              {data.content.split('\n\n').map((paragraph, idx) => (
+                <p key={idx} className="mb-4" style={{ textAlign: "justify" }}>
+                  {paragraph}
+                </p>
+              ))}
+            </div>
           )}
         </div>
-      )}
 
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* MAIN CONTENT */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      
-      <div className="mb-12">
-        {isEditing ? (
-          <textarea
-            className="w-full min-h-[400px] p-4 border-2 border-gray-200 rounded-lg text-gray-800 leading-relaxed text-base outline-none focus:border-blue-500"
-            value={data.content || ""}
-            onChange={(e) => onContentChange?.("content", e.target.value)}
-            placeholder="Write your cover letter content here..."
-            style={{
-              lineHeight: "1.8",
-              fontSize: "11pt",
-            }}
-          />
-        ) : (
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* AVAINOSAAMISET (jos on) */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        
+        {data.keyHighlights && data.keyHighlights.length > 0 && !isEditing && (
           <div 
-            className="prose prose-lg max-w-none"
+            className="mb-12 p-5 rounded-lg"
             style={{
-              lineHeight: "1.8",
-              fontSize: "11pt",
+              background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+              borderLeft: "4px solid #2563eb",
             }}
           >
-            {data.content.split('\n\n').map((paragraph, idx) => (
-              <p key={idx} className="mb-4 text-gray-800">
-                {paragraph}
-              </p>
-            ))}
+            <h3 
+              className="text-sm font-bold uppercase tracking-wide mb-3"
+              style={{ 
+                color: "#1e40af",
+                fontFamily: "'Open Sans', sans-serif",
+              }}
+            >
+              {data.language === 'english' ? 'Key Strengths' : 'Avainosaamisalueet'}
+            </h3>
+            <ul className="space-y-2">
+              {data.keyHighlights.map((highlight, idx) => (
+                <li 
+                  key={idx} 
+                  className="flex items-start gap-2 text-sm"
+                  style={{ 
+                    color: "#475569",
+                    fontFamily: "'Merriweather', serif",
+                  }}
+                >
+                  <span style={{ color: "#2563eb", fontWeight: "bold" }}>✓</span>
+                  <span>{highlight}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
-      </div>
 
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* KEY HIGHLIGHTS (Optional) */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      
-      {data.keyHighlights && data.keyHighlights.length > 0 && !isEditing && (
-        <div className="mb-12 p-6 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg">
-          <h3 className="text-sm font-bold text-blue-900 uppercase tracking-wide mb-3">
-            {data.language === 'english' ? 'Key Strengths' : 'Avainosaamisalueet'}
-          </h3>
-          <ul className="space-y-2">
-            {data.keyHighlights.map((highlight, idx) => (
-              <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                <span className="text-blue-500 mt-0.5">✓</span>
-                <span>{highlight}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* SIGNATURE */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      
-      <div className="mt-12">
-        <p className="text-gray-800 mb-8">
-          {data.language === 'english' ? 'Sincerely,' : 'Ystävällisin terveisin,'}
-        </p>
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* ALLEKIRJOITUS */}
+        {/* ════════════════════════════════════════════════════════════════ */}
         
-        <p className="text-2xl text-blue-700 opacity-80" 
-           style={{ fontFamily: "'Brush Script MT', cursive" }}>
-          {data.name}
-        </p>
+        <div className="mt-12">
+          <p 
+            className="mb-8"
+            style={{ 
+              color: "#475569",
+              fontSize: "11pt",
+              fontFamily: "'Merriweather', serif",
+            }}
+          >
+            {data.language === 'english' ? 'Sincerely,' : 'Ystävällisin terveisin,'}
+          </p>
+          
+          <p 
+            className="text-3xl"
+            style={{ 
+              fontFamily: "'Brush Script MT', cursive",
+              color: "#2563eb",
+              opacity: 0.8,
+            }}
+          >
+            {data.name}
+          </p>
+        </div>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* FOOTER - Optional style indicator */}
+      {/* FOOTER - Ohut sininen viiva */}
       {/* ════════════════════════════════════════════════════════════════ */}
       
-      {isEditing && (
-        <div className="absolute bottom-4 right-4 text-xs text-gray-400">
-          Style: {data.style || 'professional'}
-        </div>
-      )}
+      <div 
+        style={{
+          position: "absolute",
+          bottom: "30px",
+          left: "50px",
+          right: "50px",
+          height: "2px",
+          background: "linear-gradient(to right, #2563eb, transparent)",
+          opacity: 0.2,
+        }}
+      />
 
-      {/* ✅ PDF DEBUG INFO (vain kehityksessä) */}
+      {/* PDF Debug */}
       {isPdfPreview && process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-2 right-2 text-xs text-gray-400 bg-yellow-100 px-2 py-1 rounded">
+        <div 
+          style={{
+            position: "absolute",
+            top: "5px",
+            right: "5px",
+            fontSize: "8px",
+            color: "#94a3b8",
+            background: "#fef3c7",
+            padding: "2px 6px",
+            borderRadius: "3px",
+          }}
+        >
           PDF Mode
         </div>
       )}
