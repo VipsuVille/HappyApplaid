@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - ✅ KORJATTU SKAALAUS
+// app/my-cover-letters/page.tsx - ✅ ZOOM CONTROLS LISÄTTY
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -14,7 +14,10 @@ import {
   TrendingUp,
   Zap,
   Plus,
-  Database
+  Database,
+  ZoomIn,
+  ZoomOut,
+  Maximize2
 } from 'lucide-react';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
@@ -28,6 +31,27 @@ interface CoverLetter {
   ai_data: any;
 }
 
+// ✅ ZOOM LEVELS
+type ZoomLevel = 'small' | 'medium' | 'large';
+
+const ZOOM_CONFIGS = {
+  small: {
+    height: '350px',
+    scale: { mobile: 0.25, tablet: 0.4, desktop: 0.6 },
+    label: 'Pieni'
+  },
+  medium: {
+    height: '500px',
+    scale: { mobile: 0.35, tablet: 0.6, desktop: 0.85 },
+    label: 'Keskikokoinen'
+  },
+  large: {
+    height: '700px',
+    scale: { mobile: 0.45, tablet: 0.75, desktop: 1.0 },
+    label: 'Iso'
+  }
+};
+
 export default function MyCoverLettersPage() {
   const { getToken, userId } = useAuth();
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
@@ -37,6 +61,9 @@ export default function MyCoverLettersPage() {
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
   const [improvingATSId, setImprovingATSId] = useState<string | null>(null);
   const letterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  
+  // ✅ ZOOM STATE
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('medium');
 
   const setLetterRef = useCallback((letterId: string) => (el: HTMLDivElement | null) => {
     letterRefs.current[letterId] = el;
@@ -206,7 +233,6 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  // ✅ KORJATTU: Muunna CoverLetter → CoverLetterData (SAMA KUIN EDIT-SIVULLA)
   const convertToCoverLetterData = (letter: CoverLetter) => ({
     name: letter.content?.contactInfo?.name || letter.ai_data?.name || "Hakija",
     email: letter.content?.contactInfo?.email || letter.ai_data?.email || "",
@@ -217,7 +243,7 @@ export default function MyCoverLettersPage() {
     title: letter.title,
     content: letter.content?.body || letter.ai_data?.html?.content || "",
     keyHighlights: letter.ai_data?.key_highlights || [],
-    language: letter.content?.language || letter.language || "finnish",
+    language: letter.content?.language || "english",
     style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative"
   });
 
@@ -254,7 +280,6 @@ export default function MyCoverLettersPage() {
   if (coverLetters.length === 0) {
     return (
       <div className="min-h-screen bg-[#030711] relative overflow-hidden">
-        {/* Background orbs */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
@@ -279,6 +304,8 @@ export default function MyCoverLettersPage() {
       </div>
     );
   }
+
+  const currentZoom = ZOOM_CONFIGS[zoomLevel];
 
   return (
     <div className="min-h-screen bg-[#030711] text-[#e7e3dc] font-sans selection:bg-orange-500/30 relative overflow-hidden">
@@ -322,6 +349,29 @@ export default function MyCoverLettersPage() {
                 </div>
               </Link>
             </div>
+
+            {/* ✅ ZOOM CONTROLS */}
+            <div className="mt-6 flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-bold text-gray-400 flex items-center gap-2">
+                <Maximize2 className="w-4 h-4" />
+                Esikatselu koko:
+              </span>
+              <div className="flex gap-2">
+                {(Object.keys(ZOOM_CONFIGS) as ZoomLevel[]).map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => setZoomLevel(level)}
+                    className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                      zoomLevel === level
+                        ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
+                        : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                    }`}
+                  >
+                    {ZOOM_CONFIGS[level].label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -359,16 +409,27 @@ export default function MyCoverLettersPage() {
                   </button>
                 </div>
 
-                {/* ✅ KORJATTU PREVIEW - KOKO KIRJE NÄKYY */}
+                {/* ✅ DYNAAMINEN PREVIEW (zoom-tason mukaan) */}
                 <div
                   className="relative w-full overflow-hidden bg-gray-900/20 rounded-t-2xl"
                   style={{
-                    height: '500px',
+                    height: currentZoom.height,
                     boxShadow: "inset 0 4px 6px -1px rgba(0, 0, 0, 0.3)",
                   }}
                 >
                   <div className="absolute inset-0 overflow-y-auto flex justify-center py-4 px-2">
-                    <div className="transform lg:scale-[0.85] md:scale-[0.6] scale-[0.35] origin-top">
+                    <div 
+                      className="origin-top transition-transform duration-300"
+                      style={{
+                        transform: `scale(${
+                          typeof window !== 'undefined' && window.innerWidth < 640
+                            ? currentZoom.scale.mobile
+                            : typeof window !== 'undefined' && window.innerWidth < 1024
+                            ? currentZoom.scale.tablet
+                            : currentZoom.scale.desktop
+                        })`
+                      }}
+                    >
                       <CoverLetterContainer
                         ref={setLetterRef(letter.id)}
                         data-template-type="standard"
