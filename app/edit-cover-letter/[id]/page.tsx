@@ -1,6 +1,4 @@
-// app/edit-cover-letter/[id]/page.tsx
-// ✅ FINAL: Sidebar-sisältö valitsin lisätty
-
+// app/edit-cover-letter/[id]/page.tsx - ✅ MINIMAL FIX
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -52,11 +50,10 @@ export default function EditCoverLetterPage() {
   const [letterData, setLetterData] = useState<CoverLetter | null>(null);
   const [editedParagraphs, setEditedParagraphs] = useState<string[]>([]);
 
-  // ✅ STYLE SETTINGS (header + sidebar sisältö)
   const [styleSettings, setStyleSettings] = useState<StyleSettings>({
-    headerColor: 'rgb(181, 152, 79)', // Kultainen/pronssi oletus
+    headerColor: 'rgb(181, 152, 79)',
     headerLayout: 'top',
-    sidebarContent: 'contact', // Oletus: yhteystiedot
+    sidebarContent: 'contact',
   });
 
   const letterRef = useRef<HTMLDivElement>(null);
@@ -87,7 +84,6 @@ export default function EditCoverLetterPage() {
       const paragraphs = content.split('\n\n').filter((p: string) => p.trim());
       setEditedParagraphs(paragraphs);
 
-      // ✅ Lataa tallennetut style-asetukset
       if (data.coverLetter.content?.headerColor) {
         setStyleSettings((prev) => ({
           ...prev,
@@ -252,17 +248,16 @@ export default function EditCoverLetterPage() {
 
   return (
     <div className="min-h-screen bg-[#030711] text-[#e7e3dc]">
-      {/* Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
       </div>
 
       <div className="relative z-10 max-w-[1800px] mx-auto p-4 md:p-8">
-        {/* Header */}
-        <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
+        {/* Header - Mobile responsive */}
+        <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
               <Link
                 href="/my-cover-letters"
                 className="h-10 w-10 flex items-center justify-center rounded-xl bg-gray-800/50 hover:bg-gray-700/50 transition-colors"
@@ -270,30 +265,30 @@ export default function EditCoverLetterPage() {
                 <ArrowLeft className="w-5 h-5 text-gray-300" />
               </Link>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+                <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
                   Muokkaa hakukirjettä
                 </h1>
-                <p className="text-sm text-gray-400 mt-1">{letterData.title}</p>
+                <p className="text-sm text-gray-400 mt-1 line-clamp-1">{letterData.title}</p>
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
               >
                 {downloading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Ladataan...</>
                 ) : (
-                  <><Download className="w-4 h-4" /> Lataa PDF</>
+                  <><Download className="w-4 h-4" /> <span className="hidden sm:inline">Lataa PDF</span></>
                 )}
               </button>
 
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-4 md:px-6 py-2 text-sm bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
               >
                 {saving ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Tallennetaan...</>
@@ -305,11 +300,11 @@ export default function EditCoverLetterPage() {
           </div>
         </div>
 
-        {/* ✅ STYLE CONTROLS */}
-        <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
+        {/* Style Controls - Mobile responsive */}
+        <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-100 flex items-center gap-2">
-              <Palette className="w-5 h-5 text-orange-400" />
+            <h2 className="text-base md:text-lg font-bold text-gray-100 flex items-center gap-2">
+              <Palette className="w-4 md:w-5 h-4 md:h-5 text-orange-400" />
               Ulkoasu
             </h2>
             <button
@@ -317,62 +312,58 @@ export default function EditCoverLetterPage() {
               className="text-xs text-gray-400 hover:text-orange-400 transition-colors flex items-center gap-1"
             >
               <X className="w-3 h-3" />
-              Palauta oletukset
+              <span className="hidden sm:inline">Palauta</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Header väri */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Header-väri</label>
+              <label className="block text-xs md:text-sm font-bold text-gray-300 mb-2">Header-väri</label>
               <input
                 type="color"
-                value={styleSettings.headerColor.startsWith('rgb') 
-                  ? '#B59850' 
-                  : styleSettings.headerColor}
-                onChange={(e) =>
-                  setStyleSettings((prev) => ({ ...prev, headerColor: e.target.value }))
-                }
+                value={styleSettings.headerColor.startsWith('rgb') ? '#B59850' : styleSettings.headerColor}
+                onChange={(e) => setStyleSettings((prev) => ({ ...prev, headerColor: e.target.value }))}
                 className="w-full h-10 rounded-lg border border-gray-700 bg-gray-800 cursor-pointer"
               />
             </div>
 
             {/* Layout */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Layout</label>
+              <label className="block text-xs md:text-sm font-bold text-gray-300 mb-2">Layout</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'top' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
                     styleSettings.headerLayout === 'top'
                       ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
                       : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
                   }`}
                 >
                   <AlignHorizontalJustifyCenter className="w-4 h-4" />
-                  Vaaka
+                  <span className="hidden sm:inline">Vaaka</span>
                 </button>
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'left' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
                     styleSettings.headerLayout === 'left'
                       ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
                       : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
                   }`}
                 >
                   <LayoutPanelLeft className="w-4 h-4" />
-                  Pysty
+                  <span className="hidden sm:inline">Pysty</span>
                 </button>
               </div>
             </div>
 
-            {/* ✅ UUSI: Sidebar/Header sisältö */}
+            {/* Sidebar sisältö */}
             <div>
-              <label className="block text-sm font-bold text-gray-300 mb-2">Sivupalkin sisältö</label>
+              <label className="block text-xs md:text-sm font-bold text-gray-300 mb-2">Sisältö</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'contact' }))}
-                  className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-2 rounded-lg font-bold text-xs transition-all ${
                     styleSettings.sidebarContent === 'contact'
                       ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
                       : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
@@ -383,7 +374,7 @@ export default function EditCoverLetterPage() {
                 </button>
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'highlights' }))}
-                  className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-2 rounded-lg font-bold text-xs transition-all ${
                     styleSettings.sidebarContent === 'highlights'
                       ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
                       : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
@@ -394,7 +385,7 @@ export default function EditCoverLetterPage() {
                 </button>
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'none' }))}
-                  className={`flex-1 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-2 rounded-lg font-bold text-xs transition-all ${
                     styleSettings.sidebarContent === 'none'
                       ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
                       : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
@@ -404,30 +395,25 @@ export default function EditCoverLetterPage() {
                   <X className="w-4 h-4 mx-auto" />
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {styleSettings.sidebarContent === 'contact' && 'Näyttää yhteystiedot'}
-                {styleSettings.sidebarContent === 'highlights' && 'Näyttää vahvuudet'}
-                {styleSettings.sidebarContent === 'none' && 'Ei näytä mitään'}
-              </p>
             </div>
           </div>
         </div>
 
-        {/* Main Grid */}
+        {/* Main Grid - Responsive stacking */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Editor */}
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-100 mb-4">Muokkaa sisältöä</h2>
-            <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
+          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-4 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-100 mb-4">Muokkaa sisältöä</h2>
+            <div className="space-y-4 max-h-[600px] md:max-h-[800px] overflow-y-auto pr-2">
               {editedParagraphs.map((paragraph, index) => (
                 <div key={index}>
-                  <label className="block text-sm font-bold text-gray-400 mb-2">
+                  <label className="block text-xs md:text-sm font-bold text-gray-400 mb-2">
                     Kappale {index + 1}
                   </label>
                   <textarea
                     value={paragraph}
                     onChange={(e) => handleParagraphChange(index, e.target.value)}
-                    className="w-full min-h-[120px] p-4 bg-gray-900/50 border border-gray-700 rounded-xl text-gray-100 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all resize-y"
+                    className="w-full min-h-[100px] md:min-h-[120px] p-3 md:p-4 text-sm md:text-base bg-gray-900/50 border border-gray-700 rounded-xl text-gray-100 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all resize-y"
                     style={{ lineHeight: '1.6' }}
                   />
                 </div>
@@ -435,8 +421,8 @@ export default function EditCoverLetterPage() {
             </div>
           </div>
 
-          {/* Preview */}
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
+          {/* Preview - Hidden on mobile, shown on desktop */}
+          <div className="hidden lg:block backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
             <h2 className="text-xl font-bold text-gray-100 mb-4">Esikatselu</h2>
             <div
               className="relative w-full overflow-hidden bg-gray-900/20 rounded-xl"
