@@ -76,3 +76,30 @@ export async function PATCH(
 
   return NextResponse.json(data);
 }
+// app/api/cover-letters/[id]/route.ts
+
+// ✅ LISÄÄ tämä loppuun:
+
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const params = await context.params;
+  const letterId = params.id;
+
+  try {
+    const { error } = await supabaseAdmin
+      .from("cover_letters")
+      .delete()
+      .eq("id", letterId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("❌ DELETE error:", error);
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+  }
+}
