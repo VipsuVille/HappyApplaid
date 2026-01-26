@@ -249,7 +249,7 @@ export default function MyCoverLettersPage() {
     title: letter.title,
     content: letter.content?.body || letter.ai_data?.html?.content || "",
     keyHighlights: letter.ai_data?.key_highlights || [],
-    language: letter.content?.language || letter.language || "finnish",
+    language: letter.content?.language || "english",
     style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative"
   });
 
