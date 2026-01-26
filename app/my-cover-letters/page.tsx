@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - ✅ ZOOM CONTROLS LISÄTTY
+// app/my-cover-letters/page.tsx - ✅ GRID LAYOUT (Windows-tyyli)
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,9 +15,9 @@ import {
   Zap,
   Plus,
   Database,
-  ZoomIn,
-  ZoomOut,
-  Maximize2
+  LayoutGrid,
+  Grid3x3,
+  Square
 } from 'lucide-react';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
@@ -31,24 +31,30 @@ interface CoverLetter {
   ai_data: any;
 }
 
-// ✅ ZOOM LEVELS
-type ZoomLevel = 'small' | 'medium' | 'large';
+// ✅ GRID VIEW OPTIONS (Windows-tyyli)
+type GridSize = 'small' | 'medium' | 'large';
 
-const ZOOM_CONFIGS = {
+const GRID_CONFIGS = {
   small: {
-    height: '350px',
-    scale: { mobile: 0.25, tablet: 0.4, desktop: 0.6 },
-    label: 'Pieni'
+    cols: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
+    previewHeight: '300px',
+    scale: { mobile: 0.20, tablet: 0.30, desktop: 0.40 },
+    label: 'Pieni',
+    icon: LayoutGrid
   },
   medium: {
-    height: '500px',
-    scale: { mobile: 0.35, tablet: 0.6, desktop: 0.85 },
-    label: 'Keskikokoinen'
+    cols: 'grid-cols-1 md:grid-cols-1 lg:grid-cols-2',
+    previewHeight: '450px',
+    scale: { mobile: 0.30, tablet: 0.50, desktop: 0.65 },
+    label: 'Keskikokoinen',
+    icon: Grid3x3
   },
   large: {
-    height: '700px',
-    scale: { mobile: 0.45, tablet: 0.75, desktop: 1.0 },
-    label: 'Iso'
+    cols: 'grid-cols-1',
+    previewHeight: '600px',
+    scale: { mobile: 0.40, tablet: 0.65, desktop: 0.90 },
+    label: 'Iso',
+    icon: Square
   }
 };
 
@@ -62,8 +68,8 @@ export default function MyCoverLettersPage() {
   const [improvingATSId, setImprovingATSId] = useState<string | null>(null);
   const letterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   
-  // ✅ ZOOM STATE
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('medium');
+  // ✅ GRID SIZE STATE
+  const [gridSize, setGridSize] = useState<GridSize>('medium');
 
   const setLetterRef = useCallback((letterId: string) => (el: HTMLDivElement | null) => {
     letterRefs.current[letterId] = el;
@@ -243,7 +249,7 @@ export default function MyCoverLettersPage() {
     title: letter.title,
     content: letter.content?.body || letter.ai_data?.html?.content || "",
     keyHighlights: letter.ai_data?.key_highlights || [],
-    language: letter.content?.language || "english",
+    language: letter.content?.language || letter.language || "finnish",
     style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative"
   });
 
@@ -305,7 +311,8 @@ export default function MyCoverLettersPage() {
     );
   }
 
-  const currentZoom = ZOOM_CONFIGS[zoomLevel];
+  const currentGrid = GRID_CONFIGS[gridSize];
+  const IconComponent = currentGrid.icon;
 
   return (
     <div className="min-h-screen bg-[#030711] text-[#e7e3dc] font-sans selection:bg-orange-500/30 relative overflow-hidden">
@@ -350,33 +357,39 @@ export default function MyCoverLettersPage() {
               </Link>
             </div>
 
-            {/* ✅ ZOOM CONTROLS */}
-            <div className="mt-6 flex items-center gap-3 flex-wrap">
-              <span className="text-sm font-bold text-gray-400 flex items-center gap-2">
-                <Maximize2 className="w-4 h-4" />
-                Esikatselu koko:
-              </span>
+            {/* ✅ GRID SIZE CONTROLS (Windows-tyyli) */}
+            <div className="mt-6 flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <IconComponent className="w-4 h-4" />
+                <span className="font-bold">Näkymä:</span>
+              </div>
+              
               <div className="flex gap-2">
-                {(Object.keys(ZOOM_CONFIGS) as ZoomLevel[]).map((level) => (
-                  <button
-                    key={level}
-                    onClick={() => setZoomLevel(level)}
-                    className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                      zoomLevel === level
-                        ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
-                        : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
-                    }`}
-                  >
-                    {ZOOM_CONFIGS[level].label}
-                  </button>
-                ))}
+                {(Object.keys(GRID_CONFIGS) as GridSize[]).map((size) => {
+                  const Icon = GRID_CONFIGS[size].icon;
+                  return (
+                    <button
+                      key={size}
+                      onClick={() => setGridSize(size)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                        gridSize === size
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
+                          : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                      }`}
+                      title={GRID_CONFIGS[size].label}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="hidden sm:inline">{GRID_CONFIGS[size].label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Cover Letters Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-1 gap-8">
+        {/* ✅ DYNAMIC GRID LAYOUT */}
+        <div className={`grid ${currentGrid.cols} gap-6 transition-all duration-300`}>
           {coverLetters.map((letter) => {
             const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
             const displayTitle = letter.title || smartTitle;
@@ -409,11 +422,11 @@ export default function MyCoverLettersPage() {
                   </button>
                 </div>
 
-                {/* ✅ DYNAAMINEN PREVIEW (zoom-tason mukaan) */}
+                {/* ✅ RESPONSIVE PREVIEW (grid-koon mukaan) */}
                 <div
                   className="relative w-full overflow-hidden bg-gray-900/20 rounded-t-2xl"
                   style={{
-                    height: currentZoom.height,
+                    height: currentGrid.previewHeight,
                     boxShadow: "inset 0 4px 6px -1px rgba(0, 0, 0, 0.3)",
                   }}
                 >
@@ -423,10 +436,10 @@ export default function MyCoverLettersPage() {
                       style={{
                         transform: `scale(${
                           typeof window !== 'undefined' && window.innerWidth < 640
-                            ? currentZoom.scale.mobile
+                            ? currentGrid.scale.mobile
                             : typeof window !== 'undefined' && window.innerWidth < 1024
-                            ? currentZoom.scale.tablet
-                            : currentZoom.scale.desktop
+                            ? currentGrid.scale.tablet
+                            : currentGrid.scale.desktop
                         })`
                       }}
                     >
