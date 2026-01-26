@@ -1,4 +1,4 @@
-// components/cover-letter/CoverLetterTemplate.tsx - ✨ KAUNIS VERSIO
+// components/cover-letter/CoverLetterTemplate.tsx - ✨ KUIN KUVASSA
 "use client";
 import React from "react";
 
@@ -50,206 +50,211 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         minHeight: "297mm",
         fontFamily: "'Merriweather', serif",
         color: "#1a202c",
-        position: "relative",
       }}
     >
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* SININEN YLÄPALKKI (kuten CV:ssä) */}
+      {/* HARMAA YLÄLAATIKKO (kuten kuvassa) */}
       {/* ════════════════════════════════════════════════════════════════ */}
       
       <div 
-        className="blue-bar"
+        className="header-box"
         style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "80px",
-          background: "linear-gradient(135deg, #2563eb 0%, #1e40af 100%)",
+          background: "#E8E6E1", // Harmaa tausta
+          padding: "40px 50px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
           WebkitPrintColorAdjust: "exact",
           printColorAdjust: "exact",
         }}
-      />
-
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* CONTENT WRAPPER */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      
-      <div style={{ padding: "100px 50px 50px 50px", position: "relative", zIndex: 1 }}>
-        
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* HEADER - Nimi ja yhteystiedot */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        
-        <div className="mb-8">
-          {/* Name */}
+      >
+        {/* Vasen: Nimi */}
+        <div style={{ flex: 1 }}>
           {isEditing ? (
             <input
-              className="text-4xl font-bold text-gray-900 w-full mb-3 px-2 py-1 border-b-2 border-gray-200 focus:border-blue-500 outline-none"
+              className="text-5xl font-bold w-full px-2 py-1 border-b-2 border-gray-400 focus:border-blue-500 outline-none bg-transparent"
               value={data.name || ""}
               onChange={(e) => onContentChange?.("name", e.target.value)}
-              placeholder="Your Name"
-              style={{ fontFamily: "'Merriweather', serif" }}
+              placeholder="Etunimi Sukunimi"
+              style={{ 
+                fontFamily: "'Merriweather', serif",
+                color: "#2C3E50",
+              }}
             />
           ) : (
             <h1 
-              className="text-4xl font-bold mb-3"
               style={{ 
-                color: "#1e40af",
+                fontSize: "48px",
+                fontWeight: "bold",
+                color: "#2C3E50",
                 fontFamily: "'Merriweather', serif",
+                lineHeight: "1.2",
+                margin: 0,
               }}
             >
-              {data.name}
+              {data.name.split(' ')[0]}<br />
+              {data.name.split(' ').slice(1).join(' ')}
             </h1>
           )}
-
-          {/* Contact Details - Yksi rivi, kuten CV:ssä */}
-          <div 
-            className="flex flex-wrap gap-4 text-sm"
-            style={{ 
-              color: "#475569",
-              fontFamily: "'Open Sans', sans-serif",
-            }}
-          >
-            {data.email && (
-              <div className="flex items-center gap-1.5">
-                <span style={{ color: "#2563eb" }}>✉</span>
-                {isEditing ? (
-                  <input
-                    className="px-1 border-b border-gray-300 outline-none bg-transparent"
-                    value={data.email}
-                    onChange={(e) => onContentChange?.("email", e.target.value)}
-                  />
-                ) : (
-                  <span>{data.email}</span>
-                )}
-              </div>
-            )}
-            
-            {data.phone && (
-              <div className="flex items-center gap-1.5">
-                <span style={{ color: "#2563eb" }}>☎</span>
-                {isEditing ? (
-                  <input
-                    className="px-1 border-b border-gray-300 outline-none bg-transparent"
-                    value={data.phone}
-                    onChange={(e) => onContentChange?.("phone", e.target.value)}
-                  />
-                ) : (
-                  <span>{data.phone}</span>
-                )}
-              </div>
-            )}
-            
-            {data.location && (
-              <div className="flex items-center gap-1.5">
-                <span style={{ color: "#2563eb" }}>📍</span>
-                {isEditing ? (
-                  <input
-                    className="px-1 border-b border-gray-300 outline-none bg-transparent"
-                    value={data.location}
-                    onChange={(e) => onContentChange?.("location", e.target.value)}
-                  />
-                ) : (
-                  <span>{data.location}</span>
-                )}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Erotinviiva */}
+        {/* Oikea: Yhteystiedot */}
         <div 
-          className="mb-8"
-          style={{
-            height: "2px",
-            background: "linear-gradient(to right, #2563eb, transparent)",
-            opacity: 0.3,
+          style={{ 
+            textAlign: "right",
+            fontSize: "11pt",
+            color: "#5A6C7D",
+            fontFamily: "'Open Sans', sans-serif",
+            lineHeight: "1.8",
           }}
-        />
-
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* PÄIVÄMÄÄRÄ & VASTAANOTTAJA */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        
-        <div className="mb-8" style={{ fontSize: "10pt", color: "#64748b" }}>
-          <p className="mb-4">{today}</p>
-          
-          {data.companyName && (
-            <div>
+        >
+          {data.email && (
+            <div style={{ marginBottom: "8px" }}>
               {isEditing ? (
                 <input
-                  className="font-semibold text-gray-900 px-1 border-b border-gray-300 outline-none mb-1 w-full"
-                  value={data.companyName}
-                  onChange={(e) => onContentChange?.("companyName", e.target.value)}
-                  placeholder="Company Name"
+                  className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
+                  value={data.email}
+                  onChange={(e) => onContentChange?.("email", e.target.value)}
+                  style={{ width: "200px" }}
                 />
               ) : (
-                <p className="font-semibold" style={{ color: "#1e293b" }}>
-                  {data.companyName}
-                </p>
+                <span>[{data.email}]</span>
               )}
             </div>
           )}
+          
+          {data.phone && (
+            <div style={{ marginBottom: "8px" }}>
+              {isEditing ? (
+                <input
+                  className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
+                  value={data.phone}
+                  onChange={(e) => onContentChange?.("phone", e.target.value)}
+                  style={{ width: "200px" }}
+                />
+              ) : (
+                <span>[{data.phone}]</span>
+              )}
+            </div>
+          )}
+          
+          {data.location && (
+            <div style={{ marginBottom: "8px" }}>
+              {isEditing ? (
+                <input
+                  className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
+                  value={data.location}
+                  onChange={(e) => onContentChange?.("location", e.target.value)}
+                  style={{ width: "200px" }}
+                />
+              ) : (
+                <span>[{data.location}]</span>
+              )}
+            </div>
+          )}
+          
+          {/* LinkedIn placeholder */}
+          <div style={{ color: "#5A6C7D", fontStyle: "italic" }}>
+            [Mahd. LinkedIn profiili]
+          </div>
         </div>
+      </div>
 
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* SISÄLTÖALUE */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      
+      <div style={{ padding: "50px 50px 50px 50px" }}>
+        
         {/* ════════════════════════════════════════════════════════════════ */}
-        {/* OTSIKKO (jos on) */}
+        {/* TYÖNIMIKE (jos on) */}
         {/* ════════════════════════════════════════════════════════════════ */}
         
-        {data.title && (
-          <div className="mb-6">
+        {data.jobTitle && (
+          <div 
+            style={{ 
+              fontStyle: "italic",
+              fontSize: "11pt",
+              color: "#5A6C7D",
+              marginBottom: "24px",
+            }}
+          >
             {isEditing ? (
               <input
-                className="text-lg font-semibold text-gray-900 w-full px-2 py-1 border-b-2 border-gray-200 outline-none"
-                value={data.title}
-                onChange={(e) => onContentChange?.("title", e.target.value)}
-                placeholder="Subject / Title"
+                className="w-full px-1 border-b border-gray-300 outline-none bg-transparent italic"
+                value={data.jobTitle}
+                onChange={(e) => onContentChange?.("jobTitle", e.target.value)}
+                placeholder="Työnimike"
               />
             ) : (
-              <p 
-                className="text-lg font-semibold"
-                style={{ 
-                  color: "#1e40af",
-                  fontFamily: "'Merriweather', serif",
-                }}
-              >
-                {data.title}
-              </p>
+              <span>Työnhakemus [Tehtävänimike]</span>
             )}
           </div>
         )}
 
         {/* ════════════════════════════════════════════════════════════════ */}
-        {/* PÄÄSISÄLTÖ - Kirjeen teksti */}
+        {/* VASTAANOTTAJA */}
         {/* ════════════════════════════════════════════════════════════════ */}
         
-        <div className="mb-12">
+        <div 
+          style={{ 
+            marginBottom: "24px",
+            fontSize: "11pt",
+            fontStyle: "italic",
+            color: "#5A6C7D",
+          }}
+        >
+          {data.companyName ? (
+            isEditing ? (
+              <input
+                className="w-full px-1 border-b border-gray-300 outline-none bg-transparent italic"
+                value={data.companyName}
+                onChange={(e) => onContentChange?.("companyName", e.target.value)}
+                placeholder="Yritys"
+              />
+            ) : (
+              <span>Hei [Teijo Työnantaja / Yritys Oy],</span>
+            )
+          ) : (
+            <span style={{ fontStyle: "italic" }}>Hei [Teijo Työnantaja / Yritys Oy],</span>
+          )}
+        </div>
+
+        {/* ════════════════════════════════════════════════════════════════ */}
+        {/* PÄÄSISÄLTÖ */}
+        {/* ════════════════════════════════════════════════════════════════ */}
+        
+        <div style={{ marginBottom: "40px" }}>
           {isEditing ? (
             <textarea
-              className="w-full min-h-[400px] p-4 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500"
+              className="w-full min-h-[500px] p-4 border-2 border-gray-200 rounded-lg outline-none focus:border-blue-500"
               value={data.content || ""}
               onChange={(e) => onContentChange?.("content", e.target.value)}
-              placeholder="Write your cover letter content here..."
+              placeholder="Kirjoita hakukirjeen sisältö tähän..."
               style={{
                 lineHeight: "1.8",
                 fontSize: "11pt",
                 fontFamily: "'Merriweather', serif",
-                color: "#334155",
+                color: "#2C3E50",
               }}
             />
           ) : (
             <div 
-              className="prose prose-lg max-w-none"
               style={{
                 lineHeight: "1.8",
                 fontSize: "11pt",
                 fontFamily: "'Merriweather', serif",
-                color: "#334155",
+                color: "#2C3E50",
               }}
             >
               {data.content.split('\n\n').map((paragraph, idx) => (
-                <p key={idx} className="mb-4" style={{ textAlign: "justify" }}>
+                <p 
+                  key={idx} 
+                  style={{ 
+                    marginBottom: "16px",
+                    textAlign: "justify",
+                  }}
+                >
                   {paragraph}
                 </p>
               ))}
@@ -258,37 +263,43 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         </div>
 
         {/* ════════════════════════════════════════════════════════════════ */}
-        {/* AVAINOSAAMISET (jos on) */}
+        {/* AVAINOSAAMISALUEET (sininen laatikko) */}
         {/* ════════════════════════════════════════════════════════════════ */}
         
         {data.keyHighlights && data.keyHighlights.length > 0 && !isEditing && (
           <div 
-            className="mb-12 p-5 rounded-lg"
             style={{
-              background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
-              borderLeft: "4px solid #2563eb",
+              background: "#F0F4F8",
+              padding: "24px",
+              marginBottom: "32px",
+              borderRadius: "4px",
             }}
           >
             <h3 
-              className="text-sm font-bold uppercase tracking-wide mb-3"
               style={{ 
-                color: "#1e40af",
-                fontFamily: "'Open Sans', sans-serif",
+                fontSize: "12pt",
+                fontWeight: "bold",
+                color: "#2C3E50",
+                marginBottom: "16px",
+                fontFamily: "'Merriweather', serif",
               }}
             >
-              {data.language === 'english' ? 'Key Strengths' : 'Avainosaamisalueet'}
+              Avainosaamisalueet
             </h3>
-            <ul className="space-y-2">
+            <ul style={{ margin: 0, paddingLeft: "8px", listStyle: "none" }}>
               {data.keyHighlights.map((highlight, idx) => (
                 <li 
                   key={idx} 
-                  className="flex items-start gap-2 text-sm"
                   style={{ 
-                    color: "#475569",
-                    fontFamily: "'Merriweather', serif",
+                    marginBottom: "12px",
+                    fontSize: "11pt",
+                    color: "#2C3E50",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "8px",
                   }}
                 >
-                  <span style={{ color: "#2563eb", fontWeight: "bold" }}>✓</span>
+                  <span style={{ color: "#3B82F6", fontWeight: "bold" }}>✓</span>
                   <span>{highlight}</span>
                 </li>
               ))}
@@ -300,46 +311,30 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
         {/* ALLEKIRJOITUS */}
         {/* ════════════════════════════════════════════════════════════════ */}
         
-        <div className="mt-12">
+        <div style={{ marginTop: "48px" }}>
           <p 
-            className="mb-8"
             style={{ 
-              color: "#475569",
+              marginBottom: "24px",
               fontSize: "11pt",
-              fontFamily: "'Merriweather', serif",
+              color: "#5A6C7D",
+              fontStyle: "italic",
             }}
           >
-            {data.language === 'english' ? 'Sincerely,' : 'Ystävällisin terveisin,'}
+            Ystävällisin terveisin,
           </p>
           
           <p 
-            className="text-3xl"
             style={{ 
-              fontFamily: "'Brush Script MT', cursive",
-              color: "#2563eb",
-              opacity: 0.8,
+              fontSize: "14pt",
+              fontStyle: "italic",
+              color: "#2C3E50",
+              fontFamily: "'Merriweather', serif",
             }}
           >
             {data.name}
           </p>
         </div>
       </div>
-
-      {/* ════════════════════════════════════════════════════════════════ */}
-      {/* FOOTER - Ohut sininen viiva */}
-      {/* ════════════════════════════════════════════════════════════════ */}
-      
-      <div 
-        style={{
-          position: "absolute",
-          bottom: "30px",
-          left: "50px",
-          right: "50px",
-          height: "2px",
-          background: "linear-gradient(to right, #2563eb, transparent)",
-          opacity: 0.2,
-        }}
-      />
 
       {/* PDF Debug */}
       {isPdfPreview && process.env.NODE_ENV === 'development' && (
