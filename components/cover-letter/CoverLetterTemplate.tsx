@@ -1,4 +1,4 @@
-// components/cover-letter/CoverLetterTemplate.tsx - ✨ KUIN KUVASSA
+// components/cover-letter/CoverLetterTemplate.tsx - ✨ KORJATTU VERSIO
 "use client";
 import React from "react";
 
@@ -18,6 +18,10 @@ interface CoverLetterData {
   keyHighlights?: string[];
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
+  
+  // ✅ UUSI: Layout & väri asetukset
+  headerColor?: string; // Harmaan laatikon väri
+  headerLayout?: 'top' | 'left'; // Ylhäällä vai vasemmalla
 }
 
 interface CoverLetterTemplateProps {
@@ -42,6 +46,12 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
     { year: 'numeric', month: 'long', day: 'numeric' }
   );
 
+  const headerColor = data.headerColor || "#E8E6E1";
+  const headerLayout = data.headerLayout || "top";
+
+  // ✅ Tarkista onko general-letter (ei companyName)
+  const isGeneral = !data.companyName;
+
   return (
     <div
       className="cover-letter-paper bg-white mx-auto relative"
@@ -53,118 +63,122 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
       }}
     >
       {/* ════════════════════════════════════════════════════════════════ */}
-      {/* HARMAA YLÄLAATIKKO (kuten kuvassa) */}
+      {/* HEADER - Top layout */}
       {/* ════════════════════════════════════════════════════════════════ */}
       
-      <div 
-        className="header-box"
-        style={{
-          background: "#E8E6E1", // Harmaa tausta
-          padding: "40px 50px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          WebkitPrintColorAdjust: "exact",
-          printColorAdjust: "exact",
-        }}
-      >
-        {/* Vasen: Nimi */}
-        <div style={{ flex: 1 }}>
-          {isEditing ? (
-            <input
-              className="text-5xl font-bold w-full px-2 py-1 border-b-2 border-gray-400 focus:border-blue-500 outline-none bg-transparent"
-              value={data.name || ""}
-              onChange={(e) => onContentChange?.("name", e.target.value)}
-              placeholder="Etunimi Sukunimi"
-              style={{ 
-                fontFamily: "'Merriweather', serif",
-                color: "#2C3E50",
-              }}
-            />
-          ) : (
-            <h1 
-              style={{ 
-                fontSize: "48px",
-                fontWeight: "bold",
-                color: "#2C3E50",
-                fontFamily: "'Merriweather', serif",
-                lineHeight: "1.2",
-                margin: 0,
-              }}
-            >
-              {data.name.split(' ')[0]}<br />
-              {data.name.split(' ').slice(1).join(' ')}
-            </h1>
-          )}
-        </div>
-
-        {/* Oikea: Yhteystiedot */}
+      {headerLayout === 'top' && (
         <div 
-          style={{ 
-            textAlign: "right",
-            fontSize: "11pt",
-            color: "#5A6C7D",
-            fontFamily: "'Open Sans', sans-serif",
-            lineHeight: "1.8",
+          className="header-box"
+          style={{
+            background: headerColor,
+            padding: "40px 50px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            WebkitPrintColorAdjust: "exact",
+            printColorAdjust: "exact",
           }}
         >
-          {data.email && (
-            <div style={{ marginBottom: "8px" }}>
-              {isEditing ? (
-                <input
-                  className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
-                  value={data.email}
-                  onChange={(e) => onContentChange?.("email", e.target.value)}
-                  style={{ width: "200px" }}
-                />
-              ) : (
-                <span>[{data.email}]</span>
-              )}
+          {/* Vasen: Nimi */}
+          <div style={{ flex: 1 }}>
+            {isEditing ? (
+              <input
+                className="text-5xl font-bold w-full px-2 py-1 border-b-2 border-gray-400 focus:border-blue-500 outline-none bg-transparent"
+                value={data.name || ""}
+                onChange={(e) => onContentChange?.("name", e.target.value)}
+                placeholder="Etunimi Sukunimi"
+                style={{ 
+                  fontFamily: "'Merriweather', serif",
+                  color: "#2C3E50",
+                }}
+              />
+            ) : (
+              <h1 
+                style={{ 
+                  fontSize: "48px",
+                  fontWeight: "bold",
+                  color: "#2C3E50",
+                  fontFamily: "'Merriweather', serif",
+                  lineHeight: "1.2",
+                  margin: 0,
+                }}
+              >
+                {data.name.split(' ')[0]}<br />
+                {data.name.split(' ').slice(1).join(' ')}
+              </h1>
+            )}
+          </div>
+
+          {/* Oikea: Yhteystiedot */}
+          <div 
+            style={{ 
+              textAlign: "right",
+              fontSize: "11pt",
+              color: "#5A6C7D",
+              fontFamily: "'Open Sans', sans-serif",
+              lineHeight: "1.8",
+            }}
+          >
+            {data.email && (
+              <div style={{ marginBottom: "8px" }}>
+                {isEditing ? (
+                  <input
+                    className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
+                    value={data.email}
+                    onChange={(e) => onContentChange?.("email", e.target.value)}
+                    style={{ width: "200px" }}
+                  />
+                ) : (
+                  <span>[{data.email}]</span>
+                )}
+              </div>
+            )}
+            
+            {data.phone && (
+              <div style={{ marginBottom: "8px" }}>
+                {isEditing ? (
+                  <input
+                    className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
+                    value={data.phone}
+                    onChange={(e) => onContentChange?.("phone", e.target.value)}
+                    style={{ width: "200px" }}
+                  />
+                ) : (
+                  <span>[{data.phone}]</span>
+                )}
+              </div>
+            )}
+            
+            {data.location && (
+              <div style={{ marginBottom: "8px" }}>
+                {isEditing ? (
+                  <input
+                    className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
+                    value={data.location}
+                    onChange={(e) => onContentChange?.("location", e.target.value)}
+                    style={{ width: "200px" }}
+                  />
+                ) : (
+                  <span>[{data.location}]</span>
+                )}
+              </div>
+            )}
+            
+            {/* LinkedIn placeholder */}
+            <div style={{ color: "#5A6C7D", fontStyle: "italic", fontSize: "9pt" }}>
+              [Mahd. LinkedIn profiili]
             </div>
-          )}
-          
-          {data.phone && (
-            <div style={{ marginBottom: "8px" }}>
-              {isEditing ? (
-                <input
-                  className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
-                  value={data.phone}
-                  onChange={(e) => onContentChange?.("phone", e.target.value)}
-                  style={{ width: "200px" }}
-                />
-              ) : (
-                <span>[{data.phone}]</span>
-              )}
-            </div>
-          )}
-          
-          {data.location && (
-            <div style={{ marginBottom: "8px" }}>
-              {isEditing ? (
-                <input
-                  className="px-1 border-b border-gray-400 outline-none bg-transparent text-right"
-                  value={data.location}
-                  onChange={(e) => onContentChange?.("location", e.target.value)}
-                  style={{ width: "200px" }}
-                />
-              ) : (
-                <span>[{data.location}]</span>
-              )}
-            </div>
-          )}
-          
-          {/* LinkedIn placeholder */}
-          <div style={{ color: "#5A6C7D", fontStyle: "italic" }}>
-            [Mahd. LinkedIn profiili]
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ✅ TODO: Left layout (tulevaisuudessa) */}
 
       {/* ════════════════════════════════════════════════════════════════ */}
       {/* SISÄLTÖALUE */}
       {/* ════════════════════════════════════════════════════════════════ */}
       
-      <div style={{ padding: "50px 50px 50px 50px" }}>
+      <div style={{ padding: "50px 50px" }}>
         
         {/* ════════════════════════════════════════════════════════════════ */}
         {/* TYÖNIMIKE (jos on) */}
@@ -187,38 +201,40 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
                 placeholder="Työnimike"
               />
             ) : (
-              <span>Työnhakemus [Tehtävänimike]</span>
+              <span>Työnhakemus [{data.jobTitle}]</span>
             )}
           </div>
         )}
 
         {/* ════════════════════════════════════════════════════════════════ */}
-        {/* VASTAANOTTAJA */}
+        {/* VASTAANOTTAJA - ✅ Vain jos EI general-letter */}
         {/* ════════════════════════════════════════════════════════════════ */}
         
-        <div 
-          style={{ 
-            marginBottom: "24px",
-            fontSize: "11pt",
-            fontStyle: "italic",
-            color: "#5A6C7D",
-          }}
-        >
-          {data.companyName ? (
-            isEditing ? (
-              <input
-                className="w-full px-1 border-b border-gray-300 outline-none bg-transparent italic"
-                value={data.companyName}
-                onChange={(e) => onContentChange?.("companyName", e.target.value)}
-                placeholder="Yritys"
-              />
+        {!isGeneral && (
+          <div 
+            style={{ 
+              marginBottom: "24px",
+              fontSize: "11pt",
+              fontStyle: "italic",
+              color: "#5A6C7D",
+            }}
+          >
+            {data.companyName ? (
+              isEditing ? (
+                <input
+                  className="w-full px-1 border-b border-gray-300 outline-none bg-transparent italic"
+                  value={data.companyName}
+                  onChange={(e) => onContentChange?.("companyName", e.target.value)}
+                  placeholder="Yritys"
+                />
+              ) : (
+                <span>Hei [Teijo Työnantaja / {data.companyName}],</span>
+              )
             ) : (
-              <span>Hei [Teijo Työnantaja / Yritys Oy],</span>
-            )
-          ) : (
-            <span style={{ fontStyle: "italic" }}>Hei [Teijo Työnantaja / Yritys Oy],</span>
-          )}
-        </div>
+              <span style={{ fontStyle: "italic" }}>Hei [Teijo Työnantaja / Yritys Oy],</span>
+            )}
+          </div>
+        )}
 
         {/* ════════════════════════════════════════════════════════════════ */}
         {/* PÄÄSISÄLTÖ */}
@@ -262,50 +278,7 @@ const CoverLetterTemplate: React.FC<CoverLetterTemplateProps> = ({
           )}
         </div>
 
-        {/* ════════════════════════════════════════════════════════════════ */}
-        {/* AVAINOSAAMISALUEET (sininen laatikko) */}
-        {/* ════════════════════════════════════════════════════════════════ */}
-        
-        {data.keyHighlights && data.keyHighlights.length > 0 && !isEditing && (
-          <div 
-            style={{
-              background: "#F0F4F8",
-              padding: "24px",
-              marginBottom: "32px",
-              borderRadius: "4px",
-            }}
-          >
-            <h3 
-              style={{ 
-                fontSize: "12pt",
-                fontWeight: "bold",
-                color: "#2C3E50",
-                marginBottom: "16px",
-                fontFamily: "'Merriweather', serif",
-              }}
-            >
-              Avainosaamisalueet
-            </h3>
-            <ul style={{ margin: 0, paddingLeft: "8px", listStyle: "none" }}>
-              {data.keyHighlights.map((highlight, idx) => (
-                <li 
-                  key={idx} 
-                  style={{ 
-                    marginBottom: "12px",
-                    fontSize: "11pt",
-                    color: "#2C3E50",
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "8px",
-                  }}
-                >
-                  <span style={{ color: "#3B82F6", fontWeight: "bold" }}>✓</span>
-                  <span>{highlight}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {/* ✅ POISTETTU: Avainosaamisalueet osio */}
 
         {/* ════════════════════════════════════════════════════════════════ */}
         {/* ALLEKIRJOITUS */}

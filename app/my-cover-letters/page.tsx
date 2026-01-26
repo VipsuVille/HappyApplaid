@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - KORJATTU & YHTENÄINEN DARK THEME
+// app/my-cover-letters/page.tsx - ✅ KORJATTU SKAALAUS
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -206,18 +206,18 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  // ✅ KORJAUS: Muunna CoverLetter → CoverLetterData
+  // ✅ KORJATTU: Muunna CoverLetter → CoverLetterData (SAMA KUIN EDIT-SIVULLA)
   const convertToCoverLetterData = (letter: CoverLetter) => ({
-    name: letter.content?.applicant_info?.name || letter.ai_data?.name || "Hakija",
-    email: letter.content?.applicant_info?.email || "",
-    phone: letter.content?.applicant_info?.phone || "",
-    location: letter.content?.applicant_info?.location || "",
-    jobTitle: letter.content?.applicant_info?.jobTitle || "",
-    companyName: "",
+    name: letter.content?.contactInfo?.name || letter.ai_data?.name || "Hakija",
+    email: letter.content?.contactInfo?.email || letter.ai_data?.email || "",
+    phone: letter.content?.contactInfo?.phone || letter.ai_data?.phone || "",
+    location: letter.content?.contactInfo?.location || letter.ai_data?.location || "",
+    jobTitle: letter.content?.job_title || "",
+    companyName: letter.content?.company_name || "",
     title: letter.title,
     content: letter.content?.body || letter.ai_data?.html?.content || "",
     keyHighlights: letter.ai_data?.key_highlights || [],
-    language: letter.content?.language || "finnish",
+    language: letter.content?.language || letter.language || "finnish",
     style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative"
   });
 
@@ -359,19 +359,20 @@ export default function MyCoverLettersPage() {
                   </button>
                 </div>
 
-                {/* Preview */}
+                {/* ✅ KORJATTU PREVIEW - KOKO KIRJE NÄKYY */}
                 <div
-                  className="relative md:h-[306mm] h-[130mm] w-full overflow-hidden bg-gray-900/20"
+                  className="relative w-full overflow-hidden bg-gray-900/20 rounded-t-2xl"
                   style={{
+                    height: '500px',
                     boxShadow: "inset 0 4px 6px -1px rgba(0, 0, 0, 0.3)",
                   }}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-full h-full flex items-center justify-center">
+                  <div className="absolute inset-0 overflow-y-auto flex justify-center py-4 px-2">
+                    <div className="transform lg:scale-[0.85] md:scale-[0.6] scale-[0.35] origin-top">
                       <CoverLetterContainer
                         ref={setLetterRef(letter.id)}
                         data-template-type="standard"
-                        className="transform lg:scale-100 md:scale-[0.7] scale-[0.4] origin-center min-w-[210mm] min-h-[297mm] shadow-lg bg-white"
+                        className="shadow-lg bg-white"
                       >
                         <CoverLetterTemplate
                           data={convertToCoverLetterData(letter)}
