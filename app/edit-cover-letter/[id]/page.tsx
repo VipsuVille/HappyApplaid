@@ -1,4 +1,4 @@
-// app/edit-cover-letter/[id]/page.tsx - ✅ MINIMAL FIX
+// app/edit-cover-letter/[id]/page.tsx - ✅ WYSIWYG INLINE EDITOR
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -10,12 +10,12 @@ import {
   Save,
   Loader2,
   Download,
-  Palette,
-  LayoutPanelLeft,
-  AlignHorizontalJustifyCenter,
-  User,
-  Sparkles,
-  X
+  Type,
+  AlignLeft,
+  Maximize2,
+  Edit3,
+  Check,
+  X as XIcon
 } from 'lucide-react';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
@@ -34,6 +34,9 @@ interface StyleSettings {
   headerColor: string;
   headerLayout: 'top' | 'left';
   sidebarContent: 'contact' | 'highlights' | 'none';
+  fontSize: number; // 9-14pt
+  lineHeight: number; // 1.4-2.0
+  padding: number; // 30-70px
 }
 
 export default function EditCoverLetterPage() {
@@ -48,15 +51,25 @@ export default function EditCoverLetterPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [letterData, setLetterData] = useState<CoverLetter | null>(null);
-  const [editedParagraphs, setEditedParagraphs] = useState<string[]>([]);
+  const [editedContent, setEditedContent] = useState('');
+  
+  // ✅ Inline editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isEditingContent, setIsEditingContent] = useState(false);
 
   const [styleSettings, setStyleSettings] = useState<StyleSettings>({
     headerColor: 'rgb(181, 152, 79)',
     headerLayout: 'top',
     sidebarContent: 'contact',
+    fontSize: 11,
+    lineHeight: 1.8,
+    padding: 50,
   });
 
+  const [showToolbar, setShowToolbar] = useState(false);
   const letterRef = useRef<HTMLDivElement>(null);
+  const contentEditRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -81,9 +94,10 @@ export default function EditCoverLetterPage() {
       setLetterData(data.coverLetter);
 
       const content = data.coverLetter.content?.body || data.coverLetter.ai_data?.html?.content || '';
-      const paragraphs = content.split('\n\n').filter((p: string) => p.trim());
-      setEditedParagraphs(paragraphs);
+      setEditedContent(content);
+      setEditedName(data.coverLetter.content?.contactInfo?.name || data.coverLetter.ai_data?.name || 'Hakija');
 
+      // Load saved styles
       if (data.coverLetter.content?.headerColor) {
         setStyleSettings((prev) => ({
           ...prev,
@@ -102,18 +116,30 @@ export default function EditCoverLetterPage() {
           sidebarContent: data.coverLetter.content.sidebarContent,
         }));
       }
+      if (data.coverLetter.content?.fontSize) {
+        setStyleSettings((prev) => ({
+          ...prev,
+          fontSize: data.coverLetter.content.fontSize,
+        }));
+      }
+      if (data.coverLetter.content?.lineHeight) {
+        setStyleSettings((prev) => ({
+          ...prev,
+          lineHeight: data.coverLetter.content.lineHeight,
+        }));
+      }
+      if (data.coverLetter.content?.padding) {
+        setStyleSettings((prev) => ({
+          ...prev,
+          padding: data.coverLetter.content.padding,
+        }));
+      }
     } catch (error) {
       console.error('Error loading cover letter:', error);
       setError('Hakukirjeen lataaminen epäonnistui');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleParagraphChange = (index: number, value: string) => {
-    const updated = [...editedParagraphs];
-    updated[index] = value;
-    setEditedParagraphs(updated);
   };
 
   const handleSave = async () => {
@@ -124,8 +150,6 @@ export default function EditCoverLetterPage() {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No authentication token');
 
-      const updatedContent = editedParagraphs.join('\n\n');
-
       const response = await fetch(`/api/cover-letters/${letterId}`, {
         method: 'PATCH',
         headers: {
@@ -135,16 +159,24 @@ export default function EditCoverLetterPage() {
         body: JSON.stringify({
           content: {
             ...letterData.content,
-            body: updatedContent,
+            body: editedContent,
+            contactInfo: {
+              ...letterData.content?.contactInfo,
+              name: editedName,
+            },
             headerColor: styleSettings.headerColor,
             headerLayout: styleSettings.headerLayout,
             sidebarContent: styleSettings.sidebarContent,
+            fontSize: styleSettings.fontSize,
+            lineHeight: styleSettings.lineHeight,
+            padding: styleSettings.padding,
           },
           ai_data: {
             ...letterData.ai_data,
+            name: editedName,
             html: {
               ...letterData.ai_data?.html,
-              content: updatedContent,
+              content: editedContent,
             },
           },
         }),
@@ -153,6 +185,8 @@ export default function EditCoverLetterPage() {
       if (!response.ok) throw new Error('Failed to save changes');
 
       alert('✅ Muutokset tallennettu!');
+      setIsEditingName(false);
+      setIsEditingContent(false);
     } catch (error) {
       console.error('Error saving:', error);
       alert('❌ Tallennus epäonnistui');
@@ -189,14 +223,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  const resetStyles = () => {
-    setStyleSettings({
-      headerColor: 'rgb(181, 152, 79)',
-      headerLayout: 'top',
-      sidebarContent: 'contact',
-    });
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-[#030711] flex items-center justify-center">
@@ -230,20 +256,23 @@ export default function EditCoverLetterPage() {
   }
 
   const coverLetterData = {
-    name: letterData.content?.contactInfo?.name || letterData.ai_data?.name || 'Hakija',
+    name: editedName,
     email: letterData.content?.contactInfo?.email || letterData.ai_data?.email || '',
     phone: letterData.content?.contactInfo?.phone || letterData.ai_data?.phone || '',
     location: letterData.content?.contactInfo?.location || letterData.ai_data?.location || '',
     jobTitle: letterData.content?.job_title || '',
     companyName: letterData.content?.company_name || '',
     title: letterData.title,
-    content: editedParagraphs.join('\n\n'),
+    content: editedContent,
     keyHighlights: letterData.ai_data?.key_highlights || [],
     language: letterData.content?.language || 'finnish',
     style: (letterData.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
     headerColor: styleSettings.headerColor,
     headerLayout: styleSettings.headerLayout,
     sidebarContent: styleSettings.sidebarContent,
+    fontSize: styleSettings.fontSize,
+    lineHeight: styleSettings.lineHeight,
+    padding: styleSettings.padding,
   };
 
   return (
@@ -253,8 +282,9 @@ export default function EditCoverLetterPage() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative z-10 max-w-[1800px] mx-auto p-4 md:p-8">
-        {/* Header - Mobile responsive */}
+      <div className="relative z-10 max-w-[1400px] mx-auto p-4 md:p-8">
+        
+        {/* ✅ MINIMAL HEADER */}
         <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -268,27 +298,27 @@ export default function EditCoverLetterPage() {
                 <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
                   Muokkaa hakukirjettä
                 </h1>
-                <p className="text-sm text-gray-400 mt-1 line-clamp-1">{letterData.title}</p>
+                <p className="text-sm text-gray-400 mt-1">{letterData.title}</p>
               </div>
             </div>
 
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2">
               <button
                 onClick={handleDownloadPDF}
                 disabled={downloading}
-                className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
               >
                 {downloading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Ladataan...</>
                 ) : (
-                  <><Download className="w-4 h-4" /> <span className="hidden sm:inline">Lataa PDF</span></>
+                  <><Download className="w-4 h-4" /> PDF</>
                 )}
               </button>
 
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-2 px-4 md:px-6 py-2 text-sm bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2 text-sm bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50"
               >
                 {saving ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Tallennetaan...</>
@@ -300,139 +330,222 @@ export default function EditCoverLetterPage() {
           </div>
         </div>
 
-        {/* Style Controls - Mobile responsive */}
-        <div className="mb-6 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base md:text-lg font-bold text-gray-100 flex items-center gap-2">
-              <Palette className="w-4 md:w-5 h-4 md:h-5 text-orange-400" />
-              Ulkoasu
-            </h2>
-            <button
-              onClick={resetStyles}
-              className="text-xs text-gray-400 hover:text-orange-400 transition-colors flex items-center gap-1"
-            >
-              <X className="w-3 h-3" />
-              <span className="hidden sm:inline">Palauta</span>
-            </button>
-          </div>
+        {/* ✅ FLOATING TOOLBAR (näkyy vain kun hover preview) */}
+        {showToolbar && (
+          <div className="fixed top-24 right-8 z-50 backdrop-blur-xl bg-[#1a1a1a]/90 border border-gray-700 rounded-2xl shadow-2xl p-4 w-64 animate-in slide-in-from-right duration-300">
+            <h3 className="text-sm font-bold text-gray-100 mb-3 flex items-center gap-2">
+              <Type className="w-4 h-4 text-orange-400" />
+              Muotoilu
+            </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Header väri */}
-            <div>
-              <label className="block text-xs md:text-sm font-bold text-gray-300 mb-2">Header-väri</label>
+            {/* Font Size */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">Fonttikoko</label>
+              <input
+                type="range"
+                min="9"
+                max="14"
+                step="0.5"
+                value={styleSettings.fontSize}
+                onChange={(e) => setStyleSettings((prev) => ({ ...prev, fontSize: parseFloat(e.target.value) }))}
+                className="w-full"
+              />
+              <div className="text-xs text-gray-500 text-right">{styleSettings.fontSize}pt</div>
+            </div>
+
+            {/* Line Height */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">Riviväli</label>
+              <input
+                type="range"
+                min="1.4"
+                max="2.0"
+                step="0.1"
+                value={styleSettings.lineHeight}
+                onChange={(e) => setStyleSettings((prev) => ({ ...prev, lineHeight: parseFloat(e.target.value) }))}
+                className="w-full"
+              />
+              <div className="text-xs text-gray-500 text-right">{styleSettings.lineHeight.toFixed(1)}</div>
+            </div>
+
+            {/* Padding */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">Marginaalit</label>
+              <input
+                type="range"
+                min="30"
+                max="70"
+                step="5"
+                value={styleSettings.padding}
+                onChange={(e) => setStyleSettings((prev) => ({ ...prev, padding: parseInt(e.target.value) }))}
+                className="w-full"
+              />
+              <div className="text-xs text-gray-500 text-right">{styleSettings.padding}px</div>
+            </div>
+
+            {/* Header Color */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">Header-väri</label>
               <input
                 type="color"
                 value={styleSettings.headerColor.startsWith('rgb') ? '#B59850' : styleSettings.headerColor}
                 onChange={(e) => setStyleSettings((prev) => ({ ...prev, headerColor: e.target.value }))}
-                className="w-full h-10 rounded-lg border border-gray-700 bg-gray-800 cursor-pointer"
+                className="w-full h-8 rounded-lg border border-gray-700 bg-gray-800 cursor-pointer"
               />
             </div>
 
-            {/* Layout */}
-            <div>
-              <label className="block text-xs md:text-sm font-bold text-gray-300 mb-2">Layout</label>
+            {/* Layout Quick Switch */}
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">Layout</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'top' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-1 text-xs rounded ${
                     styleSettings.headerLayout === 'top'
-                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
-                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-800 text-gray-400'
                   }`}
                 >
-                  <AlignHorizontalJustifyCenter className="w-4 h-4" />
-                  <span className="hidden sm:inline">Vaaka</span>
+                  Vaaka
                 </button>
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'left' }))}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-1 text-xs rounded ${
                     styleSettings.headerLayout === 'left'
-                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
-                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-800 text-gray-400'
                   }`}
                 >
-                  <LayoutPanelLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">Pysty</span>
+                  Pysty
                 </button>
               </div>
             </div>
 
-            {/* Sidebar sisältö */}
+            {/* Sidebar Content */}
             <div>
-              <label className="block text-xs md:text-sm font-bold text-gray-300 mb-2">Sisältö</label>
+              <label className="text-xs text-gray-400 mb-1 block">Sisältö</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'contact' }))}
-                  className={`flex-1 px-2 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-1 text-xs rounded ${
                     styleSettings.sidebarContent === 'contact'
-                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
-                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-800 text-gray-400'
                   }`}
-                  title="Yhteystiedot"
                 >
-                  <User className="w-4 h-4 mx-auto" />
+                  Yhteys
                 </button>
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'highlights' }))}
-                  className={`flex-1 px-2 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-1 text-xs rounded ${
                     styleSettings.sidebarContent === 'highlights'
-                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
-                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-800 text-gray-400'
                   }`}
-                  title="Vahvuudet"
                 >
-                  <Sparkles className="w-4 h-4 mx-auto" />
+                  Vahv.
                 </button>
                 <button
                   onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: 'none' }))}
-                  className={`flex-1 px-2 py-2 rounded-lg font-bold text-xs transition-all ${
+                  className={`flex-1 px-2 py-1 text-xs rounded ${
                     styleSettings.sidebarContent === 'none'
-                      ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
-                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                      ? 'bg-orange-500 text-white'
+                      : 'bg-gray-800 text-gray-400'
                   }`}
-                  title="Ei mitään"
                 >
-                  <X className="w-4 h-4 mx-auto" />
+                  Tyhjä
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Main Grid - Responsive stacking */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Editor */}
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-4 md:p-6">
-            <h2 className="text-lg md:text-xl font-bold text-gray-100 mb-4">Muokkaa sisältöä</h2>
-            <div className="space-y-4 max-h-[600px] md:max-h-[800px] overflow-y-auto pr-2">
-              {editedParagraphs.map((paragraph, index) => (
-                <div key={index}>
-                  <label className="block text-xs md:text-sm font-bold text-gray-400 mb-2">
-                    Kappale {index + 1}
-                  </label>
-                  <textarea
-                    value={paragraph}
-                    onChange={(e) => handleParagraphChange(index, e.target.value)}
-                    className="w-full min-h-[100px] md:min-h-[120px] p-3 md:p-4 text-sm md:text-base bg-gray-900/50 border border-gray-700 rounded-xl text-gray-100 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all resize-y"
-                    style={{ lineHeight: '1.6' }}
-                  />
-                </div>
-              ))}
-            </div>
+        {/* ✅ WYSIWYG PREVIEW */}
+        <div
+          className="relative backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6"
+          onMouseEnter={() => setShowToolbar(true)}
+          onMouseLeave={() => setShowToolbar(false)}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-100 flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-orange-400" />
+              Live Preview
+              <span className="text-xs text-gray-500">(hover elementtiä muokataksesi)</span>
+            </h2>
           </div>
 
-          {/* Preview - Hidden on mobile, shown on desktop */}
-          <div className="hidden lg:block backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-100 mb-4">Esikatselu</h2>
-            <div
-              className="relative w-full overflow-hidden bg-gray-900/20 rounded-xl"
-              style={{
-                height: '800px',
-                boxShadow: 'inset 0 4px 6px -1px rgba(0, 0, 0, 0.3)',
-              }}
-            >
-              <div className="absolute inset-0 overflow-y-auto flex justify-center py-4">
-                <div className="transform scale-[0.70] origin-top">
+          <div
+            className="relative w-full overflow-hidden bg-gray-900/20 rounded-xl"
+            style={{
+              height: '900px',
+              boxShadow: 'inset 0 4px 6px -1px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            <div className="absolute inset-0 overflow-y-auto flex justify-center py-4">
+              
+              {/* ✅ INLINE NAME EDITOR */}
+              {isEditingName ? (
+                <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-gray-900 border border-orange-500 rounded-lg p-4 shadow-2xl">
+                  <input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white mb-2 w-64"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsEditingName(false)}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm flex items-center justify-center gap-1"
+                    >
+                      <Check className="w-4 h-4" /> OK
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditedName(letterData.content?.contactInfo?.name || letterData.ai_data?.name || 'Hakija');
+                        setIsEditingName(false);
+                      }}
+                      className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* ✅ INLINE CONTENT EDITOR */}
+              {isEditingContent ? (
+                <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-gray-900 border border-orange-500 rounded-lg p-4 shadow-2xl w-[600px]">
+                  <textarea
+                    ref={contentEditRef}
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    className="w-full h-[400px] px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white mb-2 resize-none"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsEditingContent(false)}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm flex items-center justify-center gap-1"
+                    >
+                      <Check className="w-4 h-4" /> Valmis
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditedContent(letterData.content?.body || letterData.ai_data?.html?.content || '');
+                        setIsEditingContent(false);
+                      }}
+                      className="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="transform scale-[0.75] origin-top">
+                {/* ✅ Clickable overlay for editing */}
+                <div className="relative">
                   <CoverLetterContainer
                     ref={letterRef}
                     data-template-type="standard"
@@ -440,9 +553,24 @@ export default function EditCoverLetterPage() {
                   >
                     <CoverLetterTemplate data={coverLetterData} isPdfPreview={false} isEditing={false} />
                   </CoverLetterContainer>
+
+                  {/* ✅ Edit triggers overlays */}
+                  <button
+                    onClick={() => setIsEditingContent(true)}
+                    className="absolute top-[200px] right-4 bg-orange-500/80 hover:bg-orange-600 text-white p-2 rounded-full shadow-lg transition-all"
+                    title="Muokkaa sisältöä"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* ✅ QUICK TIPS */}
+          <div className="mt-4 text-xs text-gray-500 flex items-center gap-2">
+            <AlignLeft className="w-3 h-3" />
+            <span>Hover hakukirjeen yli nähdäksesi muotoilutyökalut →</span>
           </div>
         </div>
       </div>
