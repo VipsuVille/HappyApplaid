@@ -1,3 +1,4 @@
+// app/edit-cover-letter/[id]/page.tsx - ✅ TÄYSIN KORJATTU (ei supabaseAdmin frontendissä)
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -5,10 +6,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
-  Type, AlignLeft, Palette, Eye, Edit3, Sparkles,
-  GripVertical, Plus, Minus, Copy, RotateCcw
+  Type, AlignLeft, Palette, Eye, Edit3,
+  GripVertical, Plus, Minus, RotateCcw
 } from 'lucide-react';
-import { supabaseAdmin } from '@/lib/supabase'; // ✅ KRIITTINEN MUUTOS
+
+// ✅ POISTETTU: import { supabaseAdmin } from '@/lib/supabase';
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -64,6 +66,7 @@ export default function EditCoverLetterPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingParagraph, setEditingParagraph] = useState<number | null>(null);
   
@@ -83,7 +86,6 @@ export default function EditCoverLetterPage() {
     accentColor: '#3b82f6',
   });
 
-  // Split body into editable paragraphs
   const [paragraphs, setParagraphs] = useState<string[]>([]);
 
   useEffect(() => {
@@ -92,29 +94,41 @@ export default function EditCoverLetterPage() {
     }
   }, [letterData?.content?.body]);
 
-  // --- INITIAL LOAD ---
+  // ✅ KORJATTU: Käyttää API:a supabaseAdminin sijaan
   useEffect(() => {
     const loadCoverLetter = async () => {
-      if (!userId || !id) return;
+      if (!userId || !id) {
+        console.log('⏭️ Missing userId or id');
+        setIsLoading(false);
+        return;
+      }
 
       try {
-        const { data, error } = await supabaseAdmin
-          .from('cover_letters')
-          .select('*')
-          .eq('id', id)
-          .eq('user_id', userId)
-          .single();
+        console.log(`🔍 Loading cover letter: ${id} for user: ${userId}`);
 
-        if (error) throw error;
+        // ✅ UUSI: API-kutsu
+        const response = await fetch(`/api/cover-letters/${id}`);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to load cover letter');
+        }
+
+        const { coverLetter: data } = await response.json();
         
         if (data) {
-          setLetterData(data);
           console.log('✅ Cover letter loaded:', data.title);
+          setLetterData(data);
+        } else {
+          console.warn('⚠️ No data returned');
+          setErrorMessage('Hakukirjettä ei löytynyt');
         }
 
       } catch (err) {
-        console.error('Error loading cover letter:', err);
-        setErrorMessage('Hakukirjeen lataaminen epäonnistui');
+        console.error('❌ Error loading cover letter:', err);
+        setErrorMessage(
+          err instanceof Error ? err.message : 'Hakukirjeen lataaminen epäonnistui'
+        );
       } finally {
         setIsLoading(false);
       }
@@ -173,6 +187,7 @@ export default function EditCoverLetterPage() {
     });
   };
 
+  // ✅ KORJATTU: Käyttää API:a supabaseAdminin sijaan
   const handleSave = async () => {
     if (!letterData || !userId) return;
     setIsSaving(true);
@@ -183,19 +198,25 @@ export default function EditCoverLetterPage() {
         body: paragraphs.join('\n\n'),
       };
 
-      const { error } = await supabaseAdmin
-        .from('cover_letters')
-        .update({
+      // ✅ UUSI: API-kutsu
+      const response = await fetch(`/api/cover-letters/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title: letterData.title,
           content: updatedContent,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .eq('user_id', userId);
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Save failed');
+      }
 
-      setLetterData({ ...letterData, content: updatedContent });
+      const updated = await response.json();
+
+      setLetterData(updated);
       setSuccessMessage('✅ Hakukirje tallennettu!');
       setTimeout(() => setSuccessMessage(null), 3000);
       setIsEditing(false);
@@ -203,6 +224,7 @@ export default function EditCoverLetterPage() {
     } catch (error) {
       console.error('Save error:', error);
       setErrorMessage('Tallennus epäonnistui');
+      setTimeout(() => setErrorMessage(null), 3000);
     } finally {
       setIsSaving(false);
     }
@@ -236,22 +258,27 @@ export default function EditCoverLetterPage() {
     }
   };
 
+  // ✅ KORJATTU: Käyttää API:a supabaseAdminin sijaan
   const handleDelete = async () => {
     if (!confirm('Haluatko varmasti poistaa tämän hakukirjeen?')) return;
     
+    setIsDeleting(true);
     try {
-      const { error } = await supabaseAdmin
-        .from('cover_letters')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', userId);
+      // ✅ UUSI: API-kutsu
+      const response = await fetch(`/api/cover-letters/${id}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Delete failed');
+      }
       
       router.push('/my-cover-letters');
     } catch (error) {
       console.error('Delete error:', error);
       alert('Poisto epäonnistui');
+      setIsDeleting(false);
     }
   };
 
@@ -267,8 +294,16 @@ export default function EditCoverLetterPage() {
               <div className="absolute inset-0 bg-orange-400/20 blur-2xl rounded-full"></div>
             </div>
             <p className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-              Ladataan hakukirjettä...
+              {errorMessage || 'Ladataan hakukirjettä...'}
             </p>
+            {errorMessage && (
+              <button
+                onClick={() => router.push('/my-cover-letters')}
+                className="mt-6 px-6 py-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-300 hover:bg-slate-700 transition-all"
+              >
+                ← Takaisin
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -363,11 +398,16 @@ export default function EditCoverLetterPage() {
               </button>
               
               <button 
-                onClick={handleDelete} 
+                onClick={handleDelete}
+                disabled={isDeleting}
                 className="group relative p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-red-500/20 hover:border-red-500/50 transition-all overflow-hidden"
                 title="Poista hakukirje"
               >
-                <Trash2 className="w-5 h-5 text-slate-400 group-hover:text-red-400 relative z-10 transition-colors" />
+                {isDeleting ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-red-400 relative z-10" />
+                ) : (
+                  <Trash2 className="w-5 h-5 text-slate-400 group-hover:text-red-400 relative z-10 transition-colors" />
+                )}
               </button>
             </div>
           </div>
