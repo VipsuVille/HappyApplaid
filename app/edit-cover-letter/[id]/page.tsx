@@ -1,4 +1,4 @@
-// app/edit-cover-letter/[id]/page.tsx - ✅ FINAL: Doc#3 tyyli + Popup + Vapaa tekstieditori
+// app/edit-cover-letter/[id]/page.tsx - ✅ WYSIWYG: Word-tyylinen inline editing
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -6,11 +6,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
-  Type, AlignLeft, Palette, Edit3, X,
-  RotateCcw, Undo
+  Type, Palette, Edit3, Undo, RotateCcw, X, Eye
 } from 'lucide-react';
-import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
-import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -27,7 +24,8 @@ interface CoverLetter {
 }
 
 interface StyleSettings {
-  fontSize: number;
+  nameFontSize: number;
+  contentFontSize: number;
   lineHeight: number;
   padding: number;
   headerColor: string;
@@ -51,22 +49,25 @@ export default function EditCoverLetterPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // ✅ POPUP EDIT MODE
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showStylePanel, setShowStylePanel] = useState(false);
   
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // ✅ VAPAA TEKSTIEDITORI (ei kappalejakoa)
+  // ✅ EDITABLE FIELDS
+  const [editedName, setEditedName] = useState('');
   const [editedContent, setEditedContent] = useState('');
-  const [originalContent, setOriginalContent] = useState(''); // Peruutusta varten
+  const [originalName, setOriginalName] = useState('');
+  const [originalContent, setOriginalContent] = useState('');
   
-  // ✅ UNDO HISTORY
-  const [undoHistory, setUndoHistory] = useState<string[]>([]);
-  const [undoIndex, setUndoIndex] = useState(-1);
-
+  // ✅ ACTIVE EDITING
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isEditingContent, setIsEditingContent] = useState(false);
+  
   const [styleSettings, setStyleSettings] = useState<StyleSettings>({
-    fontSize: 11,
+    nameFontSize: 48,
+    contentFontSize: 11,
     lineHeight: 1.8,
     padding: 50,
     headerColor: 'rgb(181, 152, 79)',
@@ -74,7 +75,8 @@ export default function EditCoverLetterPage() {
     sidebarContent: 'contact',
   });
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const loadCoverLetter = async () => {
@@ -100,11 +102,21 @@ export default function EditCoverLetterPage() {
         
         if (data) {
           setLetterData(data);
+          const name = data.content?.contactInfo?.name || data.ai_data?.name || 'Hakija';
           const content = data.content?.body || data.ai_data?.html?.content || '';
+          
+          setEditedName(name);
           setEditedContent(content);
+          setOriginalName(name);
           setOriginalContent(content);
           
           // Load saved styles
+          if (data.content?.nameFontSize) {
+            setStyleSettings((prev) => ({ ...prev, nameFontSize: data.content.nameFontSize }));
+          }
+          if (data.content?.contentFontSize) {
+            setStyleSettings((prev) => ({ ...prev, contentFontSize: data.content.contentFontSize }));
+          }
           if (data.content?.headerColor) {
             setStyleSettings((prev) => ({ ...prev, headerColor: data.content.headerColor }));
           }
@@ -113,9 +125,6 @@ export default function EditCoverLetterPage() {
           }
           if (data.content?.sidebarContent) {
             setStyleSettings((prev) => ({ ...prev, sidebarContent: data.content.sidebarContent }));
-          }
-          if (data.content?.fontSize) {
-            setStyleSettings((prev) => ({ ...prev, fontSize: data.content.fontSize }));
           }
           if (data.content?.lineHeight) {
             setStyleSettings((prev) => ({ ...prev, lineHeight: data.content.lineHeight }));
@@ -140,28 +149,6 @@ export default function EditCoverLetterPage() {
     loadCoverLetter();
   }, [id, userId, getToken]);
 
-  // ✅ UNDO FUNCTIONALITY
-  const handleContentChange = (newContent: string) => {
-    // Lisää nykyinen sisältö undo-historiaan
-    if (undoIndex === -1 || undoHistory[undoIndex] !== editedContent) {
-      const newHistory = undoHistory.slice(0, undoIndex + 1);
-      newHistory.push(editedContent);
-      setUndoHistory(newHistory);
-      setUndoIndex(newHistory.length - 1);
-    }
-    
-    setEditedContent(newContent);
-  };
-
-  const handleUndo = () => {
-    if (undoIndex > 0) {
-      setUndoIndex(undoIndex - 1);
-      setEditedContent(undoHistory[undoIndex - 1]);
-    } else if (originalContent !== editedContent) {
-      setEditedContent(originalContent);
-    }
-  };
-
   const handleSave = async () => {
     if (!letterData || !userId) return;
     setIsSaving(true);
@@ -179,16 +166,22 @@ export default function EditCoverLetterPage() {
         body: JSON.stringify({
           content: {
             ...letterData.content,
+            contactInfo: {
+              ...letterData.content?.contactInfo,
+              name: editedName,
+            },
             body: editedContent,
+            nameFontSize: styleSettings.nameFontSize,
+            contentFontSize: styleSettings.contentFontSize,
             headerColor: styleSettings.headerColor,
             headerLayout: styleSettings.headerLayout,
             sidebarContent: styleSettings.sidebarContent,
-            fontSize: styleSettings.fontSize,
             lineHeight: styleSettings.lineHeight,
             padding: styleSettings.padding,
           },
           ai_data: {
             ...letterData.ai_data,
+            name: editedName,
             html: {
               ...letterData.ai_data?.html,
               content: editedContent,
@@ -204,13 +197,14 @@ export default function EditCoverLetterPage() {
 
       const updated = await response.json();
       setLetterData(updated);
-      setOriginalContent(editedContent); // Päivitä alkuperäinen
-      setUndoHistory([]); // Tyhjennä historia tallennuksen jälkeen
-      setUndoIndex(-1);
+      setOriginalName(editedName);
+      setOriginalContent(editedContent);
       
       setSuccessMessage('✅ Hakukirje tallennettu!');
       setTimeout(() => setSuccessMessage(null), 3000);
-      setShowEditModal(false);
+      setIsEditMode(false);
+      setIsEditingName(false);
+      setIsEditingContent(false);
     } catch (error) {
       console.error('Save error:', error);
       setErrorMessage('Tallennus epäonnistui');
@@ -222,10 +216,12 @@ export default function EditCoverLetterPage() {
 
   const handleCancelEdit = () => {
     if (confirm('Hylätäänkö tallentamattomat muutokset?')) {
+      setEditedName(originalName);
       setEditedContent(originalContent);
-      setUndoHistory([]);
-      setUndoIndex(-1);
-      setShowEditModal(false);
+      setIsEditMode(false);
+      setIsEditingName(false);
+      setIsEditingContent(false);
+      setShowStylePanel(false);
     }
   };
 
@@ -285,7 +281,8 @@ export default function EditCoverLetterPage() {
 
   const handleResetStyles = () => {
     setStyleSettings({
-      fontSize: 11,
+      nameFontSize: 48,
+      contentFontSize: 11,
       lineHeight: 1.8,
       padding: 50,
       headerColor: 'rgb(181, 152, 79)',
@@ -294,23 +291,6 @@ export default function EditCoverLetterPage() {
     });
   };
 
-  // ✅ KEYBOARD SHORTCUTS
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && showEditModal) {
-        e.preventDefault();
-        handleUndo();
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's' && showEditModal) {
-        e.preventDefault();
-        handleSave();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showEditModal, undoIndex, undoHistory]);
-
   // --- LOADING STATE ---
   if (isLoading || !letterData) {
     return (
@@ -318,10 +298,7 @@ export default function EditCoverLetterPage() {
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-amber-500/20 blur-3xl rounded-full"></div>
           <div className="relative backdrop-blur-2xl bg-slate-900/80 border border-slate-700/50 rounded-3xl shadow-2xl p-12 text-center">
-            <div className="relative">
-              <Loader2 className="w-16 h-16 animate-spin text-orange-400 mx-auto mb-6" />
-              <div className="absolute inset-0 bg-orange-400/20 blur-2xl rounded-full"></div>
-            </div>
+            <Loader2 className="w-16 h-16 animate-spin text-orange-400 mx-auto mb-6" />
             <p className="text-xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
               {errorMessage || 'Ladataan hakukirjettä...'}
             </p>
@@ -339,25 +316,7 @@ export default function EditCoverLetterPage() {
     );
   }
 
-  const coverLetterData = {
-    name: letterData.content?.contactInfo?.name || letterData.ai_data?.name || 'Hakija',
-    email: letterData.content?.contactInfo?.email || letterData.ai_data?.email || '',
-    phone: letterData.content?.contactInfo?.phone || letterData.ai_data?.phone || '',
-    location: letterData.content?.contactInfo?.location || letterData.ai_data?.location || '',
-    jobTitle: letterData.content?.job_title || '',
-    companyName: letterData.content?.company_name || '',
-    title: letterData.title,
-    content: editedContent,
-    keyHighlights: letterData.ai_data?.key_highlights || [],
-    language: letterData.content?.language || 'finnish',
-    style: (letterData.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
-    headerColor: styleSettings.headerColor,
-    headerLayout: styleSettings.headerLayout,
-    sidebarContent: styleSettings.sidebarContent,
-    fontSize: styleSettings.fontSize,
-    lineHeight: styleSettings.lineHeight,
-    padding: styleSettings.padding,
-  };
+  const today = new Date().toLocaleDateString('fi-FI', { year: 'numeric', month: 'long', day: 'numeric' });
 
   // --- MAIN RENDER ---
   return (
@@ -367,68 +326,100 @@ export default function EditCoverLetterPage() {
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-gradient-to-br from-orange-500/8 to-slate-700/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1.5s'}}></div>
-        <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] bg-gradient-to-br from-amber-500/8 to-orange-600/8 rounded-full blur-3xl animate-pulse" style={{animationDelay: '3s'}}></div>
       </div>
 
       {/* TOP BAR */}
       <div className="px-4 md:px-8 py-4 mt-20 sticky top-20 z-40">
-        <div className="max-w-[1400px] mx-auto backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-2xl shadow-2xl p-4">
+        <div className="max-w-[1800px] mx-auto backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-2xl shadow-2xl p-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex items-center gap-3">
               <button 
                 onClick={() => router.push('/my-cover-letters')}
-                className="group relative p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all duration-300 flex-shrink-0 overflow-hidden"
+                className="group p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 to-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <ArrowLeft className="w-5 h-5 text-slate-300 group-hover:text-orange-400 relative z-10 transition-colors" />
+                <ArrowLeft className="w-5 h-5 text-slate-300 group-hover:text-orange-400" />
               </button>
               
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent truncate">
-                  {letterData.title || 'Nimetön hakukirje'}
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent">
+                  {isEditMode ? 'Muokkaustila' : 'Esikatselu'}
                 </h1>
+                <p className="text-sm text-slate-400">{letterData.title}</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button 
-                onClick={() => setShowEditModal(true)}
-                className="group relative px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl font-bold text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 transition-all duration-300 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-600 to-amber-600 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative flex items-center gap-2">
-                  <Edit3 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Muokkaa</span>
-                </div>
-              </button>
-              
-              <button 
-                onClick={handleDownloadPDF}
-                disabled={isDownloading}
-                className="group relative p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all overflow-hidden"
-                title="Lataa PDF"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                {isDownloading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-orange-400 relative z-10" />
-                ) : (
-                  <Download className="w-5 h-5 text-slate-300 group-hover:text-blue-400 relative z-10 transition-colors" />
-                )}
-              </button>
-              
-              <button 
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="group relative p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-red-500/20 hover:border-red-500/50 transition-all overflow-hidden"
-                title="Poista hakukirje"
-              >
-                {isDeleting ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-red-400 relative z-10" />
-                ) : (
-                  <Trash2 className="w-5 h-5 text-slate-400 group-hover:text-red-400 relative z-10 transition-colors" />
-                )}
-              </button>
+            <div className="flex items-center gap-2">
+              {!isEditMode ? (
+                <>
+                  <button 
+                    onClick={handleDownloadPDF}
+                    disabled={isDownloading}
+                    className="p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all"
+                    title="Lataa PDF"
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
+                    ) : (
+                      <Download className="w-5 h-5 text-slate-300" />
+                    )}
+                  </button>
+                  
+                  <button 
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-red-500/20 transition-all"
+                    title="Poista"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-red-400" />
+                    ) : (
+                      <Trash2 className="w-5 h-5 text-slate-400" />
+                    )}
+                  </button>
+                  
+                  <button 
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setShowStylePanel(true);
+                    }}
+                    className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl font-bold text-white shadow-lg transition-all"
+                  >
+                    <Edit3 className="w-4 h-4 inline mr-2" />
+                    Muokkaa
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowStylePanel(!showStylePanel)}
+                    className="p-3 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all"
+                    title="Muotoilu"
+                  >
+                    <Type className="w-5 h-5 text-slate-300" />
+                  </button>
+                  
+                  <button 
+                    onClick={handleCancelEdit}
+                    className="px-4 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-300 hover:bg-slate-700/50 transition-all font-semibold"
+                  >
+                    <X className="w-4 h-4 inline mr-2" />
+                    Peruuta
+                  </button>
+                  
+                  <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl font-bold text-white shadow-lg transition-all disabled:opacity-50"
+                  >
+                    {isSaving ? (
+                      <><Loader2 className="w-4 h-4 inline mr-2 animate-spin" /> Tallennetaan...</>
+                    ) : (
+                      <><Save className="w-4 h-4 inline mr-2" /> Tallenna</>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -437,8 +428,7 @@ export default function EditCoverLetterPage() {
       {/* NOTIFICATIONS */}
       {successMessage && (
         <div className="fixed top-32 right-6 z-50 animate-slide-in-right">
-          <div className="backdrop-blur-2xl bg-green-500/20 border border-green-400/30 rounded-2xl shadow-2xl p-4 flex items-center gap-3">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+          <div className="backdrop-blur-2xl bg-green-500/20 border border-green-400/30 rounded-2xl shadow-2xl p-4">
             <p className="font-bold text-green-100">{successMessage}</p>
           </div>
         </div>
@@ -446,234 +436,278 @@ export default function EditCoverLetterPage() {
 
       {errorMessage && (
         <div className="fixed top-32 right-6 z-50 animate-slide-in-right">
-          <div className="backdrop-blur-2xl bg-red-500/20 border border-red-400/30 rounded-2xl shadow-2xl p-4 flex items-center gap-3">
+          <div className="backdrop-blur-2xl bg-red-500/20 border border-red-400/30 rounded-2xl shadow-2xl p-4">
             <p className="font-bold text-red-100">{errorMessage}</p>
           </div>
         </div>
       )}
 
-      {/* ✅ EDIT POPUP MODAL */}
-      {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-6xl max-h-[90vh] backdrop-blur-2xl bg-slate-900/95 border border-slate-700/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-slate-700/50">
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
-                Muokkaustila
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleUndo}
-                  disabled={undoIndex <= 0 && editedContent === originalContent}
-                  className="p-2 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all disabled:opacity-30"
-                  title="Peruuta (Ctrl+Z)"
-                >
-                  <Undo className="w-5 h-5 text-slate-300" />
-                </button>
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="p-2 bg-slate-800/50 border border-slate-700/50 rounded-xl hover:bg-slate-700/50 transition-all"
-                >
-                  <X className="w-5 h-5 text-slate-300" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body - TWO COLUMNS */}
-            <div className="flex-1 overflow-hidden flex">
-              
-              {/* LEFT: Text Editor */}
-              <div className="flex-1 p-6 overflow-y-auto border-r border-slate-700/50">
-                <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
-                  <AlignLeft className="w-5 h-5 text-orange-400" />
-                  Sisältö
-                </h3>
-                <textarea
-                  ref={textareaRef}
-                  value={editedContent}
-                  onChange={(e) => handleContentChange(e.target.value)}
-                  className="w-full h-[500px] p-4 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-100 focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 outline-none transition-all resize-none font-serif"
-                  style={{
-                    fontSize: `${styleSettings.fontSize}pt`,
-                    lineHeight: styleSettings.lineHeight,
-                  }}
-                  placeholder="Kirjoita hakukirjeen sisältö tähän..."
-                />
-                <p className="text-xs text-slate-500 mt-2">
-                  💡 Vinkki: Käytä Ctrl+Z peruuttaaksesi muutoksia
-                </p>
-              </div>
-
-              {/* RIGHT: Style Controls */}
-              <div className="w-80 p-6 overflow-y-auto bg-slate-900/50">
-                <h3 className="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+      {/* MAIN CONTENT */}
+      <div className="max-w-[1800px] mx-auto px-4 md:px-8 py-8 relative z-10">
+        <div className="flex gap-6">
+          
+          {/* ✅ FLOATING STYLE PANEL (kun edit mode ON) */}
+          {isEditMode && showStylePanel && (
+            <div className="w-80 backdrop-blur-2xl bg-slate-900/80 border border-slate-700/50 rounded-2xl shadow-2xl p-6 h-fit sticky top-40">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold flex items-center gap-2">
                   <Type className="w-5 h-5 text-orange-400" />
                   Muotoilu
                 </h3>
+                <button
+                  onClick={() => setShowStylePanel(false)}
+                  className="p-1 hover:bg-slate-800 rounded"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-                <div className="space-y-6">
-                  {/* Font Size */}
-                  <div>
-                    <label className="text-sm font-bold text-slate-300 mb-2 block">
-                      Fonttikoko: {styleSettings.fontSize}pt
-                    </label>
-                    <input
-                      type="range"
-                      min="9"
-                      max="14"
-                      step="0.5"
-                      value={styleSettings.fontSize}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, fontSize: parseFloat(e.target.value) }))}
-                      className="w-full accent-orange-500"
-                    />
-                  </div>
-
-                  {/* Line Height */}
-                  <div>
-                    <label className="text-sm font-bold text-slate-300 mb-2 block">
-                      Riviväli: {styleSettings.lineHeight.toFixed(1)}
-                    </label>
-                    <input
-                      type="range"
-                      min="1.4"
-                      max="2.0"
-                      step="0.1"
-                      value={styleSettings.lineHeight}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, lineHeight: parseFloat(e.target.value) }))}
-                      className="w-full accent-orange-500"
-                    />
-                  </div>
-
-                  {/* Padding */}
-                  <div>
-                    <label className="text-sm font-bold text-slate-300 mb-2 block">
-                      Marginaalit: {styleSettings.padding}px
-                    </label>
-                    <input
-                      type="range"
-                      min="30"
-                      max="70"
-                      step="5"
-                      value={styleSettings.padding}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, padding: parseInt(e.target.value) }))}
-                      className="w-full accent-orange-500"
-                    />
-                  </div>
-
-                  {/* Header Color */}
-                  <div>
-                    <label className="text-sm font-bold text-slate-300 mb-2 block">Header-väri</label>
-                    <input
-                      type="color"
-                      value={styleSettings.headerColor.startsWith('rgb') ? '#B59850' : styleSettings.headerColor}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, headerColor: e.target.value }))}
-                      className="w-full h-10 rounded-lg border border-slate-700 bg-slate-800 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Layout */}
-                  <div>
-                    <label className="text-sm font-bold text-slate-300 mb-2 block">Layout</label>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'top' }))}
-                        className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                          styleSettings.headerLayout === 'top'
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        Vaaka
-                      </button>
-                      <button
-                        onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'left' }))}
-                        className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                          styleSettings.headerLayout === 'left'
-                            ? 'bg-orange-500 text-white'
-                            : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        Pysty
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Sidebar Content */}
-                  <div>
-                    <label className="text-sm font-bold text-slate-300 mb-2 block">Sisältö</label>
-                    <div className="flex gap-2">
-                      {[
-                        { value: 'contact', label: 'Yhteys' },
-                        { value: 'highlights', label: 'Vahv.' },
-                        { value: 'none', label: 'Tyhjä' }
-                      ].map(({ value, label }) => (
-                        <button
-                          key={value}
-                          onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: value as any }))}
-                          className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold transition-all ${
-                            styleSettings.sidebarContent === value
-                              ? 'bg-orange-500 text-white'
-                              : 'bg-slate-800 text-slate-400'
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Reset */}
-                  <button
-                    onClick={handleResetStyles}
-                    className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-700/50 transition-all flex items-center justify-center gap-2"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Palauta oletukset
-                  </button>
+              <div className="space-y-6">
+                {/* Nimen koko */}
+                <div>
+                  <label className="text-sm font-bold text-slate-300 mb-2 block">
+                    Nimen koko: {styleSettings.nameFontSize}px
+                  </label>
+                  <input
+                    type="range"
+                    min="32"
+                    max="64"
+                    value={styleSettings.nameFontSize}
+                    onChange={(e) => setStyleSettings((prev) => ({ ...prev, nameFontSize: parseInt(e.target.value) }))}
+                    className="w-full accent-orange-500"
+                  />
                 </div>
+
+                {/* Sisällön koko */}
+                <div>
+                  <label className="text-sm font-bold text-slate-300 mb-2 block">
+                    Tekstin koko: {styleSettings.contentFontSize}pt
+                  </label>
+                  <input
+                    type="range"
+                    min="9"
+                    max="14"
+                    step="0.5"
+                    value={styleSettings.contentFontSize}
+                    onChange={(e) => setStyleSettings((prev) => ({ ...prev, contentFontSize: parseFloat(e.target.value) }))}
+                    className="w-full accent-orange-500"
+                  />
+                </div>
+
+                {/* Riviväli */}
+                <div>
+                  <label className="text-sm font-bold text-slate-300 mb-2 block">
+                    Riviväli: {styleSettings.lineHeight.toFixed(1)}
+                  </label>
+                  <input
+                    type="range"
+                    min="1.4"
+                    max="2.0"
+                    step="0.1"
+                    value={styleSettings.lineHeight}
+                    onChange={(e) => setStyleSettings((prev) => ({ ...prev, lineHeight: parseFloat(e.target.value) }))}
+                    className="w-full accent-orange-500"
+                  />
+                </div>
+
+                {/* Marginaalit */}
+                <div>
+                  <label className="text-sm font-bold text-slate-300 mb-2 block">
+                    Marginaalit: {styleSettings.padding}px
+                  </label>
+                  <input
+                    type="range"
+                    min="30"
+                    max="70"
+                    step="5"
+                    value={styleSettings.padding}
+                    onChange={(e) => setStyleSettings((prev) => ({ ...prev, padding: parseInt(e.target.value) }))}
+                    className="w-full accent-orange-500"
+                  />
+                </div>
+
+                {/* Header väri */}
+                <div>
+                  <label className="text-sm font-bold text-slate-300 mb-2 block">Header-väri</label>
+                  <input
+                    type="color"
+                    value={styleSettings.headerColor.startsWith('rgb') ? '#B59850' : styleSettings.headerColor}
+                    onChange={(e) => setStyleSettings((prev) => ({ ...prev, headerColor: e.target.value }))}
+                    className="w-full h-10 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                {/* Layout */}
+                <div>
+                  <label className="text-sm font-bold text-slate-300 mb-2 block">Layout</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'top' }))}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold ${
+                        styleSettings.headerLayout === 'top'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      Vaaka
+                    </button>
+                    <button
+                      onClick={() => setStyleSettings((prev) => ({ ...prev, headerLayout: 'left' }))}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold ${
+                        styleSettings.headerLayout === 'left'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      Pysty
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sidebar sisältö */}
+                <div>
+                  <label className="text-sm font-bold text-slate-300 mb-2 block">Sisältö</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: 'contact', label: 'Yhteys' },
+                      { value: 'highlights', label: 'Vahv.' },
+                      { value: 'none', label: 'Tyhjä' }
+                    ].map(({ value, label }) => (
+                      <button
+                        key={value}
+                        onClick={() => setStyleSettings((prev) => ({ ...prev, sidebarContent: value as any }))}
+                        className={`flex-1 px-2 py-2 rounded-lg text-xs font-bold ${
+                          styleSettings.sidebarContent === value
+                            ? 'bg-orange-500 text-white'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reset */}
+                <button
+                  onClick={handleResetStyles}
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-700/50 transition-all flex items-center justify-center gap-2"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Palauta oletukset
+                </button>
               </div>
             </div>
+          )}
 
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-slate-700/50 bg-slate-900/50">
-              <button
-                onClick={handleCancelEdit}
-                className="px-6 py-3 bg-slate-800/50 border border-slate-700/50 rounded-xl text-slate-300 hover:bg-slate-700/50 transition-all font-semibold"
-              >
-                Älä tallenna
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="px-8 py-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl font-bold text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 disabled:opacity-50 transition-all"
-              >
-                {isSaving ? (
-                  <><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Tallennetaan...</>
-                ) : (
-                  <><Save className="w-4 h-4 inline mr-2" /> Tallenna</>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          {/* ✅ PREVIEW - WYSIWYG INLINE EDITING */}
+          <div className="flex-1 backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-3xl shadow-2xl p-8 overflow-hidden">
+            {isEditMode && (
+              <div className="mb-4 p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                <p className="text-sm text-orange-300">
+                  💡 <strong>Klikkaa tekstiä muokataksesi sitä</strong> - Toimii kuin Word!
+                </p>
+              </div>
+            )}
+            
+            <div className="overflow-x-auto flex justify-center bg-slate-950/30 rounded-2xl border border-slate-800/50">
+              <div className="transform scale-[0.75] origin-top py-8">
+                <div 
+                  className="bg-white shadow-2xl"
+                  style={{
+                    width: '210mm',
+                    minHeight: '297mm',
+                    padding: `${styleSettings.padding}px`,
+                    fontFamily: "'Merriweather', serif",
+                    color: '#1a202c',
+                  }}
+                >
+                  {/* ✅ HEADER - INLINE EDITABLE NAME */}
+                  <div 
+                    className="mb-8 p-6 rounded-lg"
+                    style={{ backgroundColor: styleSettings.headerColor }}
+                  >
+                    {isEditMode && isEditingName ? (
+                      <input
+                        ref={nameInputRef}
+                        type="text"
+                        value={editedName}
+                        onChange={(e) => setEditedName(e.target.value)}
+                        onBlur={() => setIsEditingName(false)}
+                        onKeyDown={(e) => e.key === 'Enter' && setIsEditingName(false)}
+                        className="w-full bg-white/50 border-2 border-orange-500 rounded px-2 py-1 font-bold outline-none"
+                        style={{ fontSize: `${styleSettings.nameFontSize}px`, color: '#1a202c' }}
+                        autoFocus
+                      />
+                    ) : (
+                      <h1
+                        onClick={() => isEditMode && setIsEditingName(true)}
+                        className={isEditMode ? 'cursor-pointer hover:bg-white/20 rounded px-2 py-1 transition-colors' : ''}
+                        style={{ fontSize: `${styleSettings.nameFontSize}px`, fontWeight: 'bold', color: '#1a202c' }}
+                      >
+                        {editedName}
+                      </h1>
+                    )}
+                    
+                    <div className="flex flex-wrap gap-4 text-sm mt-2" style={{ color: '#4a5568' }}>
+                      {letterData.content?.contactInfo?.email && <span>📧 {letterData.content.contactInfo.email}</span>}
+                      {letterData.content?.contactInfo?.phone && <span>📞 {letterData.content.contactInfo.phone}</span>}
+                      {letterData.content?.contactInfo?.location && <span>📍 {letterData.content.contactInfo.location}</span>}
+                    </div>
+                  </div>
 
-      {/* PREVIEW */}
-      <div className="max-w-[1400px] mx-auto px-4 md:px-8 py-8 relative z-10">
-        <div className="backdrop-blur-2xl bg-slate-900/50 border border-slate-700/50 rounded-3xl shadow-2xl p-8 overflow-hidden">
-          <div className="overflow-x-auto pb-6 flex justify-center bg-slate-950/30 rounded-2xl border border-slate-800/50">
-            <div className="transform scale-[0.75] origin-top py-8">
-              <CoverLetterContainer
-                data-template-type="standard"
-                className="shadow-2xl bg-white"
-              >
-                <CoverLetterTemplate 
-                  data={coverLetterData} 
-                  isPdfPreview={false} 
-                  isEditing={false} 
-                />
-              </CoverLetterContainer>
+                  {/* DATE */}
+                  <div className="mb-6 text-sm" style={{ color: '#4a5568' }}>
+                    {today}
+                  </div>
+
+                  {/* ✅ CONTENT - INLINE EDITABLE */}
+                  {isEditMode && isEditingContent ? (
+                    <textarea
+                      ref={contentTextareaRef}
+                      value={editedContent}
+                      onChange={(e) => setEditedContent(e.target.value)}
+                      onBlur={() => setIsEditingContent(false)}
+                      className="w-full min-h-[500px] p-4 bg-blue-50 border-2 border-blue-500 rounded resize-none outline-none"
+                      style={{
+                        fontSize: `${styleSettings.contentFontSize}pt`,
+                        lineHeight: styleSettings.lineHeight,
+                        fontFamily: "'Merriweather', serif",
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <div
+                      onClick={() => isEditMode && setIsEditingContent(true)}
+                      className={isEditMode ? 'cursor-pointer hover:bg-blue-50 p-4 rounded transition-colors min-h-[200px]' : 'min-h-[200px]'}
+                      style={{
+                        fontSize: `${styleSettings.contentFontSize}pt`,
+                        lineHeight: styleSettings.lineHeight,
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {editedContent.split('\n\n').map((paragraph, index) => (
+                        <p key={index} className="mb-4" style={{ textAlign: 'justify' }}>
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* SIGNATURE */}
+                  <div className="mt-12">
+                    <p className="text-sm mb-2" style={{ fontStyle: 'italic', color: '#4a5568' }}>
+                      Ystävällisin terveisin,
+                    </p>
+                    <p className="text-2xl" style={{ 
+                      fontFamily: "'Brush Script MT', cursive",
+                      color: '#3b82f6',
+                    }}>
+                      {editedName}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
