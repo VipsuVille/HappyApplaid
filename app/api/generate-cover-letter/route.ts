@@ -1,13 +1,13 @@
-// app/api/generate-cover-letter/route.ts - UNIFIED API ROUTE
-// Tukee: General, ATS-V1, ATS-V2
+// app/api/generate-cover-letter/route.ts - UNIFIED API (FINAL)
+// Tukee: General, ATS-V1, ATS-V2 + Experience Gap Analysis
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { generateGeneralCoverLetterSafely } from '@/lib/langchain/generalCoverLetterGenerator';
-// TODO: Lisää kun valmiina:
-// import { generateATSCoverLetterV1 } from '@/lib/langchain/atsCoverLetterV1Generator';
-// import { generateATSCoverLetterV2 } from '@/lib/langchain/atsCoverLetterV2Generator';
+import { generateATSCoverLetterV1 } from '@/lib/langchain/coverLetterGenerator'; // ✅ LISÄTTY
+import { generateATSCoverLetterV2 } from '@/lib/langchain/coverLetterGeneratorV2'; // ✅ LISÄTTY
+import { analyzeExperienceGap } from '@/lib/ats/experienceGapAnalyzer';
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -28,6 +28,10 @@ interface BaseCoverLetterRequest {
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
   enableRAG?: boolean;
+  
+  // Experience Gap kontrollit
+  skipExperienceCheck?: boolean;
+  followUpAnswers?: Record<string, string>;
 }
 
 interface GeneralCoverLetterRequest extends BaseCoverLetterRequest {
@@ -38,12 +42,14 @@ interface GeneralCoverLetterRequest extends BaseCoverLetterRequest {
   companyName?: string;
   jobPosting?: string;
   
-  // Profile data (for AI context)
+  // Profile data
   workExperience?: string;
   education?: string;
   skills?: string;
+  yearsOfExperience?: number;
+  careerLevel?: 'entry' | 'junior' | 'mid' | 'senior' | 'expert';
   
-  // Personality (CRITICAL for character-driven letter)
+  // Personality
   workingStyle?: string;
   problemSolving?: string;
   uniqueStrength?: string;
@@ -71,6 +77,8 @@ interface ATSCoverLetterV1Request extends BaseCoverLetterRequest {
   workExperience: string;
   education: string;
   skills: string;
+  yearsOfExperience?: number;
+  careerLevel?: 'entry' | 'junior' | 'mid' | 'senior' | 'expert';
   
   // Optional
   companyResearch?: string;
@@ -89,32 +97,17 @@ interface ATSCoverLetterV2Request extends BaseCoverLetterRequest {
   workExperience: string;
   education: string;
   skills: string;
+  yearsOfExperience?: number;
+  careerLevel?: 'entry' | 'junior' | 'mid' | 'senior' | 'expert';
   
   // ATS Optimization
-  keywords: string[];
+  keywords?: string[];
   companyResearch?: string;
-  atsScore?: boolean; // Return ATS compatibility score
-  guardianValidation?: boolean; // Use Guardian AI for validation
+  atsScore?: boolean;
+  guardianValidation?: boolean;
 }
 
 type CoverLetterRequest = GeneralCoverLetterRequest | ATSCoverLetterV1Request | ATSCoverLetterV2Request;
-
-// ════════════════════════════════════════════════════════════════
-// GENERATOR RESULT TYPE
-// ════════════════════════════════════════════════════════════════
-
-interface GeneratorResult {
-  content: string;
-  title: string;
-  keyHighlights: string[];
-  atsScore?: number; // Only for ATS-V2
-  atsAnalysis?: {
-    keywordMatch: number;
-    readability: number;
-    formatting: number;
-    overall: number;
-  };
-}
 
 // ════════════════════════════════════════════════════════════════
 // API ROUTE HANDLER
@@ -139,11 +132,6 @@ export async function POST(request: NextRequest) {
     const body: CoverLetterRequest = await request.json();
     
     console.log('📋 [REQUEST] Type:', body.type);
-    console.log('📋 [REQUEST] Settings:', {
-      language: body.language,
-      style: body.style,
-      enableRAG: body.enableRAG,
-    });
 
     // STEP 3: Validate request based on type
     if (!body.type || !['general', 'ats-v1', 'ats-v2'].includes(body.type)) {
@@ -164,32 +152,109 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // STEP 4: Generate cover letter based on type
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 3.5: EXPERIENCE GAP ANALYSIS (jos ATS)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    if ((body.type === 'ats-v1' || body.type === 'ats-v2') && !body.skipExperienceCheck) {
+      console.log('🔍 [ExperienceGap] Analyzing user experience...');
+      
+      const atsBody = body as ATSCoverLetterV1Request | ATSCoverLetterV2Request;
+      
+      try {
+        // Ekstraktoi avainsanat jos ei vielä tehty
+        let extractedKeywords = atsBody.keywords || [];
+        
+        if (extractedKeywords.length === 0) {
+          console.log('🔍 [Keywords] Extracting from job description...');
+          
+          const keywordResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/extract-keywords-ai`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobDescription: atsBody.jobDescription })
+          });
+
+          if (keywordResponse.ok) {
+            const keywordData = await keywordResponse.json();
+            extractedKeywords = [
+              ...(keywordData.critical || []),
+              ...(keywordData.important || [])
+            ];
+            console.log(`✅ [Keywords] Extracted ${extractedKeywords.length} keywords`);
+          }
+        }
+
+        // Analysoi kokemusaukkoja
+        const experienceGap = await analyzeExperienceGap({
+          jobDescription: atsBody.jobDescription,
+          userProfile: {
+            name: body.name || 'User',
+            workExperience: atsBody.workExperience,
+            education: atsBody.education,
+            skills: atsBody.skills,
+            yearsOfExperience: atsBody.yearsOfExperience,
+            careerLevel: atsBody.careerLevel
+          },
+          extractedKeywords: extractedKeywords.length > 0 ? {
+            critical: extractedKeywords.slice(0, 5),
+            important: extractedKeywords.slice(5, 10),
+            bonus: extractedKeywords.slice(10)
+          } : undefined,
+          followUpAnswers: body.followUpAnswers,
+          language: body.language || 'finnish'
+        });
+
+        console.log(`📊 [ExperienceGap] Analysis:`, {
+          hasGap: experienceGap.hasGap,
+          severity: experienceGap.severity,
+          passLikelihood: experienceGap.passLikelihood
+        });
+
+        // Jos aukkoja, palauta varoitus
+        if (experienceGap.hasGap && experienceGap.severity !== 'none') {
+          console.log('⚠️ [ExperienceGap] Returning warning');
+          
+          return NextResponse.json({
+            needsWarning: true,
+            experienceGap,
+            message: 'Experience gap detected - user confirmation needed'
+          });
+        }
+
+        console.log('✅ [ExperienceGap] No critical gaps');
+
+      } catch (error) {
+        console.error('⚠️ [ExperienceGap] Analysis failed:', error);
+        // Jatka generointiin
+      }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 4: Generate cover letter
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
     console.log(`🤖 [AI] Starting ${body.type} generation...`);
     
-    let result: GeneratorResult;
+    let content: string;
+    let title: string;
+    let keyHighlights: string[] = [];
+    let atsScore: number | undefined;
+    let atsAnalysis: any;
     
     switch (body.type) {
       case 'general': {
         const generalBody = body as GeneralCoverLetterRequest;
-        result = await generateGeneralCoverLetterSafely({
-          // Basic (NOT in text)
+        const result = await generateGeneralCoverLetterSafely({
           name: generalBody.name,
           email: generalBody.email,
           phone: generalBody.phone,
           location: generalBody.location,
-          
-          // Job context
           jobTitle: generalBody.jobTitle,
           companyName: generalBody.companyName,
           jobPosting: generalBody.jobPosting,
-          
-          // Profile
           workExperience: generalBody.workExperience,
           education: generalBody.education,
           skills: generalBody.skills,
-          
-          // Personality (THE GOLD!)
           workingStyle: generalBody.workingStyle,
           problemSolving: generalBody.problemSolving,
           uniqueStrength: generalBody.uniqueStrength,
@@ -198,93 +263,83 @@ export async function POST(request: NextRequest) {
           learningStyle: generalBody.learningStyle,
           teamRole: generalBody.teamRole,
           valuesExample: generalBody.valuesExample,
-          
-          // Stories
           careerGoals: generalBody.careerGoals,
           bestProjectExample: generalBody.bestProjectExample,
           failureLesson: generalBody.failureLesson,
-          
-          // Settings
           language: generalBody.language || 'finnish',
           style: generalBody.style || 'professional',
           enableRAG: generalBody.enableRAG ?? true,
         });
+        
+        content = result.content;
+        title = result.title;
+        keyHighlights = result.keyHighlights || [];
+        
         console.log('✅ [AI] General cover letter generated');
         break;
       }
 
       case 'ats-v1': {
-        // TODO: Implement when atsCoverLetterV1Generator is ready
         const atsV1Body = body as ATSCoverLetterV1Request;
         
-        // PLACEHOLDER - Replace with actual generator
-        console.log('⚠️ [AI] ATS-V1 generator not yet implemented - using fallback');
-        result = {
-          content: `[ATS-V1 PLACEHOLDER]\n\nDear Hiring Manager at ${atsV1Body.companyName},\n\nI am writing to apply for the ${atsV1Body.jobTitle} position...\n\n[This will be replaced with actual ATS-V1 generator]`,
-          title: `Application for ${atsV1Body.jobTitle} at ${atsV1Body.companyName}`,
-          keyHighlights: [
-            'Placeholder highlight 1',
-            'Placeholder highlight 2',
-            'Placeholder highlight 3'
-          ]
-        };
+        const result = await generateATSCoverLetterV1({
+          jobDescription: atsV1Body.jobDescription,
+          name: atsV1Body.name || 'Applicant',
+          email: atsV1Body.email,
+          phone: atsV1Body.phone,
+          location: atsV1Body.location,
+          workExperience: atsV1Body.workExperience,
+          education: atsV1Body.education,
+          skills: atsV1Body.skills,
+          yearsOfExperience: atsV1Body.yearsOfExperience,
+          careerLevel: atsV1Body.careerLevel,
+          language: atsV1Body.language || 'finnish',
+          style: atsV1Body.style || 'professional',
+          enableRAG: atsV1Body.enableRAG ?? false,
+          guardianValidation: true,
+          userId: userId,
+          skipQuestions: true,
+          followUpAnswers: atsV1Body.followUpAnswers
+        });
         
-        // When ready:
-        // result = await generateATSCoverLetterV1({
-        //   jobTitle: atsV1Body.jobTitle,
-        //   companyName: atsV1Body.companyName,
-        //   jobDescription: atsV1Body.jobDescription,
-        //   workExperience: atsV1Body.workExperience,
-        //   education: atsV1Body.education,
-        //   skills: atsV1Body.skills,
-        //   companyResearch: atsV1Body.companyResearch,
-        //   keywords: atsV1Body.keywords,
-        //   language: atsV1Body.language || 'finnish',
-        //   style: atsV1Body.style || 'professional',
-        //   enableRAG: atsV1Body.enableRAG ?? true,
-        // });
+        content = result.content;
+        title = result.title;
+        keyHighlights = result.keyHighlights || [];
+        
+        console.log('✅ [AI] ATS-V1 cover letter generated');
         break;
       }
 
       case 'ats-v2': {
-        // TODO: Implement when atsCoverLetterV2Generator is ready
         const atsV2Body = body as ATSCoverLetterV2Request;
         
-        // PLACEHOLDER - Replace with actual generator
-        console.log('⚠️ [AI] ATS-V2 generator not yet implemented - using fallback');
-        result = {
-          content: `[ATS-V2 PLACEHOLDER]\n\nDear Hiring Manager at ${atsV2Body.companyName},\n\nI am excited to apply for the ${atsV2Body.jobTitle} position...\n\n[This will be replaced with actual ATS-V2 generator with Guardian validation]`,
-          title: `Application for ${atsV2Body.jobTitle} at ${atsV2Body.companyName}`,
-          keyHighlights: [
-            'Placeholder highlight 1',
-            'Placeholder highlight 2',
-            'Placeholder highlight 3'
-          ],
-          atsScore: 85, // Placeholder
-          atsAnalysis: {
-            keywordMatch: 90,
-            readability: 85,
-            formatting: 80,
-            overall: 85
-          }
-        };
+        const result = await generateATSCoverLetterV2({
+          jobDescription: atsV2Body.jobDescription,
+          name: atsV2Body.name || 'Applicant',
+          email: atsV2Body.email,
+          phone: atsV2Body.phone,
+          location: atsV2Body.location,
+          workExperience: atsV2Body.workExperience,
+          education: atsV2Body.education,
+          skills: atsV2Body.skills,
+          yearsOfExperience: atsV2Body.yearsOfExperience,
+          careerLevel: atsV2Body.careerLevel,
+          language: atsV2Body.language || 'finnish',
+          style: atsV2Body.style || 'professional',
+          enableRAG: atsV2Body.enableRAG ?? false,
+          guardianValidation: atsV2Body.guardianValidation ?? true,
+          userId: userId,
+          skipQuestions: true,
+          followUpAnswers: atsV2Body.followUpAnswers
+        });
         
-        // When ready:
-        // result = await generateATSCoverLetterV2({
-        //   jobTitle: atsV2Body.jobTitle,
-        //   companyName: atsV2Body.companyName,
-        //   jobDescription: atsV2Body.jobDescription,
-        //   workExperience: atsV2Body.workExperience,
-        //   education: atsV2Body.education,
-        //   skills: atsV2Body.skills,
-        //   keywords: atsV2Body.keywords,
-        //   companyResearch: atsV2Body.companyResearch,
-        //   language: atsV2Body.language || 'finnish',
-        //   style: atsV2Body.style || 'professional',
-        //   enableRAG: atsV2Body.enableRAG ?? true,
-        //   atsScore: atsV2Body.atsScore ?? true,
-        //   guardianValidation: atsV2Body.guardianValidation ?? true,
-        // });
+        content = result.content;
+        title = result.title;
+        keyHighlights = result.keyHighlights || [];
+        atsScore = result.atsScore;
+        atsAnalysis = result.atsAnalysis;
+        
+        console.log('✅ [AI] ATS-V2 cover letter generated');
         break;
       }
 
@@ -301,10 +356,10 @@ export async function POST(request: NextRequest) {
     
     const coverLetterData = {
       user_id: userId,
-      title: result.title,
+      title,
       language: body.language || 'finnish',
       content: {
-        body: result.content,
+        body: content,
         signature: body.name || '',
         contactInfo: {
           name: body.name || '',
@@ -315,7 +370,7 @@ export async function POST(request: NextRequest) {
       },
       ai_data: {
         style: body.style || 'professional',
-        key_highlights: result.keyHighlights,
+        key_highlights: keyHighlights,
         type: body.type,
         
         // Job context (if applicable)
@@ -325,9 +380,9 @@ export async function POST(request: NextRequest) {
         }),
         
         // ATS-specific data (if applicable)
-        ...(body.type === 'ats-v2' && result.atsScore && {
-          ats_score: result.atsScore,
-          ats_analysis: result.atsAnalysis,
+        ...(body.type === 'ats-v2' && atsScore && {
+          ats_score: atsScore,
+          ats_analysis: atsAnalysis,
         }),
       },
       created_at: new Date().toISOString(),
@@ -350,14 +405,14 @@ export async function POST(request: NextRequest) {
     // STEP 6: Return success
     return NextResponse.json({
       success: true,
-      coverLetterId: savedLetter.id, // ✅ Suoraan ID
+      coverLetterId: savedLetter.id,
       title: savedLetter.title,
       message: `${body.type} cover letter generated successfully`,
       
-      // Include ATS analysis in response if available
-      ...(result.atsScore && {
-        atsScore: result.atsScore,
-        atsAnalysis: result.atsAnalysis,
+      // Include ATS analysis if available
+      ...(atsScore && {
+        atsScore,
+        atsAnalysis,
       }),
     });
 
@@ -374,89 +429,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// METADATA
-// ════════════════════════════════════════════════════════════════
-
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-// ════════════════════════════════════════════════════════════════
-// API DOCUMENTATION (for reference)
-// ════════════════════════════════════════════════════════════════
-
-/*
-POST /api/generate-cover-letter
-
-EXAMPLES:
-
-1. GENERAL COVER LETTER:
-{
-  "type": "general",
-  "name": "Matti Meikäläinen",
-  "email": "matti@example.com",
-  "language": "finnish",
-  "style": "professional",
-  "workingStyle": "Rakastan oppimista tekemällä",
-  "problemSolving": "Debuggaan systemaattisesti",
-  "uniqueStrength": "Näen kokonaisuuksia",
-  "superpower": "Teen monimutkaisen yksinkertaiseksi",
-  "workExperience": "...",
-  "education": "...",
-  "skills": "..."
-}
-
-2. ATS-V1 COVER LETTER (Job-specific, basic):
-{
-  "type": "ats-v1",
-  "name": "Matti Meikäläinen",
-  "email": "matti@example.com",
-  "jobTitle": "Senior Full-Stack Developer",
-  "companyName": "TechCorp",
-  "jobDescription": "We are looking for...",
-  "workExperience": "...",
-  "education": "...",
-  "skills": "React, Node.js, AWS",
-  "keywords": ["React", "Node.js", "AWS", "microservices"],
-  "language": "finnish",
-  "style": "professional"
-}
-
-3. ATS-V2 COVER LETTER (ATS-optimized, Guardian validated):
-{
-  "type": "ats-v2",
-  "name": "Matti Meikäläinen",
-  "email": "matti@example.com",
-  "jobTitle": "Senior Full-Stack Developer",
-  "companyName": "TechCorp",
-  "jobDescription": "We are looking for...",
-  "workExperience": "...",
-  "education": "...",
-  "skills": "React, Node.js, AWS",
-  "keywords": ["React", "Node.js", "AWS", "microservices", "agile"],
-  "companyResearch": "TechCorp focuses on fintech solutions...",
-  "language": "finnish",
-  "style": "professional",
-  "atsScore": true,
-  "guardianValidation": true
-}
-
-RESPONSE:
-{
-  "success": true,
-  "coverLetter": {
-    "id": "uuid",
-    "title": "Application for...",
-    "content": { ... },
-    "ai_data": { 
-      "type": "general" | "ats-v1" | "ats-v2",
-      "key_highlights": [...],
-      "ats_score": 85,  // Only for ats-v2
-      "ats_analysis": { ... }  // Only for ats-v2
-    }
-  },
-  "message": "Cover letter generated successfully",
-  "atsScore": 85,  // Only for ats-v2
-  "atsAnalysis": { ... }  // Only for ats-v2
-}
-*/

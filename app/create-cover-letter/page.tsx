@@ -1,4 +1,4 @@
-// app/create-cover-letter/page.tsx - KORJATTU TYPE-LOGIIKKA
+// app/create-cover-letter/page.tsx - ATS PREMIUM MARKETING
 
 "use client";
 
@@ -7,7 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import {
+import {  
   Sparkles,
   Target,
   Mail,
@@ -22,6 +22,8 @@ import {
   Briefcase,
   Globe,
   Palette,
+  Zap,
+  TrendingUp,
 } from "lucide-react";
 
 import { useTokens } from "@/hooks/useTokens";
@@ -29,6 +31,7 @@ import { useFreeUsage } from '@/hooks/useFreeUsage';
 import { useLanguage } from '@/context/LanguageContext';
 import { ACTION_COSTS, PlanType, TokenAction } from "@/lib/domain/tokens";
 import CVConfirmationModal from "@/components/CVConfirmationModal";
+import { supabaseAdmin } from "@/lib/supabase";
 
 type LetterType = "job_specific" | "general";
 type LetterVersion = "v1" | "v2";
@@ -58,6 +61,39 @@ export default function CreateCoverLetterPage() {
 
   const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
   const freeUsage = useFreeUsage();
+
+  // ✅ PREMIUM CHECK
+  const [isPremium, setIsPremium] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('');
+
+  useEffect(() => {
+    const checkPremium = async () => {
+      if (!user) return;
+      
+      try {
+        const { data: sub } = await supabaseAdmin
+          .from('subscriptions')
+          .select('plan_type, status')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (sub) {
+          setSubscriptionStatus(sub.status || '');
+          setIsPremium(
+            sub.status === 'active' &&
+            sub.plan_type &&
+            sub.plan_type !== 'free'
+          );
+        }
+      } catch (error) {
+        console.error('Premium check failed:', error);
+      }
+    };
+
+    if (userLoaded && user) {
+      checkPremium();
+    }
+  }, [userLoaded, user]);
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
 
@@ -206,6 +242,9 @@ export default function CreateCoverLetterPage() {
     return hasName && hasPersonality;
   }, [profileData]);
 
+  // ✅ TARKISTA PREMIUM (V2 vaatii Premium)
+  const canUseV2 = isPremium && letterType === 'job_specific';
+
   // --- GENERATE HANDLER ---
   const handleGenerateLetter = async (confirmedViolations?: any) => {
     if (!isProfileValid) {
@@ -216,6 +255,12 @@ export default function CreateCoverLetterPage() {
 
     if (letterType === 'job_specific' && !jobPosting.trim()) {
       toast.error(t.jobPostingRequired);
+      return;
+    }
+
+    // ✅ V2 PREMIUM CHECK
+    if (letterVersion === 'v2' && !isPremium) {
+      toast.error('ATS V2 vaatii Premium-tilauksen');
       return;
     }
 
@@ -334,8 +379,6 @@ export default function CreateCoverLetterPage() {
     );
   }
 
-  const canUseATS = plan_type === 'premium' && letterType === 'job_specific';
-
   return (
     <div className="min-h-screen bg-[#030711] text-[#e7e3dc]">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -364,7 +407,7 @@ export default function CreateCoverLetterPage() {
               </div>
             </div>
             <div className="w-px h-10 bg-gray-800" />
-            <Crown className={`w-6 h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
+            <Crown className={`w-6 h-6 ${isPremium ? 'text-amber-400' : 'text-gray-600'}`} />
           </div>
         </div>
 
@@ -470,48 +513,151 @@ export default function CreateCoverLetterPage() {
               </div>
             </section>
 
-            {/* SECTION 3: ATS OPTIMIZATION */}
+            {/* ✅ SECTION 3: ATS OPTIMIZATION - PREMIUM MARKETING! */}
             {letterType === 'job_specific' && (
-              <section className={`rounded-[2.5rem] p-10 border ${
-                letterVersion === 'v2' && canUseATS ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-900/20 border-gray-800/50'
-              }`}>
-                <div className="flex items-center justify-between mb-8">
-                  <div className="flex items-center gap-3">
-                    <Shield className={`w-10 h-10 p-2 rounded-2xl ${
-                      letterVersion === 'v2' && canUseATS ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-gray-800/50 text-gray-500 border-gray-700'
-                    } border`} />
-                    <div>
-                      <h3 className="text-xl font-bold text-white">{t.sectionOptimization}</h3>
-                      <p className="text-xs text-gray-500">{t.atsToggle}</p>
+              <>
+                {/* ✅ ATS PREMIUM BOX (jos EI Premium) */}
+                {!isPremium && (
+                  <section className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-[2.5rem] p-10 shadow-2xl">
+                    <div className="flex items-start gap-4 mb-6">
+                      <div className="p-3 bg-amber-500/20 rounded-2xl border border-amber-500/30">
+                        <Shield className="w-8 h-8 text-amber-400" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Crown className="w-5 h-5 text-amber-400" />
+                          <h3 className="text-2xl font-black text-white">
+                            ATS-Optimointi
+                          </h3>
+                          <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/30 rounded-full text-[10px] font-black text-amber-400 uppercase">
+                            Premium
+                          </span>
+                        </div>
+                        <p className="text-slate-300 text-sm leading-relaxed">
+                          Voita työnantajan ATS-järjestelmä automaattisella optimoinnilla. 
+                          Lisää läpäisymahdollisuutesi <strong className="text-amber-400">60%:sta 85%:iin</strong>!
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  {canUseATS ? (
-                    <button 
-                      onClick={() => setLetterVersion(letterVersion === 'v2' ? 'v1' : 'v2')}
-                      className={`relative w-14 h-7 rounded-full ${letterVersion === 'v2' ? 'bg-emerald-500' : 'bg-gray-800'}`}
+
+                    {/* Benefits Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      {[
+                        {
+                          icon: TrendingUp,
+                          title: '85% läpäisymahdollisuus',
+                          desc: 'vs 60% ilman optimointia'
+                        },
+                        {
+                          icon: Zap,
+                          title: 'Iteratiivinen parannus',
+                          desc: 'Kunnes pisteet >= 75%'
+                        },
+                        {
+                          icon: Shield,
+                          title: 'Guardian-validointi',
+                          desc: 'Estää virheet ja liioittelun'
+                        },
+                        {
+                          icon: Target,
+                          title: 'ATS-score raportti',
+                          desc: 'Näe tarkat pisteet (0-100%)'
+                        }
+                      ].map((benefit, i) => (
+                        <div 
+                          key={i}
+                          className="flex items-start gap-3 p-4 bg-slate-900/50 border border-slate-700/50 rounded-xl"
+                        >
+                          <benefit.icon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold text-white text-sm mb-1">{benefit.title}</p>
+                            <p className="text-xs text-slate-400">{benefit.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Comparison */}
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-6">
+                      <p className="text-sm text-blue-200 flex items-start gap-2">
+                        <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>Mikä on ATS?</strong> Applicant Tracking System - robotti joka seuloo hakemuksia 
+                          ennen kuin ihminen näkee ne. <strong className="text-amber-400">Premium-versio voittaa robotin.</strong>
+                        </span>
+                      </p>
+                    </div>
+
+                    {/* CTA */}
+                    <button
+                      onClick={() => router.push('/pricing')}
+                      className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-black text-lg hover:scale-105 transition-all shadow-lg flex items-center justify-center gap-2"
                     >
-                      <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${letterVersion === 'v2' ? 'translate-x-7' : ''}`} />
+                      <Crown className="w-5 h-5" />
+                      Päivitä Premium-tilaukseen
+                      <ArrowRight className="w-5 h-5" />
                     </button>
-                  ) : (
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
-                      <Lock className="w-3.5 h-3.5 text-amber-500" />
-                      <span className="text-[10px] font-black text-amber-500 uppercase">{t.premiumOnly}</span>
+                  </section>
+                )}
+
+                {/* ✅ ATS SETTINGS (jos Premium) */}
+                {isPremium && (
+                  <section className={`rounded-[2.5rem] p-10 border ${
+                    letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-900/20 border-gray-800/50'
+                  }`}>
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex items-center gap-3">
+                        <Shield className={`w-10 h-10 p-2 rounded-2xl ${
+                          letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-gray-800/50 text-gray-500 border-gray-700'
+                        } border`} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-bold text-white">{t.sectionOptimization}</h3>
+                            <Crown className="w-4 h-4 text-amber-400" />
+                          </div>
+                          <p className="text-xs text-gray-500">{t.atsToggle}</p>
+                        </div>
+                      </div>
+                      {canUseV2 && (
+                        <button 
+                          onClick={() => setLetterVersion(letterVersion === 'v2' ? 'v1' : 'v2')}
+                          className={`relative w-14 h-7 rounded-full ${letterVersion === 'v2' ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${letterVersion === 'v2' ? 'translate-x-7' : ''}`} />
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="space-y-6">
-                  <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex gap-3">
-                    <Info className="w-5 h-5 text-blue-400 shrink-0" />
-                    <p className="text-xs text-blue-200/70">{t.atsInfo}</p>
-                  </div>
-                  <textarea
-                    value={jobPosting}
-                    onChange={(e) => setJobPosting(e.target.value)}
-                    placeholder={t.jobPostingPlaceholder}
-                    className="w-full h-48 bg-black/40 border border-white/10 rounded-3xl p-6 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none"
-                  />
-                </div>
-              </section>
+                    <div className="space-y-6">
+                      <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex gap-3">
+                        <Info className="w-5 h-5 text-blue-400 shrink-0" />
+                        <p className="text-xs text-blue-200/70">{t.atsInfo}</p>
+                      </div>
+                      <textarea
+                        value={jobPosting}
+                        onChange={(e) => setJobPosting(e.target.value)}
+                        placeholder={t.jobPostingPlaceholder}
+                        className="w-full h-48 bg-black/40 border border-white/10 rounded-3xl p-6 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none"
+                      />
+                    </div>
+                  </section>
+                )}
+
+                {/* ✅ JOB POSTING (jos ei Premium MUTTA job_specific) */}
+                {!isPremium && (
+                  <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Briefcase className="w-10 h-10 p-2 rounded-2xl bg-gray-800/50 text-gray-400 border border-gray-700" />
+                      <h3 className="text-xl font-bold text-white">Työpaikkailmoitus</h3>
+                    </div>
+                    <textarea
+                      value={jobPosting}
+                      onChange={(e) => setJobPosting(e.target.value)}
+                      placeholder={t.jobPostingPlaceholder}
+                      className="w-full h-48 bg-black/40 border border-white/10 rounded-3xl p-6 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none"
+                    />
+                  </section>
+                )}
+              </>
             )}
 
             {/* GENERAL: Target fields */}

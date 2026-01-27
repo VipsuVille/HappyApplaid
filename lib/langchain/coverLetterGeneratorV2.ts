@@ -1,140 +1,229 @@
-// lib/langchain/coverLetterGeneratorV2.ts - ENHANCED VERSION
+// lib/langchain/atsCoverLetterV2Generator.ts - ATS V2 (ADVANCED)
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { StructuredOutputParser } from "langchain/output_parsers";
-import { z } from "zod";
-import { buildAIContext } from "@/lib/knowledge";
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
+import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
+import { analyzeKeywordsUniversal } from "@/lib/ats/synonymMatcher";
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
-export interface CoverLetterV2Input {
+export interface ATSV2Input {
+  // Required
   jobDescription: string;
-  personalNotes?: string;
-  language?: string;
-  style?: "formal" | "casual";
-  
   name: string;
-  email: string;
-  phone: string;
-  age?: number;
   
-  education?: string;
+  // Contact (not in letter body)
+  email?: string;
+  phone?: string;
+  location?: string;
+  
+  // Profile
   workExperience?: string;
+  education?: string;
   skills?: string;
+  yearsOfExperience?: number;
+  careerLevel?: 'entry' | 'junior' | 'mid' | 'senior' | 'expert';
   
+  // Personality (CRITICAL for truth scale 3-4)
   workingStyle?: string;
   problemSolving?: string;
-  energySources?: string;
   uniqueStrength?: string;
+  superpower?: string;
+  energySources?: string;
   learningStyle?: string;
   teamRole?: string;
   valuesExample?: string;
-  superpower?: string;
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
+  personalNotes?: string;
   
+  // Settings
+  language?: string;
+  style?: 'professional' | 'casual' | 'creative';
+  enableRAG?: boolean;
+  guardianValidation?: boolean; // Use Guardian
+  
+  // Control
   userId?: string;
   skipQuestions?: boolean;
+  followUpAnswers?: Record<string, string>;
+}
+
+export interface ATSV2Output {
+  content: string;
+  title: string;
+  signature: string;
+  keyHighlights: string[];
+  
+  // ATS Analysis
+  atsScore: number; // 0-100
+  atsAnalysis: {
+    keywordMatch: number;
+    readability: number;
+    overall: number;
+    exactMatches: string[];
+    synonymMatches: string[];
+    missingCritical: string[];
+  };
+  
+  // Guardian Report
+  guardianReport?: {
+    approved: boolean;
+    riskLevel: 'safe' | 'warning' | 'danger';
+    violations: any;
+    recommendation: string;
+  };
+  
+  // Meta
+  iterations: number;
+  questions?: any[];
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SCHEMA - ENHANCED
+// HELPER: DEEP KEYWORD EXTRACTION
 // ═══════════════════════════════════════════════════════════════
 
-const v2Schema = z.object({
-  fullText: z.string(),
-  keyPoints: z.object({
-    personalityHook: z.string().describe("Opening hook based on personality"),
-    experienceHighlight: z.string().describe("Most relevant experience for THIS job"),
-    skillsMatch: z.string().describe("How skills match THIS job requirements"),
-    motivation: z.string().describe("Why THIS specific role"),
-  }),
-  atsData: z.object({
-    matchedKeywords: z.array(z.string()).describe("Keywords from job posting used"),
-    keywordDensity: z.number().min(0).max(100).describe("Keyword coverage %"),
-    readabilityScore: z.number().min(1).max(10).describe("ATS readability"),
-    suggestions: z.array(z.string()).optional().describe("Improvement suggestions"),
-  }),
-});
-
-const outputParser = StructuredOutputParser.fromZodSchema(v2Schema);
-
-// ═══════════════════════════════════════════════════════════════
-// JOB ANALYZER - ENHANCED
-// ═══════════════════════════════════════════════════════════════
-
-async function analyzeJobPosting(jobDescription: string) {
+async function extractDeepKeywords(jobDescription: string): Promise<{
+  critical: string[];
+  important: string[];
+  bonus: string[];
+}> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
-    modelName: "gpt-4o-mini",
-    temperature: 0.1,
+    modelName: 'gpt-4o-mini',
+    temperature: 0.0,
   });
 
-  const prompt = `Analysoi tämä työpaikkailmoitus ja pura tärkeimmät elementit.
+  const prompt = `Deep ATS keyword analysis.
 
-**TYÖPAIKKAILMOITUS:**
-${jobDescription}
+Job Posting:
+${jobDescription.substring(0, 2500)}
 
-Palauta JSON:
+Extract keywords by priority:
+
+Return JSON:
 {
-  "company_name": "Yrityksen nimi",
-  "job_title": "Tehtävänimike",
-  "industry": "Toimiala",
-  "company_size": "startup|small|medium|large|enterprise",
-  "required_skills": ["taito1", "taito2"],
-  "preferred_skills": ["taito1", "taito2"],
-  "keywords": ["avainsana1", "avainsana2"],
-  "experience_level": "entry|junior|mid|senior|expert",
-  "company_values": ["arvo1", "arvo2"],
-  "key_responsibilities": ["vastuu1", "vastuu2"],
-  "tone": "formal|professional|casual|innovative"
-}`;
+  "critical": ["MUST-HAVE skills/qualifications"],
+  "important": ["Strongly preferred"],
+  "bonus": ["Nice to have"]
+}
+
+Focus on:
+- Required qualifications (critical)
+- Preferred skills (important)
+- Bonus skills (bonus)
+- Industry terminology
+- Certifications`;
 
   try {
-    const response = await model.invoke(prompt);
-    const content = typeof response.content === 'string' 
-      ? response.content 
-      : JSON.stringify(response.content);
+    const result = await model.invoke(prompt);
+    const content = typeof result.content === 'string' 
+      ? result.content 
+      : JSON.stringify(result.content);
     
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const jsonMatch = content.match(/\{[\s\S]*?\}/);
     if (!jsonMatch) throw new Error('No JSON');
     
-    return JSON.parse(jsonMatch[0]);
-  } catch (error) {
-    console.error('⚠️ Job analysis failed:', error);
+    const parsed = JSON.parse(jsonMatch[0]);
+    
     return {
-      company_name: "yritys",
-      job_title: "tehtävä",
-      industry: "tuntematon",
-      company_size: "unknown",
-      required_skills: [],
-      preferred_skills: [],
-      keywords: [],
-      experience_level: "mid",
-      company_values: [],
-      key_responsibilities: [],
-      tone: "professional"
+      critical: Array.isArray(parsed.critical) ? parsed.critical : [],
+      important: Array.isArray(parsed.important) ? parsed.important : [],
+      bonus: Array.isArray(parsed.bonus) ? parsed.bonus : []
     };
+  } catch (error) {
+    console.error('❌ Deep keyword extraction failed:', error);
+    return { critical: [], important: [], bonus: [] };
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN GENERATOR - ENHANCED
+// HELPER: CALCULATE ATS SCORE
 // ═══════════════════════════════════════════════════════════════
 
-export async function generateCoherentCoverLetter(input: CoverLetterV2Input) {
-  console.log('🔍 [V2-ATS] Starting enhanced generation...');
+async function calculateATSScore(
+  content: string,
+  keywords: { critical: string[]; important: string[]; bonus: string[] },
+  jobDescription: string
+): Promise<{
+  score: number;
+  exactMatches: string[];
+  synonymMatches: string[];
+  missingCritical: string[];
+}> {
+  
+  const allKeywords = [
+    ...keywords.critical,
+    ...keywords.important,
+    ...keywords.bonus
+  ];
 
-  // 1. SMART QUESTION ANALYSIS
+  // Use universal semantic matching
+  const analysis = await analyzeKeywordsUniversal(
+    allKeywords,
+    content,
+    jobDescription,
+    'finnish'
+  );
+
+  const exactMatches = analysis.exactMatches.map(m => m.keyword);
+  const synonymMatches = analysis.synonymMatches.map(m => m.keyword);
+  
+  const missingCritical = keywords.critical.filter(
+    k => !exactMatches.includes(k) && !synonymMatches.includes(k)
+  );
+
+  // Score calculation
+  const criticalScore = (
+    (keywords.critical.length - missingCritical.length) / 
+    Math.max(keywords.critical.length, 1)
+  ) * 60; // 60% weight
+
+  const importantMatches = keywords.important.filter(
+    k => exactMatches.includes(k) || synonymMatches.includes(k)
+  );
+  const importantScore = (
+    importantMatches.length / Math.max(keywords.important.length, 1)
+  ) * 30; // 30% weight
+
+  const bonusMatches = keywords.bonus.filter(
+    k => exactMatches.includes(k) || synonymMatches.includes(k)
+  );
+  const bonusScore = Math.min(bonusMatches.length * 2, 10); // 10% weight (max 5 bonus)
+
+  const totalScore = Math.round(criticalScore + importantScore + bonusScore);
+
+  return {
+    score: totalScore,
+    exactMatches,
+    synonymMatches,
+    missingCritical
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN V2 GENERATOR
+// ═══════════════════════════════════════════════════════════════
+
+export async function generateATSCoverLetterV2(
+  input: ATSV2Input
+): Promise<ATSV2Output> {
+  
+  console.log('🚀 [V2-ATS] Starting advanced ATS generation...');
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 1: SMART QUESTIONS (if needed)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   if (!input.skipQuestions) {
+    console.log('🧠 [V2-ATS] Running smart question analysis...');
+    
     try {
-      const { analyzeJobAndProfile } = await import("./smartQuestionAnalyzer");
-      
-      const rawAnalysis = await analyzeJobAndProfile({
+      const analysis = await analyzeJobAndProfile({
         jobDescription: input.jobDescription,
         userProfile: {
           name: input.name,
@@ -153,245 +242,364 @@ export async function generateCoherentCoverLetter(input: CoverLetterV2Input) {
         userId: input.userId
       });
 
-      const safeQuestions = Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [];
-      const shouldAsk = rawAnalysis?.shouldAskQuestions === true;
+      const safeQuestions = Array.isArray(analysis?.questions) ? analysis.questions : [];
 
-      if (shouldAsk && safeQuestions.length > 0) {
+      if (analysis?.shouldAskQuestions && safeQuestions.length > 0) {
         const criticalQuestions = safeQuestions.filter(q => q && q.priority === 'critical');
 
         if (criticalQuestions.length > 0) {
           console.log(`❓ [V2-ATS] Returning ${criticalQuestions.length} questions`);
+          
           return {
-            fullText: "",
             content: "",
             title: "Lisätietoja tarvitaan",
             signature: input.name,
+            keyHighlights: [],
+            atsScore: 0,
+            atsAnalysis: {
+              keywordMatch: 0,
+              readability: 0,
+              overall: 0,
+              exactMatches: [],
+              synonymMatches: [],
+              missingCritical: []
+            },
+            iterations: 0,
             questions: criticalQuestions,
-            keyPoints: {
-              personalityHook: "",
-              experienceHighlight: "",
-              skillsMatch: "",
-              motivation: ""
-            },
-            atsData: {
-              matchedKeywords: [],
-              keywordDensity: 0,
-              readabilityScore: 0
-            },
-            hasWorkExperience: false,
-            needsMoreInfo: true
           };
         }
       }
     } catch (error) {
-      console.error('⚠️ [V2-ATS] Question analysis error:', error);
+      console.error('⚠️ [V2-ATS] Question analysis failed:', error);
     }
   }
 
-  // 2. ANALYZE JOB POSTING
-  console.log('🔍 [V2-ATS] Analyzing job posting...');
-  const jobAnalysis = await analyzeJobPosting(input.jobDescription);
-  console.log(`📊 Detected: ${jobAnalysis.job_title} at ${jobAnalysis.company_name}`);
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 2: EXTRACT DEEP KEYWORDS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  const hasWorkExperience = input.workExperience && input.workExperience.length > 100;
+  console.log('🔍 [V2-ATS] Extracting deep keywords...');
+  const keywords = await extractDeepKeywords(input.jobDescription);
+  console.log(`✅ [V2-ATS] Keywords: ${keywords.critical.length} critical, ${keywords.important.length} important, ${keywords.bonus.length} bonus`);
 
-  // 3. BUILD RAG CONTEXT (Premium feature)
-  let knowledgeContext = '';
-  try {
-    knowledgeContext = await buildAIContext({
-      jobDescription: input.jobDescription,
-      userProfile: {
-        workExperience: input.workExperience || "",
-        education: input.education || "",
-        skills: input.skills || "",
-        workingStyle: input.workingStyle || "",
-        problemSolving: input.problemSolving || "",
-        uniqueStrength: input.uniqueStrength || "",
-        learningStyle: input.learningStyle || "",
-        teamRole: input.teamRole || "",
-        superpower: input.superpower || "",
-        careerGoals: input.careerGoals || "",
-        bestProjectExample: input.bestProjectExample || "",
-        failureLesson: input.failureLesson || "",
-      },
-      enableRAG: true,
-      contentType: 'cover_letter'
-    });
-    console.log('✅ RAG context loaded');
-  } catch (error) {
-    console.warn('⚠️ RAG skipped:', error);
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 3: GUARDIAN - EXTRACT GROUND TRUTH
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  let groundTruth = null;
+  if (input.guardianValidation !== false) {
+    console.log('🛡️ [V2-ATS] Extracting ground truth...');
+    try {
+      groundTruth = await extractGroundTruthAI(
+        {
+          name: input.name,
+          work_experience: input.workExperience,
+          education: input.education,
+          skills: input.skills,
+          working_style: input.workingStyle,
+          problem_solving: input.problemSolving,
+          unique_strength: input.uniqueStrength,
+          team_role: input.teamRole,
+          superpower: input.superpower,
+          career_goals: input.careerGoals,
+          best_project_example: input.bestProjectExample,
+        },
+        input.userId
+      );
+      console.log('✅ [V2-ATS] Ground truth extracted');
+    } catch (error) {
+      console.error('⚠️ [V2-ATS] Ground truth extraction failed:', error);
+    }
   }
 
-  // 4. GENERATE COVER LETTER
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 4: INITIAL GENERATION (TRUTH SCALE 3-4)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: "gpt-4o-mini",
-    temperature: 0.5,
+    temperature: 0.5, // Lower for more precision
   });
 
-  const styleInstructions = input.style === 'casual'
-    ? 'Keskusteleva mutta ammattimainen'
-    : 'Muodollinen ja rakenteellinen';
+  const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
+  const languageName = isFinnish ? 'suomi' : 'englanti';
 
-  const prompt = ChatPromptTemplate.fromMessages([
-    ["system", `Olet ATS-optimoitu hakukirjeen kirjoittaja. Tehtäväsi on kirjoittaa TÄLLE TIETYLLE TYÖPAIKALLE täydellisesti räätälöity hakukirje.
+  console.log('🤖 [V2-ATS] Generating initial letter...');
 
-${knowledgeContext ? `**ASIANTUNTIJAKONTEKSTI:**\n${knowledgeContext}\n\n` : ''}
+  let currentContent = '';
+  let iteration = 0;
+  const MAX_ITERATIONS = 3;
 
-**TYÖPAIKAN ANALYYSI:**
-Yritys: {companyName}
-Tehtävä: {jobTitle}
-Toimiala: {industry}
-Koko: {companySize}
-Vaadittavat taidot: {requiredSkills}
-Avainsanat: {keywords}
-Tyyli: {tone}
+  while (iteration < MAX_ITERATIONS) {
+    iteration++;
+    console.log(`🔄 [V2-ATS] Iteration ${iteration}/${MAX_ITERATIONS}`);
 
-**ATS-OPTIMOINTI:**
-1. Käytä työpaikkailmoituksen tarkkoja avainsanoja
-2. Peilaa ilmoituksen terminologiaa
-3. Korosta RELEVANTTEJA taitoja ja kokemuksia
-4. Käytä lukuarvoja kun mahdollista
-5. Selkeä rakenne, vakiosektiot
+    const prompt = ChatPromptTemplate.fromMessages([
+      ['system', `You are an ADVANCED ATS-optimized cover letter writer (V2).
 
-**RAKENNE:**
-1. **Avaus (2-3 lausetta):**
-   - Mikä TÄSSÄ tehtävässä kiinnostaa
-   - Yhteys omaan taustaan
+# ════════════════════════════════════════════════════════════════
+# TRUTH SCALE: 3-4 (NON-NEGOTIABLE!)
+# ════════════════════════════════════════════════════════════════
 
-2. **Osaaminen (4-6 lausetta):**
-   - Todelliset taidot mielenkiintoisesti
-   - Persoonallisuus työssä
-   - Konkreettiset esimerkit PROFIILISTA
+SCALE 1-10:
+1 = Word-for-word from profile
+3-4 = ⭐ TARGET: Professional interpretation, stays truthful
+10 = Complete fabrication
 
-3. **Motivaatio (2-3 lausetta):**
-   - Innostus TÄTÄ roolia kohtaan
-   - Miksi juuri TÄMÄ yritys
-   - Halu keskustella lisää
+**YOUR MISSION:**
+- Understand the PERSON from their profile
+- Write as a professional career advisor would
+- Stay 100% TRUTHFUL
+- Present them in best light WITHOUT lying
 
-**TYYLI:** {styleInstructions}
-**KIELI:** {language}
-**MAX:** 350 sanaa
+# ════════════════════════════════════════════════════════════════
+# ATS V2: ADVANCED OPTIMIZATION
+# ════════════════════════════════════════════════════════════════
 
-Käytä VAIN todennettuja tietoja profiilista. EI KEKSINTÖJÄ.
+**CRITICAL KEYWORDS (MUST include):**
+{criticalKeywords}
 
-{format_instructions}`],
+**IMPORTANT KEYWORDS (Strongly recommended):**
+{importantKeywords}
 
-    ["human", `Generoi ATS-optimoitu hakukirje TÄLLE työpaikalle.
+**BONUS KEYWORDS (If applicable):**
+{bonusKeywords}
 
-**TYÖPAIKKAILMOITUS:**
+**KEYWORD RULES:**
+1. Use ALL critical keywords naturally
+2. Use most important keywords
+3. Integrate keywords in context
+4. DON'T spam (density < 3% per keyword)
+5. Use synonyms if exact keyword doesn't fit
+6. If no experience with keyword → express interest
+
+${iteration > 1 ? `
+**PREVIOUS ATTEMPT FAILED ATS TEST:**
+Score: {previousScore}%
+Missing Critical: {missingCritical}
+
+**IMPROVEMENT STRATEGY:**
+- Add missing critical keywords NATURALLY
+- Don't spam - integrate smoothly
+- Maintain truth scale 3-4
+` : ''}
+
+# ════════════════════════════════════════════════════════════════
+# STRUCTURE (350-450 words)
+# ════════════════════════════════════════════════════════════════
+
+**PARAGRAPH 1: HOOK (2-3 sentences)**
+- Why THIS role (mention 1-2 critical keywords)
+- Your background connection
+
+**PARAGRAPH 2: EXPERIENCE (4-5 sentences)**
+- Real experiences + keywords
+- Truth scale 3-4!
+- Quantify if possible
+
+**PARAGRAPH 3: SKILLS (4-5 sentences)**
+- Match skills to job requirements
+- Integrate important keywords
+- Personality at work
+
+**PARAGRAPH 4: MOTIVATION (2-3 sentences)**
+- Enthusiasm for role
+- Company alignment
+- Call to action
+
+**LANGUAGE:** {languageName}
+
+Write in {languageName}.`],
+
+      ['human', `Generate ATS-optimized letter (V2 - Advanced).
+
+${iteration > 1 ? `**THIS IS ITERATION ${iteration} - IMPROVE PREVIOUS ATTEMPT**\n` : ''}
+
+**JOB DESCRIPTION:**
 {jobDescription}
 
-**HAVAITUT TIEDOT:**
-Yritys: {companyName}
-Tehtävä: {jobTitle}
-Avainsanat: {keywords}
-Taidot: {requiredSkills}
-Taso: {experienceLevel}
+**ATS KEYWORDS:**
+Critical: {criticalKeywords}
+Important: {importantKeywords}
+Bonus: {bonusKeywords}
 
-**HAKIJAN PROFIILI:**
-Nimi: {name}
-Ikä: {age}
-Koulutus: {education}
-Kokemus: {workExperience}
-Taidot: {skills}
+**APPLICANT:**
+Name: {name}
+Level: {careerLevel}
+Years: {yearsOfExperience}
 
-**PERSOONALLISUUS:**
-Tyyli: {workingStyle}
-Ongelmanratkaisu: {problemSolving}
-Energia: {energySources}
-Vahvuus: {uniqueStrength}
-Oppiminen: {learningStyle}
-Tiimirooli: {teamRole}
-Identiteetti: {superpower}
-Arvot: {valuesExample}
+Work: {workExperience}
+Education: {education}
+Skills: {skills}
 
-**SAAVUTUKSET:**
-Tavoitteet: {careerGoals}
-Paras projekti: {bestProjectExample}
-Oppiminen: {failureLesson}
+**PERSONALITY:**
+Working: {workingStyle}
+Solving: {problemSolving}
+Strength: {uniqueStrength}
+Superpower: {superpower}
+Team: {teamRole}
+Values: {valuesExample}
 
-**HENKILÖKOHTAISET MUISTIINPANOT:**
+**GOALS:**
+Career: {careerGoals}
+Project: {bestProjectExample}
+Lesson: {failureLesson}
+
+**FOLLOW-UP:**
+{followUpAnswers}
+
+**NOTES:**
 {personalNotes}
 
-Palauta JSON kentällä "fullText", "keyPoints" ja "atsData".`]
-  ]);
+${iteration > 1 ? `
+**IMPROVE FROM PREVIOUS:**
+Previous Score: {previousScore}%
+Missing: {missingCritical}
+→ ADD THESE NATURALLY!
+` : ''}
 
-  try {
-    const formattedPrompt = await prompt.formatMessages({
-      companyName: jobAnalysis.company_name,
-      jobTitle: jobAnalysis.job_title,
-      industry: jobAnalysis.industry,
-      companySize: jobAnalysis.company_size,
-      requiredSkills: jobAnalysis.required_skills.join(", ") || "Ei määritelty",
-      keywords: jobAnalysis.keywords.join(", ") || "Ei määritelty",
-      tone: jobAnalysis.tone,
-      experienceLevel: jobAnalysis.experience_level,
-      styleInstructions,
-      language: input.language || "suomi",
-      jobDescription: input.jobDescription,
-      name: input.name,
-      age: input.age ? `${input.age} vuotta` : 'Ei määritelty',
-      workExperience: input.workExperience || "Kokemusta kartuttamassa",
-      education: input.education || "Ei määritelty",
-      skills: input.skills || "Kehittyvä",
-      workingStyle: input.workingStyle || "Ei määritelty",
-      problemSolving: input.problemSolving || "Ei määritelty",
-      energySources: input.energySources || "Ei määritelty",
-      uniqueStrength: input.uniqueStrength || "Ei määritelty",
-      learningStyle: input.learningStyle || "Ei määritelty",
-      teamRole: input.teamRole || "Ei määritelty",
-      superpower: input.superpower || "Ei määritelty",
-      valuesExample: input.valuesExample || "Ei määritelty",
-      careerGoals: input.careerGoals || "Ei määritelty",
-      bestProjectExample: input.bestProjectExample || "Ei määritelty",
-      failureLesson: input.failureLesson || "Ei määritelty",
-      personalNotes: input.personalNotes || "Ei määritelty",
-      format_instructions: outputParser.getFormatInstructions(),
-    });
+**CRITICAL:**
+1. Truth Scale 3-4 (NO fabrication)
+2. Include ALL critical keywords naturally
+3. Integrate important keywords
+4. Write in {languageName}
 
-    const result = await model.invoke(formattedPrompt);
-    const content = typeof result.content === 'string'
-      ? result.content
-      : JSON.stringify(result.content);
+Generate NOW.`]
+    ]);
 
-    const cleanContent = content
-      .replace(/```json/g, '')
-      .replace(/```/g, '')
-      .trim();
+    try {
+      const previousScore = iteration > 1 
+        ? (await calculateATSScore(currentContent, keywords, input.jobDescription)).score 
+        : 0;
+      
+      const previousMissing = iteration > 1
+        ? (await calculateATSScore(currentContent, keywords, input.jobDescription)).missingCritical
+        : [];
 
-    const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No valid JSON from V2');
+      const formatted = await prompt.formatMessages({
+        languageName,
+        name: input.name,
+        criticalKeywords: keywords.critical.join(', '),
+        importantKeywords: keywords.important.join(', '),
+        bonusKeywords: keywords.bonus.join(', '),
+        jobDescription: input.jobDescription,
+        careerLevel: input.careerLevel || 'mid',
+        yearsOfExperience: input.yearsOfExperience || 0,
+        workExperience: input.workExperience || 'Building experience',
+        education: input.education || 'Continuous learner',
+        skills: input.skills || 'Developing skills',
+        workingStyle: input.workingStyle || 'Adaptable',
+        problemSolving: input.problemSolving || 'Logical',
+        uniqueStrength: input.uniqueStrength || 'Committed',
+        superpower: input.superpower || 'Motivated',
+        teamRole: input.teamRole || 'Collaborative',
+        valuesExample: input.valuesExample || 'Honest',
+        careerGoals: input.careerGoals || 'Growth',
+        bestProjectExample: input.bestProjectExample || 'None',
+        failureLesson: input.failureLesson || 'Learning',
+        followUpAnswers: input.followUpAnswers 
+          ? Object.entries(input.followUpAnswers).map(([q, a]) => `${q}: ${a}`).join('\n')
+          : 'None',
+        personalNotes: input.personalNotes || 'None',
+        previousScore: previousScore.toString(),
+        missingCritical: previousMissing.join(', ')
+      });
 
-    const parsed = await outputParser.parse(jsonMatch[0]);
+      const result = await model.invoke(formatted);
+      
+      currentContent = typeof result.content === 'string' 
+        ? result.content 
+        : JSON.stringify(result.content);
 
-    console.log('✅ [V2-ATS] Generation complete');
-    console.log(`📊 ATS Score: ${parsed.atsData.keywordDensity}%`);
+      currentContent = currentContent
+        .replace(/\[.*?\]/g, '')
+        .replace(/\n\s*\n\s*\n/g, '\n\n')
+        .trim();
 
-    return {
-      fullText: parsed.fullText,
-      content: parsed.fullText,
-      title: jobAnalysis.job_title || "Hakukirje",
-      signature: input.name,
-      keyPoints: parsed.keyPoints,
-      atsData: parsed.atsData,
-      jobAnalysis,
-      hasWorkExperience,
-    };
-  } catch (error) {
-    console.error('❌ [V2-ATS] Generation failed:', error);
-    throw new Error("V2 generation failed");
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // STEP 5: CALCULATE ATS SCORE
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      const atsResult = await calculateATSScore(currentContent, keywords, input.jobDescription);
+      console.log(`📊 [V2-ATS] Iteration ${iteration} Score: ${atsResult.score}%`);
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // STEP 6: CHECK IF GOOD ENOUGH (>= 75%)
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      if (atsResult.score >= 75) {
+        console.log(`✅ [V2-ATS] Passed ATS threshold (${atsResult.score}%)`);
+        break;
+      }
+
+      if (iteration === MAX_ITERATIONS) {
+        console.log(`⚠️ [V2-ATS] Max iterations reached. Final score: ${atsResult.score}%`);
+      }
+
+    } catch (error) {
+      console.error(`❌ [V2-ATS] Iteration ${iteration} failed:`, error);
+      throw error;
+    }
   }
-}
 
-export function generateATSReport(data: { atsData: any }) {
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 7: GUARDIAN VALIDATION
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  let guardianReport = null;
+  if (input.guardianValidation !== false && groundTruth) {
+    console.log('🛡️ [V2-ATS] Running Guardian validation...');
+    try {
+      guardianReport = await masterGuardianValidatorV2(
+        currentContent,
+        groundTruth,
+        'generation'
+      );
+      console.log(`🛡️ [V2-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES FOUND'}`);
+    } catch (error) {
+      console.error('⚠️ [V2-ATS] Guardian validation failed:', error);
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 8: FINAL ATS ANALYSIS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  const finalATS = await calculateATSScore(currentContent, keywords, input.jobDescription);
+
+  // Ensure signature
+  const signatureFinnish = `Ystävällisin terveisin,\n\n${input.name}`;
+  const signatureEnglish = `Best regards,\n\n${input.name}`;
+  
+  if (!currentContent.includes(input.name)) {
+    currentContent += '\n\n' + (isFinnish ? signatureFinnish : signatureEnglish);
+  }
+
+  console.log(`✅ [V2-ATS] Complete! Score: ${finalATS.score}%, Iterations: ${iteration}`);
+
   return {
-    keywords_used: data.atsData?.matchedKeywords.length || 0,
-    total_keywords: data.atsData?.matchedKeywords.length || 0,
-    keyword_match_score: data.atsData?.keywordDensity || 0,
-    ats_compatibility_score: data.atsData?.readabilityScore * 10 || 70,
-    critical_keywords_used: data.atsData?.matchedKeywords || [],
-    missing_keywords: [],
-    improvement_suggestions: data.atsData?.suggestions || [],
+    content: currentContent,
+    title: `Application - ${input.jobDescription.substring(0, 50)}...`,
+    signature: input.name,
+    keyHighlights: [...finalATS.exactMatches, ...finalATS.synonymMatches].slice(0, 8),
+    atsScore: finalATS.score,
+    atsAnalysis: {
+      keywordMatch: finalATS.score,
+      readability: 85, // TODO: Implement readability score
+      overall: finalATS.score,
+      exactMatches: finalATS.exactMatches,
+      synonymMatches: finalATS.synonymMatches,
+      missingCritical: finalATS.missingCritical
+    },
+    guardianReport: guardianReport || undefined,
+    iterations: iteration,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════
+// METADATA
+// ═══════════════════════════════════════════════════════════════
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';

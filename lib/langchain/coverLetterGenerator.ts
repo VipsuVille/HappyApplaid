@@ -1,5 +1,4 @@
-// lib/langchain/coverLetterGenerator.ts - V1 WITH SMARTANALYSIS
-const FORCE_REBUILD = 'v20250119_0003';
+// lib/langchain/atsCoverLetterV1Generator.ts - ATS V1 (BASIC)
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -8,324 +7,369 @@ import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
-const GENERATOR_VERSION = '2025-01-17-V4-FIXED';
-console.log(`🔍 GENERAL VERSION: ${GENERATOR_VERSION}`);
-export interface CoverLetterInput {
+
+export interface ATSV1Input {
+  // Required
   jobDescription: string;
   name: string;
+  
+  // Contact (not in letter body)
   email?: string;
   phone?: string;
-  jobTitle?: string;
-  education?: any;
-  workExperience?: any;
+  location?: string;
+  
+  // Profile
+  workExperience?: string;
+  education?: string;
   skills?: string;
+  yearsOfExperience?: number;
+  careerLevel?: 'entry' | 'junior' | 'mid' | 'senior' | 'expert';
+  
+  // Personality (CRITICAL for truth scale 3-4)
   workingStyle?: string;
   problemSolving?: string;
-  energySources?: string;
   uniqueStrength?: string;
+  superpower?: string;
+  energySources?: string;
   learningStyle?: string;
   teamRole?: string;
   valuesExample?: string;
-  superpower?: string;
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
   personalNotes?: string;
+  
+  // Settings
   language?: string;
-  style?: "formal" | "casual";
+  style?: 'professional' | 'casual' | 'creative';
+  enableRAG?: boolean;
+  guardianValidation?: boolean; // ✅ LISÄTTY (default: true)
+  
+  // Control
   userId?: string;
   skipQuestions?: boolean;
+  followUpAnswers?: Record<string, string>;
 }
 
-export interface CoverLetterOutput {
+export interface ATSV1Output {
   content: string;
   title: string;
   signature: string;
+  keyHighlights: string[];
+  extractedKeywords?: string[];
+  guardianReport?: { // ✅ LISÄTTY
+    approved: boolean;
+    riskLevel: 'safe' | 'warning' | 'danger';
+    violations: any;
+    recommendation: string;
+  };
   questions?: any[];
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN GENERATOR
+// HELPER: EXTRACT BASIC KEYWORDS
 // ═══════════════════════════════════════════════════════════════
 
-export async function generateCoverLetterV1(
-  input: CoverLetterInput
-): Promise<CoverLetterOutput> {
+async function extractBasicKeywords(jobDescription: string): Promise<string[]> {
+  const model = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY!,
+    modelName: 'gpt-4o-mini',
+    temperature: 0.0,
+  });
 
-  console.log('🚀 V1 Generator starting...');
+  const prompt = `Extract 10-15 most important ATS keywords from job posting.
+
+Job Posting:
+${jobDescription.substring(0, 2000)}
+
+Return ONLY a JSON array of keywords:
+["keyword1", "keyword2", ...]
+
+Focus on:
+- Technical skills
+- Required qualifications
+- Key responsibilities
+- Industry terms`;
+
+  try {
+    const result = await model.invoke(prompt);
+    const content = typeof result.content === 'string' 
+      ? result.content 
+      : JSON.stringify(result.content);
+    
+    const jsonMatch = content.match(/\[[\s\S]*?\]/);
+    if (!jsonMatch) return [];
+    
+    const keywords = JSON.parse(jsonMatch[0]);
+    return Array.isArray(keywords) ? keywords : [];
+  } catch (error) {
+    console.error('❌ Keyword extraction failed:', error);
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN V1 GENERATOR
+// ═══════════════════════════════════════════════════════════════
+
+export async function generateATSCoverLetterV1(
+  input: ATSV1Input
+): Promise<ATSV1Output> {
+  
+  console.log('🚀 [V1-ATS] Starting basic ATS generation...');
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // SMART QUESTION ANALYSIS (PREVENTS FABRICATION)
+  // STEP 1: SMART QUESTIONS (if needed)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-if (!input.skipQuestions) {
-    console.log('🧠 V1: Running smart question analysis...');
+
+  if (!input.skipQuestions) {
+    console.log('🧠 [V1-ATS] Running smart question analysis...');
     
     try {
-      // 🛡️ DEFENSIVE WRAPPER
-      let smartAnalysis;
-      try {
-        const rawAnalysis = await analyzeJobAndProfile({
-          jobDescription: input.jobDescription,
-          userProfile: {
-            name: input.name || "Not specified",
-            workExperience: input.workExperience || "Not specified",
-            education: input.education || "Not specified",
-            skills: input.skills || "Not specified",
-            workingStyle: input.workingStyle || "Not specified",
-            problemSolving: input.problemSolving || "Not specified",
-            uniqueStrength: input.uniqueStrength || "Not specified",
-            careerGoals: input.careerGoals || "Not specified",
-            bestProjectExample: input.bestProjectExample || "Not specified",
-            failureLesson: input.failureLesson || "Not specified",
-            personalNotes: input.personalNotes || "Not specified",
-          },
-          language: input.language || 'finnish',
-          userId: input.userId
-        });
-
-        // 🛡️ NORMALIZE - CRITICAL: Estää undefined.filter() crashin
-        smartAnalysis = {
-          shouldAskQuestions: rawAnalysis?.shouldAskQuestions ?? false,
-          canGenerateWithoutQuestions: rawAnalysis?.canGenerateWithoutQuestions ?? true,
-          confidence: rawAnalysis?.confidence ?? 70,
-          questions: Array.isArray(rawAnalysis?.questions) ? rawAnalysis.questions : [], // ✅ TURVATTU
-          reasoning: rawAnalysis?.reasoning ?? 'Analysis completed'
-        };
-      } catch (error) {
-        console.error('⚠️ SmartAnalysis failed:', error);
-        smartAnalysis = {
-          shouldAskQuestions: false,
-          canGenerateWithoutQuestions: true,
-          confidence: 70,
-          questions: [], // ✅ AINA ARRAY
-          reasoning: 'Analysis failed'
-        };
-      }
-
-      // ✅ NYT TÄMÄ ON AINA ARRAY
-      const safeQuestions = smartAnalysis.questions;
-
-      console.log('🧠 V1 SmartAnalysis:', {
-        shouldAsk: smartAnalysis.shouldAskQuestions,
-        questionsCount: safeQuestions.length, // ✅ SAFE
-        confidence: smartAnalysis.confidence
+      const analysis = await analyzeJobAndProfile({
+        jobDescription: input.jobDescription,
+        userProfile: {
+          name: input.name,
+          workExperience: input.workExperience || "",
+          education: input.education || "",
+          skills: input.skills || "",
+          workingStyle: input.workingStyle || "",
+          problemSolving: input.problemSolving || "",
+          uniqueStrength: input.uniqueStrength || "",
+          careerGoals: input.careerGoals || "",
+          bestProjectExample: input.bestProjectExample || "",
+          failureLesson: input.failureLesson || "",
+          personalNotes: input.personalNotes || "",
+        },
+        language: input.language || 'finnish',
+        userId: input.userId
       });
 
-      // ✅ TURVATTU FILTER - ei voi kaatua
-      if (smartAnalysis.shouldAskQuestions && safeQuestions.length > 0) {
-        const criticalQuestions = safeQuestions.filter(
-          q => q && q.priority === 'critical'
-        );
+      const safeQuestions = Array.isArray(analysis?.questions) ? analysis.questions : [];
+
+      if (analysis?.shouldAskQuestions && safeQuestions.length > 0) {
+        const criticalQuestions = safeQuestions.filter(q => q && q.priority === 'critical');
 
         if (criticalQuestions.length > 0) {
-          console.log(`❓ V1: Returning ${criticalQuestions.length} critical questions`);
-
+          console.log(`❓ [V1-ATS] Returning ${criticalQuestions.length} questions`);
+          
           return {
             content: "",
             title: "Lisätietoja tarvitaan",
             signature: input.name,
+            keyHighlights: [],
             questions: criticalQuestions,
           };
         }
       }
-
-      console.log('✅ V1: Profile sufficient');
-      
     } catch (error) {
-      console.error('⚠️ V1: Question analysis failed, continuing safely:', error);
+      console.error('⚠️ [V1-ATS] Question analysis failed:', error);
     }
-  } else {
-    console.log('⏭️ V1: Skipping questions (skipQuestions=true)');
   }
+
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // GENERATION (FULLY DYNAMIC - NO HARDCODING)
+  // STEP 2: EXTRACT KEYWORDS
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  console.log('🔍 [V1-ATS] Extracting keywords...');
+  const keywords = await extractBasicKeywords(input.jobDescription);
+  console.log(`✅ [V1-ATS] Found ${keywords.length} keywords`);
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 3: GUARDIAN - EXTRACT GROUND TRUTH
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  let groundTruth = null;
+  if (input.guardianValidation !== false) {
+    console.log('🛡️ [V1-ATS] Extracting ground truth...');
+    try {
+      const { extractGroundTruthAI } = await import("@/lib/ats/masterGuardian");
+      
+      groundTruth = await extractGroundTruthAI(
+        {
+          name: input.name,
+          work_experience: input.workExperience,
+          education: input.education,
+          skills: input.skills,
+          working_style: input.workingStyle,
+          problem_solving: input.problemSolving,
+          unique_strength: input.uniqueStrength,
+          team_role: input.teamRole,
+          superpower: input.superpower,
+          career_goals: input.careerGoals,
+          best_project_example: input.bestProjectExample,
+        },
+        input.userId
+      );
+      console.log('✅ [V1-ATS] Ground truth extracted');
+    } catch (error) {
+      console.error('⚠️ [V1-ATS] Ground truth extraction failed:', error);
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 4: GENERATE LETTER (TRUTH SCALE 3-4)
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: "gpt-4o-mini",
-    temperature: 0.7,
+    temperature: 0.6,
   });
 
-  const targetLanguage = (input.language || 'finnish').toLowerCase();
-  const isFinnish = targetLanguage.includes('fi') || targetLanguage.includes('suom');
+  const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
   const languageName = isFinnish ? 'suomi' : 'englanti';
-  
-  console.log(`🌍 Language: ${languageName}`);
-
-  // Extract real projects (DYNAMIC - FROM ACTUAL DATA)
-  const realProjects = [];
-  
-  if (input.bestProjectExample && input.bestProjectExample.length > 20) {
-    realProjects.push(input.bestProjectExample);
-  }
-  
-  if (input.workExperience) {
-    try {
-      const workExp = typeof input.workExperience === 'string' 
-        ? JSON.parse(input.workExperience) 
-        : input.workExperience;
-      
-      if (Array.isArray(workExp)) {
-        workExp.forEach((job: any) => {
-          if (job.description && job.description.length > 20) {
-            realProjects.push(`${job.position}: ${job.description}`);
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('⚠️ Work experience parse failed');
-    }
-  }
-
-  const hasRealProjects = realProjects.length > 0;
-  const projectsText = hasRealProjects 
-    ? realProjects.join('\n\n') 
-    : 'No detailed project descriptions - use general strengths';
-
-  console.log(`📋 Real projects: ${realProjects.length}`);
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are a professional cover letter writer. Write MODERN, CLEAR cover letters.
+    ['system', `You are an ATS-aware cover letter writer (V1 - Basic Level).
 
 # ════════════════════════════════════════════════════════════════
-# CRITICAL: MODERN COVER LETTER FORMAT
+# TRUTH SCALE: 3-4 (Critical!)
 # ════════════════════════════════════════════════════════════════
 
-**COVER LETTER CONTAINS ONLY:**
-1. Greeting
-2. Body text (3-4 paragraphs)
-3. Closing
-4. Signature
+SCALE 1-10:
+1 = Word-for-word from profile (robotic)
+3-4 = ⭐ TARGET: Reads profile, understands person, writes naturally BUT stays truthful
+10 = Completely fabricates (liar)
 
-**NEVER WRITE:**
-❌ Applicant's address
-❌ Applicant's phone number
-❌ Applicant's email
-❌ Company address
-❌ [Placeholders in brackets]
-❌ Date in body text (added automatically)
+**YOUR MISSION:**
+- Read the profile and understand WHO this person is
+- Write about them in your own professional words
+- Stay TRUTHFUL - don't invent experiences/skills
+- Present them as a professional would see them
+- "Read between the lines" but don't lie
 
-**CRITICAL: NAME USAGE**
-- Applicant's name is: {name}
-- NEVER write "Applicant"
-- NEVER write "[Your Name]"
-- ALWAYS use name {name}
+**EXAMPLES:**
+
+❌ WRONG (Scale 1 - Too literal):
+"Profiilin mukaan olen työskennellyt kassalla 2 vuotta."
+
+✅ CORRECT (Scale 3-4):
+"Kahden vuoden asiakaspalvelukokemukseni on opettanut minulle kärsivällisyyttä ja kommunikaatiotaitoja."
+
+❌ WRONG (Scale 10 - Fabrication):
+"Johdin 50-hengen tiimiä ja kasvoitin myyntiä 300%."
+(NOT in profile → LYING)
+
+✅ CORRECT (Scale 3-4):
+"Tiimityöskentelyssä olen oppinut kuuntelemaan ja jakamaan vastuuta."
+(Based on teamRole: "supportive team member")
 
 # ════════════════════════════════════════════════════════════════
-# NO HARDCODING - REPRESENTATION FROM ACTUAL DATA
+# ATS V1: BASIC KEYWORD INTEGRATION
 # ════════════════════════════════════════════════════════════════
 
-**RULE 1: LANGUAGE**
-TARGET LANGUAGE: {languageName}
-- EVERY WORD in language: {languageName}
+**KEYWORD STRATEGY:**
+1. Use keywords naturally in context
+2. Don't spam keywords
+3. Only use keywords IF user has related experience/skill
+4. If no experience → express interest to learn
 
-**RULE 2: ONLY USE WHAT'S IN THE PROFILE**
+**EXTRACTED KEYWORDS:**
+{keywords}
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# WHAT YOU CAN DO
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**INTEGRATION RULES:**
+- IF keyword in user's skills → Use it
+- IF keyword related to experience → Mention naturally
+- IF keyword not in profile → Express interest/willingness to learn
+- DON'T force keywords that don't fit
 
-If user has skill/experience:
-
-✅ "I've developed programming skills through practical projects"
-   → OK when skills contains "programming"
-
-✅ "I have customer service experience"
-   → OK when workExperience contains customer work
-
-✅ "I've worked on projects where..."
-   → OK when workExperience or bestProject describes work
-
-✅ "I master [skill] and have applied it..."
-   → OK when skill is in skills list
-
-✅ "I'm excited to learn more about [topic]"
-   → ALWAYS OK
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# WHAT YOU CANNOT DO
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-❌ "I developed an automated system that..."
-   → NOT OK if not in realProjects
-
-❌ "I created a 50-user application..."
-   → NOT OK if no details provided
-
-❌ Any detailed project descriptions if not provided
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-**STRUCTURE (280-350 words):**
+# ════════════════════════════════════════════════════════════════
+# STRUCTURE (300-400 words)
+# ════════════════════════════════════════════════════════════════
 
 **PARAGRAPH 1: OPENING (2-3 sentences)**
-- Why THIS role interests you
+- Why THIS specific role interests you
 - Connection to your background
+- Mention 1-2 relevant keywords naturally
 
-**PARAGRAPHS 2-3: STRENGTHS (4-6 sentences)**
-- Real skills presented interestingly
-- Personality at work
+**PARAGRAPH 2-3: EXPERIENCE & SKILLS (5-7 sentences)**
+- Real experiences presented professionally
+- Personality at work (truth scale 3-4!)
+- Integrate keywords naturally
 - Concrete examples FROM PROFILE
 
-**PARAGRAPH 4: CLOSING (2-3 sentences)**
-- Enthusiasm for role
+**PARAGRAPH 4: MOTIVATION & CLOSING (2-3 sentences)**
+- Enthusiasm for THIS role
 - Willingness to discuss
-- Thanks
+- Professional closing
 
-Write PURELY in language {languageName}. Use name {name}.`],
+**LANGUAGE:** {languageName}
+**STYLE:** {style}
 
-    ['human', `Write MODERN cover letter in language {languageName}.
+Write ONLY in {languageName}. Use name {name}.`],
+
+    ['human', `Write ATS-optimized cover letter (V1 - Basic).
 
 **JOB DESCRIPTION:**
 {jobDescription}
 
-**APPLICANT INFO:**
-NAME: {name} (USE THIS, NOT "Applicant")
-Skills: {skills}
+**EXTRACTED ATS KEYWORDS:**
+{keywords}
+
+**APPLICANT PROFILE:**
+Name: {name}
+Experience Level: {careerLevel}
+Years: {yearsOfExperience}
+
 Work Experience: {workExperience}
 Education: {education}
+Skills: {skills}
 
-**REAL PROJECTS (USE THESE):**
-{realProjects}
-
-**PERSONALITY:**
-- Working Style: {workingStyle}
-- Problem Solving: {problemSolving}
-- Strength: {uniqueStrength}
-- Superpower: {superpower}
+**PERSONALITY (for Truth Scale 3-4):**
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Unique Strength: {uniqueStrength}
+Superpower: {superpower}
+Team Role: {teamRole}
+Values: {valuesExample}
 
 **MOTIVATION:**
-- Goals: {careerGoals}
-- Values: {valuesExample}
+Career Goals: {careerGoals}
+Best Project: {bestProjectExample}
+Lesson Learned: {failureLesson}
 
-**NOTES:**
+**FOLLOW-UP ANSWERS:**
+{followUpAnswers}
+
+**ADDITIONAL NOTES:**
 {personalNotes}
 
-Create cover letter NOW in language {languageName}.
-USE ONLY INFORMATION FROM ABOVE. NO FABRICATION.`]
+**CRITICAL RULES:**
+1. Truth Scale 3-4 (read profile, write naturally, stay truthful)
+2. Integrate keywords ONLY if user has related experience
+3. Don't fabricate projects/skills
+4. Express interest to learn if keyword not in profile
+5. Write in {languageName}
+
+Generate cover letter NOW.`]
   ]);
 
   try {
     const formatted = await prompt.formatMessages({
       languageName,
-      name: input.name || 'Applicant',
-      jobDescription: input.jobDescription || 'Not specified',
+      name: input.name,
+      style: input.style || 'professional',
+      keywords: keywords.join(', '),
+      jobDescription: input.jobDescription,
+      careerLevel: input.careerLevel || 'mid',
+      yearsOfExperience: input.yearsOfExperience || 0,
+      workExperience: input.workExperience || 'Building experience',
+      education: input.education || 'Continuous learner',
       skills: input.skills || 'Developing skills',
-      workExperience: typeof input.workExperience === 'string' 
-        ? input.workExperience 
-        : JSON.stringify(input.workExperience || 'Building experience'),
-      education: typeof input.education === 'string'
-        ? input.education
-        : JSON.stringify(input.education || 'Continuous learner'),
-      realProjects: projectsText,
       workingStyle: input.workingStyle || 'Adaptable',
-      problemSolving: input.problemSolving || 'Logical',
+      problemSolving: input.problemSolving || 'Logical thinker',
       uniqueStrength: input.uniqueStrength || 'Committed',
       superpower: input.superpower || 'Motivated',
+      teamRole: input.teamRole || 'Collaborative',
+      valuesExample: input.valuesExample || 'Honest',
       careerGoals: input.careerGoals || 'Professional growth',
-      valuesExample: input.valuesExample || 'Honesty',
-      personalNotes: input.personalNotes || 'No additional info'
+      bestProjectExample: input.bestProjectExample || 'No specific project',
+      failureLesson: input.failureLesson || 'Always learning',
+      followUpAnswers: input.followUpAnswers 
+        ? Object.entries(input.followUpAnswers).map(([q, a]) => `${q}: ${a}`).join('\n')
+        : 'None',
+      personalNotes: input.personalNotes || 'None'
     });
 
     const result = await model.invoke(formatted);
@@ -334,39 +378,64 @@ USE ONLY INFORMATION FROM ABOVE. NO FABRICATION.`]
       ? result.content 
       : JSON.stringify(result.content);
 
-    // Remove placeholders
+    // Clean up
     content = content
-      .replace(/\[Osoite\]/g, '')
-      .replace(/\[Puhelinnumero\]/g, '')
-      .replace(/\[Sähköposti\]/g, '')
-      .replace(/\[Paikkakunta\]/g, '')
-      .replace(/\[Päivämäärä\]/g, '')
-      .replace(/\[Your Name\]/g, input.name || '')
-      .replace(/\[Nimi\]/g, input.name || '')
-      .replace(/\[Nimesi\]/g, input.name || '')
-      .replace(/^Hakija(?=\s|$)/gm, input.name || '')
+      .replace(/\[.*?\]/g, '') // Remove placeholders
       .replace(/\n\s*\n\s*\n/g, '\n\n')
       .trim();
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // STEP 5: GUARDIAN VALIDATION (✅ LISÄTTY V1:EEN!)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    let guardianReport = null;
+    if (input.guardianValidation !== false && groundTruth) {
+      console.log('🛡️ [V1-ATS] Running Guardian validation...');
+      try {
+        const { masterGuardianValidatorV2 } = await import("@/lib/ats/masterGuardian");
+        
+        guardianReport = await masterGuardianValidatorV2(
+          content,
+          groundTruth,
+          'generation'
+        );
+        console.log(`🛡️ [V1-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES FOUND'}`);
+      } catch (error) {
+        console.error('⚠️ [V1-ATS] Guardian validation failed:', error);
+      }
+    }
+
     // Ensure signature
-    const signatureFinnish = `Ystävällisin terveisin,\n\n${input.name || 'Hakija'}`;
-    const signatureEnglish = `Best regards,\n\n${input.name || 'Applicant'}`;
+    const signatureFinnish = `Ystävällisin terveisin,\n\n${input.name}`;
+    const signatureEnglish = `Best regards,\n\n${input.name}`;
     
-    if (!content.includes(input.name || 'Hakija')) {
+    if (!content.includes(input.name)) {
       content += '\n\n' + (isFinnish ? signatureFinnish : signatureEnglish);
     }
 
-    console.log(`✅ V1 generated ${content.length} characters in ${languageName}`);
+    // Extract key highlights (for UI display)
+    const keyHighlights = keywords.slice(0, 5); // Top 5 keywords used
+
+    console.log(`✅ [V1-ATS] Generated ${content.length} chars with ${keywords.length} keywords`);
 
     return {
       content,
-      title: input.jobDescription?.substring(0, 80) || 'Cover Letter',
-      signature: input.name || 'Applicant',
-      questions: [],
+      title: `Application - ${input.jobDescription.substring(0, 50)}...`,
+      signature: input.name,
+      keyHighlights,
+      extractedKeywords: keywords,
+      guardianReport: guardianReport || undefined, // ✅ LISÄTTY
     };
 
   } catch (error) {
-    console.error('❌ V1 generation failed:', error);
+    console.error('❌ [V1-ATS] Generation failed:', error);
     throw error;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// METADATA
+// ═══════════════════════════════════════════════════════════════
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
