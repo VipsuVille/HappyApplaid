@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - WITH DARK/LIGHT THEME SUPPORT
+// app/my-cover-letters/page.tsx - COMPLETE WITH MOBILE CAROUSEL + GRID OPTIONS
 
 'use client';
 
@@ -13,12 +13,13 @@ import {
   Loader2,
   Sparkles,
   TrendingUp,
-  Zap,
   Plus,
   Database,
   LayoutGrid,
   Grid3x3,
-  Square
+  Square,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
@@ -69,9 +70,56 @@ export default function MyCoverLettersPage() {
   const letterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [gridSize, setGridSize] = useState<GridSize>('medium');
 
+  // ✅ MOBILE CAROUSEL STATE
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+
   const setLetterRef = useCallback((letterId: string) => (el: HTMLDivElement | null) => {
     letterRefs.current[letterId] = el;
   }, []);
+
+  // ✅ MOBILE DETECTION
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // ✅ CAROUSEL NAVIGATION
+  const nextSlide = () => {
+    setCurrentIndex((prev) => 
+      prev === coverLetters.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevSlide = () => {
+    setCurrentIndex((prev) => 
+      prev === 0 ? coverLetters.length - 1 : prev - 1
+    );
+  };
+
+  // ✅ TOUCH GESTURES
+  const touchStartX = useRef(0);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX;
+
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        nextSlide();
+      } else {
+        prevSlide();
+      }
+    }
+  };
 
   const loadCoverLetters = async () => {
     if (!userId) {
@@ -115,6 +163,11 @@ export default function MyCoverLettersPage() {
       if (error) throw error;
       
       setCoverLetters(prev => prev.filter(letter => letter.id !== id));
+      
+      // ✅ ADJUST CAROUSEL INDEX IF NEEDED
+      if (isMobile && currentIndex >= coverLetters.length - 1) {
+        setCurrentIndex(Math.max(0, currentIndex - 1));
+      }
     } catch (error) {
       console.error('Error deleting cover letter:', error);
       alert('Hakukirjeen poistaminen epäonnistui');
@@ -284,7 +337,6 @@ export default function MyCoverLettersPage() {
   if (coverLetters.length === 0) {
     return (
       <div className="min-h-screen bg-background relative overflow-hidden">
-        {/* Decorative blur */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
         </div>
@@ -313,7 +365,6 @@ export default function MyCoverLettersPage() {
   return (
     <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
       
-      {/* Decorative blur */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
       </div>
@@ -342,186 +393,377 @@ export default function MyCoverLettersPage() {
               </Link>
             </div>
 
-            {/* Grid controls */}
-            <div className="mt-6 flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <IconComponent className="w-4 h-4" />
-                <span className="font-bold">Näkymä:</span>
+            {/* ✅ GRID CONTROLS - PIILOTETAAN MOBIILISSA */}
+            {!isMobile && (
+              <div className="mt-6 flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <IconComponent className="w-4 h-4" />
+                  <span className="font-bold">Näkymä:</span>
+                </div>
+                
+                <div className="flex gap-2">
+                  {(Object.keys(GRID_CONFIGS) as GridSize[]).map((size) => {
+                    const Icon = GRID_CONFIGS[size].icon;
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => setGridSize(size)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                          gridSize === size
+                            ? 'bg-gradient-to-r from-primary to-accent text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="hidden sm:inline">{GRID_CONFIGS[size].label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              
-              <div className="flex gap-2">
-                {(Object.keys(GRID_CONFIGS) as GridSize[]).map((size) => {
-                  const Icon = GRID_CONFIGS[size].icon;
+            )}
+          </div>
+        </div>
+
+        {/* ✅ MOBILE CAROUSEL */}
+        {isMobile ? (
+          <div className="relative px-4">
+            <div
+              className="overflow-hidden rounded-2xl"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
+              <div
+                className="flex transition-transform duration-300 ease-out"
+                style={{
+                  transform: `translateX(-${currentIndex * 100}%)`
+                }}
+              >
+                {coverLetters.map((letter) => {
+                  const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
+                  const displayTitle = letter.title || smartTitle;
+                  const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
+                  const isATSOptimized = !!letter.ai_data?.ats_optimization;
+                  const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
+                  const isRAG = !!letter.ai_data?.rag_used;
+
                   return (
-                    <button
-                      key={size}
-                      onClick={() => setGridSize(size)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                        gridSize === size
-                          ? 'bg-gradient-to-r from-primary to-accent text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      }`}
+                    <div
+                      key={letter.id}
+                      className="w-full flex-shrink-0 px-2"
                     >
-                      <Icon className="w-4 h-4" />
-                      <span className="hidden sm:inline">{GRID_CONFIGS[size].label}</span>
-                    </button>
+                      <div className="backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden">
+                        
+                        {/* Preview */}
+                        <div className="relative h-96 bg-muted/20">
+                          <div className="absolute inset-0 overflow-y-auto flex justify-center py-4">
+                            <div 
+                              className="origin-top"
+                              style={{ transform: 'scale(0.35)' }}
+                            >
+                              <CoverLetterContainer className="bg-white shadow-lg">
+                                <CoverLetterTemplate
+                                  data={convertToCoverLetterData(letter)}
+                                  isPdfPreview={false}
+                                  isEditing={false}
+                                />
+                              </CoverLetterContainer>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Info */}
+                        <div className="p-4">
+                          <h3 className="text-lg font-bold mb-2 text-foreground">
+                            {displayTitle}
+                          </h3>
+                          <p className="text-xs text-muted-foreground mb-4">
+                            {new Date(letter.created_at).toLocaleDateString('fi-FI')}
+                          </p>
+
+                          {/* Badges */}
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {isRAG && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+                                <Database className="w-3 h-3" />
+                                RAG
+                              </span>
+                            )}
+                            
+                            {isATSOptimized && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border ${
+                                atsScore >= 75 
+                                  ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30' 
+                                  : atsScore >= 50 
+                                  ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30'
+                                  : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
+                              }`}>
+                                <TrendingUp className="w-3 h-3" />
+                                ATS: {atsScore}%
+                              </span>
+                            )}
+                          </div>
+
+                          {/* ATS Improvement */}
+                          {needsATSImprovement && (
+                            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between">
+                              <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                                <Sparkles className="w-3 h-3 inline mr-1" />
+                                Parannetaan ({atsScore}%)
+                              </span>
+                              <button
+                                onClick={() => handleImproveATS(letter.id)}
+                                disabled={improvingATSId === letter.id}
+                                className="text-xs bg-yellow-500/20 px-2 py-1 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                              >
+                                {improvingATSId === letter.id ? "..." : "Paranna"}
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Actions */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleDownloadPDF(letter.id, displayTitle)}
+                              disabled={isDownloading === letter.id}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50"
+                            >
+                              {isDownloading === letter.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Download className="w-4 h-4" />
+                                  Lataa
+                                </>
+                              )}
+                            </button>
+
+                            <Link
+                              href={`/edit-cover-letter/${letter.id}`}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground rounded-xl font-bold"
+                            >
+                              <Edit className="w-4 h-4" />
+                              Muokkaa
+                            </Link>
+                          </div>
+
+                          {/* Delete */}
+                          <button
+                            onClick={() => handleDelete(letter.id)}
+                            disabled={deleteLoading === letter.id}
+                            className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-xl text-sm font-bold hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                          >
+                            {deleteLoading === letter.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <Trash2 className="w-4 h-4" />
+                                Poista
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Grid */}
-        <div className={`grid ${currentGrid.cols} gap-6`}>
-          {coverLetters.map((letter) => {
-            const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
-            const displayTitle = letter.title || smartTitle;
-            const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
-            const isATSOptimized = !!letter.ai_data?.ats_optimization;
-            const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
-            
-            const isRAG = !!letter.ai_data?.rag_used;
-            const letterVersion = letter.ai_data?.version || 'v1';
-
-            return (
-              <div
-                key={letter.id}
-                className="group backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden relative"
-              >
-                {/* Delete button */}
-                <div className="absolute top-3 right-3 z-20">
-                  <button
-                    onClick={() => handleDelete(letter.id)}
-                    disabled={deleteLoading === letter.id}
-                    className="h-10 w-10 backdrop-blur-lg bg-destructive/10 border border-destructive/50 rounded-full flex items-center justify-center hover:bg-destructive/20 transition-colors"
-                  >
-                    {deleteLoading === letter.id ? (
-                      <Loader2 className="w-5 h-5 animate-spin text-destructive" />
-                    ) : (
-                      <Trash2 className="w-5 h-5 text-destructive" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Preview */}
-                <div
-                  className="relative w-full overflow-hidden bg-muted/20"
-                  style={{ height: currentGrid.previewHeight }}
+            {/* Navigation Arrows */}
+            {coverLetters.length > 1 && (
+              <>
+                <button
+                  onClick={prevSlide}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-card/90 backdrop-blur-sm border border-border rounded-full flex items-center justify-center shadow-lg z-10 hover:bg-card transition-colors"
+                  aria-label="Previous"
                 >
-                  <div className="absolute inset-0 overflow-y-auto flex justify-center py-4 px-2">
-                    <div 
-                      className="origin-top"
-                      style={{
-                        transform: `scale(${
-                          typeof window !== 'undefined' && window.innerWidth < 640
-                            ? currentGrid.scale.mobile
-                            : typeof window !== 'undefined' && window.innerWidth < 1024
-                            ? currentGrid.scale.tablet
-                            : currentGrid.scale.desktop
-                        })`
-                      }}
-                    >
-                      <CoverLetterContainer
-                        ref={setLetterRef(letter.id)}
-                        className="shadow-lg bg-white"
-                      >
-                        <CoverLetterTemplate
-                          data={convertToCoverLetterData(letter)}
-                          isPdfPreview={false}
-                          isEditing={false}
-                        />
-                      </CoverLetterContainer>
-                    </div>
-                  </div>
-                </div>
+                  <ChevronLeft className="w-6 h-6 text-foreground" />
+                </button>
 
-                {/* Info */}
-                <div className="p-5 border-t border-border">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-foreground mb-1">
-                        {displayTitle}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {new Date(letter.created_at).toLocaleDateString("fi-FI")}
-                      </p>
-                      
-                      {/* Badges */}
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {isRAG && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30">
-                            <Database className="w-3 h-3" />
-                            RAG
-                          </span>
-                        )}
-                        
-                        {isATSOptimized && (
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border ${
-                            atsScore >= 75 
-                              ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30' 
-                              : atsScore >= 50 
-                              ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30'
-                              : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
-                          }`}>
-                            <TrendingUp className="w-3 h-3" />
-                            ATS: {atsScore}%
-                          </span>
-                        )}
+                <button
+                  onClick={nextSlide}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-card/90 backdrop-blur-sm border border-border rounded-full flex items-center justify-center shadow-lg z-10 hover:bg-card transition-colors"
+                  aria-label="Next"
+                >
+                  <ChevronRight className="w-6 h-6 text-foreground" />
+                </button>
+              </>
+            )}
+
+            {/* Dots Indicator */}
+            {coverLetters.length > 1 && (
+              <div className="flex justify-center gap-2 mt-4">
+                {coverLetters.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentIndex(index)}
+                    className={`h-2 rounded-full transition-all ${
+                      index === currentIndex
+                        ? 'bg-primary w-6'
+                        : 'bg-muted-foreground/30 w-2'
+                    }`}
+                    aria-label={`Go to slide ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Counter */}
+            <p className="text-center mt-2 text-sm text-muted-foreground">
+              {currentIndex + 1} / {coverLetters.length}
+            </p>
+          </div>
+        ) : (
+          /* ✅ DESKTOP GRID */
+          <div className={`grid ${currentGrid.cols} gap-6`}>
+            {coverLetters.map((letter) => {
+              const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
+              const displayTitle = letter.title || smartTitle;
+              const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
+              const isATSOptimized = !!letter.ai_data?.ats_optimization;
+              const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
+              const isRAG = !!letter.ai_data?.rag_used;
+
+              return (
+                <div
+                  key={letter.id}
+                  className="group backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden relative"
+                >
+                  {/* Delete button */}
+                  <div className="absolute top-3 right-3 z-20">
+                    <button
+                      onClick={() => handleDelete(letter.id)}
+                      disabled={deleteLoading === letter.id}
+                      className="h-10 w-10 backdrop-blur-lg bg-destructive/10 border border-destructive/50 rounded-full flex items-center justify-center hover:bg-destructive/20 transition-colors"
+                    >
+                      {deleteLoading === letter.id ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-destructive" />
+                      ) : (
+                        <Trash2 className="w-5 h-5 text-destructive" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Preview */}
+                  <div
+                    className="relative w-full overflow-hidden bg-muted/20"
+                    style={{ height: currentGrid.previewHeight }}
+                  >
+                    <div className="absolute inset-0 overflow-y-auto flex justify-center py-4 px-2">
+                      <div 
+                        className="origin-top"
+                        style={{
+                          transform: `scale(${
+                            typeof window !== 'undefined' && window.innerWidth < 640
+                              ? currentGrid.scale.mobile
+                              : typeof window !== 'undefined' && window.innerWidth < 1024
+                              ? currentGrid.scale.tablet
+                              : currentGrid.scale.desktop
+                          })`
+                        }}
+                      >
+                        <CoverLetterContainer
+                          ref={setLetterRef(letter.id)}
+                          className="shadow-lg bg-white"
+                        >
+                          <CoverLetterTemplate
+                            data={convertToCoverLetterData(letter)}
+                            isPdfPreview={false}
+                            isEditing={false}
+                          />
+                        </CoverLetterContainer>
                       </div>
                     </div>
                   </div>
 
-                  {/* ATS Improvement */}
-                  {needsATSImprovement && (
-                    <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between">
-                      <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                        <Sparkles className="w-3 h-3 inline mr-1" />
-                        Parannetaan ({atsScore}%)
-                      </span>
-                      <button
-                        onClick={() => handleImproveATS(letter.id)}
-                        disabled={improvingATSId === letter.id}
-                        className="text-xs bg-yellow-500/20 px-2 py-1 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors"
-                      >
-                        {improvingATSId === letter.id ? "..." : "Paranna"}
-                      </button>
+                  {/* Info */}
+                  <div className="p-5 border-t border-border">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-foreground mb-1">
+                          {displayTitle}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {new Date(letter.created_at).toLocaleDateString("fi-FI")}
+                        </p>
+                        
+                        {/* Badges */}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {isRAG && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30">
+                              <Database className="w-3 h-3" />
+                              RAG
+                            </span>
+                          )}
+                          
+                          {isATSOptimized && (
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border ${
+                              atsScore >= 75 
+                                ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30' 
+                                : atsScore >= 50 
+                                ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30'
+                                : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
+                            }`}>
+                              <TrendingUp className="w-3 h-3" />
+                              ATS: {atsScore}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
 
-                  {/* Actions */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDownloadPDF(letter.id, displayTitle)}
-                      disabled={isDownloading === letter.id}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
-                    >
-                      {isDownloading === letter.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-4 h-4" />
-                          <span className="text-sm">Lataa</span>
-                        </>
-                      )}
-                    </button>
+                    {/* ATS Improvement */}
+                    {needsATSImprovement && (
+                      <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between">
+                        <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                          <Sparkles className="w-3 h-3 inline mr-1" />
+                          Parannetaan ({atsScore}%)
+                        </span>
+                        <button
+                          onClick={() => handleImproveATS(letter.id)}
+                          disabled={improvingATSId === letter.id}
+                          className="text-xs bg-yellow-500/20 px-2 py-1 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors"
+                        >
+                          {improvingATSId === letter.id ? "..." : "Paranna"}
+                        </button>
+                      </div>
+                    )}
 
-                    <Link
-                      href={`/edit-cover-letter/${letter.id}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity"
-                    >
-                      <Edit className="w-4 h-4" />
-                      <span className="text-sm">Muokkaa</span>
-                    </Link>
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleDownloadPDF(letter.id, displayTitle)}
+                        disabled={isDownloading === letter.id}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {isDownloading === letter.id ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4" />
+                            <span className="text-sm">Lataa</span>
+                          </>
+                        )}
+                      </button>
+
+                      <Link
+                        href={`/edit-cover-letter/${letter.id}`}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity"
+                      >
+                        <Edit className="w-4 h-4" />
+                        <span className="text-sm">Muokkaa</span>
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
