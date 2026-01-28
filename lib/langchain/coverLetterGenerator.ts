@@ -1,31 +1,25 @@
-// lib/langchain/atsCoverLetterV1Generator.ts - ATS V1 (BASIC)
+// lib/langchain/atsCoverLetterV1Generator.ts - FINAL FIXED VERSION
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
+import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
 
 export interface ATSV1Input {
-  // Required
   jobDescription: string;
   name: string;
-  
-  // Contact (not in letter body)
   email?: string;
   phone?: string;
   location?: string;
-  
-  // Profile
   workExperience?: string;
   education?: string;
   skills?: string;
   yearsOfExperience?: number;
   careerLevel?: 'entry' | 'junior' | 'mid' | 'senior' | 'expert';
-  
-  // Personality (CRITICAL for truth scale 3-4)
   workingStyle?: string;
   problemSolving?: string;
   uniqueStrength?: string;
@@ -38,14 +32,10 @@ export interface ATSV1Input {
   bestProjectExample?: string;
   failureLesson?: string;
   personalNotes?: string;
-  
-  // Settings
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
   enableRAG?: boolean;
-  guardianValidation?: boolean; // ✅ LISÄTTY (default: true)
-  
-  // Control
+  guardianValidation?: boolean;
   userId?: string;
   skipQuestions?: boolean;
   followUpAnswers?: Record<string, string>;
@@ -57,7 +47,7 @@ export interface ATSV1Output {
   signature: string;
   keyHighlights: string[];
   extractedKeywords?: string[];
-  guardianReport?: { // ✅ LISÄTTY
+  guardianReport?: {
     approved: boolean;
     riskLevel: 'safe' | 'warning' | 'danger';
     violations: any;
@@ -67,7 +57,7 @@ export interface ATSV1Output {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HELPER: EXTRACT BASIC KEYWORDS
+// HELPER: BASIC KEYWORD EXTRACTION
 // ═══════════════════════════════════════════════════════════════
 
 async function extractBasicKeywords(jobDescription: string): Promise<string[]> {
@@ -77,7 +67,7 @@ async function extractBasicKeywords(jobDescription: string): Promise<string[]> {
     temperature: 0.0,
   });
 
-  const prompt = `Extract 10-15 most important ATS keywords from job posting.
+  const prompt = `Extract 10-15 most important keywords from job posting.
 
 Job Posting:
 ${jobDescription.substring(0, 2000)}
@@ -109,7 +99,7 @@ Focus on:
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN V1 GENERATOR
+// MAIN V1 GENERATOR (+ GUARDIAN)
 // ═══════════════════════════════════════════════════════════════
 
 export async function generateATSCoverLetterV1(
@@ -119,7 +109,7 @@ export async function generateATSCoverLetterV1(
   console.log('🚀 [V1-ATS] Starting basic ATS generation...');
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 1: SMART QUESTIONS (if needed)
+  // STEP 1: SMART QUESTIONS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   if (!input.skipQuestions) {
@@ -183,8 +173,6 @@ export async function generateATSCoverLetterV1(
   if (input.guardianValidation !== false) {
     console.log('🛡️ [V1-ATS] Extracting ground truth...');
     try {
-      const { extractGroundTruthAI } = await import("@/lib/ats/masterGuardian");
-      
       groundTruth = await extractGroundTruthAI(
         {
           name: input.name,
@@ -208,7 +196,7 @@ export async function generateATSCoverLetterV1(
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 4: GENERATE LETTER (TRUTH SCALE 3-4)
+  // STEP 4: GENERATE LETTER
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   const model = new ChatOpenAI({
@@ -221,7 +209,7 @@ export async function generateATSCoverLetterV1(
   const languageName = isFinnish ? 'suomi' : 'englanti';
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are an ATS-aware cover letter writer (V1 - Basic Level).
+    ['system', `You are a cover letter writer (V1 - Basic ATS awareness).
 
 # ════════════════════════════════════════════════════════════════
 # TRUTH SCALE: 3-4 (Critical!)
@@ -232,117 +220,98 @@ SCALE 1-10:
 3-4 = ⭐ TARGET: Reads profile, understands person, writes naturally BUT stays truthful
 10 = Completely fabricates (liar)
 
-**YOUR MISSION:**
-- Read the profile and understand WHO this person is
-- Write about them in your own professional words
-- Stay TRUTHFUL - don't invent experiences/skills
-- Present them as a professional would see them
-- "Read between the lines" but don't lie
-
-**EXAMPLES:**
-
-❌ WRONG (Scale 1 - Too literal):
-"Profiilin mukaan olen työskennellyt kassalla 2 vuotta."
-
-✅ CORRECT (Scale 3-4):
-"Kahden vuoden asiakaspalvelukokemukseni on opettanut minulle kärsivällisyyttä ja kommunikaatiotaitoja."
-
-❌ WRONG (Scale 10 - Fabrication):
-"Johdin 50-hengen tiimiä ja kasvoitin myyntiä 300%."
-(NOT in profile → LYING)
-
-✅ CORRECT (Scale 3-4):
-"Tiimityöskentelyssä olen oppinut kuuntelemaan ja jakamaan vastuuta."
-(Based on teamRole: "supportive team member")
-
 # ════════════════════════════════════════════════════════════════
-# ATS V1: BASIC KEYWORD INTEGRATION
+# V1: BASIC KEYWORD AWARENESS (NOT OPTIMIZED)
 # ════════════════════════════════════════════════════════════════
-
-**KEYWORD STRATEGY:**
-1. Use keywords naturally in context
-2. Don't spam keywords
-3. Only use keywords IF user has related experience/skill
-4. If no experience → express interest to learn
 
 **EXTRACTED KEYWORDS:**
 {keywords}
 
-**INTEGRATION RULES:**
-- IF keyword in user's skills → Use it
-- IF keyword related to experience → Mention naturally
-- IF keyword not in profile → Express interest/willingness to learn
-- DON'T force keywords that don't fit
+**KEYWORD STRATEGY:**
+1. Use keywords naturally IF user has related experience
+2. Don't force keywords
+3. If no experience → express interest to learn (mention keyword!)
+4. DON'T spam keywords
+
+**MISSING KEYWORD INTEGRATION:**
+If keyword missing from user's profile, use this pattern:
+
+✅ CORRECT:
+"Vaikka minulla ei ole kokemusta Pythonista, ohjelmointitaustani 
+C#:lla antaa vahvan pohjan. Olen innokas oppimaan Python."
+
+WHY: ATS finds "Python", human sees honesty
+
+❌ WRONG:
+"Kiinnostaa ohjelmointi" (no Python keyword → ATS fails)
 
 # ════════════════════════════════════════════════════════════════
-# STRUCTURE (300-400 words)
+# MODERN STRUCTURE (300-400 words)
 # ════════════════════════════════════════════════════════════════
 
-**PARAGRAPH 1: OPENING (2-3 sentences)**
-- Why THIS specific role interests you
-- Connection to your background
-- Mention 1-2 relevant keywords naturally
+**NO HEADER INFO:**
+- Don't include: Name, email, phone, date, address
+- Template handles these
+
+**PARAGRAPH 1: HOOK (2-3 sentences)**
+Modern opening (no clichés):
+✅ "Accenturen Fullstack Developer -rooli yhdistää täsmälleen ne teknologiat 
+joihin olen erikoistunut..."
+❌ "Olen innostunut hakemaan..."
 
 **PARAGRAPH 2-3: EXPERIENCE & SKILLS (5-7 sentences)**
-- Real experiences presented professionally
-- Personality at work (truth scale 3-4!)
-- Integrate keywords naturally
-- Concrete examples FROM PROFILE
+- Real experiences + keywords
+- Use "missing keyword integration" for gaps
+- Concrete examples
 
-**PARAGRAPH 4: MOTIVATION & CLOSING (2-3 sentences)**
-- Enthusiasm for THIS role
-- Willingness to discuss
-- Professional closing
+**PARAGRAPH 4: CLOSING (2 sentences)**
+- Enthusiasm
+- Forward-looking
+- NO signature (template handles it)
+
+✅ "Odotan innolla mahdollisuutta keskustella."
+❌ "Kiitos. Ystävällisin terveisin,"
 
 **LANGUAGE:** {languageName}
-**STYLE:** {style}
+**STYLE:** {style}`],
 
-Write ONLY in {languageName}. Use name {name}.`],
-
-    ['human', `Write ATS-optimized cover letter (V1 - Basic).
+    ['human', `Write cover letter for THIS job (V1 - Basic).
 
 **JOB DESCRIPTION:**
 {jobDescription}
 
-**EXTRACTED ATS KEYWORDS:**
+**KEYWORDS (use naturally):**
 {keywords}
 
-**APPLICANT PROFILE:**
+**APPLICANT:**
 Name: {name}
 Experience Level: {careerLevel}
 Years: {yearsOfExperience}
-
-Work Experience: {workExperience}
+Work: {workExperience}
 Education: {education}
 Skills: {skills}
 
-**PERSONALITY (for Truth Scale 3-4):**
+**PERSONALITY:**
 Working Style: {workingStyle}
 Problem Solving: {problemSolving}
-Unique Strength: {uniqueStrength}
+Strength: {uniqueStrength}
 Superpower: {superpower}
-Team Role: {teamRole}
-Values: {valuesExample}
 
 **MOTIVATION:**
-Career Goals: {careerGoals}
+Goals: {careerGoals}
 Best Project: {bestProjectExample}
-Lesson Learned: {failureLesson}
 
-**FOLLOW-UP ANSWERS:**
+**FOLLOW-UP:**
 {followUpAnswers}
 
-**ADDITIONAL NOTES:**
-{personalNotes}
-
-**CRITICAL RULES:**
-1. Truth Scale 3-4 (read profile, write naturally, stay truthful)
-2. Integrate keywords ONLY if user has related experience
-3. Don't fabricate projects/skills
-4. Express interest to learn if keyword not in profile
+**RULES:**
+1. Truth 3-4 (honest but natural)
+2. Integrate keywords (use "missing keyword strategy")
+3. Modern opening
+4. NO header/signature
 5. Write in {languageName}
 
-Generate cover letter NOW.`]
+Generate NOW.`]
   ]);
 
   try {
@@ -362,14 +331,11 @@ Generate cover letter NOW.`]
       uniqueStrength: input.uniqueStrength || 'Committed',
       superpower: input.superpower || 'Motivated',
       teamRole: input.teamRole || 'Collaborative',
-      valuesExample: input.valuesExample || 'Honest',
       careerGoals: input.careerGoals || 'Professional growth',
       bestProjectExample: input.bestProjectExample || 'No specific project',
-      failureLesson: input.failureLesson || 'Always learning',
       followUpAnswers: input.followUpAnswers 
         ? Object.entries(input.followUpAnswers).map(([q, a]) => `${q}: ${a}`).join('\n')
         : 'None',
-      personalNotes: input.personalNotes || 'None'
     });
 
     const result = await model.invoke(formatted);
@@ -378,53 +344,44 @@ Generate cover letter NOW.`]
       ? result.content 
       : JSON.stringify(result.content);
 
-    // Clean up
     content = content
-      .replace(/\[.*?\]/g, '') // Remove placeholders
+      .replace(/\[.*?\]/g, '')
       .replace(/\n\s*\n\s*\n/g, '\n\n')
       .trim();
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // STEP 5: GUARDIAN VALIDATION (✅ LISÄTTY V1:EEN!)
+    // STEP 5: GUARDIAN VALIDATION
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     let guardianReport = null;
     if (input.guardianValidation !== false && groundTruth) {
       console.log('🛡️ [V1-ATS] Running Guardian validation...');
       try {
-        const { masterGuardianValidatorV2 } = await import("@/lib/ats/masterGuardian");
-        
         guardianReport = await masterGuardianValidatorV2(
           content,
           groundTruth,
           'generation'
         );
-        console.log(`🛡️ [V1-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES FOUND'}`);
+        console.log(`🛡️ [V1-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES'}`);
       } catch (error) {
         console.error('⚠️ [V1-ATS] Guardian validation failed:', error);
       }
     }
 
-    // Ensure signature
-    const signatureFinnish = `Ystävällisin terveisin,\n\n${input.name}`;
-    const signatureEnglish = `Best regards,\n\n${input.name}`;
-    
+    // ✅ Ensure name at end
     if (!content.includes(input.name)) {
-      content += '\n\n' + (isFinnish ? signatureFinnish : signatureEnglish);
+      content += `\n\n${input.name}`;
     }
 
-    // Extract key highlights (for UI display)
-    const keyHighlights = keywords.slice(0, 5); // Top 5 keywords used
-
-    console.log(`✅ [V1-ATS] Generated ${content.length} chars with ${keywords.length} keywords`);
+    console.log(`✅ [V1-ATS] Generated ${content.length} chars`);
 
     return {
       content,
       title: `Application - ${input.jobDescription.substring(0, 50)}...`,
       signature: input.name,
-      keyHighlights,
+      keyHighlights: keywords.slice(0, 5),
       extractedKeywords: keywords,
-      guardianReport: guardianReport || undefined, // ✅ LISÄTTY
+      guardianReport: guardianReport || undefined,
     };
 
   } catch (error) {
@@ -432,10 +389,6 @@ Generate cover letter NOW.`]
     throw error;
   }
 }
-
-// ═══════════════════════════════════════════════════════════════
-// METADATA
-// ═══════════════════════════════════════════════════════════════
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

@@ -1,4 +1,5 @@
-// app/my-cover-letters/page.tsx - ✅ GRID LAYOUT (Windows-tyyli)
+// app/my-cover-letters/page.tsx - TYPESCRIPT FIXED
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -31,7 +32,6 @@ interface CoverLetter {
   ai_data: any;
 }
 
-// ✅ GRID VIEW OPTIONS (Windows-tyyli)
 type GridSize = 'small' | 'medium' | 'large';
 
 const GRID_CONFIGS = {
@@ -67,8 +67,6 @@ export default function MyCoverLettersPage() {
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
   const [improvingATSId, setImprovingATSId] = useState<string | null>(null);
   const letterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  
-  // ✅ GRID SIZE STATE
   const [gridSize, setGridSize] = useState<GridSize>('medium');
 
   const setLetterRef = useCallback((letterId: string) => (el: HTMLDivElement | null) => {
@@ -182,7 +180,7 @@ export default function MyCoverLettersPage() {
       const updatedLetter = await updateResponse.json();
       
       setCoverLetters(prev => prev.map(l => l.id === letterId ? updatedLetter : l));
-      alert(`✅ ATS-pisteet parannettu! Lisättiin avainsanoja.`);
+      alert(`✅ ATS-pisteet parannettu!`);
       
     } catch (error) {
       console.error('Error improving ATS:', error);
@@ -203,7 +201,7 @@ export default function MyCoverLettersPage() {
 
       if (!response.ok) {
         const errorBody = await response.json();
-        throw new Error(errorBody.error || 'PDF generation failed on server.');
+        throw new Error(errorBody.error || 'PDF generation failed');
       }
 
       const blob = await response.blob();
@@ -217,7 +215,7 @@ export default function MyCoverLettersPage() {
       a.remove();
     } catch (error) {
       console.error('PDF download failed:', error);
-      alert('PDF:n lataus epäonnistui: ' + (error instanceof Error ? error.message : 'Tuntematon virhe'));
+      alert('PDF:n lataus epäonnistui');
     } finally {
       setIsDownloading(null);
     }
@@ -239,17 +237,21 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
+  // ✅ KORJATTU: Oikea data-mapping CoverLetterTemplate:lle
   const convertToCoverLetterData = (letter: CoverLetter) => ({
-    name: letter.content?.contactInfo?.name || letter.ai_data?.name || "Hakija",
-    email: letter.content?.contactInfo?.email || letter.ai_data?.email || "",
-    phone: letter.content?.contactInfo?.phone || letter.ai_data?.phone || "",
-    location: letter.content?.contactInfo?.location || letter.ai_data?.location || "",
-    jobTitle: letter.content?.job_title || "",
-    companyName: letter.content?.company_name || "",
+    name: letter.content?.contactInfo?.name || letter.content?.applicant_info?.name || "Hakija",
+    email: letter.content?.contactInfo?.email || letter.content?.applicant_info?.email || "",
+    phone: letter.content?.contactInfo?.phone || letter.content?.applicant_info?.phone || "",
+    location: letter.content?.contactInfo?.location || "",
+    jobTitle: letter.ai_data?.job_title || letter.content?.job_title || "",
+    companyName: letter.ai_data?.company_name || letter.content?.company_name || "",
     title: letter.title,
+    
+    // ✅ KORJAUS: content (ei body!)
     content: letter.content?.body || letter.ai_data?.html?.content || "",
+    
     keyHighlights: letter.ai_data?.key_highlights || [],
-    language: letter.content?.language || "english",
+    language: letter.content?.language || "finnish",
     style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative"
   });
 
@@ -258,7 +260,7 @@ export default function MyCoverLettersPage() {
       <div className="min-h-screen bg-[#030711] flex items-center justify-center">
         <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-2xl p-8 text-center">
           <Loader2 className="w-12 h-12 animate-spin text-orange-500 mx-auto mb-4" />
-          <p className="text-lg font-bold text-gray-100">Ladataan hakukirjeitä...</p>
+          <p className="text-lg font-bold text-gray-100">Ladataan...</p>
         </div>
       </div>
     );
@@ -268,13 +270,10 @@ export default function MyCoverLettersPage() {
     return (
       <div className="min-h-screen bg-[#030711] relative overflow-hidden">
         <div className="max-w-2xl mx-auto py-16 px-4 relative z-10">
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-2xl p-8 text-center">
-            <div className="h-16 w-16 bg-gradient-to-br from-red-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl">
-              <span className="text-white text-2xl">⚠️</span>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-100 mb-4">Virhe hakukirjeiden lataamisessa</h2>
+          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-100 mb-4">Virhe</h2>
             <p className="text-red-400 mb-6">{error}</p>
-            <button onClick={loadCoverLetters} className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all">
+            <button onClick={loadCoverLetters} className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl">
               Yritä uudelleen
             </button>
           </div>
@@ -288,19 +287,16 @@ export default function MyCoverLettersPage() {
       <div className="min-h-screen bg-[#030711] relative overflow-hidden">
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
         </div>
 
         <div className="max-w-2xl mx-auto py-16 px-4 relative z-10">
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-3xl shadow-2xl p-12 text-center">
-            <div className="h-20 w-20 bg-gradient-to-br from-orange-500 to-amber-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-orange-500/30">
-              <FileText className="h-10 w-10 text-white" />
-            </div>
+          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-3xl p-12 text-center">
+            <FileText className="h-20 w-20 text-orange-500 mx-auto mb-6" />
             <h2 className="text-2xl font-bold text-gray-100 mb-3">Ei vielä hakukirjeitä</h2>
-            <p className="text-gray-400 mb-6">Luo ensimmäinen vakuuttava hakukirjeesi tekoälyn avulla.</p>
+            <p className="text-gray-400 mb-6">Luo ensimmäinen hakukirjeesi.</p>
             <Link
               href="/create-cover-letter"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl"
             >
               <Plus className="w-5 h-5" />
               Luo hakukirje
@@ -315,49 +311,37 @@ export default function MyCoverLettersPage() {
   const IconComponent = currentGrid.icon;
 
   return (
-    <div className="min-h-screen bg-[#030711] text-[#e7e3dc] font-sans selection:bg-orange-500/30 relative overflow-hidden">
+    <div className="min-h-screen bg-[#030711] text-[#e7e3dc] relative overflow-hidden">
       
-      {/* Background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-500/10 rounded-full blur-[120px]" />
       </div>
 
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 relative z-10">
         
         {/* Header */}
         <div className="mb-8">
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-3xl shadow-2xl shadow-orange-500/10 p-6 md:p-8">
+          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-3xl p-6 md:p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20 mb-3">
-                  <FileText className="w-4 h-4 text-orange-400" />
-                  <span className="text-xs font-extrabold text-orange-400 uppercase tracking-wider">
-                    Cover Letter Collection
-                  </span>
-                </div>
                 <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
                   Omat hakukirjeet
                 </h1>
                 <p className="text-gray-400 mt-2">
-                  Hallinnoi, optimoi ja lataa hakukirjeesi
+                  Hallinnoi ja lataa hakukirjeesi
                 </p>
               </div>
 
               <Link
                 href="/create-cover-letter"
-                className="group px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-extrabold rounded-2xl shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 hover:scale-105 transition-all relative overflow-hidden"
+                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-extrabold rounded-2xl hover:scale-105 transition-all flex items-center gap-2"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                
-                <div className="flex items-center gap-2 relative z-10">
-                  <Plus className="w-5 h-5" />
-                  <span>Luo uusi hakukirje</span>
-                </div>
+                <Plus className="w-5 h-5" />
+                <span>Luo uusi</span>
               </Link>
             </div>
 
-            {/* ✅ GRID SIZE CONTROLS (Windows-tyyli) */}
+            {/* Grid controls */}
             <div className="mt-6 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <IconComponent className="w-4 h-4" />
@@ -373,10 +357,9 @@ export default function MyCoverLettersPage() {
                       onClick={() => setGridSize(size)}
                       className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
                         gridSize === size
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg'
+                          ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
                           : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
                       }`}
-                      title={GRID_CONFIGS[size].label}
                     >
                       <Icon className="w-4 h-4" />
                       <span className="hidden sm:inline">{GRID_CONFIGS[size].label}</span>
@@ -388,8 +371,8 @@ export default function MyCoverLettersPage() {
           </div>
         </div>
 
-        {/* ✅ DYNAMIC GRID LAYOUT */}
-        <div className={`grid ${currentGrid.cols} gap-6 transition-all duration-300`}>
+        {/* Grid */}
+        <div className={`grid ${currentGrid.cols} gap-6`}>
           {coverLetters.map((letter) => {
             const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
             const displayTitle = letter.title || smartTitle;
@@ -397,42 +380,37 @@ export default function MyCoverLettersPage() {
             const isATSOptimized = !!letter.ai_data?.ats_optimization;
             const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
             
-            const isRAG = !!letter.ai_data?.rag_used || !!letter.content?.rag_data;
-            const letterVersion = letter.ai_data?.version || letter.content?.version || 'v1';
-            const generationMethod = letter.ai_data?.generation_method || 'basic';
+            const isRAG = !!letter.ai_data?.rag_used;
+            const letterVersion = letter.ai_data?.version || 'v1';
 
             return (
               <div
                 key={letter.id}
-                className="group backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl shadow-orange-500/10 hover:shadow-2xl hover:shadow-orange-500/20 transition-all overflow-hidden relative"
+                className="group backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl overflow-hidden"
               >
-                {/* Delete button */}
+                {/* Delete */}
                 <div className="absolute top-3 right-3 z-20">
                   <button
                     onClick={() => handleDelete(letter.id)}
                     disabled={deleteLoading === letter.id}
-                    className="h-10 w-10 backdrop-blur-lg bg-black/60 border border-red-800/50 rounded-full flex items-center justify-center shadow-lg hover:bg-red-900/30 transition-all hover:scale-110"
-                    title="Poista hakukirje"
+                    className="h-10 w-10 backdrop-blur-lg bg-black/60 border border-red-800/50 rounded-full flex items-center justify-center hover:bg-red-900/30"
                   >
                     {deleteLoading === letter.id ? (
-                      <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       <Trash2 className="w-5 h-5 text-red-400" />
                     )}
                   </button>
                 </div>
 
-                {/* ✅ RESPONSIVE PREVIEW (grid-koon mukaan) */}
+                {/* Preview */}
                 <div
-                  className="relative w-full overflow-hidden bg-gray-900/20 rounded-t-2xl"
-                  style={{
-                    height: currentGrid.previewHeight,
-                    boxShadow: "inset 0 4px 6px -1px rgba(0, 0, 0, 0.3)",
-                  }}
+                  className="relative w-full overflow-hidden bg-gray-900/20"
+                  style={{ height: currentGrid.previewHeight }}
                 >
                   <div className="absolute inset-0 overflow-y-auto flex justify-center py-4 px-2">
                     <div 
-                      className="origin-top transition-transform duration-300"
+                      className="origin-top"
                       style={{
                         transform: `scale(${
                           typeof window !== 'undefined' && window.innerWidth < 640
@@ -445,7 +423,6 @@ export default function MyCoverLettersPage() {
                     >
                       <CoverLetterContainer
                         ref={setLetterRef(letter.id)}
-                        data-template-type="standard"
                         className="shadow-lg bg-white"
                       >
                         <CoverLetterTemplate
@@ -458,82 +435,68 @@ export default function MyCoverLettersPage() {
                   </div>
                 </div>
 
-                {/* Info & Actions */}
-                <div className="p-5 relative z-10 border-t border-gray-800">
+                {/* Info */}
+                <div className="p-5 border-t border-gray-800">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-100 mb-1">
                         {displayTitle}
                       </h3>
                       <p className="text-xs text-gray-500 mb-2">
-                        Luotu: {new Date(letter.created_at).toLocaleDateString("fi-FI")}
+                        {new Date(letter.created_at).toLocaleDateString("fi-FI")}
                       </p>
                       
-                      {/* Type badges */}
+                      {/* Badges */}
                       <div className="flex flex-wrap gap-2 mt-2">
                         {isRAG && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-900/30 text-purple-400 border border-purple-800/50 shadow-sm">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-900/30 text-purple-400">
                             <Database className="w-3 h-3" />
                             RAG
                           </span>
                         )}
                         
                         {isATSOptimized && (
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold shadow-sm ${
-                            atsScore >= 75 ? 'bg-green-900/30 text-green-400 border border-green-800/50' :
-                            atsScore >= 50 ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-800/50' :
-                            'bg-red-900/30 text-red-400 border border-red-800/50'
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${
+                            atsScore >= 75 ? 'bg-green-900/30 text-green-400' :
+                            atsScore >= 50 ? 'bg-yellow-900/30 text-yellow-400' :
+                            'bg-red-900/30 text-red-400'
                           }`}>
                             <TrendingUp className="w-3 h-3" />
                             ATS: {atsScore}%
-                          </span>
-                        )}
-                        
-                        {!isRAG && !isATSOptimized && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-blue-900/30 text-blue-400 border border-blue-800/50 shadow-sm">
-                            <FileText className="w-3 h-3" />
-                            {letterVersion.toUpperCase()}
-                          </span>
-                        )}
-                        
-                        {generationMethod === 'advanced' && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-indigo-900/30 text-indigo-400 border border-indigo-800/50 shadow-sm">
-                            <Zap className="w-3 h-3" />
-                            Advanced
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* ATS Improvement suggestion */}
+                  {/* ATS Improvement */}
                   {needsATSImprovement && (
-                    <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-800/30 rounded-xl flex items-center justify-between gap-2">
-                      <span className="text-xs text-yellow-400 font-medium flex items-center gap-2">
-                        <Sparkles className="w-3 h-3" />
-                        Voidaan parantaa (Nykyinen: {atsScore}%)
+                    <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-800/30 rounded-xl flex items-center justify-between">
+                      <span className="text-xs text-yellow-400">
+                        <Sparkles className="w-3 h-3 inline mr-1" />
+                        Parannetaan ({atsScore}%)
                       </span>
                       <button
                         onClick={() => handleImproveATS(letter.id)}
                         disabled={improvingATSId === letter.id}
-                        className="text-xs bg-yellow-900/30 px-2 py-1 rounded-lg shadow-sm border border-yellow-800/50 text-yellow-400 hover:bg-yellow-900/50 transition-colors"
+                        className="text-xs bg-yellow-900/30 px-2 py-1 rounded-lg text-yellow-400"
                       >
-                        {improvingATSId === letter.id ? "Parannetaan..." : "Paranna"}
+                        {improvingATSId === letter.id ? "..." : "Paranna"}
                       </button>
                     </div>
                   )}
 
-                  {/* Action buttons */}
+                  {/* Actions */}
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleDownloadPDF(letter.id, displayTitle)}
                       disabled={isDownloading === letter.id}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl"
                     >
                       {isDownloading === letter.id ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">Ladataan...</span>
+                          <span className="text-sm">...</span>
                         </>
                       ) : (
                         <>
@@ -545,7 +508,7 @@ export default function MyCoverLettersPage() {
 
                     <Link
                       href={`/edit-cover-letter/${letter.id}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl"
                     >
                       <Edit className="w-4 h-4" />
                       <span className="text-sm">Muokkaa</span>
@@ -555,35 +518,6 @@ export default function MyCoverLettersPage() {
               </div>
             );
           })}
-        </div>
-
-        {/* Stats */}
-        <div className="mt-8 backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-xl shadow-orange-500/10 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="h-12 w-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-orange-500/30">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-2xl font-extrabold text-orange-400">{coverLetters.length}</div>
-              <div className="text-sm text-gray-500">Hakukirjettä luotu</div>
-            </div>
-
-            <div className="text-center">
-              <div className="h-12 w-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-green-500/30">
-                <Download className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-2xl font-extrabold text-green-400">∞</div>
-              <div className="text-sm text-gray-500">Latauksia saatavilla</div>
-            </div>
-
-            <div className="text-center">
-              <div className="h-12 w-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg shadow-purple-500/30">
-                <Sparkles className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-2xl font-extrabold text-purple-400">Premium</div>
-              <div className="text-sm text-gray-500">AI-optimointi käytössä</div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
