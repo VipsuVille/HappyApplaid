@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
           enableRAG: atsV1Body.enableRAG ?? false,
           guardianValidation: true,
           userId: userId,
-          skipQuestions: true,
+          skipQuestions: false,
           followUpAnswers: atsV1Body.followUpAnswers
         });
         
@@ -329,7 +329,7 @@ export async function POST(request: NextRequest) {
           enableRAG: atsV2Body.enableRAG ?? false,
           guardianValidation: atsV2Body.guardianValidation ?? true,
           userId: userId,
-          skipQuestions: true,
+          skipQuestions: false,
           followUpAnswers: atsV2Body.followUpAnswers
         });
         

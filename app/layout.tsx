@@ -1,4 +1,4 @@
-// app/layout.tsx
+// app/layout.tsx - PÄIVITETTY
 import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -14,7 +14,8 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider appearance={clerkAppearance}>
-      <html lang="en">
+      {/* ✅ suppressHydrationWarning LISÄTTY */}
+      <html lang="en" suppressHydrationWarning>
         <body className={`${inter.className} bg-gray-900`} suppressHydrationWarning>
           <GlobalLayout>
             {children}

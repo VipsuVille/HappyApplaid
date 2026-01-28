@@ -10,6 +10,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { useTokens } from '@/hooks/useTokens';
 import { clerkAppearance } from '@/lib/clerkAppearance';
+import ThemeToggle from '@/components/ThemeToggle'; // ✅ LISÄTTY
 import {
   FileText,
   Menu,
@@ -135,10 +136,13 @@ export default function SmartHeader() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             
-            {/* Desktop Action Bar (Language + Auth/Profile) */}
+            {/* Desktop Action Bar (Theme + Language + Auth/Profile) */}
             <div className="hidden lg:flex items-center gap-3">
               
-              {/* Common Language Toggle for Desktop */}
+              {/* ✅ THEME TOGGLE - ENSIMMÄISENÄ */}
+              <ThemeToggle />
+
+              {/* Language Toggle */}
               <Button
                 onClick={toggleLanguage}
                 variant="ghost"
@@ -191,7 +195,7 @@ export default function SmartHeader() {
                     </Link>
                   )}
 
-                  {/* Profile Menu (Language toggle removed from here) */}
+                  {/* Profile Menu */}
                   <div data-profile-menu className="relative">
                     <button
                       onClick={() => setProfileMenuOpen(!profileMenuOpen)}
@@ -263,6 +267,12 @@ export default function SmartHeader() {
                     ))}
 
                     <div className="pt-2 border-t border-white/10 space-y-2">
+                      {/* ✅ THEME TOGGLE MOBIILISSA */}
+                      <div className="flex items-center justify-between px-4 py-2">
+                        <span className="text-gray-300 text-sm">Theme</span>
+                        <ThemeToggle />
+                      </div>
+                      
                       <Button onClick={toggleLanguage} variant="ghost" className="w-full justify-start text-gray-300">
                         <Languages className="w-5 h-5 mr-3" />
                         {language === 'en' ? 'In English' : 'Suomeksi'}
@@ -287,6 +297,13 @@ export default function SmartHeader() {
                     <Link href={pricingAnchor}>
                       <Button variant="ghost" className="w-full justify-start text-gray-300"><PricingIcon className="w-5 h-5 mr-3" /> {t.pricing}</Button>
                     </Link>
+                    
+                    {/* ✅ THEME TOGGLE MOBIILISSA (EI KIRJAUTUNUT) */}
+                    <div className="flex items-center justify-between px-4 py-2">
+                      <span className="text-gray-300 text-sm">Theme</span>
+                      <ThemeToggle />
+                    </div>
+                    
                     <Button onClick={toggleLanguage} variant="ghost" className="w-full justify-start text-gray-300">
                       <Languages className="w-5 h-5 mr-3" /> {language === 'en' ? 'English' : 'Suomeksi'}
                     </Button>

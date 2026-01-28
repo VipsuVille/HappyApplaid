@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - TYPESCRIPT FIXED
+// app/my-cover-letters/page.tsx - WITH DARK/LIGHT THEME SUPPORT
 
 'use client';
 
@@ -237,7 +237,6 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  // ✅ KORJATTU: Oikea data-mapping CoverLetterTemplate:lle
   const convertToCoverLetterData = (letter: CoverLetter) => ({
     name: letter.content?.contactInfo?.name || letter.content?.applicant_info?.name || "Hakija",
     email: letter.content?.contactInfo?.email || letter.content?.applicant_info?.email || "",
@@ -246,10 +245,7 @@ export default function MyCoverLettersPage() {
     jobTitle: letter.ai_data?.job_title || letter.content?.job_title || "",
     companyName: letter.ai_data?.company_name || letter.content?.company_name || "",
     title: letter.title,
-    
-    // ✅ KORJAUS: content (ei body!)
     content: letter.content?.body || letter.ai_data?.html?.content || "",
-    
     keyHighlights: letter.ai_data?.key_highlights || [],
     language: letter.content?.language || "finnish",
     style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative"
@@ -257,10 +253,10 @@ export default function MyCoverLettersPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030711] flex items-center justify-center">
-        <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl shadow-2xl p-8 text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-orange-500 mx-auto mb-4" />
-          <p className="text-lg font-bold text-gray-100">Ladataan...</p>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="backdrop-blur-xl bg-card border border-border rounded-2xl shadow-2xl p-8 text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-lg font-bold text-foreground">Ladataan...</p>
         </div>
       </div>
     );
@@ -268,12 +264,15 @@ export default function MyCoverLettersPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#030711] relative overflow-hidden">
+      <div className="min-h-screen bg-background relative overflow-hidden">
         <div className="max-w-2xl mx-auto py-16 px-4 relative z-10">
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-100 mb-4">Virhe</h2>
-            <p className="text-red-400 mb-6">{error}</p>
-            <button onClick={loadCoverLetters} className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl">
+          <div className="backdrop-blur-xl bg-card border border-border rounded-2xl p-8 text-center">
+            <h2 className="text-2xl font-bold text-foreground mb-4">Virhe</h2>
+            <p className="text-destructive mb-6">{error}</p>
+            <button 
+              onClick={loadCoverLetters} 
+              className="px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity"
+            >
               Yritä uudelleen
             </button>
           </div>
@@ -284,19 +283,20 @@ export default function MyCoverLettersPage() {
 
   if (coverLetters.length === 0) {
     return (
-      <div className="min-h-screen bg-[#030711] relative overflow-hidden">
+      <div className="min-h-screen bg-background relative overflow-hidden">
+        {/* Decorative blur */}
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
         </div>
 
         <div className="max-w-2xl mx-auto py-16 px-4 relative z-10">
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-3xl p-12 text-center">
-            <FileText className="h-20 w-20 text-orange-500 mx-auto mb-6" />
-            <h2 className="text-2xl font-bold text-gray-100 mb-3">Ei vielä hakukirjeitä</h2>
-            <p className="text-gray-400 mb-6">Luo ensimmäinen hakukirjeesi.</p>
+          <div className="backdrop-blur-xl bg-card border border-border rounded-3xl p-12 text-center">
+            <FileText className="h-20 w-20 text-primary mx-auto mb-6" />
+            <h2 className="text-2xl font-bold text-foreground mb-3">Ei vielä hakukirjeitä</h2>
+            <p className="text-muted-foreground mb-6">Luo ensimmäinen hakukirjeesi.</p>
             <Link
               href="/create-cover-letter"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity"
             >
               <Plus className="w-5 h-5" />
               Luo hakukirje
@@ -311,30 +311,31 @@ export default function MyCoverLettersPage() {
   const IconComponent = currentGrid.icon;
 
   return (
-    <div className="min-h-screen bg-[#030711] text-[#e7e3dc] relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
       
+      {/* Decorative blur */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
       </div>
 
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 relative z-10">
         
         {/* Header */}
         <div className="mb-8">
-          <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-3xl p-6 md:p-8">
+          <div className="backdrop-blur-xl bg-card border border-border rounded-3xl p-6 md:p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
+                <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                   Omat hakukirjeet
                 </h1>
-                <p className="text-gray-400 mt-2">
+                <p className="text-muted-foreground mt-2">
                   Hallinnoi ja lataa hakukirjeesi
                 </p>
               </div>
 
               <Link
                 href="/create-cover-letter"
-                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-extrabold rounded-2xl hover:scale-105 transition-all flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-extrabold rounded-2xl hover:scale-105 transition-all flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 <span>Luo uusi</span>
@@ -343,7 +344,7 @@ export default function MyCoverLettersPage() {
 
             {/* Grid controls */}
             <div className="mt-6 flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <IconComponent className="w-4 h-4" />
                 <span className="font-bold">Näkymä:</span>
               </div>
@@ -357,8 +358,8 @@ export default function MyCoverLettersPage() {
                       onClick={() => setGridSize(size)}
                       className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
                         gridSize === size
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white'
-                          : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                          ? 'bg-gradient-to-r from-primary to-accent text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -386,26 +387,26 @@ export default function MyCoverLettersPage() {
             return (
               <div
                 key={letter.id}
-                className="group backdrop-blur-xl bg-[#1a1a1a]/70 border border-gray-800 rounded-2xl overflow-hidden"
+                className="group backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden relative"
               >
-                {/* Delete */}
+                {/* Delete button */}
                 <div className="absolute top-3 right-3 z-20">
                   <button
                     onClick={() => handleDelete(letter.id)}
                     disabled={deleteLoading === letter.id}
-                    className="h-10 w-10 backdrop-blur-lg bg-black/60 border border-red-800/50 rounded-full flex items-center justify-center hover:bg-red-900/30"
+                    className="h-10 w-10 backdrop-blur-lg bg-destructive/10 border border-destructive/50 rounded-full flex items-center justify-center hover:bg-destructive/20 transition-colors"
                   >
                     {deleteLoading === letter.id ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin text-destructive" />
                     ) : (
-                      <Trash2 className="w-5 h-5 text-red-400" />
+                      <Trash2 className="w-5 h-5 text-destructive" />
                     )}
                   </button>
                 </div>
 
                 {/* Preview */}
                 <div
-                  className="relative w-full overflow-hidden bg-gray-900/20"
+                  className="relative w-full overflow-hidden bg-muted/20"
                   style={{ height: currentGrid.previewHeight }}
                 >
                   <div className="absolute inset-0 overflow-y-auto flex justify-center py-4 px-2">
@@ -436,30 +437,32 @@ export default function MyCoverLettersPage() {
                 </div>
 
                 {/* Info */}
-                <div className="p-5 border-t border-gray-800">
+                <div className="p-5 border-t border-border">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-100 mb-1">
+                      <h3 className="text-lg font-bold text-foreground mb-1">
                         {displayTitle}
                       </h3>
-                      <p className="text-xs text-gray-500 mb-2">
+                      <p className="text-xs text-muted-foreground mb-2">
                         {new Date(letter.created_at).toLocaleDateString("fi-FI")}
                       </p>
                       
                       {/* Badges */}
                       <div className="flex flex-wrap gap-2 mt-2">
                         {isRAG && (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-900/30 text-purple-400">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30">
                             <Database className="w-3 h-3" />
                             RAG
                           </span>
                         )}
                         
                         {isATSOptimized && (
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${
-                            atsScore >= 75 ? 'bg-green-900/30 text-green-400' :
-                            atsScore >= 50 ? 'bg-yellow-900/30 text-yellow-400' :
-                            'bg-red-900/30 text-red-400'
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border ${
+                            atsScore >= 75 
+                              ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30' 
+                              : atsScore >= 50 
+                              ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30'
+                              : 'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30'
                           }`}>
                             <TrendingUp className="w-3 h-3" />
                             ATS: {atsScore}%
@@ -471,15 +474,15 @@ export default function MyCoverLettersPage() {
 
                   {/* ATS Improvement */}
                   {needsATSImprovement && (
-                    <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-800/30 rounded-xl flex items-center justify-between">
-                      <span className="text-xs text-yellow-400">
+                    <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between">
+                      <span className="text-xs text-yellow-600 dark:text-yellow-400">
                         <Sparkles className="w-3 h-3 inline mr-1" />
                         Parannetaan ({atsScore}%)
                       </span>
                       <button
                         onClick={() => handleImproveATS(letter.id)}
                         disabled={improvingATSId === letter.id}
-                        className="text-xs bg-yellow-900/30 px-2 py-1 rounded-lg text-yellow-400"
+                        className="text-xs bg-yellow-500/20 px-2 py-1 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors"
                       >
                         {improvingATSId === letter.id ? "..." : "Paranna"}
                       </button>
@@ -491,7 +494,7 @@ export default function MyCoverLettersPage() {
                     <button
                       onClick={() => handleDownloadPDF(letter.id, displayTitle)}
                       disabled={isDownloading === letter.id}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                       {isDownloading === letter.id ? (
                         <>
@@ -508,7 +511,7 @@ export default function MyCoverLettersPage() {
 
                     <Link
                       href={`/edit-cover-letter/${letter.id}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-bold rounded-xl"
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity"
                     >
                       <Edit className="w-4 h-4" />
                       <span className="text-sm">Muokkaa</span>
