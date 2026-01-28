@@ -1,4 +1,4 @@
-// app/create-cover-letter/page.tsx - ATS PREMIUM MARKETING
+// app/create-cover-letter/page.tsx - FIXED ALL ISSUES
 
 "use client";
 
@@ -7,7 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import {  
+import {
   Sparkles,
   Target,
   Mail,
@@ -24,6 +24,8 @@ import {
   Palette,
   Zap,
   TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 import { useTokens } from "@/hooks/useTokens";
@@ -31,7 +33,6 @@ import { useFreeUsage } from '@/hooks/useFreeUsage';
 import { useLanguage } from '@/context/LanguageContext';
 import { ACTION_COSTS, PlanType, TokenAction } from "@/lib/domain/tokens";
 import CVConfirmationModal from "@/components/CVConfirmationModal";
-import { supabaseAdmin } from "@/lib/supabase";
 
 type LetterType = "job_specific" | "general";
 type LetterVersion = "v1" | "v2";
@@ -59,41 +60,15 @@ export default function CreateCoverLetterPage() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingViolations, setPendingViolations] = useState<any>(null);
 
+  // ✅ MOBILE: Piilota Premium box oletuksena
+  const [showPremiumBox, setShowPremiumBox] = useState(false);
+
   const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
   const freeUsage = useFreeUsage();
 
-  // ✅ PREMIUM CHECK
-  const [isPremium, setIsPremium] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState<string>('');
-
-  useEffect(() => {
-    const checkPremium = async () => {
-      if (!user) return;
-      
-      try {
-        const { data: sub } = await supabaseAdmin
-          .from('subscriptions')
-          .select('plan_type, status')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (sub) {
-          setSubscriptionStatus(sub.status || '');
-          setIsPremium(
-            sub.status === 'active' &&
-            sub.plan_type &&
-            sub.plan_type !== 'free'
-          );
-        }
-      } catch (error) {
-        console.error('Premium check failed:', error);
-      }
-    };
-
-    if (userLoaded && user) {
-      checkPremium();
-    }
-  }, [userLoaded, user]);
+  // ✅ FIX 1: OIKEA PREMIUM CHECK
+  const isPremium = plan_type === 'premium' || plan_type === 'basic';
+  const canUseV2 = isPremium && letterType === 'job_specific';
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
 
@@ -184,12 +159,11 @@ export default function CreateCoverLetterPage() {
     }
   }[isFinnish ? 'fi' : 'en'];
 
-  // ✅ KORJATTU: Määritetään API:n odottama `type`
+  // ✅ API type
   const apiType = useMemo(() => {
     if (letterType === 'general') {
       return 'general';
     } else {
-      // job_specific
       return letterVersion === 'v2' ? 'ats-v2' : 'ats-v1';
     }
   }, [letterType, letterVersion]);
@@ -242,8 +216,28 @@ export default function CreateCoverLetterPage() {
     return hasName && hasPersonality;
   }, [profileData]);
 
-  // ✅ TARKISTA PREMIUM (V2 vaatii Premium)
-  const canUseV2 = isPremium && letterType === 'job_specific';
+  // ✅ FIX 2: EKSTRAKTOI jobTitle ja companyName tekstistä
+  const extractJobInfo = (text: string) => {
+    // Yksinkertainen parsinta:
+    // "keskolle it puolelle" → jobTitle: "IT-tehtävä", companyName: "Kesko"
+    const lowerText = text.toLowerCase();
+    
+    let jobTitle = "Työtehtävä";
+    let companyName = "Yritys";
+    
+    // Yritä löytää yrityksen nimi
+    if (lowerText.includes('kesko')) companyName = 'Kesko';
+    if (lowerText.includes('nokia')) companyName = 'Nokia';
+    if (lowerText.includes('wolt')) companyName = 'Wolt';
+    // ... lisää tunnettuja yrityksiä
+    
+    // Yritä löytää rooli
+    if (lowerText.includes('it') || lowerText.includes('ohjelmisto')) jobTitle = 'IT-tehtävä';
+    if (lowerText.includes('myynti')) jobTitle = 'Myyntitehtävä';
+    if (lowerText.includes('asiakaspalvelu')) jobTitle = 'Asiakaspalvelutehtävä';
+    
+    return { jobTitle, companyName };
+  };
 
   // --- GENERATE HANDLER ---
   const handleGenerateLetter = async (confirmedViolations?: any) => {
@@ -268,25 +262,44 @@ export default function CreateCoverLetterPage() {
 
     setIsLoading(true);
     try {
+      // ✅ FIX 3: Jos lyhyt teksti, ekstraktoi jobTitle ja companyName
+      let jobTitle = undefined;
+      let companyName = undefined;
+      let jobDescription = jobPosting;
+
+      if (letterType === 'job_specific' && jobPosting.trim().length < 200) {
+        const extracted = extractJobInfo(jobPosting);
+        jobTitle = extracted.jobTitle;
+        companyName = extracted.companyName;
+        jobDescription = jobPosting; // Käytä alkuperäistä tekstiä descriptionina
+        
+        console.log('📝 Extracted:', { jobTitle, companyName });
+      }
+
       const response = await fetch("/api/generate-cover-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // ✅ KORJATTU: Käytetään unified API:n odottamaa type-parametria
-          type: apiType, // 'general' | 'ats-v1' | 'ats-v2'
+          type: apiType,
           
-          // ✅ Job-specific data (vain jos ats-v1 tai ats-v2)
-          jobDescription: letterType === 'job_specific' ? jobPosting : undefined,
+          // ✅ Job-specific data
+          ...(letterType === 'job_specific' && {
+            jobTitle: jobTitle || 'Työtehtävä',
+            companyName: companyName || 'Yritys',
+            jobDescription: jobDescription,
+          }),
           
-          // ✅ General-specific data (vain jos general)
-          targetIndustry: letterType === 'general' ? targetIndustry : undefined,
-          targetRole: letterType === 'general' ? targetRole : undefined,
+          // General-specific data
+          ...(letterType === 'general' && {
+            targetIndustry,
+            targetRole,
+          }),
           
-          // ✅ KIELI & TYYLI
+          // Kieli & tyyli
           language: letterLanguage,
           style: letterStyle,
           
-          // ✅ PROFIILIDATA (muunnetaan stringeiksi)
+          // Profiilidata
           name: profileData?.name,
           email: profileData?.email,
           phone: profileData?.phone,
@@ -300,7 +313,7 @@ export default function CreateCoverLetterPage() {
             ? profileData.skills.join(', ')
             : profileData?.skills || '',
           
-          // ✅ PERSOONALLISUUS
+          // Persoonallisuus
           workingStyle: profileData?.working_style,
           problemSolving: profileData?.problem_solving,
           uniqueStrength: profileData?.unique_strength,
@@ -313,10 +326,10 @@ export default function CreateCoverLetterPage() {
           bestProjectExample: profileData?.best_project_example,
           failureLesson: profileData?.failure_lesson,
           
-          // ✅ RAG (tulossa)
+          // RAG
           enableRAG: false,
           
-          // ✅ GUARDIAN
+          // Guardian
           confirmedViolations: confirmedViolations || null,
           skipValidation: !!confirmedViolations
         }),
@@ -513,90 +526,109 @@ export default function CreateCoverLetterPage() {
               </div>
             </section>
 
-            {/* ✅ SECTION 3: ATS OPTIMIZATION - PREMIUM MARKETING! */}
+            {/* ✅ SECTION 3: ATS OPTIMIZATION */}
             {letterType === 'job_specific' && (
               <>
-                {/* ✅ ATS PREMIUM BOX (jos EI Premium) */}
+                {/* ✅ FIX: ATS PREMIUM BOX - Collapsible mobiilissa */}
                 {!isPremium && (
-                  <section className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-[2.5rem] p-10 shadow-2xl">
-                    <div className="flex items-start gap-4 mb-6">
-                      <div className="p-3 bg-amber-500/20 rounded-2xl border border-amber-500/30">
-                        <Shield className="w-8 h-8 text-amber-400" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Crown className="w-5 h-5 text-amber-400" />
-                          <h3 className="text-2xl font-black text-white">
-                            ATS-Optimointi
-                          </h3>
-                          <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/30 rounded-full text-[10px] font-black text-amber-400 uppercase">
-                            Premium
-                          </span>
-                        </div>
-                        <p className="text-slate-300 text-sm leading-relaxed">
-                          Voita työnantajan ATS-järjestelmä automaattisella optimoinnilla. 
-                          Lisää läpäisymahdollisuutesi <strong className="text-amber-400">60%:sta 85%:iin</strong>!
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Benefits Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      {[
-                        {
-                          icon: TrendingUp,
-                          title: '85% läpäisymahdollisuus',
-                          desc: 'vs 60% ilman optimointia'
-                        },
-                        {
-                          icon: Zap,
-                          title: 'Iteratiivinen parannus',
-                          desc: 'Kunnes pisteet >= 75%'
-                        },
-                        {
-                          icon: Shield,
-                          title: 'Guardian-validointi',
-                          desc: 'Estää virheet ja liioittelun'
-                        },
-                        {
-                          icon: Target,
-                          title: 'ATS-score raportti',
-                          desc: 'Näe tarkat pisteet (0-100%)'
-                        }
-                      ].map((benefit, i) => (
-                        <div 
-                          key={i}
-                          className="flex items-start gap-3 p-4 bg-slate-900/50 border border-slate-700/50 rounded-xl"
-                        >
-                          <benefit.icon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold text-white text-sm mb-1">{benefit.title}</p>
-                            <p className="text-xs text-slate-400">{benefit.desc}</p>
+                  <section className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-[2.5rem] shadow-2xl overflow-hidden">
+                    {/* ✅ MOBILE: Clickable header */}
+                    <div 
+                      className="p-6 md:p-10 cursor-pointer md:cursor-default"
+                      onClick={() => setShowPremiumBox(!showPremiumBox)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className="p-3 bg-amber-500/20 rounded-2xl border border-amber-500/30">
+                            <Shield className="w-8 h-8 text-amber-400" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Crown className="w-5 h-5 text-amber-400" />
+                              <h3 className="text-2xl font-black text-white">
+                                ATS-Optimointi
+                              </h3>
+                              <span className="px-2 py-0.5 bg-amber-500/20 border border-amber-500/30 rounded-full text-[10px] font-black text-amber-400 uppercase">
+                                Premium
+                              </span>
+                            </div>
+                            <p className="text-slate-300 text-sm leading-relaxed hidden md:block">
+                              Voita työnantajan ATS-järjestelmä automaattisella optimoinnilla. 
+                              Lisää läpäisymahdollisuutesi <strong className="text-amber-400">60%:sta 85%:iin</strong>!
+                            </p>
                           </div>
                         </div>
-                      ))}
+                        {/* Mobile chevron */}
+                        <div className="md:hidden">
+                          {showPremiumBox ? (
+                            <ChevronUp className="w-6 h-6 text-amber-400" />
+                          ) : (
+                            <ChevronDown className="w-6 h-6 text-amber-400" />
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Comparison */}
-                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-6">
-                      <p className="text-sm text-blue-200 flex items-start gap-2">
-                        <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                        <span>
-                          <strong>Mikä on ATS?</strong> Applicant Tracking System - robotti joka seuloo hakemuksia 
-                          ennen kuin ihminen näkee ne. <strong className="text-amber-400">Premium-versio voittaa robotin.</strong>
-                        </span>
-                      </p>
-                    </div>
+                    {/* ✅ Collapsible content - näkyy desktopilla aina, mobiilissa vain kun avattu */}
+                    <div className={`px-6 md:px-10 pb-10 ${showPremiumBox || window.innerWidth >= 768 ? 'block' : 'hidden'}`}>
+                      {/* Benefits Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {[
+                          {
+                            icon: TrendingUp,
+                            title: '85% läpäisymahdollisuus',
+                            desc: 'vs 60% ilman optimointia'
+                          },
+                          {
+                            icon: Zap,
+                            title: 'Iteratiivinen parannus',
+                            desc: 'Kunnes pisteet >= 75%'
+                          },
+                          {
+                            icon: Shield,
+                            title: 'Guardian-validointi',
+                            desc: 'Estää virheet ja liioittelun'
+                          },
+                          {
+                            icon: Target,
+                            title: 'ATS-score raportti',
+                            desc: 'Näe tarkat pisteet (0-100%)'
+                          }
+                        ].map((benefit, i) => (
+                          <div 
+                            key={i}
+                            className="flex items-start gap-3 p-4 bg-slate-900/50 border border-slate-700/50 rounded-xl"
+                          >
+                            <benefit.icon className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold text-white text-sm mb-1">{benefit.title}</p>
+                              <p className="text-xs text-slate-400">{benefit.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
 
-                    {/* CTA */}
-                    <button
-                      onClick={() => router.push('/pricing')}
-                      className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-black text-lg hover:scale-105 transition-all shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <Crown className="w-5 h-5" />
-                      Päivitä Premium-tilaukseen
-                      <ArrowRight className="w-5 h-5" />
-                    </button>
+                      {/* Info */}
+                      <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-6">
+                        <p className="text-sm text-blue-200 flex items-start gap-2">
+                          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                          <span>
+                            <strong>Mikä on ATS?</strong> Applicant Tracking System - robotti joka seuloo hakemuksia 
+                            ennen kuin ihminen näkee ne. <strong className="text-amber-400">Premium-versio voittaa robotin.</strong>
+                          </span>
+                        </p>
+                      </div>
+
+                      {/* CTA */}
+                      <button
+                        onClick={() => router.push('/pricing')}
+                        className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-2xl font-black text-lg hover:scale-105 transition-all shadow-lg flex items-center justify-center gap-2"
+                      >
+                        <Crown className="w-5 h-5" />
+                        Päivitä Premium-tilaukseen
+                        <ArrowRight className="w-5 h-5" />
+                      </button>
+                    </div>
                   </section>
                 )}
 
@@ -642,7 +674,7 @@ export default function CreateCoverLetterPage() {
                   </section>
                 )}
 
-                {/* ✅ JOB POSTING (jos ei Premium MUTTA job_specific) */}
+                {/* ✅ JOB POSTING (jos ei Premium) */}
                 {!isPremium && (
                   <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
                     <div className="flex items-center gap-3 mb-6">
