@@ -428,7 +428,7 @@ export default function MyCoverLettersPage() {
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  <span className="hidden sm:inline">Lataa</span>
+                  <span className="hidden sm:inline">Lataappas</span>
                 </>
               )}
             </button>
