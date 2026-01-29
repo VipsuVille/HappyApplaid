@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - WITH USER CHOICE FOR MOBILE VIEW
+// app/my-cover-letters/page.tsx - ✅ FIXED (NO EXPORT ERROR + BETTER PREVIEW)
 
 'use client';
 
@@ -37,25 +37,26 @@ interface CoverLetter {
 type GridSize = 'small' | 'medium' | 'large';
 type MobileView = 'carousel' | 'grid';
 
+// ✅ PAREMMAT PREVIEW-KOOT (näkyy koko kirje)
 const GRID_CONFIGS = {
   small: {
-    cols: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4',
-    previewHeight: '250px',
-    scale: { mobile: 0.18, tablet: 0.25, desktop: 0.35 },
+    cols: 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+    previewHeight: '400px', // ✅ Kasvatettu
+    scale: 0.28, // ✅ Yksi scale kaikille
     label: 'Pieni',
     icon: LayoutGrid
   },
   medium: {
-    cols: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    previewHeight: '400px',
-    scale: { mobile: 0.28, tablet: 0.45, desktop: 0.45 },
+    cols: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
+    previewHeight: '550px', // ✅ Kasvatettu
+    scale: 0.40,
     label: 'Keskikokoinen',
     icon: Grid3x3
   },
   large: {
-    cols: 'grid-cols-1',
-    previewHeight: '600px',
-    scale: { mobile: 0.40, tablet: 0.65, desktop: 0.90 },
+    cols: 'grid-cols-1 lg:grid-cols-2',
+    previewHeight: '700px', // ✅ Kasvatettu
+    scale: 0.55,
     label: 'Iso',
     icon: Square
   }
@@ -68,11 +69,10 @@ export default function MyCoverLettersPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
-  const [improvingATSId, setImprovingATSId] = useState<string | null>(null);
   const letterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [gridSize, setGridSize] = useState<GridSize>('medium');
 
-  // ✅ MOBILE VIEW SELECTION
+  // Mobile
   const [mobileView, setMobileView] = useState<MobileView>('carousel');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
@@ -81,7 +81,7 @@ export default function MyCoverLettersPage() {
     letterRefs.current[letterId] = el;
   }, []);
 
-  // ✅ MOBILE DETECTION
+  // Mobile detection
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -92,7 +92,7 @@ export default function MyCoverLettersPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // ✅ CAROUSEL NAVIGATION
+  // Carousel navigation
   const nextSlide = () => {
     setCurrentIndex((prev) => 
       prev === coverLetters.length - 1 ? 0 : prev + 1
@@ -105,7 +105,7 @@ export default function MyCoverLettersPage() {
     );
   };
 
-  // ✅ TOUCH GESTURES
+  // Touch gestures
   const touchStartX = useRef(0);
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -178,73 +178,6 @@ export default function MyCoverLettersPage() {
     }
   };
 
-  const handleImproveATS = async (letterId: string) => {
-    const letter = coverLetters.find(l => l.id === letterId);
-    if (!letter) return;
-
-    const currentScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
-    
-    if (!confirm(
-      `Nykyiset ATS-pisteet: ${currentScore}%\n\n` +
-      'Haluatko parantaa hakukirjettä automaattisesti?\n\n' +
-      '⚠️ Huom: Tämä muokkaa hakukirjeen sisältöä.'
-    )) return;
-
-    setImprovingATSId(letterId);
-    try {
-      const token = await getToken({ template: 'supabase' });
-      if (!token) throw new Error('No authentication token');
-
-      const response = await fetch('/api/improve-ats', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          currentContent: letter.content?.body || letter.ai_data?.html?.content,
-          missingKeywords: letter.ai_data?.ats_optimization?.report?.missing_keywords || [],
-          jobDescription: letter.content?.job_description,
-        }),
-      });
-
-      if (!response.ok) throw new Error('ATS improvement failed');
-
-      const data = await response.json();
-
-      const updateResponse = await fetch(`/api/cover-letters/${letterId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          content: { ...letter.content, body: data.improvedContent },
-          ai_data: {
-            ...letter.ai_data,
-            html: { ...letter.ai_data.html, content: data.improvedContent },
-            ats_optimization: {
-              ...letter.ai_data.ats_optimization,
-              last_improved: new Date().toISOString(),
-            }
-          }
-        }),
-      });
-
-      if (!updateResponse.ok) throw new Error('Failed to save improved version');
-      const updatedLetter = await updateResponse.json();
-      
-      setCoverLetters(prev => prev.map(l => l.id === letterId ? updatedLetter : l));
-      alert(`✅ ATS-pisteet parannettu!`);
-      
-    } catch (error) {
-      console.error('Error improving ATS:', error);
-      alert('ATS-parannus epäonnistui.');
-    } finally {
-      setImprovingATSId(null);
-    }
-  };
-
   const handleDownloadPDF = async (letterId: string, letterName: string) => {
     setIsDownloading(letterId);
     try {
@@ -292,44 +225,69 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  const convertToCoverLetterData = (letter: CoverLetter) => ({
-    name: letter.content?.contactInfo?.name || letter.content?.applicant_info?.name || "Hakija",
-    email: letter.content?.contactInfo?.email || letter.content?.applicant_info?.email || "",
-    phone: letter.content?.contactInfo?.phone || letter.content?.applicant_info?.phone || "",
-    location: letter.content?.contactInfo?.location || "",
-    jobTitle: letter.ai_data?.job_title || letter.content?.job_title || "",
-    companyName: letter.ai_data?.company_name || letter.content?.company_name || "",
-    title: letter.title,
-    content: letter.content?.body || letter.ai_data?.html?.content || "",
-    keyHighlights: letter.ai_data?.key_highlights || [],
-    language: letter.content?.language || "finnish",
-    style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative"
-  });
+  // ✅ HELPER FUNCTION (EI EXPORT!)
+  function convertToCoverLetterData(letter: CoverLetter) {
+    return {
+      name: letter.content?.contactInfo?.name || 
+            letter.ai_data?.name || 
+            letter.content?.name || 
+            "Hakija",
+      
+      email: letter.content?.contactInfo?.email || 
+             letter.ai_data?.email || 
+             letter.content?.email || 
+             "",
+      
+      phone: letter.content?.contactInfo?.phone || 
+             letter.ai_data?.phone || 
+             letter.content?.phone || 
+             "",
+      
+      location: letter.content?.contactInfo?.location || 
+                letter.ai_data?.location || 
+                letter.content?.location || 
+                "",
+      
+      jobTitle: letter.content?.job_title || 
+                letter.ai_data?.job_title || 
+                "",
+      
+      companyName: letter.content?.company_name || 
+                   letter.ai_data?.company_name || 
+                   "",
+      
+      title: letter.title,
+      
+      content: letter.content?.body || 
+               letter.ai_data?.html?.content || 
+               '',
+      
+      keyHighlights: letter.ai_data?.key_highlights || [],
+      language: letter.content?.language || "finnish",
+      style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative",
+      
+      headerColor: letter.content?.headerColor || 'rgb(181, 152, 79)',
+      headerLayout: (letter.content?.headerLayout || 'top') as 'top' | 'left',
+      sidebarContent: (letter.content?.sidebarContent || 'contact') as 'contact' | 'highlights' | 'none',
+    };
+  }
 
-  // ✅ RENDER LETTER CARD (käytetään sekä carousel:ssa että grid:ssä)
+  // ✅ RENDER LETTER CARD
   const renderLetterCard = (letter: CoverLetter, isCarousel: boolean = false) => {
     const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
     const displayTitle = letter.title || smartTitle;
     const atsScore = letter.ai_data?.ats_optimization?.report?.keyword_match_score || 0;
     const isATSOptimized = !!letter.ai_data?.ats_optimization;
-    const needsATSImprovement = isATSOptimized && atsScore > 0 && atsScore < 75;
     const isRAG = !!letter.ai_data?.rag_used;
 
-    const previewHeight = isCarousel ? '350px' : (isMobile && mobileView === 'grid' ? '280px' : currentGrid.previewHeight);
-    const previewScale = isCarousel ? 0.35 : (
-      isMobile && mobileView === 'grid' 
-        ? currentGrid.scale.mobile 
-        : typeof window !== 'undefined' && window.innerWidth < 640
-        ? currentGrid.scale.mobile
-        : typeof window !== 'undefined' && window.innerWidth < 1024
-        ? currentGrid.scale.tablet
-        : currentGrid.scale.desktop
-    );
+    const currentGrid = GRID_CONFIGS[gridSize];
+    const previewHeight = isCarousel ? '500px' : currentGrid.previewHeight;
+    const previewScale = isCarousel ? 0.38 : currentGrid.scale;
 
     return (
-      <div className={`backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden ${isCarousel ? '' : 'relative group'}`}>
+      <div className={`backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden ${!isCarousel ? 'group' : ''}`}>
         
-        {/* Delete button */}
+        {/* Delete button (grid only) */}
         {!isCarousel && (
           <div className="absolute top-3 right-3 z-20">
             <button
@@ -338,7 +296,7 @@ export default function MyCoverLettersPage() {
               className="h-10 w-10 backdrop-blur-lg bg-destructive/10 border border-destructive/50 rounded-full flex items-center justify-center hover:bg-destructive/20 transition-colors"
             >
               {deleteLoading === letter.id ? (
-                <Loader2 className="w-5 h-5 animate-spin text-destructive" />
+                <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <Trash2 className="w-5 h-5 text-destructive" />
               )}
@@ -346,12 +304,12 @@ export default function MyCoverLettersPage() {
           </div>
         )}
 
-        {/* Preview */}
+        {/* ✅ PREVIEW (KOKO KIRJE NÄKYY!) */}
         <div
           className="relative w-full overflow-hidden bg-muted/20"
           style={{ height: previewHeight }}
         >
-          <div className="absolute inset-0 overflow-y-auto flex justify-center py-4">
+          <div className="absolute inset-0 overflow-y-auto flex justify-center items-start py-4 px-2">
             <div 
               className="origin-top"
               style={{ transform: `scale(${previewScale})` }}
@@ -368,7 +326,7 @@ export default function MyCoverLettersPage() {
         </div>
 
         {/* Info */}
-        <div className="p-4">
+        <div className="p-4 border-t border-border">
           <h3 className="text-base md:text-lg font-bold mb-2 text-foreground truncate">
             {displayTitle}
           </h3>
@@ -399,23 +357,6 @@ export default function MyCoverLettersPage() {
             )}
           </div>
 
-          {/* ATS Improvement */}
-          {needsATSImprovement && (
-            <div className="mb-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center justify-between">
-              <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                <Sparkles className="w-3 h-3 inline mr-1" />
-                Parannetaan ({atsScore}%)
-              </span>
-              <button
-                onClick={() => handleImproveATS(letter.id)}
-                disabled={improvingATSId === letter.id}
-                className="text-xs bg-yellow-500/20 px-2 py-1 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/30 transition-colors"
-              >
-                {improvingATSId === letter.id ? "..." : "Paranna"}
-              </button>
-            </div>
-          )}
-
           {/* Actions */}
           <div className="flex gap-2">
             <button
@@ -428,7 +369,7 @@ export default function MyCoverLettersPage() {
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  <span className="hidden sm:inline">Lataappas</span>
+                  <span className="hidden sm:inline">Lataa</span>
                 </>
               )}
             </button>
@@ -442,12 +383,12 @@ export default function MyCoverLettersPage() {
             </Link>
           </div>
 
-          {/* Delete in carousel */}
+          {/* Delete (carousel only) */}
           {isCarousel && (
             <button
               onClick={() => handleDelete(letter.id)}
               disabled={deleteLoading === letter.id}
-              className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-xl text-sm font-bold hover:bg-destructive/20 transition-colors disabled:opacity-50"
+              className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 bg-destructive/10 text-destructive rounded-xl text-sm font-bold hover:bg-destructive/20 transition-colors"
             >
               {deleteLoading === letter.id ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -464,27 +405,29 @@ export default function MyCoverLettersPage() {
     );
   };
 
+  // Loading
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="backdrop-blur-xl bg-card border border-border rounded-2xl shadow-2xl p-8 text-center">
+        <div className="backdrop-blur-xl bg-card border border-border rounded-2xl p-8 text-center">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-lg font-bold text-foreground">Ladataan...</p>
+          <p className="text-lg font-bold">Ladataan...</p>
         </div>
       </div>
     );
   }
 
+  // Error
   if (error) {
     return (
-      <div className="min-h-screen bg-background relative overflow-hidden">
-        <div className="max-w-2xl mx-auto py-16 px-4 relative z-10">
+      <div className="min-h-screen bg-background">
+        <div className="max-w-2xl mx-auto py-16 px-4">
           <div className="backdrop-blur-xl bg-card border border-border rounded-2xl p-8 text-center">
-            <h2 className="text-2xl font-bold text-foreground mb-4">Virhe</h2>
+            <h2 className="text-2xl font-bold mb-4">Virhe</h2>
             <p className="text-destructive mb-6">{error}</p>
             <button 
               onClick={loadCoverLetters} 
-              className="px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity"
+              className="px-6 py-3 bg-primary text-primary-foreground font-bold rounded-xl"
             >
               Yritä uudelleen
             </button>
@@ -494,21 +437,18 @@ export default function MyCoverLettersPage() {
     );
   }
 
+  // Empty
   if (coverLetters.length === 0) {
     return (
-      <div className="min-h-screen bg-background relative overflow-hidden">
-        <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
-        </div>
-
-        <div className="max-w-2xl mx-auto py-16 px-4 relative z-10">
+      <div className="min-h-screen bg-background">
+        <div className="max-w-2xl mx-auto py-16 px-4">
           <div className="backdrop-blur-xl bg-card border border-border rounded-3xl p-12 text-center">
             <FileText className="h-20 w-20 text-primary mx-auto mb-6" />
-            <h2 className="text-2xl font-bold text-foreground mb-3">Ei vielä hakukirjeitä</h2>
+            <h2 className="text-2xl font-bold mb-3">Ei vielä hakukirjeitä</h2>
             <p className="text-muted-foreground mb-6">Luo ensimmäinen hakukirjeesi.</p>
             <Link
               href="/create-cover-letter"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-bold rounded-xl"
             >
               <Plus className="w-5 h-5" />
               Luo hakukirje
@@ -521,19 +461,13 @@ export default function MyCoverLettersPage() {
 
   const currentGrid = GRID_CONFIGS[gridSize];
   const IconComponent = currentGrid.icon;
-
-  // ✅ PÄÄTÄ MITÄ NÄYTETÄÄN
   const showCarousel = isMobile && mobileView === 'carousel';
   const showGrid = !isMobile || mobileView === 'grid';
 
   return (
-    <div className="min-h-screen bg-background text-foreground relative overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground">
       
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px]" />
-      </div>
-
-      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 relative z-10">
+      <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
         
         {/* Header */}
         <div className="mb-8">
@@ -544,20 +478,20 @@ export default function MyCoverLettersPage() {
                   Omat hakukirjeet
                 </h1>
                 <p className="text-muted-foreground mt-2">
-                  Hallinnoi ja lataa hakukirjeesi
+                  {coverLetters.length} hakukirjettä
                 </p>
               </div>
 
               <Link
                 href="/create-cover-letter"
-                className="px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-extrabold rounded-2xl hover:scale-105 transition-all flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-primary to-accent text-primary-foreground font-extrabold rounded-2xl hover:scale-105 transition-all flex items-center gap-2 w-fit"
               >
                 <Plus className="w-5 h-5" />
                 <span>Luo uusi</span>
               </Link>
             </div>
 
-            {/* ✅ VIEW CONTROLS - AINA NÄKYVISSÄ */}
+            {/* View controls */}
             <div className="mt-6 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <IconComponent className="w-4 h-4" />
@@ -565,36 +499,36 @@ export default function MyCoverLettersPage() {
               </div>
               
               <div className="flex gap-2 flex-wrap">
-                {/* ✅ MOBILE: CAROUSEL VS GRID */}
+                {/* Mobile: Carousel vs Grid */}
                 {isMobile && (
                   <>
                     <button
                       onClick={() => setMobileView('carousel')}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${
                         mobileView === 'carousel'
                           ? 'bg-gradient-to-r from-primary to-accent text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          : 'bg-muted text-muted-foreground'
                       }`}
                     >
                       <List className="w-4 h-4" />
-                      <span>Carousel</span>
+                      Carousel
                     </button>
                     
                     <button
                       onClick={() => setMobileView('grid')}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${
                         mobileView === 'grid'
                           ? 'bg-gradient-to-r from-primary to-accent text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                          : 'bg-muted text-muted-foreground'
                       }`}
                     >
                       <LayoutGrid className="w-4 h-4" />
-                      <span>Grid</span>
+                      Grid
                     </button>
                   </>
                 )}
 
-                {/* ✅ GRID SIZE (näkyy kun grid on valittuna tai desktopissa) */}
+                {/* Grid sizes */}
                 {showGrid && (
                   <>
                     {(Object.keys(GRID_CONFIGS) as GridSize[]).map((size) => {
@@ -603,10 +537,10 @@ export default function MyCoverLettersPage() {
                         <button
                           key={size}
                           onClick={() => setGridSize(size)}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${
                             gridSize === size
                               ? 'bg-gradient-to-r from-primary to-accent text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                              : 'bg-muted text-muted-foreground'
                           }`}
                         >
                           <Icon className="w-4 h-4" />
@@ -621,7 +555,7 @@ export default function MyCoverLettersPage() {
           </div>
         </div>
 
-        {/* ✅ MOBILE CAROUSEL */}
+        {/* Mobile Carousel */}
         {showCarousel ? (
           <div className="relative px-2">
             <div
@@ -643,28 +577,26 @@ export default function MyCoverLettersPage() {
               </div>
             </div>
 
-            {/* Navigation Arrows */}
+            {/* Arrows */}
             {coverLetters.length > 1 && (
               <>
                 <button
                   onClick={prevSlide}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-card/90 backdrop-blur-sm border border-border rounded-full flex items-center justify-center shadow-lg z-10 hover:bg-card transition-colors"
-                  aria-label="Previous"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-card/90 border border-border rounded-full flex items-center justify-center shadow-lg z-10"
                 >
-                  <ChevronLeft className="w-6 h-6 text-foreground" />
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
 
                 <button
                   onClick={nextSlide}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-card/90 backdrop-blur-sm border border-border rounded-full flex items-center justify-center shadow-lg z-10 hover:bg-card transition-colors"
-                  aria-label="Next"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-card/90 border border-border rounded-full flex items-center justify-center shadow-lg z-10"
                 >
-                  <ChevronRight className="w-6 h-6 text-foreground" />
+                  <ChevronRight className="w-6 h-6" />
                 </button>
               </>
             )}
 
-            {/* Dots Indicator */}
+            {/* Dots */}
             {coverLetters.length > 1 && (
               <div className="flex justify-center gap-2 mt-4">
                 {coverLetters.map((_, index) => (
@@ -676,7 +608,6 @@ export default function MyCoverLettersPage() {
                         ? 'bg-primary w-6'
                         : 'bg-muted-foreground/30 w-2'
                     }`}
-                    aria-label={`Go to slide ${index + 1}`}
                   />
                 ))}
               </div>
@@ -688,10 +619,10 @@ export default function MyCoverLettersPage() {
             </p>
           </div>
         ) : (
-          /* ✅ GRID VIEW */
+          /* Grid */
           <div className={`grid ${currentGrid.cols} gap-4 md:gap-6`}>
             {coverLetters.map((letter) => (
-              <div key={letter.id}>
+              <div key={letter.id} className="relative">
                 {renderLetterCard(letter, false)}
               </div>
             ))}

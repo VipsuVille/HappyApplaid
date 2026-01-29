@@ -1,4 +1,4 @@
-// app/cover-letter-preview/[id]/page.tsx - DEBUG VERSION
+// app/cover-letter-preview/[id]/page.tsx - ✅ FIXED (NO PLACEHOLDERS)
 
 "use client";
 
@@ -26,59 +26,33 @@ export default function CoverLetterPreviewPage() {
 
       try {
         console.log("═══════════════════════════════════════════");
-        console.log("🔍 LOADING COVER LETTER");
+        console.log("🔍 LOADING COVER LETTER FOR PREVIEW/PDF");
         console.log("═══════════════════════════════════════════");
         console.log("ID:", id);
         console.log("Mode:", isPDFGeneration ? "PDF" : "PREVIEW");
-        console.log("URL:", `/api/cover-letters/${id}`);
 
         const response = await fetch(`/api/cover-letters/${id}`);
 
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("❌ API ERROR:", errorData);
           throw new Error(errorData.error || "Load failed");
         }
 
         const { coverLetter: data } = await response.json();
 
         if (!data) {
-          throw new Error("Cover letter not found");
+          throw new Error("Hakukirjettä ei löytynyt");
         }
 
-        console.log("═══════════════════════════════════════════");
-        console.log("📦 RAW DATA FROM API:");
-        console.log("═══════════════════════════════════════════");
-        console.log("ID:", data.id);
-        console.log("Title:", data.title);
-        console.log("Has content?", !!data.content);
-        console.log("Has ai_data?", !!data.ai_data);
-        
-        if (data.content) {
-          console.log("─────────────────────────────────────────");
-          console.log("CONTENT KEYS:", Object.keys(data.content));
-          console.log("─────────────────────────────────────────");
-          console.log("content.name:", data.content.name);
-          console.log("content.email:", data.content.email);
-          console.log("content.phone:", data.content.phone);
-          console.log("content.body:", data.content.body?.substring(0, 100) + "...");
-          console.log("content.job_title:", data.content.job_title);
-          console.log("content.company_name:", data.content.company_name);
-          console.log("content.contactInfo:", data.content.contactInfo);
-        }
-        
-        if (data.ai_data) {
-          console.log("─────────────────────────────────────────");
-          console.log("AI_DATA KEYS:", Object.keys(data.ai_data));
-          console.log("─────────────────────────────────────────");
-          console.log("ai_data.name:", data.ai_data.name);
-          console.log("ai_data.email:", data.ai_data.email);
-          console.log("ai_data.phone:", data.ai_data.phone);
-          console.log("ai_data.html?.content:", data.ai_data.html?.content?.substring(0, 100) + "...");
-        }
+        console.log("✅ Raw data loaded:", {
+          id: data.id,
+          hasContent: !!data.content,
+          hasAiData: !!data.ai_data,
+        });
 
-        // ✅ BUILD FINAL DATA
+        // ✅ KORJAUS: CLEAN DATA EXTRACTION (EI PLACEHOLDEREITA!)
         const coverLetterData = {
+          // ✅ Contact info (PUHDAS, ei hakasulkeita)
           name: data.content?.contactInfo?.name || 
                 data.ai_data?.name || 
                 data.content?.name || 
@@ -99,6 +73,7 @@ export default function CoverLetterPreviewPage() {
                     data.content?.location || 
                     "",
           
+          // ✅ Job details (PUHDAS)
           jobTitle: data.content?.job_title || 
                     data.ai_data?.job_title || 
                     "",
@@ -107,34 +82,38 @@ export default function CoverLetterPreviewPage() {
                        data.ai_data?.company_name || 
                        "",
           
+          // ✅ Content (TÄRKEINTÄ!)
           title: data.title || 'Hakukirje',
           
           content: data.content?.body || 
                    data.ai_data?.html?.content || 
                    '',
           
+          // ✅ Styling
           keyHighlights: data.ai_data?.key_highlights || [],
           language: data.content?.language || 'finnish',
           style: (data.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
+          
+          // ✅ Header settings
+          headerColor: data.content?.headerColor || 'rgb(181, 152, 79)',
+          headerLayout: (data.content?.headerLayout || 'top') as 'top' | 'left',
+          sidebarContent: (data.content?.sidebarContent || 'contact') as 'contact' | 'highlights' | 'none',
         };
 
         console.log("═══════════════════════════════════════════");
-        console.log("✅ FINAL PROCESSED DATA:");
+        console.log("✅ PROCESSED DATA FOR TEMPLATE:");
         console.log("═══════════════════════════════════════════");
         console.log("name:", coverLetterData.name);
         console.log("email:", coverLetterData.email);
         console.log("phone:", coverLetterData.phone);
-        console.log("location:", coverLetterData.location);
-        console.log("jobTitle:", coverLetterData.jobTitle);
-        console.log("companyName:", coverLetterData.companyName);
         console.log("content length:", coverLetterData.content.length);
-        console.log("style:", coverLetterData.style);
+        console.log("content preview:", coverLetterData.content.substring(0, 100));
         console.log("═══════════════════════════════════════════");
 
         setLetter(coverLetterData);
 
       } catch (error) {
-        console.error("❌ LOAD ERROR:", error);
+        console.error("❌ Error loading letter:", error);
         setError(error instanceof Error ? error.message : "Unknown error");
       } finally {
         setLoading(false);
@@ -144,53 +123,119 @@ export default function CoverLetterPreviewPage() {
     loadLetter();
   }, [id, isPDFGeneration]);
 
+  // ════════════════════════════════════════════════════════════════
+  // LOADING STATE
+  // ════════════════════════════════════════════════════════════════
+  
   if (loading) {
     return (
-      <div style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "white",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}>
-        <div>Ladataan...</div>
-      </div>
-    );
-  }
-
-  if (error || !letter) {
-    return (
-      <div style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "white",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}>
-        <div>
-          <div style={{ color: "red", fontSize: "18px", fontWeight: "bold" }}>
-            ❌ Virhe
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ 
+            fontSize: "18px", 
+            color: "#666",
+            marginBottom: "10px" 
+          }}>
+            Ladataan hakukirjettä...
           </div>
-          <div>{error || "Letter not found"}</div>
+          <div style={{
+            width: "40px",
+            height: "40px",
+            border: "4px solid #f3f3f3",
+            borderTop: "4px solid #3b82f6",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+            margin: "0 auto"
+          }} />
         </div>
       </div>
     );
   }
 
-  console.log("🎨 RENDERING TEMPLATE WITH DATA:", letter);
+  // ════════════════════════════════════════════════════════════════
+  // ERROR STATE
+  // ════════════════════════════════════════════════════════════════
+  
+  if (error || !letter) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "white",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ 
+          textAlign: "center",
+          padding: "20px",
+          maxWidth: "500px"
+        }}>
+          <div style={{ 
+            color: "#dc3545", 
+            fontSize: "18px",
+            fontWeight: "bold",
+            marginBottom: "10px"
+          }}>
+            ❌ Virhe
+          </div>
+          <div style={{ 
+            color: "#666", 
+            fontSize: "14px" 
+          }}>
+            {error || "Hakukirjettä ei löytynyt"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // RENDER
+  // ════════════════════════════════════════════════════════════════
 
   return (
     <>
       <style jsx global>{`
-        * { box-sizing: border-box; }
+        * {
+          box-sizing: border-box;
+        }
+
         body {
           margin: 0 !important;
           padding: 0 !important;
           background-color: white !important;
           font-family: 'Merriweather', serif !important;
         }
+
+        html {
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
         @media print {
           * {
             -webkit-print-color-adjust: exact !important;
@@ -199,13 +244,16 @@ export default function CoverLetterPreviewPage() {
         }
       `}</style>
 
-      <div style={{
-        margin: 0,
-        padding: 0,
-        backgroundColor: "white",
-        minHeight: "100vh",
-      }}>
-        <CoverLetterContainer data-template-type="standard">
+      <div
+        style={{
+          margin: 0,
+          padding: 0,
+          backgroundColor: "white",
+          minHeight: "100vh",
+          width: "100%",
+        }}
+      >
+        <CoverLetterContainer data-template-type="standard" className="mx-auto">
           <CoverLetterTemplate
             data={letter}
             isEditing={false}

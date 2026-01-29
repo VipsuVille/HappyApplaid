@@ -210,19 +210,27 @@ export default function EditCoverLetterPage() {
   // ════════════════════════════════════════════════════════════════
   
   const handleSave = async () => {
-    if (!letterData || !userId) return;
-    setIsSaving(true);
+  if (!letterData || !userId) {
+    console.error('❌ Missing letterData or userId');
+    return;
+  }
+  
+  setIsSaving(true);
 
-    try {
-      const token = await getToken({ template: 'supabase' });
-      if (!token) throw new Error('No authentication token');
+  try {
+    // ✅ TARKISTA TOKEN
+    const token = await getToken({ template: 'supabase' });
+    
+    console.log('🔑 [AUTH] Token check:', {
+      hasToken: !!token,
+      userId: userId,
+      letterId: id,
+    });
 
-      console.log('💾 [SAVE] Starting save process');
-      console.log('📝 [SAVE] Current values:', {
-        name: editedName,
-        contentLength: editedContent.length,
-        nameFontSize: styleSettings.nameFontSize,
-      });
+    if (!token) {
+      throw new Error('Kirjautuminen vaaditaan. Kirjaudu uudelleen sisään.');
+    }
+
 
       // ✅ RAKENNA TÄYDELLINEN CONTENT OBJEKTI
       const finalContent = {
