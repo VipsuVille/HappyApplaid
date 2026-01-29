@@ -1,8 +1,8 @@
-// app/edit-cover-letter/[id]/page.tsx - ✅ COMPLETE WITH SAVE FIX + MOBILE
+// app/edit-cover-letter/[id]/page.tsx - ✅ COMPLETE FIXED VERSION
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
@@ -80,6 +80,26 @@ export default function EditCoverLetterPage() {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // ════════════════════════════════════════════════════════════════
+  // ✅ HANDLE CONTENT CHANGE (KUTEN CV:SSÄ)
+  // ════════════════════════════════════════════════════════════════
+  
+  const handleContentChange = useCallback(<K extends keyof any>(
+    key: K,
+    value: any
+  ) => {
+    setLetterData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          [key]: value,
+        },
+      };
+    });
+  }, []);
+
   // ✅ MOBILE DETECTION
   useEffect(() => {
     const checkMobile = () => {
@@ -103,7 +123,7 @@ export default function EditCoverLetterPage() {
         const token = await getToken({ template: 'supabase' });
         if (!token) throw new Error('No authentication token');
 
-        console.log('📥 Loading cover letter:', id);
+        console.log('📥 [LOAD] Loading cover letter:', id);
 
         const response = await fetch(`/api/cover-letters/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -116,48 +136,64 @@ export default function EditCoverLetterPage() {
 
         const data = await response.json();
         
-        console.log('✅ Loaded:', data);
+        console.log('✅ [LOAD] Loaded:', {
+          id: data.coverLetter?.id,
+          hasContent: !!data.coverLetter?.content,
+          hasAiData: !!data.coverLetter?.ai_data,
+        });
         
         if (data.coverLetter) {
           const letter = data.coverLetter;
           setLetterData(letter);
           
-          const name = letter.content?.contactInfo?.name || letter.ai_data?.name || 'Hakija';
-          const content = letter.content?.body || letter.ai_data?.html?.content || '';
+          // ✅ EKSTRAKTOI NIMI JA SISÄLTÖ
+          const name = letter.content?.contactInfo?.name || 
+                       letter.ai_data?.name || 
+                       letter.content?.name || 
+                       'Hakija';
+          
+          const content = letter.content?.body || 
+                         letter.ai_data?.html?.content || 
+                         '';
+          
+          console.log('📝 [LOAD] Extracted:', {
+            name,
+            contentLength: content.length,
+          });
           
           setEditedName(name);
           setEditedContent(content);
           setOriginalName(name);
           setOriginalContent(content);
           
-          // Load saved styles
+          // ✅ LATAA TYYLIT
           if (letter.content?.nameFontSize) {
-            setStyleSettings((prev) => ({ ...prev, nameFontSize: letter.content.nameFontSize }));
+            setStyleSettings(prev => ({ ...prev, nameFontSize: letter.content.nameFontSize }));
           }
           if (letter.content?.contentFontSize) {
-            setStyleSettings((prev) => ({ ...prev, contentFontSize: letter.content.contentFontSize }));
+            setStyleSettings(prev => ({ ...prev, contentFontSize: letter.content.contentFontSize }));
           }
           if (letter.content?.headerColor) {
-            setStyleSettings((prev) => ({ ...prev, headerColor: letter.content.headerColor }));
+            setStyleSettings(prev => ({ ...prev, headerColor: letter.content.headerColor }));
           }
           if (letter.content?.headerLayout) {
-            setStyleSettings((prev) => ({ ...prev, headerLayout: letter.content.headerLayout }));
+            setStyleSettings(prev => ({ ...prev, headerLayout: letter.content.headerLayout }));
           }
           if (letter.content?.sidebarContent) {
-            setStyleSettings((prev) => ({ ...prev, sidebarContent: letter.content.sidebarContent }));
+            setStyleSettings(prev => ({ ...prev, sidebarContent: letter.content.sidebarContent }));
           }
           if (letter.content?.lineHeight) {
-            setStyleSettings((prev) => ({ ...prev, lineHeight: letter.content.lineHeight }));
+            setStyleSettings(prev => ({ ...prev, lineHeight: letter.content.lineHeight }));
           }
           if (letter.content?.padding) {
-            setStyleSettings((prev) => ({ ...prev, padding: letter.content.padding }));
+            setStyleSettings(prev => ({ ...prev, padding: letter.content.padding }));
           }
         } else {
           throw new Error('Hakukirjettä ei löytynyt');
         }
 
       } catch (err) {
-        console.error('❌ Error loading cover letter:', err);
+        console.error('❌ [LOAD] Error:', err);
         setErrorMessage(
           err instanceof Error ? err.message : 'Hakukirjeen lataaminen epäonnistui'
         );
@@ -169,7 +205,10 @@ export default function EditCoverLetterPage() {
     loadCoverLetter();
   }, [id, userId, getToken]);
 
-  // ✅ SAVE - KORJATTU!
+  // ════════════════════════════════════════════════════════════════
+  // ✅ SAVE - KORJATTU (CV:N MALLIN MUKAAN)
+  // ════════════════════════════════════════════════════════════════
+  
   const handleSave = async () => {
     if (!letterData || !userId) return;
     setIsSaving(true);
@@ -178,30 +217,49 @@ export default function EditCoverLetterPage() {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No authentication token');
 
-      console.log('💾 Saving cover letter:', id);
+      console.log('💾 [SAVE] Starting save process');
+      console.log('📝 [SAVE] Current values:', {
+        name: editedName,
+        contentLength: editedContent.length,
+        nameFontSize: styleSettings.nameFontSize,
+      });
 
-      // ✅ KORJAUS: Rakenna content objekti oikein
-      const updatedContent = {
+      // ✅ RAKENNA TÄYDELLINEN CONTENT OBJEKTI
+      const finalContent = {
         ...letterData.content,
+        
+        // Contact info
         contactInfo: {
-          ...letterData.content?.contactInfo,
           name: editedName,
           email: letterData.content?.contactInfo?.email || '',
           phone: letterData.content?.contactInfo?.phone || '',
           location: letterData.content?.contactInfo?.location || '',
         },
+        
+        // Body
         body: editedContent,
+        
+        // Job info (preserve)
+        job_description: letterData.content?.job_description,
+        job_title: letterData.content?.job_title,
+        company_name: letterData.content?.company_name,
+        
         // Style settings
         nameFontSize: styleSettings.nameFontSize,
         contentFontSize: styleSettings.contentFontSize,
+        lineHeight: styleSettings.lineHeight,
+        padding: styleSettings.padding,
         headerColor: styleSettings.headerColor,
         headerLayout: styleSettings.headerLayout,
         sidebarContent: styleSettings.sidebarContent,
-        lineHeight: styleSettings.lineHeight,
-        padding: styleSettings.padding,
+        
+        // Language & style
+        language: letterData.content?.language,
+        style: letterData.content?.style,
       };
 
-      const updatedAiData = {
+      // ✅ RAKENNA AI DATA
+      const finalAiData = {
         ...letterData.ai_data,
         name: editedName,
         html: {
@@ -210,11 +268,12 @@ export default function EditCoverLetterPage() {
         },
       };
 
-      console.log('📦 Saving data:', { 
-        contentKeys: Object.keys(updatedContent),
-        aiDataKeys: Object.keys(updatedAiData)
+      console.log('📦 [SAVE] Payload:', {
+        contentKeys: Object.keys(finalContent),
+        aiDataKeys: Object.keys(finalAiData),
       });
 
+      // ✅ API CALL
       const response = await fetch(`/api/cover-letters/${id}`, {
         method: 'PATCH',
         headers: {
@@ -222,22 +281,24 @@ export default function EditCoverLetterPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          content: updatedContent,
-          ai_data: updatedAiData,
+          content: finalContent,
+          ai_data: finalAiData,
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ [SAVE] API error:', errorData);
         throw new Error(errorData.error || 'Save failed');
       }
 
       const result = await response.json();
-      console.log('✅ Saved successfully:', result);
+      console.log('✅ [SAVE] Success:', result);
 
-      // ✅ Update local state
+      // ✅ UPDATE LOCAL STATE
       if (result.coverLetter) {
         setLetterData(result.coverLetter);
+        console.log('✅ [SAVE] Local state updated');
       }
       
       setOriginalName(editedName);
@@ -250,7 +311,7 @@ export default function EditCoverLetterPage() {
       setIsEditingContent(false);
       
     } catch (error) {
-      console.error('❌ Save error:', error);
+      console.error('❌ [SAVE] Error:', error);
       setErrorMessage('Tallennus epäonnistui: ' + (error instanceof Error ? error.message : 'Unknown error'));
       setTimeout(() => setErrorMessage(null), 5000);
     } finally {
@@ -505,7 +566,13 @@ export default function EditCoverLetterPage() {
                 <input
                   type="text"
                   value={editedName}
-                  onChange={(e) => setEditedName(e.target.value)}
+                  onChange={(e) => {
+                    setEditedName(e.target.value);
+                    handleContentChange('contactInfo', {
+                      ...letterData?.content?.contactInfo,
+                      name: e.target.value
+                    });
+                  }}
                   className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-slate-100 focus:outline-none focus:border-orange-400/50 transition-colors text-sm"
                 />
               </div>
@@ -514,7 +581,10 @@ export default function EditCoverLetterPage() {
                 <label className="block text-sm font-semibold text-slate-300 mb-2">Sisältö</label>
                 <textarea
                   value={editedContent}
-                  onChange={(e) => setEditedContent(e.target.value)}
+                  onChange={(e) => {
+                    setEditedContent(e.target.value);
+                    handleContentChange('body', e.target.value);
+                  }}
                   rows={20}
                   className="w-full px-4 py-3 bg-black/40 border border-white/10 rounded-xl text-slate-100 focus:outline-none focus:border-orange-400/50 transition-colors resize-none text-sm"
                 />
@@ -554,7 +624,11 @@ export default function EditCoverLetterPage() {
                       min="32"
                       max="64"
                       value={styleSettings.nameFontSize}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, nameFontSize: parseInt(e.target.value) }))}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        setStyleSettings(prev => ({ ...prev, nameFontSize: value }));
+                        handleContentChange('nameFontSize', value);
+                      }}
                       className="w-full accent-orange-500"
                     />
                   </div>
@@ -570,7 +644,11 @@ export default function EditCoverLetterPage() {
                       max="14"
                       step="0.5"
                       value={styleSettings.contentFontSize}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, contentFontSize: parseFloat(e.target.value) }))}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        setStyleSettings(prev => ({ ...prev, contentFontSize: value }));
+                        handleContentChange('contentFontSize', value);
+                      }}
                       className="w-full accent-orange-500"
                     />
                   </div>
@@ -586,7 +664,11 @@ export default function EditCoverLetterPage() {
                       max="2.0"
                       step="0.1"
                       value={styleSettings.lineHeight}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, lineHeight: parseFloat(e.target.value) }))}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        setStyleSettings(prev => ({ ...prev, lineHeight: value }));
+                        handleContentChange('lineHeight', value);
+                      }}
                       className="w-full accent-orange-500"
                     />
                   </div>
@@ -602,7 +684,11 @@ export default function EditCoverLetterPage() {
                       max="70"
                       step="5"
                       value={styleSettings.padding}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, padding: parseInt(e.target.value) }))}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        setStyleSettings(prev => ({ ...prev, padding: value }));
+                        handleContentChange('padding', value);
+                      }}
                       className="w-full accent-orange-500"
                     />
                   </div>
@@ -613,7 +699,10 @@ export default function EditCoverLetterPage() {
                     <input
                       type="color"
                       value={styleSettings.headerColor.startsWith('rgb') ? '#B59850' : styleSettings.headerColor}
-                      onChange={(e) => setStyleSettings((prev) => ({ ...prev, headerColor: e.target.value }))}
+                      onChange={(e) => {
+                        setStyleSettings(prev => ({ ...prev, headerColor: e.target.value }));
+                        handleContentChange('headerColor', e.target.value);
+                      }}
                       className="w-full h-10 rounded-lg cursor-pointer"
                     />
                   </div>
@@ -668,7 +757,13 @@ export default function EditCoverLetterPage() {
                           ref={nameInputRef}
                           type="text"
                           value={editedName}
-                          onChange={(e) => setEditedName(e.target.value)}
+                          onChange={(e) => {
+                            setEditedName(e.target.value);
+                            handleContentChange('contactInfo', {
+                              ...letterData?.content?.contactInfo,
+                              name: e.target.value
+                            });
+                          }}
                           onBlur={() => setIsEditingName(false)}
                           onKeyDown={(e) => e.key === 'Enter' && setIsEditingName(false)}
                           className="w-full bg-white/50 border-2 border-orange-500 rounded px-2 py-1 font-bold outline-none"
@@ -702,7 +797,10 @@ export default function EditCoverLetterPage() {
                       <textarea
                         ref={contentTextareaRef}
                         value={editedContent}
-                        onChange={(e) => setEditedContent(e.target.value)}
+                        onChange={(e) => {
+                          setEditedContent(e.target.value);
+                          handleContentChange('body', e.target.value);
+                        }}
                         onBlur={() => setIsEditingContent(false)}
                         className="w-full min-h-[500px] p-4 bg-blue-50 border-2 border-blue-500 rounded resize-none outline-none"
                         style={{

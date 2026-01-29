@@ -1,11 +1,11 @@
-// app/cover-letter-preview/[id]/page.tsx - KORJATTU
+// app/cover-letter-preview/[id]/page.tsx - DEBUG VERSION
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import CoverLetterContainer from "@/components/cover-letter/CoverLetterContainer";
 import CoverLetterTemplate from "@/components/cover-letter/CoverLetterTemplate";
-import { supabase } from "@/lib/supabase-client";
 
 export default function CoverLetterPreviewPage() {
   const { id } = useParams();
@@ -16,33 +16,6 @@ export default function CoverLetterPreviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const convertImageForPDF = async (imageUrl: string): Promise<string> => {
-    if (!isPDFGeneration || !imageUrl || imageUrl.startsWith("data:")) {
-      return imageUrl;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`
-      );
-
-      if (!response.ok) {
-        return imageUrl;
-      }
-
-      const data = await response.json();
-      
-      if (data.base64) {
-        return data.base64;
-      }
-
-      return imageUrl;
-    } catch (error) {
-      console.error("❌ Error converting image:", error);
-      return imageUrl;
-    }
-  };
-
   useEffect(() => {
     const loadLetter = async () => {
       if (!id || typeof id !== "string") {
@@ -52,95 +25,117 @@ export default function CoverLetterPreviewPage() {
       }
 
       try {
-        console.log(
-          "🔍 Ladataan cover letter:",
-          id,
-          isPDFGeneration ? "(PDF mode)" : "(Normal mode)"
-        );
+        console.log("═══════════════════════════════════════════");
+        console.log("🔍 LOADING COVER LETTER");
+        console.log("═══════════════════════════════════════════");
+        console.log("ID:", id);
+        console.log("Mode:", isPDFGeneration ? "PDF" : "PREVIEW");
+        console.log("URL:", `/api/cover-letters/${id}`);
 
         const response = await fetch(`/api/cover-letters/${id}`);
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Cover letterin lataus epäonnistui");
+          console.error("❌ API ERROR:", errorData);
+          throw new Error(errorData.error || "Load failed");
         }
 
         const { coverLetter: data } = await response.json();
 
         if (!data) {
-          throw new Error("Cover letteriä ei löytynyt");
+          throw new Error("Cover letter not found");
         }
 
-        let processedLetter = { ...data };
-
-        if (!processedLetter.content) {
-          processedLetter.content = {};
+        console.log("═══════════════════════════════════════════");
+        console.log("📦 RAW DATA FROM API:");
+        console.log("═══════════════════════════════════════════");
+        console.log("ID:", data.id);
+        console.log("Title:", data.title);
+        console.log("Has content?", !!data.content);
+        console.log("Has ai_data?", !!data.ai_data);
+        
+        if (data.content) {
+          console.log("─────────────────────────────────────────");
+          console.log("CONTENT KEYS:", Object.keys(data.content));
+          console.log("─────────────────────────────────────────");
+          console.log("content.name:", data.content.name);
+          console.log("content.email:", data.content.email);
+          console.log("content.phone:", data.content.phone);
+          console.log("content.body:", data.content.body?.substring(0, 100) + "...");
+          console.log("content.job_title:", data.content.job_title);
+          console.log("content.company_name:", data.content.company_name);
+          console.log("content.contactInfo:", data.content.contactInfo);
+        }
+        
+        if (data.ai_data) {
+          console.log("─────────────────────────────────────────");
+          console.log("AI_DATA KEYS:", Object.keys(data.ai_data));
+          console.log("─────────────────────────────────────────");
+          console.log("ai_data.name:", data.ai_data.name);
+          console.log("ai_data.email:", data.ai_data.email);
+          console.log("ai_data.phone:", data.ai_data.phone);
+          console.log("ai_data.html?.content:", data.ai_data.html?.content?.substring(0, 100) + "...");
         }
 
-        if (!processedLetter.ai_data) {
-          processedLetter.ai_data = {};
-        }
+        // ✅ BUILD FINAL DATA
+        const coverLetterData = {
+          name: data.content?.contactInfo?.name || 
+                data.ai_data?.name || 
+                data.content?.name || 
+                "Hakija",
+          
+          email: data.content?.contactInfo?.email || 
+                 data.ai_data?.email || 
+                 data.content?.email || 
+                 "",
+          
+          phone: data.content?.contactInfo?.phone || 
+                 data.ai_data?.phone || 
+                 data.content?.phone || 
+                 "",
+          
+          location: data.content?.contactInfo?.location || 
+                    data.ai_data?.location || 
+                    data.content?.location || 
+                    "",
+          
+          jobTitle: data.content?.job_title || 
+                    data.ai_data?.job_title || 
+                    "",
+          
+          companyName: data.content?.company_name || 
+                       data.ai_data?.company_name || 
+                       "",
+          
+          title: data.title || 'Hakukirje',
+          
+          content: data.content?.body || 
+                   data.ai_data?.html?.content || 
+                   '',
+          
+          keyHighlights: data.ai_data?.key_highlights || [],
+          language: data.content?.language || 'finnish',
+          style: (data.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
+        };
 
-        if (data.content?.profile_image || data.ai_data?.profile_image) {
-          let profileUrl = data.content?.profile_image || data.ai_data?.profile_image;
+        console.log("═══════════════════════════════════════════");
+        console.log("✅ FINAL PROCESSED DATA:");
+        console.log("═══════════════════════════════════════════");
+        console.log("name:", coverLetterData.name);
+        console.log("email:", coverLetterData.email);
+        console.log("phone:", coverLetterData.phone);
+        console.log("location:", coverLetterData.location);
+        console.log("jobTitle:", coverLetterData.jobTitle);
+        console.log("companyName:", coverLetterData.companyName);
+        console.log("content length:", coverLetterData.content.length);
+        console.log("style:", coverLetterData.style);
+        console.log("═══════════════════════════════════════════");
 
-          if (profileUrl.startsWith("data:image")) {
-            if (data.content?.profile_image) {
-              processedLetter.content.profile_image = profileUrl;
-            } else {
-              processedLetter.ai_data.profile_image = profileUrl;
-            }
-          } else if (profileUrl.startsWith("http")) {
-            if (isPDFGeneration) {
-              profileUrl = await convertImageForPDF(profileUrl);
-            }
+        setLetter(coverLetterData);
 
-            if (data.content?.profile_image) {
-              processedLetter.content.profile_image = profileUrl;
-            } else {
-              processedLetter.ai_data.profile_image = profileUrl;
-            }
-          } else {
-            if (isPDFGeneration) {
-              const { data: publicUrlData } = supabase.storage
-                .from("cv_files")
-                .getPublicUrl(profileUrl);
-
-              if (publicUrlData?.publicUrl) {
-                profileUrl = await convertImageForPDF(publicUrlData.publicUrl);
-              }
-            } else {
-              try {
-                const { data: signedUrlData, error: urlError } =
-                  await supabase.storage.from("cv_files").createSignedUrl(
-                    profileUrl,
-                    7 * 24 * 60 * 60
-                  );
-
-                if (!urlError && signedUrlData?.signedUrl) {
-                  profileUrl = signedUrlData.signedUrl;
-                }
-              } catch (urlError) {
-                console.warn("⚠️ URL:n haku epäonnistui:", urlError);
-              }
-            }
-
-            if (data.content?.profile_image) {
-              processedLetter.content.profile_image = profileUrl;
-            } else {
-              processedLetter.ai_data.profile_image = profileUrl;
-            }
-          }
-        }
-
-        console.log("✅ Cover letter prosessoitu onnistuneesti");
-
-        setLetter(processedLetter);
       } catch (error) {
-        console.error("❌ Virhe cover letterin latauksessa:", error);
-        setError(
-          error instanceof Error ? error.message : "Tuntematon virhe"
-        );
+        console.error("❌ LOAD ERROR:", error);
+        setError(error instanceof Error ? error.message : "Unknown error");
       } finally {
         setLoading(false);
       }
@@ -151,135 +146,51 @@ export default function CoverLetterPreviewPage() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 9999,
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div style={{ 
-            fontSize: "18px", 
-            color: "#666",
-            marginBottom: "10px" 
-          }}>
-            Ladataan hakukirjettä...
-          </div>
-          <div style={{
-            width: "40px",
-            height: "40px",
-            border: "4px solid #f3f3f3",
-            borderTop: "4px solid #3b82f6",
-            borderRadius: "50%",
-            animation: "spin 1s linear infinite",
-            margin: "0 auto"
-          }} />
-        </div>
+      <div style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "white",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <div>Ladataan...</div>
       </div>
     );
   }
 
   if (error || !letter) {
     return (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ 
-          textAlign: "center",
-          padding: "20px",
-          maxWidth: "500px"
-        }}>
-          <div style={{ 
-            color: "#dc3545", 
-            fontSize: "18px",
-            fontWeight: "bold",
-            marginBottom: "10px"
-          }}>
-            ❌ Virhe hakukirjeen latauksessa
+      <div style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "white",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <div>
+          <div style={{ color: "red", fontSize: "18px", fontWeight: "bold" }}>
+            ❌ Virhe
           </div>
-          <div style={{ 
-            color: "#666", 
-            fontSize: "14px" 
-          }}>
-            {error || "Hakukirjettä ei löytynyt"}
-          </div>
-          <div style={{
-            marginTop: "20px",
-            fontSize: "12px",
-            color: "#999"
-          }}>
-            Letter ID: {id}
-          </div>
+          <div>{error || "Letter not found"}</div>
         </div>
       </div>
     );
   }
 
-  // ✅ KORJAUS: Varmista että kaikki pakolliset kentät on olemassa
-  const coverLetterData = {
-    name: letter.ai_data?.name || letter.content?.name || "Hakija",
-    email: letter.ai_data?.email || letter.content?.email || "",
-    phone: letter.ai_data?.phone || letter.content?.phone || "",
-    location: letter.ai_data?.location || letter.content?.location || "",
-    jobTitle: letter.content?.job_title || letter.ai_data?.job_title || "",
-    companyName: letter.content?.company_name || letter.ai_data?.company_name || "",
-    title: letter.title || 'Hakukirje',
-    content: letter.content?.body || letter.ai_data?.html?.content || '',
-    keyHighlights: letter.ai_data?.key_highlights || [],
-    language: letter.content?.language || 'finnish',
-    style: letter.content?.style || 'professional'
-  };
+  console.log("🎨 RENDERING TEMPLATE WITH DATA:", letter);
 
   return (
     <>
       <style jsx global>{`
-        * {
-          box-sizing: border-box;
-        }
-
+        * { box-sizing: border-box; }
         body {
           margin: 0 !important;
           padding: 0 !important;
           background-color: white !important;
           font-family: 'Merriweather', serif !important;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
         }
-
-        html {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        #__next {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        /* ✅ PRINT STYLES - Varmistaa sinisen palkin tulostuksen */
         @media print {
           * {
             -webkit-print-color-adjust: exact !important;
@@ -288,18 +199,15 @@ export default function CoverLetterPreviewPage() {
         }
       `}</style>
 
-      <div
-        style={{
-          margin: 0,
-          padding: 0,
-          backgroundColor: "white",
-          minHeight: "100vh",
-          width: "100%",
-        }}
-      >
-        <CoverLetterContainer data-template-type="standard" className="mx-auto">
+      <div style={{
+        margin: 0,
+        padding: 0,
+        backgroundColor: "white",
+        minHeight: "100vh",
+      }}>
+        <CoverLetterContainer data-template-type="standard">
           <CoverLetterTemplate
-            data={coverLetterData}
+            data={letter}
             isEditing={false}
             isPdfPreview={isPDFGeneration}
           />

@@ -48,7 +48,7 @@ const GRID_CONFIGS = {
   medium: {
     cols: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
     previewHeight: '400px',
-    scale: { mobile: 0.28, tablet: 0.45, desktop: 0.60 },
+    scale: { mobile: 0.28, tablet: 0.45, desktop: 0.45 },
     label: 'Keskikokoinen',
     icon: Grid3x3
   },
