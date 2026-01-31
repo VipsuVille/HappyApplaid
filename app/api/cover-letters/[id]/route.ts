@@ -1,4 +1,4 @@
-// app/api/cover-letters/[id]/route.ts - ✅ FIXED (SAMA TAPA KUIN CV!)
+// app/api/cover-letters/[id]/route.ts - ✅ NEXT.JS 15 FIX + RLS READY
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase-client';
@@ -9,10 +9,11 @@ import { auth } from '@clerk/nextjs/server';
 // ════════════════════════════════════════════════════════════════
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> } // ✅ NEXT.JS 15: Promise!
 ) {
+  const params = await props.params; // ✅ Await params
+  
   try {
-    // ✅ GET ei vaadi authia (kuten CV)
     const token = req.headers.get('Authorization')?.replace('Bearer ', '');
     const supabase = await getSupabaseClient(token || undefined);
 
@@ -39,19 +40,21 @@ export async function GET(
 }
 
 // ════════════════════════════════════════════════════════════════
-// PATCH - PROTECTED (SAMA TAPA KUIN CV updateCV!)
+// PATCH - PROTECTED
 // ════════════════════════════════════════════════════════════════
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> } // ✅ NEXT.JS 15: Promise!
 ) {
+  const params = await props.params; // ✅ Await params
+  
   console.log('═══════════════════════════════════════════');
   console.log('🔧 [API PATCH] REQUEST RECEIVED');
   console.log('═══════════════════════════════════════════');
   console.log('📍 Letter ID:', params.id);
   
   try {
-    // ✅ STEP 1: GET TOKEN (kuten CV)
+    // ✅ STEP 1: GET TOKEN
     console.log('🔑 [STEP 1] Getting token from request...');
     const authHeader = req.headers.get('Authorization');
     
@@ -64,12 +67,12 @@ export async function PATCH(
     console.log('   - Token exists:', !!token);
     console.log('   - Token length:', token.length);
 
-    // ✅ STEP 2: CREATE SUPABASE CLIENT (SAMA KUIN CV!)
+    // ✅ STEP 2: CREATE SUPABASE CLIENT
     console.log('🔧 [STEP 2] Creating Supabase client with token...');
     const supabase = await getSupabaseClient(token);
     console.log('   - Client created: ✅');
 
-    // ✅ STEP 3: VERIFY USER WITH CLERK (ei Supabase auth!)
+    // ✅ STEP 3: VERIFY USER WITH CLERK
     console.log('👤 [STEP 3] Verifying Clerk user...');
     const { userId } = await auth();
     
@@ -87,7 +90,7 @@ export async function PATCH(
     console.log('   - Has content:', !!body.content);
     console.log('   - Has ai_data:', !!body.ai_data);
 
-    // ✅ STEP 5: UPDATE DATABASE (SAMA KUIN CV updateCV!)
+    // ✅ STEP 5: UPDATE DATABASE
     console.log('💾 [STEP 5] Updating database...');
     
     const { data, error } = await supabase
@@ -138,12 +141,14 @@ export async function PATCH(
 }
 
 // ════════════════════════════════════════════════════════════════
-// DELETE - PROTECTED (SAMA KUIN CV deleteCV!)
+// DELETE - PROTECTED
 // ════════════════════════════════════════════════════════════════
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> } // ✅ NEXT.JS 15: Promise!
 ) {
+  const params = await props.params; // ✅ Await params
+  
   try {
     const { userId } = await auth();
     
