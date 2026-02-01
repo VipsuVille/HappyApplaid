@@ -65,6 +65,11 @@ export default function CoverLetterTemplate({
           📞 {data.phone}
         </div>
       )}
+      {data.location && (
+        <div style={{ marginBottom: isTopLayout ? '8px' : '6px' }}>
+          📍 {data.location}
+        </div>
+      )}
     </div>
   );
 
