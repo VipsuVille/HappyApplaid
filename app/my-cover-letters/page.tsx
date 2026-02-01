@@ -36,26 +36,26 @@ interface CoverLetter {
 type GridSize = 'small' | 'medium' | 'large';
 type MobileView = 'carousel' | 'grid';
 
-// ✅ KOKO KIRJE NÄKYY - skaalattu niin että A4 (297mm) mahtuu
+// ✅ KOKO KIRJE NÄKYY - A4 (297mm @ 96dpi ≈ 1123px korkea)
 const GRID_CONFIGS = {
   small: {
     cols: 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-    previewHeight: '600px',
-    scale: 0.42, // 297mm * 0.42 ≈ 500px (mahtuu 600px:iin)
+    previewHeight: '700px',
+    scale: 0.60, // 1123px * 0.60 = 674px → mahtuu 700px
     label: 'Pieni',
     icon: LayoutGrid
   },
   medium: {
     cols: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
-    previewHeight: '800px',
-    scale: 0.56, // 297mm * 0.56 ≈ 665px (mahtuu 800px:iin)
+    previewHeight: '900px',
+    scale: 0.78, // 1123px * 0.78 = 876px → mahtuu 900px
     label: 'Keskikokoinen',
     icon: Grid3x3
   },
   large: {
     cols: 'grid-cols-1 lg:grid-cols-2',
-    previewHeight: '1000px',
-    scale: 0.71, // 297mm * 0.71 ≈ 845px (mahtuu 1000px:iin)
+    previewHeight: '1150px',
+    scale: 1.0, // 1123px * 1.0 = 1123px → mahtuu 1150px (täysi koko!)
     label: 'Iso',
     icon: Square
   }
