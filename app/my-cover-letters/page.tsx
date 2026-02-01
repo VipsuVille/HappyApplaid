@@ -1,4 +1,4 @@
-// app/my-cover-letters/page.tsx - ✅ FIXED (NO EXPORT ERROR + BETTER PREVIEW)
+// app/my-cover-letters/page.tsx - ✅ KORJATTU (SAMA DATA KUIN EDIT & PDF)
 
 'use client';
 
@@ -11,7 +11,6 @@ import {
   FileText,
   Download,
   Loader2,
-  Sparkles,
   TrendingUp,
   Plus,
   Database,
@@ -37,25 +36,24 @@ interface CoverLetter {
 type GridSize = 'small' | 'medium' | 'large';
 type MobileView = 'carousel' | 'grid';
 
-// ✅ PAREMMAT PREVIEW-KOOT (näkyy koko kirje)
 const GRID_CONFIGS = {
   small: {
     cols: 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-    previewHeight: '400px', // ✅ Kasvatettu
-    scale: 0.28, // ✅ Yksi scale kaikille
+    previewHeight: '400px',
+    scale: 0.28,
     label: 'Pieni',
     icon: LayoutGrid
   },
   medium: {
     cols: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
-    previewHeight: '550px', // ✅ Kasvatettu
+    previewHeight: '550px',
     scale: 0.40,
     label: 'Keskikokoinen',
     icon: Grid3x3
   },
   large: {
     cols: 'grid-cols-1 lg:grid-cols-2',
-    previewHeight: '700px', // ✅ Kasvatettu
+    previewHeight: '700px',
     scale: 0.55,
     label: 'Iso',
     icon: Square
@@ -69,19 +67,11 @@ export default function MyCoverLettersPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
-  const letterRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [gridSize, setGridSize] = useState<GridSize>('medium');
-
-  // Mobile
   const [mobileView, setMobileView] = useState<MobileView>('carousel');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
 
-  const setLetterRef = useCallback((letterId: string) => (el: HTMLDivElement | null) => {
-    letterRefs.current[letterId] = el;
-  }, []);
-
-  // Mobile detection
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -92,7 +82,6 @@ export default function MyCoverLettersPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Carousel navigation
   const nextSlide = () => {
     setCurrentIndex((prev) => 
       prev === coverLetters.length - 1 ? 0 : prev + 1
@@ -105,7 +94,6 @@ export default function MyCoverLettersPage() {
     );
   };
 
-  // Touch gestures
   const touchStartX = useRef(0);
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -225,9 +213,10 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  // ✅ HELPER FUNCTION (EI EXPORT!)
+  // ✅ KORJATTU: SAMA DATA KUIN EDIT-SIVU JA PDF!
   function convertToCoverLetterData(letter: CoverLetter) {
     return {
+      // ✅ TÄRKEÄ: Sama prioriteetti kuin edit-sivu ja PDF
       name: letter.content?.contactInfo?.name || 
             letter.ai_data?.name || 
             letter.content?.name || 
@@ -258,6 +247,7 @@ export default function MyCoverLettersPage() {
       
       title: letter.title,
       
+      // ✅ TÄRKEÄ: Sama prioriteetti!
       content: letter.content?.body || 
                letter.ai_data?.html?.content || 
                '',
@@ -266,13 +256,13 @@ export default function MyCoverLettersPage() {
       language: letter.content?.language || "finnish",
       style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative",
       
+      // ✅ Styling (sama kuin edit-sivu)
       headerColor: letter.content?.headerColor || 'rgb(181, 152, 79)',
       headerLayout: (letter.content?.headerLayout || 'top') as 'top' | 'left',
       sidebarContent: (letter.content?.sidebarContent || 'contact') as 'contact' | 'highlights' | 'none',
     };
   }
 
-  // ✅ RENDER LETTER CARD
   const renderLetterCard = (letter: CoverLetter, isCarousel: boolean = false) => {
     const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
     const displayTitle = letter.title || smartTitle;
@@ -285,9 +275,8 @@ export default function MyCoverLettersPage() {
     const previewScale = isCarousel ? 0.38 : currentGrid.scale;
 
     return (
-      <div className={`backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden ${!isCarousel ? 'group' : ''}`}>
+      <div className={`backdrop-blur-xl bg-card border border-border rounded-2xl overflow-hidden ${!isCarousel ? 'group relative' : ''}`}>
         
-        {/* Delete button (grid only) */}
         {!isCarousel && (
           <div className="absolute top-3 right-3 z-20">
             <button
@@ -304,7 +293,6 @@ export default function MyCoverLettersPage() {
           </div>
         )}
 
-        {/* ✅ PREVIEW (KOKO KIRJE NÄKYY!) */}
         <div
           className="relative w-full overflow-hidden bg-muted/20"
           style={{ height: previewHeight }}
@@ -325,7 +313,6 @@ export default function MyCoverLettersPage() {
           </div>
         </div>
 
-        {/* Info */}
         <div className="p-4 border-t border-border">
           <h3 className="text-base md:text-lg font-bold mb-2 text-foreground truncate">
             {displayTitle}
@@ -334,7 +321,6 @@ export default function MyCoverLettersPage() {
             {new Date(letter.created_at).toLocaleDateString('fi-FI')}
           </p>
 
-          {/* Badges */}
           <div className="flex flex-wrap gap-2 mb-3">
             {isRAG && (
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30">
@@ -357,7 +343,6 @@ export default function MyCoverLettersPage() {
             )}
           </div>
 
-          {/* Actions */}
           <div className="flex gap-2">
             <button
               onClick={() => handleDownloadPDF(letter.id, displayTitle)}
@@ -383,7 +368,6 @@ export default function MyCoverLettersPage() {
             </Link>
           </div>
 
-          {/* Delete (carousel only) */}
           {isCarousel && (
             <button
               onClick={() => handleDelete(letter.id)}
@@ -405,7 +389,6 @@ export default function MyCoverLettersPage() {
     );
   };
 
-  // Loading
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -417,7 +400,6 @@ export default function MyCoverLettersPage() {
     );
   }
 
-  // Error
   if (error) {
     return (
       <div className="min-h-screen bg-background">
@@ -437,7 +419,6 @@ export default function MyCoverLettersPage() {
     );
   }
 
-  // Empty
   if (coverLetters.length === 0) {
     return (
       <div className="min-h-screen bg-background">
@@ -469,7 +450,6 @@ export default function MyCoverLettersPage() {
       
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
         
-        {/* Header */}
         <div className="mb-8">
           <div className="backdrop-blur-xl bg-card border border-border rounded-3xl p-6 md:p-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -491,7 +471,6 @@ export default function MyCoverLettersPage() {
               </Link>
             </div>
 
-            {/* View controls */}
             <div className="mt-6 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <IconComponent className="w-4 h-4" />
@@ -499,7 +478,6 @@ export default function MyCoverLettersPage() {
               </div>
               
               <div className="flex gap-2 flex-wrap">
-                {/* Mobile: Carousel vs Grid */}
                 {isMobile && (
                   <>
                     <button
@@ -528,7 +506,6 @@ export default function MyCoverLettersPage() {
                   </>
                 )}
 
-                {/* Grid sizes */}
                 {showGrid && (
                   <>
                     {(Object.keys(GRID_CONFIGS) as GridSize[]).map((size) => {
@@ -555,7 +532,6 @@ export default function MyCoverLettersPage() {
           </div>
         </div>
 
-        {/* Mobile Carousel */}
         {showCarousel ? (
           <div className="relative px-2">
             <div
@@ -577,7 +553,6 @@ export default function MyCoverLettersPage() {
               </div>
             </div>
 
-            {/* Arrows */}
             {coverLetters.length > 1 && (
               <>
                 <button
@@ -596,7 +571,6 @@ export default function MyCoverLettersPage() {
               </>
             )}
 
-            {/* Dots */}
             {coverLetters.length > 1 && (
               <div className="flex justify-center gap-2 mt-4">
                 {coverLetters.map((_, index) => (
@@ -613,13 +587,11 @@ export default function MyCoverLettersPage() {
               </div>
             )}
 
-            {/* Counter */}
             <p className="text-center mt-2 text-sm text-muted-foreground">
               {currentIndex + 1} / {coverLetters.length}
             </p>
           </div>
         ) : (
-          /* Grid */
           <div className={`grid ${currentGrid.cols} gap-4 md:gap-6`}>
             {coverLetters.map((letter) => (
               <div key={letter.id} className="relative">
