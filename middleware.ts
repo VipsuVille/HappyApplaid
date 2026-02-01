@@ -133,22 +133,31 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   // 4. Cover letter API - GET julkinen, muut vaativat auth
-  if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
-    if (req.method === 'GET') {
-      console.log(`✅ Public GET: ${url.pathname}`);
-      return response;
-    }
-    
-    const authState = await auth();
-    const { userId } = authState;
-    
-    if (!userId) {
-      console.error(`❌ Unauthorized ${req.method}: ${url.pathname}`);
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
+
+// ✅ UUSI (toimii):
+if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
+  // GET on julkinen (ei tarvitse kirjautumista)
+  if (req.method === 'GET') {
+    console.log(`✅ [Middleware] Public GET: ${url.pathname}`);
     return response;
   }
+  
+  // PATCH, DELETE → Tarkista että Authorization header on olemassa
+  const authHeader = req.headers.get('Authorization');
+  
+  console.log(`🔑 [Middleware] ${req.method} ${url.pathname}`);
+  console.log(`   - Has Authorization header:`, !!authHeader);
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.error(`❌ [Middleware] Unauthorized ${req.method}: No token in header`);
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  
+  // ✅ Token löytyi, päästä pyyntö API routelle
+  console.log(`✅ [Middleware] Token found, passing to API route`);
+  return response;
+}
+
 
   // 5. Rate limiting
   if (url.pathname.startsWith('/api/')) {
