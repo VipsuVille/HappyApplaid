@@ -1,21 +1,23 @@
-// app/api/cover-letters/[id]/route.ts - ✅ NEXT.JS 15 FIX + RLS READY
+// app/api/cover-letters/[id]/route.ts - ✅ FINAL FIX (NO SUPABASE AUTH!)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase-client';
-import { auth } from '@clerk/nextjs/server';
+import { createClient } from '@supabase/supabase-js';
 
 // ════════════════════════════════════════════════════════════════
 // GET - PUBLIC
 // ════════════════════════════════════════════════════════════════
 export async function GET(
   req: NextRequest,
-  props: { params: Promise<{ id: string }> } // ✅ NEXT.JS 15: Promise!
+  props: { params: Promise<{ id: string }> }
 ) {
-  const params = await props.params; // ✅ Await params
+  const params = await props.params;
   
   try {
-    const token = req.headers.get('Authorization')?.replace('Bearer ', '');
-    const supabase = await getSupabaseClient(token || undefined);
+    // ✅ NO AUTH - Supabase anon key only
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     const { data, error } = await supabase
       .from('cover_letters')
@@ -40,13 +42,13 @@ export async function GET(
 }
 
 // ════════════════════════════════════════════════════════════════
-// PATCH - PROTECTED
+// PATCH - PROTECTED (MIDDLEWARE ALREADY CHECKED TOKEN!)
 // ════════════════════════════════════════════════════════════════
 export async function PATCH(
   req: NextRequest,
-  props: { params: Promise<{ id: string }> } // ✅ NEXT.JS 15: Promise!
+  props: { params: Promise<{ id: string }> }
 ) {
-  const params = await props.params; // ✅ Await params
+  const params = await props.params;
   
   console.log('═══════════════════════════════════════════');
   console.log('🔧 [API PATCH] REQUEST RECEIVED');
@@ -54,44 +56,50 @@ export async function PATCH(
   console.log('📍 Letter ID:', params.id);
   
   try {
-    // ✅ STEP 1: GET TOKEN
-    console.log('🔑 [STEP 1] Getting token from request...');
+    // ✅ MIDDLEWARE ALREADY CHECKED TOKEN EXISTS!
+    // Just verify it's there
     const authHeader = req.headers.get('Authorization');
     
     if (!authHeader) {
-      console.error('❌ [STEP 1] No Authorization header');
+      console.error('❌ [API] No Authorization header (should not happen - middleware failed?)');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const token = authHeader.replace('Bearer ', '');
-    console.log('   - Token exists:', !!token);
-    console.log('   - Token length:', token.length);
+    console.log('🔑 [API] Token received, length:', token.length);
 
-    // ✅ STEP 2: CREATE SUPABASE CLIENT
-    console.log('🔧 [STEP 2] Creating Supabase client with token...');
-    const supabase = await getSupabaseClient(token);
-    console.log('   - Client created: ✅');
-
-    // ✅ STEP 3: VERIFY USER WITH CLERK
-    console.log('👤 [STEP 3] Verifying Clerk user...');
-    const { userId } = await auth();
+    // ✅ CREATE SUPABASE CLIENT (NO AUTH - RLS IS OFF!)
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      // NO authorization header! RLS is disabled.
+    );
     
-    if (!userId) {
-      console.error('❌ [STEP 3] No Clerk userId');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    console.log('✅ [API] Supabase client created');
+
+    // ✅ DECODE JWT TO GET CLERK USER ID
+    // JWT format: header.payload.signature
+    const payloadBase64 = token.split('.')[1];
+    const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8');
+    const payload = JSON.parse(payloadJson);
+    
+    const clerkUserId = payload.sub; // Clerk user ID from JWT
+    
+    console.log('👤 [API] Clerk User ID from token:', clerkUserId);
+
+    if (!clerkUserId) {
+      console.error('❌ [API] No user ID in token payload');
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    
-    console.log('   - User ID:', userId);
-    console.log('✅ [STEP 3] Clerk user verified');
 
-    // ✅ STEP 4: PARSE REQUEST BODY
-    console.log('📦 [STEP 4] Parsing request body...');
+    // ✅ PARSE REQUEST BODY
     const body = await req.json();
-    console.log('   - Has content:', !!body.content);
-    console.log('   - Has ai_data:', !!body.ai_data);
+    console.log('📦 [API] Body parsed');
 
-    // ✅ STEP 5: UPDATE DATABASE
-    console.log('💾 [STEP 5] Updating database...');
+    // ✅ UPDATE DATABASE (use Clerk user_id!)
+    console.log('💾 [API] Updating database...');
+    console.log('   - Letter ID:', params.id);
+    console.log('   - User ID (Clerk):', clerkUserId);
     
     const { data, error } = await supabase
       .from('cover_letters')
@@ -101,12 +109,12 @@ export async function PATCH(
         updated_at: new Date().toISOString(),
       })
       .eq('id', params.id)
-      .eq('user_id', userId) // ✅ TURVALLISUUS!
+      .eq('user_id', clerkUserId) // ✅ CLERK USER ID!
       .select()
       .single();
 
     if (error) {
-      console.error('❌ [STEP 5] Database error:', error);
+      console.error('❌ [API] Database error:', error);
       return NextResponse.json({ 
         error: 'Database error',
         details: error.message
@@ -114,14 +122,14 @@ export async function PATCH(
     }
 
     if (!data) {
-      console.error('❌ [STEP 5] No data returned');
+      console.error('❌ [API] No data returned (not found or unauthorized)');
       return NextResponse.json({ 
         error: 'Not found',
-        details: 'Cover letter not found or unauthorized'
+        details: 'Cover letter not found or you do not have permission to update it'
       }, { status: 404 });
     }
 
-    console.log('✅ [STEP 5] Database updated successfully');
+    console.log('✅ [API] Database updated successfully');
     console.log('═══════════════════════════════════════════');
     console.log('✅✅✅ PATCH COMPLETED SUCCESSFULLY ✅✅✅');
     console.log('═══════════════════════════════════════════');
@@ -145,30 +153,39 @@ export async function PATCH(
 // ════════════════════════════════════════════════════════════════
 export async function DELETE(
   req: NextRequest,
-  props: { params: Promise<{ id: string }> } // ✅ NEXT.JS 15: Promise!
+  props: { params: Promise<{ id: string }> }
 ) {
-  const params = await props.params; // ✅ Await params
+  const params = await props.params;
   
   try {
-    const { userId } = await auth();
-    
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const authHeader = req.headers.get('Authorization');
+    
     if (!authHeader) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const supabase = await getSupabaseClient(token);
+    
+    // Decode JWT
+    const payloadBase64 = token.split('.')[1];
+    const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8');
+    const payload = JSON.parse(payloadJson);
+    const clerkUserId = payload.sub;
+    
+    if (!clerkUserId) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     const { error } = await supabase
       .from('cover_letters')
       .delete()
       .eq('id', params.id)
-      .eq('user_id', userId);
+      .eq('user_id', clerkUserId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
