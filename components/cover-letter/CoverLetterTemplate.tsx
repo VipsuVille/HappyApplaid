@@ -1,35 +1,24 @@
 // components/cover-letter/CoverLetterTemplate.tsx
-// ✅ FINAL: Valittavat vahvuudet/yhteystiedot + koko sivun mittainen left-layout
+// ✅ FINAL: Sama renderöinti kuin edit-sivu, EI placeholdereita
 
 'use client';
 
 import React from 'react';
 
 export interface CoverLetterData {
-  // Contact info
   name: string;
   email: string;
   phone: string;
   location: string;
-  
-  // Job details
   jobTitle?: string;
   companyName?: string;
-  
-  // Letter content
   title?: string;
   content: string;
   keyHighlights?: string[];
-  
-  // Styling
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
-  
-  // ✅ HEADER CUSTOMIZATION
   headerColor?: string;
   headerLayout?: 'top' | 'left';
-  
-  // ✅ UUSI: Sidebar/header sisältö
   sidebarContent?: 'contact' | 'highlights' | 'none';
 }
 
@@ -41,25 +30,21 @@ interface CoverLetterTemplateProps {
 
 export default function CoverLetterTemplate({ 
   data, 
-  isPdfPreview = false,
-  isEditing = false 
+  isPdfPreview = false 
 }: CoverLetterTemplateProps) {
   
-  // ✅ DEFAULT VALUES
-  const headerColor = data.headerColor || 'rgb(181, 152, 79)'; // Kultainen/pronssi
+  const headerColor = data.headerColor || 'rgb(181, 152, 79)';
   const headerLayout = data.headerLayout || 'top';
-  const sidebarContent = data.sidebarContent || 'contact'; // Oletus: yhteystiedot
+  const sidebarContent = data.sidebarContent || 'contact';
   
-  // Split content into paragraphs
   const paragraphs = data.content?.split('\n\n').filter(p => p.trim()) || [];
   
-  // ✅ Tarkista onko general-letter (ei companyName)
-  const isGeneral = !data.companyName;
+  const today = new Date().toLocaleDateString('fi-FI', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
 
-  // ═══════════════════════════════════════════════════════════════
-  // SHARED: Header/Sidebar sisältö komponentti
-  // ═══════════════════════════════════════════════════════════════
-  
   const ContactInfo = ({ isTopLayout = false }: { isTopLayout?: boolean }) => (
     <div
       style={{
@@ -72,28 +57,12 @@ export default function CoverLetterTemplate({
     >
       {data.email && (
         <div style={{ marginBottom: isTopLayout ? '8px' : '6px', wordBreak: 'break-word' }}>
-          {isTopLayout ? `[${data.email}]` : data.email}
+          📧 {data.email}
         </div>
       )}
       {data.phone && (
         <div style={{ marginBottom: isTopLayout ? '8px' : '6px' }}>
-          {isTopLayout ? `[${data.phone}]` : data.phone}
-        </div>
-      )}
-      {data.location && (
-        <div style={{ marginBottom: isTopLayout ? '8px' : '6px' }}>
-          {isTopLayout ? `[${data.location}]` : data.location}
-        </div>
-      )}
-      {isTopLayout && (
-        <div
-          style={{
-            color: '#5A6C7D',
-            fontStyle: 'italic',
-            fontSize: '9pt',
-          }}
-        >
-          [Mahd. LinkedIn profiili]
+          📞 {data.phone}
         </div>
       )}
     </div>
@@ -120,7 +89,7 @@ export default function CoverLetterTemplate({
             listStyle: 'none',
             padding: 0,
             margin: 0,
-            fontSize: isTopLayout ? '9pt' : '9pt',
+            fontSize: '9pt',
             color: '#5A6C7D',
             lineHeight: '1.6',
             textAlign: isTopLayout ? 'right' : 'left',
@@ -146,10 +115,6 @@ export default function CoverLetterTemplate({
     );
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // TOP LAYOUT (default) - Vaaka-asettelu
-  // ═══════════════════════════════════════════════════════════════
-  
   if (headerLayout === 'top') {
     return (
       <div
@@ -161,7 +126,6 @@ export default function CoverLetterTemplate({
           color: '#1a202c',
         }}
       >
-        {/* ✅ HEADER - Top layout */}
         <div
           className="header-box"
           style={{
@@ -174,7 +138,6 @@ export default function CoverLetterTemplate({
             printColorAdjust: 'exact',
           }}
         >
-          {/* Vasen: Nimi */}
           <div style={{ flex: 1 }}>
             <h1
               style={{
@@ -192,45 +155,23 @@ export default function CoverLetterTemplate({
             </h1>
           </div>
 
-          {/* ✅ Oikea: Yhteystiedot TAI Vahvuudet TAI tyhjä */}
           <div style={{ minWidth: '200px' }}>
             {sidebarContent === 'contact' && <ContactInfo isTopLayout={true} />}
             {sidebarContent === 'highlights' && <KeyHighlights isTopLayout={true} />}
-            {/* Jos 'none', ei näytetä mitään */}
           </div>
         </div>
 
-        {/* ✅ SISÄLTÖALUE */}
         <div style={{ padding: '50px 50px' }}>
-          {/* Työnimike */}
-          {data.jobTitle && (
-            <div
-              style={{
-                fontStyle: 'italic',
-                fontSize: '11pt',
-                color: '#5A6C7D',
-                marginBottom: '24px',
-              }}
-            >
-              <span>Työnhakemus [{data.jobTitle}]</span>
-            </div>
-          )}
+          <div
+            style={{
+              marginBottom: '24px',
+              fontSize: '11pt',
+              color: '#5A6C7D',
+            }}
+          >
+            {today}
+          </div>
 
-          {/* Vastaanottaja - vain jos EI general-letter */}
-          {!isGeneral && data.companyName && (
-            <div
-              style={{
-                marginBottom: '24px',
-                fontSize: '11pt',
-                fontStyle: 'italic',
-                color: '#5A6C7D',
-              }}
-            >
-              <span>Hei [Teijo Työnantaja / {data.companyName}],</span>
-            </div>
-          )}
-
-          {/* PÄÄSISÄLTÖ */}
           <div style={{ marginBottom: '40px' }}>
             <div
               style={{
@@ -254,7 +195,6 @@ export default function CoverLetterTemplate({
             </div>
           </div>
 
-          {/* ALLEKIRJOITUS */}
           <div style={{ marginTop: '48px' }}>
             <p
               style={{
@@ -280,7 +220,6 @@ export default function CoverLetterTemplate({
           </div>
         </div>
 
-        {/* PDF Debug */}
         {isPdfPreview && process.env.NODE_ENV === 'development' && (
           <div
             style={{
@@ -301,28 +240,23 @@ export default function CoverLetterTemplate({
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // LEFT LAYOUT (sidebar) - Pysty-asettelu
-  // ═══════════════════════════════════════════════════════════════
-  
   if (headerLayout === 'left') {
     return (
       <div
         className="cover-letter-paper bg-white mx-auto relative"
         style={{
           width: '210mm',
-          height: '297mm', // ✅ KIINTEÄ korkeus = koko sivun mittainen väri
+          height: '297mm',
           fontFamily: "'Merriweather', serif",
           color: '#1a202c',
           display: 'flex',
           overflow: 'hidden',
         }}
       >
-        {/* ✅ LEFT SIDEBAR - KOKO SIVUN KORKUINEN */}
         <div
           style={{
             width: '70mm',
-            height: '100%', // ✅ Koko sivun korkeus
+            height: '100%',
             background: headerColor,
             padding: '40px 25px',
             display: 'flex',
@@ -332,7 +266,6 @@ export default function CoverLetterTemplate({
             printColorAdjust: 'exact',
           }}
         >
-          {/* Nimi */}
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h1
               style={{
@@ -348,7 +281,6 @@ export default function CoverLetterTemplate({
             </h1>
           </div>
 
-          {/* ✅ Yhteystiedot TAI Vahvuudet TAI tyhjä */}
           {sidebarContent === 'contact' && (
             <div style={{ width: '100%', marginBottom: '30px' }}>
               <ContactInfo isTopLayout={false} />
@@ -360,41 +292,19 @@ export default function CoverLetterTemplate({
               <KeyHighlights isTopLayout={false} />
             </div>
           )}
-          
-          {/* Jos 'none', ei näytetä mitään */}
         </div>
 
-        {/* ✅ MAIN CONTENT (right side) */}
         <div style={{ flex: 1, padding: '50px 40px', overflowY: 'auto' }}>
-          {/* Työnimike */}
-          {data.jobTitle && (
-            <div
-              style={{
-                fontStyle: 'italic',
-                fontSize: '11pt',
-                color: '#5A6C7D',
-                marginBottom: '24px',
-              }}
-            >
-              <span>Työnhakemus [{data.jobTitle}]</span>
-            </div>
-          )}
+          <div
+            style={{
+              marginBottom: '24px',
+              fontSize: '11pt',
+              color: '#5A6C7D',
+            }}
+          >
+            {today}
+          </div>
 
-          {/* Vastaanottaja */}
-          {!isGeneral && data.companyName && (
-            <div
-              style={{
-                marginBottom: '24px',
-                fontSize: '11pt',
-                fontStyle: 'italic',
-                color: '#5A6C7D',
-              }}
-            >
-              <span>Hei [Teijo Työnantaja / {data.companyName}],</span>
-            </div>
-          )}
-
-          {/* PÄÄSISÄLTÖ */}
           <div style={{ marginBottom: '40px' }}>
             <div
               style={{
@@ -418,7 +328,6 @@ export default function CoverLetterTemplate({
             </div>
           </div>
 
-          {/* ALLEKIRJOITUS */}
           <div style={{ marginTop: '48px' }}>
             <p
               style={{
@@ -443,28 +352,9 @@ export default function CoverLetterTemplate({
             </p>
           </div>
         </div>
-
-        {/* PDF Debug */}
-        {isPdfPreview && process.env.NODE_ENV === 'development' && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '5px',
-              right: '5px',
-              fontSize: '8px',
-              color: '#94a3b8',
-              background: '#fef3c7',
-              padding: '2px 6px',
-              borderRadius: '3px',
-            }}
-          >
-            PDF Mode
-          </div>
-        )}
       </div>
     );
   }
 
-  // Fallback
   return null;
 }

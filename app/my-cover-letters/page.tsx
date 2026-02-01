@@ -36,25 +36,26 @@ interface CoverLetter {
 type GridSize = 'small' | 'medium' | 'large';
 type MobileView = 'carousel' | 'grid';
 
+// ✅ SUUREMMAT PREVIEWS - näkyy koko sivu paremmin
 const GRID_CONFIGS = {
   small: {
     cols: 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-    previewHeight: '400px',
-    scale: 0.28,
+    previewHeight: '500px', // 400 → 500
+    scale: 0.35, // 0.28 → 0.35
     label: 'Pieni',
     icon: LayoutGrid
   },
   medium: {
     cols: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
-    previewHeight: '550px',
-    scale: 0.40,
+    previewHeight: '700px', // 550 → 700
+    scale: 0.50, // 0.40 → 0.50
     label: 'Keskikokoinen',
     icon: Grid3x3
   },
   large: {
     cols: 'grid-cols-1 lg:grid-cols-2',
-    previewHeight: '700px',
-    scale: 0.55,
+    previewHeight: '850px', // 700 → 850
+    scale: 0.65, // 0.55 → 0.65
     label: 'Iso',
     icon: Square
   }
