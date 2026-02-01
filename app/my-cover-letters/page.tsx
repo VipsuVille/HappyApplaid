@@ -36,26 +36,26 @@ interface CoverLetter {
 type GridSize = 'small' | 'medium' | 'large';
 type MobileView = 'carousel' | 'grid';
 
-// ✅ SUUREMMAT PREVIEWS - näkyy koko sivu paremmin
+// ✅ KOKO KIRJE NÄKYY - skaalattu niin että A4 (297mm) mahtuu
 const GRID_CONFIGS = {
   small: {
     cols: 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-    previewHeight: '500px', // 400 → 500
-    scale: 0.35, // 0.28 → 0.35
+    previewHeight: '600px',
+    scale: 0.42, // 297mm * 0.42 ≈ 500px (mahtuu 600px:iin)
     label: 'Pieni',
     icon: LayoutGrid
   },
   medium: {
     cols: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
-    previewHeight: '700px', // 550 → 700
-    scale: 0.50, // 0.40 → 0.50
+    previewHeight: '800px',
+    scale: 0.56, // 297mm * 0.56 ≈ 665px (mahtuu 800px:iin)
     label: 'Keskikokoinen',
     icon: Grid3x3
   },
   large: {
     cols: 'grid-cols-1 lg:grid-cols-2',
-    previewHeight: '850px', // 700 → 850
-    scale: 0.65, // 0.55 → 0.65
+    previewHeight: '1000px',
+    scale: 0.71, // 297mm * 0.71 ≈ 845px (mahtuu 1000px:iin)
     label: 'Iso',
     icon: Square
   }
@@ -294,13 +294,18 @@ export default function MyCoverLettersPage() {
           </div>
         )}
 
+        {/* ✅ PREVIEW - KOKO SIVU NÄKYY, KESKITETTY, EI SCROLLIA */}
         <div
-          className="relative w-full overflow-hidden bg-muted/20"
-          style={{ height: previewHeight }}
+          className="relative w-full bg-muted/20"
+          style={{ 
+            height: previewHeight,
+            overflow: 'hidden', // EI scrollia
+          }}
         >
-          <div className="absolute inset-0 overflow-y-auto flex justify-center items-start py-4 px-2">
+          {/* ✅ KESKITETTY vertically & horizontally */}
+          <div className="absolute inset-0 flex items-center justify-center p-4">
             <div 
-              className="origin-top"
+              className="origin-center" // center, ei top
               style={{ transform: `scale(${previewScale})` }}
             >
               <CoverLetterContainer className="bg-white shadow-lg">
