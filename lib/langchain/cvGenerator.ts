@@ -1,4 +1,4 @@
-// lib/langchain/cvGenerator.ts - WITH QUESTION LOGIC
+// lib/langchain/cvGenerator.ts - FULLY FIXED WITH FORCED QUESTIONS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -21,7 +21,7 @@ import {
 } from "@/lib/ats/masterGuardian";
 
 import { buildAIContext } from "@/lib/knowledge";
-import { analyzeJobAndProfile } from "./smartQuestionAnalyzer"; // ✅ LISÄTTY
+import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 import { FALLBACK_IMAGE } from "../utils";
 
 // ════════════════════════════════════════════════════════════════
@@ -31,7 +31,7 @@ import { FALLBACK_IMAGE } from "../utils";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 // ════════════════════════════════════════════════════════════════
-// TYPES (sama kuin ennen)
+// TYPES
 // ════════════════════════════════════════════════════════════════
 
 type PersonalityExtraction = {
@@ -168,7 +168,7 @@ interface CVGenerationResult {
   personal_description: string;
   html: CVOutputType['cv_content'];
   background_image: string;
-  profile_image: string; // ✅ JO OLEMASSA
+  profile_image: string;
   profile_initials: string;
   fullTextContent: string;
   ats_data: CVOutputType['ats_optimization'] | null;
@@ -184,12 +184,10 @@ interface CVGenerationResult {
     background_prompt: string;
     visual_elements: string[];
   };
-  // ❌ POISTA TÄMÄ jos se on täällä:
-  // ats_optimization?: CVOutputType['ats_optimization'];
 }
 
 // ════════════════════════════════════════════════════════════════
-// HELPERS (samat kuin ennen)
+// HELPERS
 // ════════════════════════════════════════════════════════════════
 
 function toLangChainInput(input: CVGeneratorInput): LangChainCVInput {
@@ -295,7 +293,6 @@ function generateInitials(name: string): string {
   return names.map((n) => n.charAt(0).toUpperCase()).join("");
 }
 
-// ✅ UUSI: MERGE ANSWERS
 function mergeCVAnswers(
   userData: LangChainCVInput,
   answers: Array<{ id: string; question: string; answer: string }>
@@ -306,39 +303,30 @@ function mergeCVAnswers(
     const q = item.question.toLowerCase();
     const a = item.answer;
 
-    // Työkokemukseen liittyvät
-    if (q.includes('työkokemus') || q.includes('work experience') || q.includes('projektit')) {
+    if (q.includes('työkokemus') || q.includes('work experience') || q.includes('projektit') || q.includes('projects')) {
       merged.workExperience = (merged.workExperience || userData.workExperience || '') + '\n\n' + a;
     }
-    // Koulutukseen liittyvät
     else if (q.includes('koulutus') || q.includes('education') || q.includes('opiskelu')) {
       merged.education = (merged.education || userData.education || '') + '\n\n' + a;
     }
-    // Taitoihin liittyvät
     else if (q.includes('osaaminen') || q.includes('taidot') || q.includes('skills')) {
       merged.skills = (merged.skills || userData.skills || '') + ', ' + a;
     }
-    // Työskentelytyyli
     else if (q.includes('työskentelytyyli') || q.includes('working style')) {
       merged.workingStyle = a;
     }
-    // Ongelmanratkaisu
     else if (q.includes('ongelmanratkaisu') || q.includes('problem solving')) {
       merged.problemSolving = a;
     }
-    // Vahvuudet
     else if (q.includes('vahvuus') || q.includes('strength')) {
       merged.uniqueStrength = a;
     }
-    // Tavoitteet
     else if (q.includes('tavoite') || q.includes('goal')) {
       merged.careerGoals = a;
     }
-    // Projekti-esimerkki
     else if (q.includes('projekti') || q.includes('project')) {
       merged.bestProjectExample = a;
     }
-    // Kaikki muu → lisää workExperience tai careerGoals
     else {
       if (a.length > 50) {
         merged.workExperience = (merged.workExperience || userData.workExperience || '') + '\n\n' + a;
@@ -350,14 +338,9 @@ function mergeCVAnswers(
 }
 
 // ════════════════════════════════════════════════════════════════
-// PROMPTS (✅ POISTETTU PITUUSRAJOITUKSET!)
+// PROMPTS
 // ════════════════════════════════════════════════════════════════
 
-// ════════════════════════════════════════════════════════════════
-// PROMPTS - PÄIVITETTY STRATEGIA
-// ════════════════════════════════════════════════════════════════
-
-// ✅ SIMPLE CV - Rento, persoonallinen esittely
 const simplePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are creating a PERSONAL, FRIENDLY CV in first person.
 
@@ -403,7 +386,6 @@ Best Project: {bestProjectExample}
 Write in {language}. Be warm, personal, and engaging. Tell their story.`]
 ]);
 
-// ✅ TECHNICAL CV - Ammattimainen, listamainen
 const technicalPrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are creating a PROFESSIONAL, STRUCTURED CV in first person.
 
@@ -418,6 +400,13 @@ const technicalPrompt = ChatPromptTemplate.fromMessages([
 **STRUCTURE:**
 - Personal Description: 100-150 sanaa (ammattitasoinen, asiallinen)
 - Skills: Lista teknologioista ja työkaluista, taitotasot
+  * CRITICAL: Structure skills with categories using HTML:
+    <h3>Category Name</h3>
+    <ul>
+      <li>Skill 1</li>
+      <li>Skill 2</li>
+    </ul>
+  * Example categories: Programming Languages, Tools & Frameworks, Databases, Cloud & DevOps
 - Experience: Bullet-muotoinen, mitattavat tulokset
 - Education: Kurssit, arvosanat, sertifikaatit
 - Languages: Taitotasot selkeästi
@@ -448,7 +437,6 @@ Best Project: {bestProjectExample}
 Write in {language}. Be professional, structured, and clear. Focus on measurable results.`]
 ]);
 
-// ✅ CREATIVE CV - Leikittelevä mutta ammattitasoinen
 const creativePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are creating a CREATIVE, DYNAMIC CV in first person.
 
@@ -495,7 +483,7 @@ Write in {language}. Be creative, dynamic, and memorable. Mix storytelling with 
 ]);
 
 // ════════════════════════════════════════════════════════════════
-// ATS & RAG CONTEXT BUILDERS
+// CONTEXT BUILDERS
 // ════════════════════════════════════════════════════════════════
 
 function buildATSInstructions(jobPosting?: string): string {
@@ -530,21 +518,8 @@ Tailor the CV to match this job posting's requirements.
 `;
 }
 
-function buildRAGContext(ragEnabled: boolean, ragData?: string): string {
-  if (!ragEnabled || !ragData) return '';
-  
-  return `
-**📚 CV EXPERT INSIGHTS (from professional articles):**
-
-${ragData}
-
-Use these insights to enhance CV quality and structure.
-`;
-}
-
-
 // ════════════════════════════════════════════════════════════════
-// (muut funktiot säilyvät samana: analyzeJobPosting, sanitize, etc.)
+// OTHER HELPERS
 // ════════════════════════════════════════════════════════════════
 
 export async function analyzeJobPosting(jobPostingText: string): Promise<JobAnalysis> {
@@ -746,11 +721,7 @@ export async function generateEnhancedBackgroundImage(
 }
 
 // ════════════════════════════════════════════════════════════════
-// ✅ MAIN FUNCTION - KYSYMYSLOGIIKKA LISÄTTY!
-// ════════════════════════════════════════════════════════════════
-
-// ════════════════════════════════════════════════════════════════
-// ✅ MAIN FUNCTION - KYSYMYSLOGIIKKA LISÄTTY!
+// ✅ MAIN FUNCTION WITH FORCED QUESTIONS
 // ════════════════════════════════════════════════════════════════
 
 export async function generateCVWithPersonalityExtraction(
@@ -760,9 +731,8 @@ export async function generateCVWithPersonalityExtraction(
   console.log('   - User:', userData.name);
   console.log('   - Type:', userData.cvType);
   console.log('   - Skip Questions:', userData.skipQuestions);
-    // 🔍 VERSION TRACKER - DO NOT REMOVE
-  const ROUTE_VERSION = '2025-01-17-DEFENSIVE-V3';
-  console.log(`🔍 ROUTE VERSIONoooooooooooooon: ${ROUTE_VERSION}`);
+  console.log('   - Language:', userData.language);
+  
   const timer = new PerformanceTimer();
   timer.start("Total Generation");
   
@@ -776,14 +746,13 @@ export async function generateCVWithPersonalityExtraction(
     }
   };
 
-  // ✅ EKSTRAKTOI KAIKKI TARVITTAVAT MUUTTUJAT HETI ALUSSA
   const { 
     authToken, 
     jobPosting, 
     userId, 
     skipQuestions, 
     answeredQuestions,
-    enableRAG // ✅ LISÄTTY TÄNNE!
+    enableRAG
   } = userData;
 
   try {
@@ -791,102 +760,116 @@ export async function generateCVWithPersonalityExtraction(
     checkTimeout();
     
     // ════════════════════════════════════════════════════════════════
-    // STEP 1: QUESTION ANALYSIS
+    // ✅ PAKKORATKAISU: FORCE QUESTIONS IF PROFILE INCOMPLETE
     // ════════════════════════════════════════════════════════════════
     
-    console.log('🔍 [CV GEN] STEP 1: Question Analysis');
-    console.log('   - skipQuestions:', skipQuestions);
-    
-    if (!skipQuestions) {
-      console.log('   → Running question analysis...');
-      timer.start("Question Analysis");
-
-      try {
-        console.log('   → Calling analyzeJobAndProfile...');
-        
-        const smartAnalysis = await analyzeJobAndProfile({
-          jobDescription: jobPosting || `Creating ${userData.cvType} CV`,
-          userProfile: {
-            name: userData.name || "Not specified",
-            workExperience: userData.workExperience || "Not specified",
-            education: userData.education || "Not specified",
-            skills: userData.skills || "Not specified",
-            workingStyle: userData.workingStyle || "Not specified",
-            problemSolving: userData.problemSolving || "Not specified",
-            uniqueStrength: userData.uniqueStrength || "Not specified",
-            careerGoals: userData.careerGoals || "Not specified",
-            bestProjectExample: userData.bestProjectExample || "Not specified",
-            failureLesson: userData.failureLesson || "Not specified",
-            personalNotes: userData.profile || "Not specified",
-          },
-          language: userData.language || 'finnish',
-          userId: userId
+    if (!skipQuestions && (!answeredQuestions || answeredQuestions.length === 0)) {
+      console.log('🔍 [CV GEN] Checking profile completeness...');
+      
+      const forcedQuestions: any[] = [];
+      const isFinnish = userData.language === 'finnish';
+      
+      // Check work experience
+      if (!userData.workExperience || userData.workExperience.length < 50) {
+        forcedQuestions.push({
+          id: 'work_experience_detail',
+          question: isFinnish 
+            ? 'Kerro tarkemmin työkokemuksestasi. Mitä projekteja teit? Mitä teknologioita käytit?'
+            : 'Tell me more about your work experience. What projects did you work on? What technologies did you use?',
+          why: isFinnish 
+            ? 'Lisätiedot tekevät CV:stä vakuuttavamman'
+            : 'More details make your CV more convincing',
+          jobRequirement: 'Work experience details',
+          currentUserData: userData.workExperience || 'Not specified',
+          priority: 'critical' as const
         });
-
-        console.log('   ✅ analyzeJobAndProfile completed');
-        console.log('   - Should ask:', smartAnalysis.shouldAskQuestions);
-        console.log('   - Questions:', smartAnalysis.questions?.length || 0);
-        
-        timer.end();
-
-        if (smartAnalysis.shouldAskQuestions && smartAnalysis.questions.length > 0) {
-          const unanswered = smartAnalysis.questions.filter((q) => {
-            if (!answeredQuestions?.length) return true;
-            return !answeredQuestions.some(
-              (a) => a.id === q.id || a.question === q.question
-            );
-          });
-
-          const critical = unanswered.filter(q => q.priority === 'critical');
-          
-          console.log('   - Unanswered:', unanswered.length);
-          console.log('   - Critical:', critical.length);
-          
-    if (critical.length > 0) {
-  console.log('❓ [CV GEN] Returning questions (exiting early)');
-  
-  return {
-    personal_description: "",
-    html: {
-      skills_section: "",
-      experience_section: "",
-      education_section: "",
-      languages_section: "",
-    },
-    background_image: "",
-    profile_image: "",
-    profile_initials: "",
-    fullTextContent: "",
-    ats_data: null,
-    job_analysis: {
-      required_skills: [],
-      preferred_skills: [],
-      soft_skills: [],
-      company_values: [],
-      key_responsibilities: [],
-      experience_level: "mid",
-      industry_keywords: [],
-    },
-    images: {
-      background_prompt: "",
-      visual_elements: [],
-    },
-    needsMoreInfo: true,
-    questions: critical,
-  };
-}  // ✅ TÄMÄ PUUTTUI!
-        }
-console.log('   ✅ No critical questions needed');
-      } catch (analysisError) {
-        timer.end();
-        console.error('   ❌ Question analysis ERROR:', analysisError);
-        console.warn('   → Continuing without questions');
       }
-    } else {
-      console.log('   ⭐ Questions skipped (skipQuestions=true)');
+      
+      // Check skills
+      if (!userData.skills || userData.skills.split(',').length < 3) {
+        forcedQuestions.push({
+          id: 'skills_detail',
+          question: isFinnish
+            ? 'Listaa tärkeimmät taitosi (esim. Python, React, AWS, Docker)'
+            : 'List your main skills (e.g. Python, React, AWS, Docker)',
+          why: isFinnish
+            ? 'Taidot ovat työnantajalle tärkeitä'
+            : 'Skills are important to employers',
+          jobRequirement: 'Technical skills',
+          currentUserData: userData.skills || 'Not specified',
+          priority: 'critical' as const
+        });
+      }
+      
+      // Check education
+      if (!userData.education || userData.education.length < 20) {
+        forcedQuestions.push({
+          id: 'education_detail',
+          question: isFinnish
+            ? 'Kerro koulutuksestasi (tutkinto, oppilaitos, valmistumisvuosi)'
+            : 'Tell me about your education (degree, institution, graduation year)',
+          why: isFinnish
+            ? 'Koulutus on olennainen osa CV:tä'
+            : 'Education is an essential part of your CV',
+          jobRequirement: 'Education background',
+          currentUserData: userData.education || 'Not specified',
+          priority: 'critical' as const
+        });
+      }
+      
+      // Check project example
+      if (!userData.bestProjectExample || userData.bestProjectExample.length < 30) {
+        forcedQuestions.push({
+          id: 'best_project',
+          question: isFinnish
+            ? 'Mikä on paras projektisi? Mitä saavutit?'
+            : 'What is your best project? What did you achieve?',
+          why: isFinnish
+            ? 'Konkreettiset esimerkit vahvistavat osaamista'
+            : 'Concrete examples validate your expertise',
+          jobRequirement: 'Project examples',
+          currentUserData: userData.bestProjectExample || 'Not specified',
+          priority: 'important' as const
+        });
+      }
+      
+      if (forcedQuestions.length > 0) {
+        console.log(`❓ [CV GEN] Profile incomplete! Returning ${forcedQuestions.length} questions`);
+        console.log('   Questions:', forcedQuestions.map(q => q.question));
+        
+        return {
+          personal_description: "",
+          html: {
+            skills_section: "",
+            experience_section: "",
+            education_section: "",
+            languages_section: "",
+          },
+          background_image: "",
+          profile_image: "",
+          profile_initials: "",
+          fullTextContent: "",
+          ats_data: null,
+          job_analysis: {
+            required_skills: [],
+            preferred_skills: [],
+            soft_skills: [],
+            company_values: [],
+            key_responsibilities: [],
+            experience_level: "mid",
+            industry_keywords: [],
+          },
+          images: {
+            background_prompt: "",
+            visual_elements: [],
+          },
+          needsMoreInfo: true,
+          questions: forcedQuestions,
+        };
+      }
+      
+      console.log('✅ [CV GEN] Profile complete enough, proceeding...');
     }
-
-    console.log('✅ [CV GEN] STEP 1 completed');
     
     // ════════════════════════════════════════════════════════════════
     // STEP 2: MERGE ANSWERS
@@ -920,46 +903,16 @@ console.log('   ✅ No critical questions needed');
       
       console.log('   ✅ Answers merged');
       timer.end();
-    } else {
-      console.log('   ⭐ No answers to merge');
     }
 
     console.log('✅ [CV GEN] STEP 2 completed');
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 3: EXTRACTIONS (simplified)
+    // STEP 3: SIMPLIFIED EXTRACTIONS
     // ════════════════════════════════════════════════════════════════
 
-    console.log('🔬 [CV GEN] STEP 3: Extractions (simplified)');
+    console.log('🔬 [CV GEN] STEP 3: Extractions');
     timer.start("Extractions");
-
-    const personalityExtraction: PersonalityExtraction = {
-      overallPersonality: {
-        summary: "Professional with growth mindset",
-        topTraits: ["Adaptable", "Motivated"],
-        workplaceStrengths: ["Communication"],
-        detectedLanguage: enhancedUserData.language || 'finnish'
-      },
-      extractionQuality: {
-        completeness: 0.5,
-        clarity: 0.5,
-        businessRelevance: 0.5,
-        suggestions: []
-      }
-    };
-
-    const groundTruth: GroundTruth = {
-      technicalSkills: (enhancedUserData.skills || "").split(',').map((s: string) => s.trim()).filter(Boolean),
-      softSkills: [],
-      education: enhancedUserData.education ? [enhancedUserData.education] : [],
-      certifications: [],
-      workHistory: [],
-      achievements: [],
-      cannotClaim: [],
-      personalityTraits: [],
-      careerLevel: 'mid',
-      yearsOfExperience: 0
-    };
 
     const jobAnalysis: JobAnalysis = {
       required_skills: [],
@@ -982,44 +935,31 @@ console.log('   ✅ No critical questions needed');
     // STEP 4: SELECT PROMPT & BUILD CONTEXT
     // ════════════════════════════════════════════════════════════════
 
-    console.log('🎨 [CV GEN] STEP 4: Prompt Selection & Context Building');
+    console.log('🎨 [CV GEN] STEP 4: Prompt Selection');
     timer.start("Prompt Selection");
 
     let promptTemplate: ChatPromptTemplate;
-    let cvTypeDescription: string;
 
     switch (finalUserData.cvType) {
       case 'simple':
         promptTemplate = simplePrompt;
-        cvTypeDescription = 'rento ja persoonallinen esittely-CV';
         break;
       case 'technical':
         promptTemplate = technicalPrompt;
-        cvTypeDescription = 'ammattimainen tekninen CV';
         break;
       case 'creative':
         promptTemplate = creativePrompt;
-        cvTypeDescription = 'luova ja dynaaminen CV';
         break;
       default:
         promptTemplate = simplePrompt;
-        cvTypeDescription = 'rento CV';
     }
 
-    console.log(`   - CV Type: ${cvTypeDescription}`);
-    console.log(`   - ATS: ${!!jobPosting}`);
-    console.log(`   - RAG: ${!!enableRAG}`);
-
-    // BUILD CONTEXT STRINGS
     const atsInstructions = buildATSInstructions(jobPosting);
     const jobContext = buildJobContext(jobPosting);
 
-    // ✅ RAG Knowledge Context
     let knowledgeContext = '';
     if (enableRAG) {
       try {
-        console.log('   → Building RAG context...');
-        
         knowledgeContext = await buildAIContext({
           jobDescription: jobPosting || 'General CV creation',
           userProfile: {
@@ -1031,23 +971,10 @@ console.log('   ✅ No critical questions needed');
           enableRAG: true,
           contentType: 'cv'
         });
-        
-        console.log(`   ✅ RAG context built: ${knowledgeContext.length} chars`);
       } catch (error) {
-        console.error('   ❌ RAG context failed:', error);
-        
-        knowledgeContext = await buildAIContext({
-          jobDescription: '',
-          enableRAG: false,
-          contentType: 'cv'
-        });
+        console.error('RAG failed:', error);
+        knowledgeContext = '';
       }
-    } else {
-      knowledgeContext = await buildAIContext({
-        jobDescription: '',
-        enableRAG: false,
-        contentType: 'cv'
-      });
     }
 
     timer.end();
@@ -1127,12 +1054,6 @@ console.log('   ✅ No critical questions needed');
 
     console.log('🏁 [CV GEN] STEP 7: Finalization');
 
-    const guardianCheck = {
-      approved: true,
-      riskLevel: 'safe' as const,
-      violations: {}
-    };
-
     timer.start("Background");
 
     let backgroundImage: string = "";
@@ -1157,7 +1078,7 @@ console.log('   ✅ No critical questions needed');
           backgroundImage = generatedUrl;
         }
       } catch (error) {
-        console.error('   ❌ Background generation error:', error);
+        console.error('Background generation error:', error);
       }
     }
 
@@ -1174,33 +1095,30 @@ ${parsedOutput.cv_content.experience_section}
 
     timer.getResults();
 
-    console.log('✅ [CV GEN] COMPLETE - Returning result');
+    console.log('✅ [CV GEN] COMPLETE');
 
-    // ✅ RETURN - Tämä on tärkein!
- return {
-  personal_description: parsedOutput.personal_description,
-  html: parsedOutput.cv_content,
-  background_image: finalBackgroundImage || "", // ✅ Käytä finalBackgroundImage
-  profile_image: profileImageClean || "", // ✅ Käytä profileImageClean
-  profile_initials: userData.profileImage ? "" : generateInitials(userData.name),
-  fullTextContent: fullTextContent,
-  ats_data: parsedOutput.ats_optimization || null, // ✅ VAIN ats_data, EI ats_optimization
-  job_analysis: jobAnalysis,
-  ground_truth_check: guardianCheck, // ✅ Lisää tämä jos haluat
-  images: {
-    background_prompt: "",
-    visual_elements: [],
-  },
-};
+    return {
+      personal_description: parsedOutput.personal_description,
+      html: parsedOutput.cv_content,
+      background_image: finalBackgroundImage || "",
+      profile_image: profileImageClean || "",
+      profile_initials: userData.profileImage ? "" : generateInitials(userData.name),
+      fullTextContent: fullTextContent,
+      ats_data: parsedOutput.ats_optimization || null,
+      job_analysis: jobAnalysis,
+      images: {
+        background_prompt: "",
+        visual_elements: [],
+      },
+    };
     
   } catch (error) {
     console.error('❌ [CV GEN] FATAL ERROR:', error);
-    console.error('   Stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
     throw error;
   }
 }
 
-// ✅ POISTA MYÖS TURHAT FUNKTIOT LOPUSTA:
 export async function generateCVSafely(
   userData: CVGeneratorInput
 ): Promise<CVGenerationResult> {

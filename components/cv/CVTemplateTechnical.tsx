@@ -22,7 +22,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   const [skillsTop, setSkillsTop] = useState(0);
 
   /* ============================================================
-     IMAGE HANDLING – IDENTICAL LOGIC TO SimpleCVTemplate
+     IMAGE HANDLING
   ============================================================ */
 
   const isValidImage = (src?: string | null) => {
@@ -73,7 +73,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   const bgImage = getBackgroundImage();
 
   /* ============================================================
-     AI CONTENT – IDENTICAL LOGIC TO SimpleCVTemplate
+     AI CONTENT
   ============================================================ */
 
   const getAIContent = (field: keyof AIData): string => {
@@ -90,6 +90,60 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     }
     return "";
   };
+
+  /* ============================================================
+     PARSE SKILLS TO STRUCTURED FORMAT
+  ============================================================ */
+
+  const parseSkills = (): { category: string; items: string[] }[] => {
+    const skillsHTML = getAIContent("skills_section");
+    if (!skillsHTML) {
+      // Fallback: Parse from data.skills
+      const skillsText = data?.skills || "";
+      if (!skillsText) return [];
+      
+      const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
+      return [{ category: "Skills", items: skills }];
+    }
+
+    // Parse HTML structure
+    const categories: { category: string; items: string[] }[] = [];
+    
+    // Try to extract from <h3> + <ul> structure
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(skillsHTML, 'text/html');
+    
+    const sections = doc.querySelectorAll('h3, h4, strong');
+    sections.forEach((heading) => {
+      const category = heading.textContent?.trim() || 'Skills';
+      const items: string[] = [];
+      
+      let nextElement = heading.nextElementSibling;
+      while (nextElement && nextElement.tagName === 'UL') {
+        nextElement.querySelectorAll('li').forEach(li => {
+          const text = li.textContent?.trim();
+          if (text) items.push(text);
+        });
+        nextElement = nextElement.nextElementSibling;
+      }
+      
+      if (items.length > 0) {
+        categories.push({ category, items });
+      }
+    });
+
+    // Fallback: if no structure, split by lines
+    if (categories.length === 0) {
+      const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').filter(l => l.trim());
+      if (lines.length > 0) {
+        categories.push({ category: 'Skills', items: lines });
+      }
+    }
+
+    return categories;
+  };
+
+  const skillCategories = parseSkills();
 
   const name = data?.name || "Nimi";
   const title = data?.title || "Ammattinimike";
@@ -114,20 +168,20 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         >
           <button
             onClick={() => setSkillsTop((v) => Math.max(-20, v - 5))}
-            className="px-3 py-1 bg-gray-800 text-white rounded"
+            className="px-3 py-1 bg-gray-800 text-white rounded text-xs"
           >
-            ↑
+            ↑ Ylös
           </button>
           <button
             onClick={() => setSkillsTop((v) => Math.min(40, v + 5))}
-            className="px-3 py-1 bg-gray-800 text-white rounded"
+            className="px-3 py-1 bg-gray-800 text-white rounded text-xs"
           >
-            ↓
+            ↓ Alas
           </button>
         </div>
       )}
 
-      {/* LEFT COLUMN */}
+      {/* LEFT COLUMN - DARK */}
       <div
         style={{
           position: "absolute",
@@ -154,8 +208,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           )}
         </div>
 
-        {/* SKILLS */}
-        {getAIContent("skills_section") && (
+        {/* SKILLS - STRUCTURED BULLET LIST */}
+        {skillCategories.length > 0 && (
           <div
             style={{
               padding: "8mm",
@@ -171,25 +225,65 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                 borderBottom: "1px solid rgba(255,255,255,0.6)",
                 paddingBottom: "4mm",
                 marginBottom: "6mm",
+                fontWeight: "bold",
               }}
             >
               Skills
             </h2>
 
-            <div
-              style={{
-                fontSize: "10pt",
-                lineHeight: 1.5,
-              }}
-              dangerouslySetInnerHTML={{
-                __html: getAIContent("skills_section"),
-              }}
-            />
+            {skillCategories.map((category, idx) => (
+              <div key={idx} style={{ marginBottom: "5mm" }}>
+                {skillCategories.length > 1 && (
+                  <h3
+                    style={{
+                      fontSize: "10pt",
+                      fontWeight: "bold",
+                      marginBottom: "2mm",
+                      color: "#d4af37", // Gold accent
+                    }}
+                  >
+                    {category.category}
+                  </h3>
+                )}
+                
+                <ul
+                  style={{
+                    listStyleType: "none",
+                    padding: 0,
+                    margin: 0,
+                    fontSize: "9pt",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {category.items.map((skill, skillIdx) => (
+                    <li
+                      key={skillIdx}
+                      style={{
+                        marginBottom: "2mm",
+                        paddingLeft: "4mm",
+                        position: "relative",
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          color: "#d4af37",
+                        }}
+                      >
+                        •
+                      </span>
+                      {skill}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* RIGHT COLUMN */}
+      {/* RIGHT COLUMN - LIGHT */}
       <div
         style={{
           marginLeft: "70mm",
@@ -197,7 +291,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           height: "297mm",
         }}
       >
-        {/* HEADER */}
+        {/* HEADER WITH BACKGROUND */}
         <div
           style={{
             height: "90mm",
@@ -231,36 +325,67 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
               padding: "10mm",
             }}
           >
-            <h1 style={{ fontSize: "32pt", fontWeight: "bold" }}>{name}</h1>
-            <p style={{ fontSize: "14pt", marginTop: "4mm" }}>{title}</p>
+            <h1
+              style={{
+                fontSize: "32pt",
+                fontWeight: "bold",
+                marginBottom: "2mm",
+              }}
+            >
+              {name}
+            </h1>
+            <p
+              style={{
+                fontSize: "14pt",
+                marginTop: "2mm",
+                marginBottom: "4mm",
+              }}
+            >
+              {title}
+            </p>
 
             <div
               style={{
-                marginTop: "6mm",
+                marginTop: "4mm",
                 fontSize: "9pt",
-                opacity: 0.9,
+                opacity: 0.95,
                 display: "flex",
-                gap: "10mm",
+                gap: "8mm",
                 flexWrap: "wrap",
                 justifyContent: "center",
               }}
             >
-              <span>{data?.email}</span>
-              <span>{data?.phone}</span>
-              <span>{data?.location}</span>
+              {data?.email && <span>📧 {data.email}</span>}
+              {data?.phone && <span>📞 {data.phone}</span>}
+              {data?.location && <span>📍 {data.location}</span>}
             </div>
           </div>
         </div>
 
-        {/* CONTENT */}
+        {/* CONTENT AREA */}
         <div style={{ padding: "10mm" }}>
+          {/* EXPERIENCE */}
           {getAIContent("experience_section") && (
             <section style={{ marginBottom: "8mm" }}>
-              <h2 className="text-sm font-bold uppercase border-b pb-1 mb-2">
-                Experience
+              <h2
+                style={{
+                  fontSize: "12pt",
+                  fontWeight: "bold",
+                  textTransform: "uppercase",
+                  borderBottom: "2px solid #2f2b28",
+                  paddingBottom: "2mm",
+                  marginBottom: "4mm",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Work Experience
               </h2>
               <div
-                className="text-sm leading-relaxed"
+                style={{
+                  fontSize: "10pt",
+                  lineHeight: 1.5,
+                  color: "#333",
+                }}
                 dangerouslySetInnerHTML={{
                   __html: getAIContent("experience_section"),
                 }}
@@ -268,13 +393,28 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             </section>
           )}
 
+          {/* EDUCATION */}
           {getAIContent("education_section") && (
             <section style={{ marginBottom: "8mm" }}>
-              <h2 className="text-sm font-bold uppercase border-b pb-1 mb-2">
+              <h2
+                style={{
+                  fontSize: "12pt",
+                  fontWeight: "bold",
+                  textTransform: "uppercase",
+                  borderBottom: "2px solid #2f2b28",
+                  paddingBottom: "2mm",
+                  marginBottom: "4mm",
+                  letterSpacing: "0.1em",
+                }}
+              >
                 Education
               </h2>
               <div
-                className="text-sm leading-relaxed"
+                style={{
+                  fontSize: "10pt",
+                  lineHeight: 1.5,
+                  color: "#333",
+                }}
                 dangerouslySetInnerHTML={{
                   __html: getAIContent("education_section"),
                 }}
@@ -282,13 +422,28 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             </section>
           )}
 
+          {/* LANGUAGES */}
           {getAIContent("languages_section") && (
             <section>
-              <h2 className="text-sm font-bold uppercase border-b pb-1 mb-2">
+              <h2
+                style={{
+                  fontSize: "12pt",
+                  fontWeight: "bold",
+                  textTransform: "uppercase",
+                  borderBottom: "2px solid #2f2b28",
+                  paddingBottom: "2mm",
+                  marginBottom: "4mm",
+                  letterSpacing: "0.1em",
+                }}
+              >
                 Languages
               </h2>
               <div
-                className="text-sm leading-relaxed"
+                style={{
+                  fontSize: "10pt",
+                  lineHeight: 1.5,
+                  color: "#333",
+                }}
                 dangerouslySetInnerHTML={{
                   __html: getAIContent("languages_section"),
                 }}
