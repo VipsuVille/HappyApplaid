@@ -1,5 +1,4 @@
-// lib/langchain/coverLetterGenerator.ts - ✅ PRIVACY FIXED
-// ATS V1 - EI HENKILÖTIETOJA AI:LLE!
+// lib/langchain/coverLetterGenerator.ts - ✅ FIXED: TRUTH + ADDITIONAL NOTES
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -13,13 +12,13 @@ import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/maste
 export interface ATSV1Input {
   jobDescription: string;
   
-  // 🔒 PRIVACY: Henkilötiedot (EI lähetetä AI:lle, vain template:lle)
+  // 🔒 PRIVACY: Henkilötiedot (EI lähetetä AI:lle)
   name: string;
   email?: string;
   phone?: string;
   location?: string;
   
-  // ✅ ANONYMISOITU DATA (Lähetetään AI:lle)
+  // ✅ ANONYMISOITU DATA
   workExperience?: string;
   education?: string;
   skills?: string;
@@ -38,6 +37,9 @@ export interface ATSV1Input {
   failureLesson?: string;
   personalNotes?: string;
   
+  // ✅ UUSI: Lisätiedot
+  additionalNotes?: string;
+  
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
   enableRAG?: boolean;
@@ -48,9 +50,9 @@ export interface ATSV1Input {
 }
 
 export interface ATSV1Output {
-  content: string; // Body WITHOUT name/contact
+  content: string;
   title: string;
-  signature: string; // Name stored separately
+  signature: string;
   keyHighlights: string[];
   extractedKeywords?: string[];
   guardianReport?: {
@@ -63,7 +65,7 @@ export interface ATSV1Output {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HELPER: BASIC KEYWORD EXTRACTION
+// HELPER: KEYWORD EXTRACTION
 // ═══════════════════════════════════════════════════════════════
 
 async function extractBasicKeywords(jobDescription: string): Promise<string[]> {
@@ -105,29 +107,29 @@ Focus on:
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN V1 GENERATOR - ✅ PRIVACY FIXED
+// MAIN V1 GENERATOR - ✅ TRUTH + ADDITIONAL NOTES
 // ═══════════════════════════════════════════════════════════════
 
 export async function generateATSCoverLetterV1(
   input: ATSV1Input
 ): Promise<ATSV1Output> {
   
-  console.log('🚀 [V1-ATS] Starting basic ATS generation...');
-  console.log('🔒 [V1-ATS] PRIVACY MODE: Name will NOT be sent to AI');
+  console.log('🚀 [V1-ATS] Starting generation...');
+  console.log('🔒 [V1-ATS] Privacy: Name NOT sent to AI');
+  console.log('💬 [V1-ATS] Additional notes:', input.additionalNotes ? 'YES' : 'NO');
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 1: SMART QUESTIONS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   if (!input.skipQuestions) {
-    console.log('🧠 [V1-ATS] Running smart question analysis...');
+    console.log('🧠 [V1-ATS] Checking if questions needed...');
     
     try {
       const analysis = await analyzeJobAndProfile({
         jobDescription: input.jobDescription,
         userProfile: {
-          // 🔒 PRIVACY: NO NAME to question analyzer
-          name: 'Applicant',
+          name: 'Applicant', // ✅ Anonymous
           workExperience: input.workExperience || "",
           education: input.education || "",
           skills: input.skills || "",
@@ -149,20 +151,24 @@ export async function generateATSCoverLetterV1(
         const criticalQuestions = safeQuestions.filter(q => q && q.priority === 'critical');
 
         if (criticalQuestions.length > 0) {
-          console.log(`❓ [V1-ATS] Returning ${criticalQuestions.length} questions`);
+          console.log(`❓ [V1-ATS] Returning ${criticalQuestions.length} critical questions`);
           
           return {
             content: "",
             title: "Lisätietoja tarvitaan",
-            signature: input.name, // ✅ Stored separately
+            signature: input.name,
             keyHighlights: [],
             questions: criticalQuestions,
           };
         }
       }
+      
+      console.log('✅ [V1-ATS] No critical questions needed');
     } catch (error) {
       console.error('⚠️ [V1-ATS] Question analysis failed:', error);
     }
+  } else {
+    console.log('⏭️ [V1-ATS] Questions skipped');
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -171,7 +177,7 @@ export async function generateATSCoverLetterV1(
 
   console.log('🔍 [V1-ATS] Extracting keywords...');
   const keywords = await extractBasicKeywords(input.jobDescription);
-  console.log(`✅ [V1-ATS] Found ${keywords.length} keywords`);
+  console.log(`✅ [V1-ATS] Found ${keywords.length} keywords:`, keywords.slice(0, 5));
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 3: GUARDIAN - EXTRACT GROUND TRUTH
@@ -183,9 +189,6 @@ export async function generateATSCoverLetterV1(
     try {
       groundTruth = await extractGroundTruthAI(
         {
-          // 🔒 PRIVACY: NO NAME to Guardian!
-          // name: input.name, ❌ POISTETTU!
-          
           work_experience: input.workExperience,
           education: input.education,
           skills: input.skills,
@@ -199,9 +202,9 @@ export async function generateATSCoverLetterV1(
         },
         input.userId
       );
-      console.log('✅ [V1-ATS] Ground truth extracted (no personal data sent)');
+      console.log('✅ [V1-ATS] Ground truth extracted');
     } catch (error) {
-      console.error('⚠️ [V1-ATS] Ground truth extraction failed:', error);
+      console.error('⚠️ [V1-ATS] Ground truth failed:', error);
     }
   }
 
@@ -219,137 +222,153 @@ export async function generateATSCoverLetterV1(
   const languageName = isFinnish ? 'suomi' : 'englanti';
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ['system', `You are a cover letter writer (V1 - Basic ATS awareness).
+    ['system', `You are a cover letter writer (V1 - Basic ATS).
 
 # ════════════════════════════════════════════════════════════════
-# 🔒 PRIVACY: NO PERSONAL INFO IN GENERATION
-# ════════════════════════════════════════════════════════════════
-
-**YOU WILL NOT RECEIVE:**
-❌ Applicant's full name
-❌ Email address
-❌ Phone number
-❌ Home address
-
-**YOU WILL RECEIVE:**
-✅ Anonymous work experience
-✅ Skills and education
-✅ Personality traits
-✅ Career goals
-
-**TEMPLATE HANDLES:**
-The system will add name and contact info separately to the final document.
-
-# ════════════════════════════════════════════════════════════════
-# TRUTH SCALE: 3-4 (Critical!)
+# 🚨 CRITICAL: TRUTH SCALE 3-4 (NO FABRICATION!)
 # ════════════════════════════════════════════════════════════════
 
 SCALE 1-10:
-1 = Word-for-word from profile (robotic)
-3-4 = ⭐ TARGET: Reads profile, understands person, writes naturally BUT stays truthful
-10 = Completely fabricates (liar)
+1 = Copy-paste profile (robotic)
+3-4 = ⭐ TARGET: Natural BUT truthful
+10 = Complete fabrication (FORBIDDEN)
+
+**RULES:**
+❌ NEVER fabricate skills not in profile
+❌ NEVER claim knowledge of tools/tech not mentioned
+❌ NEVER say "I am especially interested in X" without evidence
+❌ NEVER invent experiences
+
+✅ DO use TRANSFERABLE SKILLS:
+- "Looginen päättelykyky ohjelmoinnista → tekninen dokumentointi"
+- "Projektikokemus → ymmärrän strukturoidun työn tärkeyden"
+
+✅ DO express interest to LEARN (but mention the keyword):
+- "Vaikka en ole käyttänyt DITA XML:ää, ohjelmointitaustani antaa pohjan oppimiselle"
+  (ATS finds "DITA XML", human sees honesty)
 
 # ════════════════════════════════════════════════════════════════
-# V1: BASIC KEYWORD AWARENESS (NOT OPTIMIZED)
+# 🎯 KEYWORD STRATEGY (V1: Basic Integration)
 # ════════════════════════════════════════════════════════════════
 
-**EXTRACTED KEYWORDS:**
-{keywords}
+**KEYWORDS:** {keywords}
 
-**KEYWORD STRATEGY:**
-1. Use keywords naturally IF user has related experience
-2. Don't force keywords
-3. If no experience → express interest to learn (mention keyword!)
-4. DON'T spam keywords
+**INTEGRATION:**
+1. IF user has skill → Use naturally in context
+2. IF user lacks skill → Use "interest to learn" pattern (includes keyword!)
+3. DON'T spam keywords
 
-**MISSING KEYWORD INTEGRATION:**
-If keyword missing from user's profile, use this pattern:
+**MISSING KEYWORD PATTERN:**
+✅ "Vaikka minulla ei ole kokemusta [KEYWORD], [TRANSFERABLE SKILL] 
+    antaa vahvan pohjan. Olen innokas oppimaan [KEYWORD]."
 
-✅ CORRECT:
-"Vaikka minulla ei ole kokemusta Pythonista, ohjelmointitaustani 
-C#:lla antaa vahvan pohjan. Olen innokas oppimaan Python."
-
-WHY: ATS finds "Python", human sees honesty
-
-❌ WRONG:
-"Kiinnostaa ohjelmointi" (no Python keyword → ATS fails)
+Example:
+"Vaikka en ole työskennellyt teknisen dokumentaation parissa, 
+ohjelmointiprojekteissani havaitsin kuinka kriittistä selkeä 
+dokumentointi on. Tämä herätti kiinnostukseni oppia DITA XML:n ja 
+CCMS-järjestelmien käyttöä."
 
 # ════════════════════════════════════════════════════════════════
-# STRUCTURE (300-400 words)
+# 💬 USER'S SPECIAL INSTRUCTIONS
 # ════════════════════════════════════════════════════════════════
 
-**NO HEADER INFO:**
-- Don't include: Name, email, phone, date, address
+{additionalInstructions}
+
+**FOLLOW THESE INSTRUCTIONS CAREFULLY!**
+User knows their situation best. If they say "emphasize X", do it.
+
+# ════════════════════════════════════════════════════════════════
+# 📝 STRUCTURE (300-400 words)
+# ════════════════════════════════════════════════════════════════
+
+**NO HEADER:**
+- Don't include: Name, email, phone, date
 - Template handles these
 
 **PARAGRAPH 1: HOOK (2-3 sentences)**
-Modern opening (no clichés):
-✅ "Accenturen Fullstack Developer -rooli yhdistää täsmälleen ne teknologiat..."
-❌ "Olen innostunut hakemaan..."
+✅ Modern: "Konecranesin kesätyöharjoittelija-rooli teknisessä 
+    dokumentaatiossa yhdistää täsmälleen..."
+❌ Generic: "Olen innostunut hakemaan..."
 
-**PARAGRAPH 2-3: EXPERIENCE & SKILLS (5-7 sentences)**
-- Real experiences + keywords
-- Use "missing keyword integration" for gaps
-- Concrete examples
+**PARAGRAPH 2-3: EXPERIENCE (5-7 sentences)**
+- Real experiences + transferable skills
+- Use "missing keyword pattern" for gaps
+- Concrete examples from profile
+- Connect personality to role
 
 **PARAGRAPH 4: CLOSING (2 sentences)**
-- Enthusiasm
 - Forward-looking
-- NO signature or name (template handles it)
+- NO signature (template handles it)
 
 ✅ "Odotan innolla mahdollisuutta keskustella."
-[STOP HERE - no name, no "Ystävällisin terveisin"]
+[STOP - no name, no sign-off]
 
 **LANGUAGE:** {languageName}
 **STYLE:** {style}`],
 
-    ['human', `Write cover letter for THIS job (V1 - Basic).
+    ['human', `Write cover letter for THIS job.
 
 **JOB DESCRIPTION:**
 {jobDescription}
 
-**KEYWORDS (use naturally):**
+**KEYWORDS TO INTEGRATE:**
 {keywords}
 
-**APPLICANT (ANONYMIZED - NO NAME):**
-Experience Level: {careerLevel}
+**APPLICANT (ANONYMOUS):**
+Career Level: {careerLevel}
 Years: {yearsOfExperience}
-Work: {workExperience}
+
+Work Experience: {workExperience}
 Education: {education}
 Skills: {skills}
 
-**PERSONALITY:**
+**PERSONALITY & STRENGTHS:**
 Working Style: {workingStyle}
 Problem Solving: {problemSolving}
-Strength: {uniqueStrength}
+Unique Strength: {uniqueStrength}
 Superpower: {superpower}
+Team Role: {teamRole}
 
 **MOTIVATION:**
-Goals: {careerGoals}
+Career Goals: {careerGoals}
 Best Project: {bestProjectExample}
+Failure Lesson: {failureLesson}
 
-**FOLLOW-UP:**
+**USER'S SPECIAL INSTRUCTIONS:**
+{additionalNotes}
+
+**FOLLOW-UP ANSWERS:**
 {followUpAnswers}
 
-**CRITICAL RULES:**
-1. Truth 3-4 (honest but natural)
-2. Integrate keywords (use "missing keyword strategy")
-3. Modern opening
-4. NO name, email, phone, or signature in body
-5. Write in {languageName}
-6. End with forward-looking sentence (no sign-off)
+**CRITICAL REMINDERS:**
+1. Truth Scale 3-4 (NO fabrication!)
+2. Use "missing keyword pattern" for skills gaps
+3. Connect transferable skills from experience
+4. Follow user's special instructions
+5. Modern opening (no clichés)
+6. NO name/email/phone/signature in body
+7. Write in {languageName}
+8. End with forward-looking sentence
 
-Generate body text ONLY. Template will add header and signature.`]
+Generate body text ONLY (no header, no signature).`]
   ]);
 
   try {
+    // ✅ ADDITIONAL NOTES HANDLING
+    let additionalInstructionsText = 'None';
+    if (input.additionalNotes && input.additionalNotes.trim()) {
+      additionalInstructionsText = `**USER SAYS:**\n"${input.additionalNotes}"\n\n**YOU MUST FOLLOW THIS!** User knows their situation best.`;
+      console.log('💬 [V1-ATS] Using additional notes:', input.additionalNotes.substring(0, 50) + '...');
+    }
+
     const formatted = await prompt.formatMessages({
       languageName,
       style: input.style || 'professional',
       keywords: keywords.join(', '),
       jobDescription: input.jobDescription,
+      additionalInstructions: additionalInstructionsText,
       
-      // ✅ ANONYMIZED DATA ONLY
+      // ✅ ANONYMIZED DATA
       careerLevel: input.careerLevel || 'mid',
       yearsOfExperience: input.yearsOfExperience || 0,
       workExperience: input.workExperience || 'Building experience',
@@ -362,6 +381,8 @@ Generate body text ONLY. Template will add header and signature.`]
       teamRole: input.teamRole || 'Collaborative',
       careerGoals: input.careerGoals || 'Professional growth',
       bestProjectExample: input.bestProjectExample || 'No specific project',
+      failureLesson: input.failureLesson || 'Always learning',
+      additionalNotes: input.additionalNotes || 'None',
       followUpAnswers: input.followUpAnswers 
         ? Object.entries(input.followUpAnswers).map(([q, a]) => `${q}: ${a}`).join('\n')
         : 'None',
@@ -373,26 +394,22 @@ Generate body text ONLY. Template will add header and signature.`]
       ? result.content 
       : JSON.stringify(result.content);
 
-    // ✅ PUHDISTUS: Poista turhat merkit
+    // ✅ CLEANUP
     content = content
       .replace(/\[.*?\]/g, '')
       .replace(/\n\s*\n\s*\n/g, '\n\n')
-      .trim();
-
-    // ✅ PUHDISTUS: Poista lopputeksti (AI saattaa lisätä vahingossa)
-    content = content
       .replace(/Ystävällisin terveisin,?\s*/gi, '')
       .replace(/Best regards,?\s*/gi, '')
       .replace(/Sincerely,?\s*/gi, '')
       .trim();
 
-    // ✅ PUHDISTUS: Poista nimi jos AI lisäsi sen vahingossa
+    // ✅ REMOVE NAME IF LEAKED
     const namePattern = new RegExp(`\\b${input.name}\\b`, 'gi');
     const nameCount = (content.match(namePattern) || []).length;
     
     if (nameCount > 0) {
-      console.warn(`⚠️ [V1-ATS] AI accidentally included name ${nameCount} times - removing`);
-      content = content.replace(namePattern, '[Name will be added by template]').trim();
+      console.warn(`⚠️ [V1-ATS] AI leaked name ${nameCount} times - removing`);
+      content = content.replace(namePattern, '').trim();
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -401,25 +418,30 @@ Generate body text ONLY. Template will add header and signature.`]
 
     let guardianReport = null;
     if (input.guardianValidation !== false && groundTruth) {
-      console.log('🛡️ [V1-ATS] Running Guardian validation...');
+      console.log('🛡️ [V1-ATS] Running Guardian...');
       try {
         guardianReport = await masterGuardianValidatorV2(
           content,
           groundTruth,
           'generation'
         );
-        console.log(`🛡️ [V1-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES'}`);
+        console.log(`🛡️ [V1-ATS] Guardian: ${guardianReport.approved ? 'APPROVED ✅' : 'ISSUES ⚠️'}`);
+        
+        if (!guardianReport.approved) {
+          console.warn('⚠️ [V1-ATS] Guardian violations:', guardianReport.violations);
+        }
       } catch (error) {
-        console.error('⚠️ [V1-ATS] Guardian validation failed:', error);
+        console.error('⚠️ [V1-ATS] Guardian failed:', error);
       }
     }
 
-    console.log(`✅ [V1-ATS] Generated ${content.length} chars (body only, no personal data)`);
+    console.log(`✅ [V1-ATS] Generated ${content.length} chars`);
+    console.log(`📊 [V1-ATS] Keywords used: ${keywords.length}`);
 
     return {
-      content, // ✅ Body WITHOUT name/contact
+      content,
       title: `Application - ${input.jobDescription.substring(0, 50)}...`,
-      signature: input.name, // ✅ Stored separately
+      signature: input.name,
       keyHighlights: keywords.slice(0, 5),
       extractedKeywords: keywords,
       guardianReport: guardianReport || undefined,

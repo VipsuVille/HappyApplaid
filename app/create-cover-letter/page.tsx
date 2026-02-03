@@ -72,8 +72,11 @@ export default function CreateCoverLetterPage() {
   const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
   const freeUsage = useFreeUsage();
 
-  const isPremium = plan_type === 'premium' || plan_type === 'basic';
-  const canUseV2 = isPremium && letterType === 'job_specific';
+  // ✅ KORJATTU: ATS saatavilla Basic & Premium
+  // ✅ MUTTA: V2 VAIN Premium-käyttäjille!
+  const hasATS = plan_type === 'premium' || plan_type === 'basic';
+  const isPremiumOnly = plan_type === 'premium';
+  const canUseV2 = isPremiumOnly && letterType === 'job_specific';
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
 
@@ -545,10 +548,11 @@ export default function CreateCoverLetterPage() {
               </div>
             </section>
 
-            {/* SECTION 3: ATS (sama kuin ennen) */}
+            {/* SECTION 3: ATS OPTIMIZATION */}
             {letterType === 'job_specific' && (
               <>
-                {!isPremium && (
+                {/* ✅ PREMIUM BOX (jos EI Basic tai Premium) */}
+                {!hasATS && (
                   <section className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-[2.5rem] shadow-2xl overflow-hidden">
                     <div 
                       className="p-6 md:p-10 cursor-pointer md:cursor-default"
@@ -559,11 +563,62 @@ export default function CreateCoverLetterPage() {
                   </section>
                 )}
 
-                {isPremium && (
+                {/* ✅ ATS SETTINGS (jos Basic tai Premium) */}
+                {hasATS && (
                   <section className={`rounded-[2.5rem] p-10 border ${
                     letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-900/20 border-gray-800/50'
                   }`}>
-                    {/* ATS settings... (sama kuin ennen) */}
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex items-center gap-3">
+                        <Shield className={`w-10 h-10 p-2 rounded-2xl ${
+                          letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-gray-800/50 text-gray-500 border-gray-700'
+                        } border`} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-bold text-white">{t.sectionOptimization}</h3>
+                            {isPremiumOnly && <Crown className="w-4 h-4 text-amber-400" />}
+                          </div>
+                          <p className="text-xs text-gray-500">{t.atsToggle}</p>
+                        </div>
+                      </div>
+                      
+                      {/* ✅ V2 TOGGLE - VAIN PREMIUM */}
+                      {canUseV2 && (
+                        <button 
+                          onClick={() => setLetterVersion(letterVersion === 'v2' ? 'v1' : 'v2')}
+                          className={`relative w-14 h-7 rounded-full transition-colors ${
+                            letterVersion === 'v2' ? 'bg-emerald-500' : 'bg-gray-800'
+                          }`}
+                        >
+                          <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
+                            letterVersion === 'v2' ? 'translate-x-7' : ''
+                          }`} />
+                        </button>
+                      )}
+                      
+                      {/* ✅ V2 LOCKED (jos Basic) */}
+                      {!canUseV2 && hasATS && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
+                          <Lock className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-[10px] font-black text-amber-500 uppercase tracking-tighter">V2: Premium Only</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Info Box */}
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex gap-3 mb-6">
+                      <Info className="w-5 h-5 text-blue-400 shrink-0" />
+                      <p className="text-xs text-blue-200/70">
+                        {letterVersion === 'v2' && canUseV2
+                          ? '✅ ATS V2: Iteratiivinen optimointi käytössä (tavoite >= 75%)'
+                          : hasATS && !canUseV2
+                          ? 'ℹ️ ATS V1: Perusoptimointi käytössä (Basic). Premium = V2 iteratiivinen optimointi.'
+                          : 'ℹ️ ATS V1: Perusoptimointi käytössä'
+                        }
+                      </p>
+                    </div>
+                    
+                    {/* Job Posting */}
                     <textarea
                       value={jobPosting}
                       onChange={(e) => setJobPosting(e.target.value)}
@@ -573,7 +628,8 @@ export default function CreateCoverLetterPage() {
                   </section>
                 )}
 
-                {!isPremium && (
+                {/* ✅ ILMAINEN: Job Posting ilman ATS */}
+                {!hasATS && (
                   <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
                     <div className="flex items-center gap-3 mb-6">
                       <Briefcase className="w-10 h-10 p-2 rounded-2xl bg-gray-800/50 text-gray-400 border border-gray-700" />
