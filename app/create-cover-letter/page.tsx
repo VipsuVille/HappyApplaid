@@ -72,11 +72,9 @@ export default function CreateCoverLetterPage() {
   const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
   const freeUsage = useFreeUsage();
 
-  // ✅ KORJATTU: ATS saatavilla Basic & Premium
-  // ✅ MUTTA: V2 VAIN Premium-käyttäjille!
-  const hasATS = plan_type === 'premium' || plan_type === 'basic';
-  const isPremiumOnly = plan_type === 'premium';
-  const canUseV2 = isPremiumOnly && letterType === 'job_specific';
+  // ✅ SAMA LOGIIKKA KUIN create-cv:ssä
+  const canUseATS = plan_type !== 'free'; // Basic TAI Premium
+  const canUseV2 = plan_type === 'premium' && letterType === 'job_specific'; // VAIN Premium
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
 
@@ -273,10 +271,11 @@ export default function CreateCoverLetterPage() {
       return;
     }
 
-    if (letterVersion === 'v2' && !isPremium) {
+    if (letterVersion === 'v2' && plan_type !== 'premium') {
       toast.error('ATS V2 vaatii Premium-tilauksen');
       return;
     }
+
 
     console.log('🚀 Starting generation with type:', apiType);
 
@@ -444,7 +443,7 @@ export default function CreateCoverLetterPage() {
               </div>
             </div>
             <div className="w-px h-10 bg-gray-800" />
-            <Crown className={`w-6 h-6 ${isPremium ? 'text-amber-400' : 'text-gray-600'}`} />
+            <Crown className={`w-6 h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
           </div>
         </div>
 
@@ -552,7 +551,7 @@ export default function CreateCoverLetterPage() {
             {letterType === 'job_specific' && (
               <>
                 {/* ✅ PREMIUM BOX (jos EI Basic tai Premium) */}
-                {!hasATS && (
+                {!canUseATS && (
                   <section className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-[2.5rem] shadow-2xl overflow-hidden">
                     <div 
                       className="p-6 md:p-10 cursor-pointer md:cursor-default"
@@ -564,7 +563,7 @@ export default function CreateCoverLetterPage() {
                 )}
 
                 {/* ✅ ATS SETTINGS (jos Basic tai Premium) */}
-                {hasATS && (
+                {canUseATS && (
                   <section className={`rounded-[2.5rem] p-10 border ${
                     letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-900/20 border-gray-800/50'
                   }`}>
@@ -576,7 +575,7 @@ export default function CreateCoverLetterPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="text-xl font-bold text-white">{t.sectionOptimization}</h3>
-                            {isPremiumOnly && <Crown className="w-4 h-4 text-amber-400" />}
+                            {plan_type === 'premium' && <Crown className="w-4 h-4 text-amber-400" />}
                           </div>
                           <p className="text-xs text-gray-500">{t.atsToggle}</p>
                         </div>
@@ -597,7 +596,7 @@ export default function CreateCoverLetterPage() {
                       )}
                       
                       {/* ✅ V2 LOCKED (jos Basic) */}
-                      {!canUseV2 && hasATS && (
+                      {!canUseV2 && canUseATS && (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
                           <Lock className="w-3.5 h-3.5 text-amber-500" />
                           <span className="text-[10px] font-black text-amber-500 uppercase tracking-tighter">V2: Premium Only</span>
@@ -611,7 +610,7 @@ export default function CreateCoverLetterPage() {
                       <p className="text-xs text-blue-200/70">
                         {letterVersion === 'v2' && canUseV2
                           ? '✅ ATS V2: Iteratiivinen optimointi käytössä (tavoite >= 75%)'
-                          : hasATS && !canUseV2
+                          : canUseATS && !canUseV2
                           ? 'ℹ️ ATS V1: Perusoptimointi käytössä (Basic). Premium = V2 iteratiivinen optimointi.'
                           : 'ℹ️ ATS V1: Perusoptimointi käytössä'
                         }
@@ -629,7 +628,7 @@ export default function CreateCoverLetterPage() {
                 )}
 
                 {/* ✅ ILMAINEN: Job Posting ilman ATS */}
-                {!hasATS && (
+                {!canUseATS && (
                   <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
                     <div className="flex items-center gap-3 mb-6">
                       <Briefcase className="w-10 h-10 p-2 rounded-2xl bg-gray-800/50 text-gray-400 border border-gray-700" />
