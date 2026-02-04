@@ -731,6 +731,7 @@ export async function generateCVWithPersonalityExtraction(
   console.log('   - User:', userData.name);
   console.log('   - Type:', userData.cvType);
   console.log('   - Skip Questions:', userData.skipQuestions);
+  console.log('   - Answered Questions:', userData.answeredQuestions?.length || 0); // ✅ LISÄTTY
   console.log('   - Language:', userData.language);
   
   const timer = new PerformanceTimer();
@@ -760,10 +761,21 @@ export async function generateCVWithPersonalityExtraction(
     checkTimeout();
     
     // ════════════════════════════════════════════════════════════════
-    // ✅ PAKKORATKAISU: FORCE QUESTIONS IF PROFILE INCOMPLETE
+    // ✅ KYSYMYSLOOPPI KORJAUS: AUTO-SKIP JOS ON VASTAUKSIA
     // ════════════════════════════════════════════════════════════════
     
-    if (!skipQuestions && (!answeredQuestions || answeredQuestions.length === 0)) {
+    // ✅ KRIITTINEN: Jos käyttäjä on vastannut kysymyksiin, EI kysytä uudestaan
+    const hasAnswers = answeredQuestions && answeredQuestions.length > 0;
+    const shouldSkipQuestions = skipQuestions || hasAnswers;
+    
+    console.log('🔍 [CV GEN] Question logic:', {
+      skipQuestions: skipQuestions,
+      hasAnswers: hasAnswers,
+      shouldSkipQuestions: shouldSkipQuestions,
+      answerCount: answeredQuestions?.length || 0
+    });
+    
+    if (!shouldSkipQuestions) {
       console.log('🔍 [CV GEN] Checking profile completeness...');
       
       const forcedQuestions: any[] = [];
@@ -869,6 +881,8 @@ export async function generateCVWithPersonalityExtraction(
       }
       
       console.log('✅ [CV GEN] Profile complete enough, proceeding...');
+    } else {
+      console.log(`✅ [CV GEN] Skipping questions (${hasAnswers ? 'has answers' : 'skipQuestions=true'})`);
     }
     
     // ════════════════════════════════════════════════════════════════
