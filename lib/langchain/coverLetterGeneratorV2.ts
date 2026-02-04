@@ -18,7 +18,8 @@ export interface ATSV2Input {
   email?: string;
   phone?: string;
   location?: string;
-  
+      additionalNotes?: string;
+
   // ✅ ANONYMISOITU DATA (Lähetetään AI:lle)
   workExperience?: string;
   education?: string;
@@ -52,6 +53,7 @@ export interface ATSV2Input {
 
 export interface ATSV2Output {
   content: string; // Body WITHOUT personal info
+    additionalNotes?: string;
   title: string;
   signature: string;
   keyHighlights: string[];
@@ -77,6 +79,8 @@ export interface ATSV2Output {
   };
   iterations: number;
   questions?: any[];
+    personalContext?: string;
+
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -360,6 +364,7 @@ Generate NOW in {languageName}.`]
         bonus_keywords: keywords.bonus.join(', ') || 'None',
         jobDescription: input.jobDescription,
         yearsOfExperience: input.yearsOfExperience || 0,
+        additionalNotes: input.additionalNotes || input.personalContext || 'None',
         careerLevel: input.careerLevel || 'mid',
         workExperience: input.workExperience || 'Building experience',
         education: input.education || 'Continuous learner',

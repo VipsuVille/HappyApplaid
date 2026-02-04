@@ -16,7 +16,8 @@ interface CoverLetterInput {
   email?: string;
   phone?: string;
   location?: string;
-  
+    additionalNotes?: string;
+
   // Job Context
   jobTitle?: string;
   companyName?: string;
@@ -421,7 +422,8 @@ export async function generateGeneralCoverLetter(
       jobContext,
       language: input.language || 'finnish',
       style: input.style || 'professional',
-      
+      additionalNotes: input.additionalNotes || 'None',
+
       // Profile data
       workExperience: input.workExperience || 'Building experience',
       education: input.education || 'Learning',
