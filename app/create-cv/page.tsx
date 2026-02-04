@@ -117,94 +117,106 @@ export default function CreateCVPage() {
     return tokens >= costs.total;
   };
 
-  const handleGenerateCV = async (
-    finalAnswers?: Record<string, string>, 
-    skipConfirmation = false
-  ) => {
-    if (!user) return toast.error("Kirjautuminen vaaditaan");
-    if (!profileData) {
-      toast.error("Täytä profiilitiedot ensin!");
-      router.push("/profile");
-      return;
-    }
 
-    if (!canCreateCV()) {
-      const msg = plan_type === 'free' 
-        ? 'Ilmainen kokeilu on jo käytetty.' 
-        : `Tarvitset ${costs.total} tokenia.`;
-      toast.error(msg);
-      return;
-    }
 
-    setIsLoading(true);
-    try {
-      const requestBody = {
-        profileData,
-        cvType: selectedTemplate,
-        language: selectedLanguage === 'english' ? 'english' : 'finnish',
-        jobPosting: useATS ? jobPosting : undefined,
-        enableRAG: false,
-        answers: finalAnswers || answers,
-        skipQuestions: false, // ✅ TÄRKEÄ: Älä ohita kysymyksiä!
-        skipConfirmation,
-      };
 
-      console.log('📤 Sending CV generation request:', {
-        cvType: selectedTemplate,
-        language: selectedLanguage,
-        useATS,
-        skipQuestions: false,
-        hasAnswers: Object.keys(finalAnswers || answers).length > 0
-      });
+const handleGenerateCV = async (
+  finalAnswers?: Record<string, string>, 
+  skipConfirmation = false
+) => {
+  if (!user) return toast.error("Kirjautuminen vaaditaan");
+  if (!profileData) {
+    toast.error("Täytä profiilitiedot ensin!");
+    router.push("/profile");
+    return;
+  }
 
-      const response = await fetch("/api/generate-cv", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+  if (!canCreateCV()) {
+    const msg = plan_type === 'free' 
+      ? 'Ilmainen kokeilu on jo käytetty.' 
+      : `Tarvitset ${costs.total} tokenia.`;
+    toast.error(msg);
+    return;
+  }
 
-      const result = await response.json();
+  setIsLoading(true);
+  try {
+    // ✅ KYSYMYSLOOPPI KORJAUS: Skip kysymykset jos on vastauksia
+    const currentAnswers = finalAnswers || answers;
+    const hasAnswers = Object.keys(currentAnswers).length > 0;
+    
+    const requestBody = {
+      profileData,
+      cvType: selectedTemplate,
+      language: selectedLanguage === 'english' ? 'english' : 'finnish',
+      jobPosting: useATS ? jobPosting : undefined,
+      enableRAG: false,
+      answeredQuestions: hasAnswers ? Object.entries(currentAnswers).map(([id, answer]) => ({
+        id,
+        question: questions.find(q => q.id === id)?.question || '',
+        answer
+      })) : [],
+      skipQuestions: hasAnswers, // ✅ KORJATTU: true jos on vastauksia!
+      skipConfirmation,
+    };
 
-      console.log('📥 CV generation response:', {
-        ok: response.ok,
-        needsMoreInfo: result.needsMoreInfo,
-        needsConfirmation: result.needsConfirmation,
-        hasQuestions: !!result.questions,
-        questionCount: result.questions?.length
-      });
+    console.log('📤 Sending CV generation request:', {
+      cvType: selectedTemplate,
+      language: selectedLanguage,
+      useATS,
+      skipQuestions: hasAnswers,
+      hasAnswers: hasAnswers,
+      answerCount: Object.keys(currentAnswers).length
+    });
 
-      // ✅ KYSYMYKSET
-      if (result.needsMoreInfo && result.questions?.length > 0) {
-        console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
-        setQuestions(result.questions);
-        setShowQuestions(true);
-        setIsLoading(false);
-        return;
-      }
+    const response = await fetch("/api/generate-cv", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
 
-      // ✅ VAHVISTUS
-      if (result.needsConfirmation && !skipConfirmation) {
-        console.log('⚠️ Tarvitaan käyttäjän vahvistus');
-        setPendingViolations(result.violations);
-        setShowConfirmation(true);
-        setIsLoading(false);
-        return;
-      }
+    const result = await response.json();
 
-      // ✅ ONNISTUI
-      if (response.ok && (result.id || result.cvId)) {
-        toast.success("✅ CV luotu onnistuneesti!");
-        router.push(`/edit-cv/${result.id || result.cvId}`);
-      } else {
-        throw new Error(result.error || result.message || 'Tuntematon virhe');
-      }
-    } catch (error: any) {
-      console.error('❌ CV generation error:', error);
-      toast.error(error.message || 'CV:n luonti epäonnistui');
-    } finally {
+    console.log('📥 CV generation response:', {
+      ok: response.ok,
+      needsMoreInfo: result.needsMoreInfo,
+      needsConfirmation: result.needsConfirmation,
+      hasQuestions: !!result.questions,
+      questionCount: result.questions?.length
+    });
+
+    // ✅ KYSYMYKSET
+    if (result.needsMoreInfo && result.questions?.length > 0) {
+      console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
+      setQuestions(result.questions);
+      setShowQuestions(true);
       setIsLoading(false);
+      return;
     }
-  };
+
+    // ✅ VAHVISTUS
+    if (result.needsConfirmation && !skipConfirmation) {
+      console.log('⚠️ Tarvitaan käyttäjän vahvistus');
+      setPendingViolations(result.violations);
+      setShowConfirmation(true);
+      setIsLoading(false);
+      return;
+    }
+
+    // ✅ ONNISTUI
+    if (response.ok && (result.id || result.cvId)) {
+      toast.success("✅ CV luotu onnistuneesti!");
+      router.push(`/edit-cv/${result.id || result.cvId}`);
+    } else {
+      throw new Error(result.error || result.message || 'Tuntematon virhe');
+    }
+  } catch (error: any) {
+    console.error('❌ CV generation error:', error);
+    toast.error(error.message || 'CV:n luonti epäonnistui');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleApproveViolations = async (items: any[]) => {
     setShowConfirmation(false);
