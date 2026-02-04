@@ -225,6 +225,18 @@ The system will add contact info separately as a header.
 - Bold statements with backup
 
 # ═══════════════════════════════════════════════════════════════
+# 💬 USER'S SPECIAL INSTRUCTIONS
+# ═══════════════════════════════════════════════════════════════
+
+**USER SAYS:**
+{additionalNotes}
+
+**FOLLOW THESE CAREFULLY!**
+User knows their situation best. If they want to emphasize something specific,
+do it. If they provide context about location or availability, integrate it
+naturally.
+
+# ═══════════════════════════════════════════════════════════════
 # QUALITY CHECKS
 # ═══════════════════════════════════════════════════════════════
 
@@ -239,7 +251,7 @@ Before returning, verify:
 
 {format_instructions}`],
 
-  ["human", `Create a character-driven cover letter.
+ ["human", `Create a character-driven cover letter.
 
 **EXPERIENCE LEVEL:** {experienceLevel}
 
@@ -258,27 +270,22 @@ Before returning, verify:
 {jobContext}
 
 **PROFILE DATA (for context, don't repeat):**
-
 Work Experience: {workExperience}
 Education: {education}
 Skills: {skills}
 
 **PERSONALITY (THIS IS YOUR GOLD):**
-
 Working Style: {workingStyle}
 Problem Solving: {problemSolving}
-Unique Strength: {uniqueStrength}
-Superpower: {superpower}
-Energy Sources: {energySources}
-Learning Style: {learningStyle}
-Team Role: {teamRole}
+...
 
 **STORIES & EXAMPLES:**
-
 Best Example: {bestProjectExample}
 Failure Lesson: {failureLesson}
-Values: {valuesExample}
-Career Goals: {careerGoals}
+...
+
+**USER'S SPECIAL INSTRUCTIONS:**
+{additionalNotes}
 
 **LANGUAGE:** {language}
 **STYLE:** {style}

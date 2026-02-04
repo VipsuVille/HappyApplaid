@@ -306,12 +306,18 @@ BONUS: {bonus_keywords}
 # PERSONAL CONTEXT (✅ NEW)
 # ════════════════════════════════════════════════════════════════
 
-**USER PROVIDED CONTEXT:**
-{personalContext}
+# ════════════════════════════════════════════════════════════════
+# 💬 USER'S SPECIAL INSTRUCTIONS
+# ════════════════════════════════════════════════════════════════
 
-Integrate this naturally into letter if relevant.
+**USER SAYS:**
+{additionalNotes}
 
-Example: "Living in Hyvinkää means I know the area and can start immediately."
+**FOLLOW THESE INSTRUCTIONS CAREFULLY!**
+User knows their situation best. If they say "emphasize X", do it.
+
+Example: "Living in stockholm means I know the area and can start immediately."
+
 
 # ════════════════════════════════════════════════════════════════
 # STRUCTURE (350-450 words)
