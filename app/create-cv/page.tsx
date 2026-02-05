@@ -216,9 +216,9 @@ const handleGenerateCV = async (
     setTimeout(() => setStage('generating', 70), 2000);
     setTimeout(() => setStage('finalizing', 90), 4000);
 
-    // ✅ 7. SUCCESS
+    // ✅ 7. SUCCESScom
     if (response.ok && (result.id || result.cvId)) {
-      completeGeneration();
+  completeGeneration(result.id || result.cvId); // ✅ Anna ID
       toast.success("✅ CV luotu onnistuneesti!");
       
       setTimeout(() => {

@@ -1,5 +1,5 @@
 // context/GenerationContext.tsx
-// ✅ KORJATTU: Export nimellä GlobalGenerationProvider
+// ✅ FINAL: generatedItemId lisätty
 
 'use client';
 
@@ -34,6 +34,7 @@ interface GenerationState {
   startedAt: number | null;
   templateType?: string;
   language?: string;
+  generatedItemId?: string; // ✅ UUSI: ID kun valmis
 }
 
 interface GenerationContextValue {
@@ -44,9 +45,9 @@ interface GenerationContextValue {
   setQuestions: (questions: GenerationQuestion[]) => void;
   setAnswer: (questionId: string, answer: string) => void;
   setError: (error: string) => void;
-  completeGeneration: () => void; // ✅ NIMETTY UUDELLEEN
-  failGeneration: (error: string) => void; // ✅ NIMETTY UUDELLEEN
-  cancelGeneration: () => void; // ✅ NIMETTY UUDELLEEN
+  completeGeneration: (itemId?: string) => void; // ✅ MUUTETTU: Valinnainen ID
+  failGeneration: (error: string) => void;
+  cancelGeneration: () => void;
   reset: () => void;
   
   isGenerating: boolean;
@@ -64,9 +65,9 @@ const INITIAL_STATE: GenerationState = {
   answers: {},
   error: null,
   startedAt: null,
+  generatedItemId: undefined,
 };
 
-// ✅ EXPORT NIMELLÄ GlobalGenerationProvider
 export function GlobalGenerationProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GenerationState>(INITIAL_STATE);
 
@@ -120,16 +121,15 @@ export function GlobalGenerationProvider({ children }: { children: ReactNode }) 
     }));
   }, []);
 
-  const completeGeneration = useCallback(() => {
+  const completeGeneration = useCallback((itemId?: string) => {
     setState(prev => ({
       ...prev,
       stage: 'complete',
       progress: 100,
+      generatedItemId: itemId, // ✅ Tallenna ID
     }));
     
-    setTimeout(() => {
-      setState(INITIAL_STATE);
-    }, 3000);
+    // ✅ EI AUTOMAATTISTA RESETTIÄ - Käyttäjä sulkee itse bannerista
   }, []);
 
   const failGeneration = useCallback((error: string) => {

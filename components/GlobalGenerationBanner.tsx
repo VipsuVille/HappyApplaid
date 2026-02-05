@@ -1,9 +1,10 @@
 // components/GlobalGenerationBanner.tsx
-// Globaali banner joka näkyy kaikilla sivuilla generoinnin aikana
+// ✅ FINAL: Ei overlay, vain success-toiminnot
 
 'use client';
 
 import { useGeneration } from '@/context/GenerationContext';
+import { useRouter } from 'next/navigation';
 import { 
   RocketIcon, 
   CheckCircleIcon, 
@@ -14,16 +15,22 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  AlertCircle
+  AlertCircle,
+  Edit,
+  FolderOpen
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useState } from 'react';
 
+interface GlobalGenerationBannerProps {
+  onOpenQuestions?: () => void;
+  generatedItemId?: string; // ✅ ID kun valmis
+}
+
 export default function GlobalGenerationBanner({ 
-  onOpenQuestions 
-}: { 
-  onOpenQuestions?: () => void 
-}) {
+  onOpenQuestions,
+}: GlobalGenerationBannerProps) {
+  const router = useRouter();
   const { state, isGenerating, questionCount, reset } = useGeneration();
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -79,98 +86,124 @@ export default function GlobalGenerationBanner({
   const config = stageConfig[state.stage];
   const showProgress = ['starting', 'analyzing', 'generating', 'finalizing'].includes(state.stage);
 
+  // ✅ Success toiminnot
+  const handleEdit = () => {
+    if (!state.generatedItemId) return;
+    
+    const route = state.type === 'cv' 
+      ? `/edit-cv/${state.generatedItemId}`
+      : `/edit-cover-letter/${state.generatedItemId}`;
+    
+    router.push(route);
+    reset(); // Tyhjennä banner
+  };
+
+  const handleViewAll = () => {
+    const route = state.type === 'cv' ? '/my-cvs' : '/my-cover-letters';
+    router.push(route);
+    reset(); // Tyhjennä banner
+  };
+
   return (
-    <>
-      {/* ✅ OVERLAY: Lukitsee UI:n aktiivisen generoinnin aikana */}
-      {isGenerating && state.stage !== 'waiting_questions' && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[998] pointer-events-auto" />
-      )}
-
-      {/* ✅ BANNER: Kiinteä alalaidassa */}
-      <div className={`fixed bottom-0 left-0 right-0 z-[999] transition-all duration-300 ${
-        isExpanded ? 'translate-y-0' : 'translate-y-[calc(100%-3rem)]'
-      }`}>
-        <div className={`${config.bgColor} border-t-2 border-white/10 backdrop-blur-xl shadow-2xl`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-            
-            {/* HEADER (aina näkyvissä) */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                {config.icon}
-                <div>
-                  <p className={`font-bold text-sm ${config.color}`}>
-                    {config.text}
+    <div className={`fixed bottom-0 left-0 right-0 z-[999] transition-all duration-300 ${
+      isExpanded ? 'translate-y-0' : 'translate-y-[calc(100%-3rem)]'
+    }`}>
+      <div className={`${config.bgColor} border-t-2 border-white/10 backdrop-blur-xl shadow-2xl`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          
+          {/* HEADER (aina näkyvissä) */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {config.icon}
+              <div>
+                <p className={`font-bold text-sm ${config.color}`}>
+                  {config.text}
+                </p>
+                {state.templateType && (
+                  <p className="text-xs text-gray-500">
+                    {state.templateType} · {state.language}
                   </p>
-                  {state.templateType && (
-                    <p className="text-xs text-gray-500">
-                      {state.templateType} · {state.language}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* Vastaa kysymyksiin -nappi */}
-                {state.stage === 'waiting_questions' && onOpenQuestions && (
-                  <button
-                    onClick={onOpenQuestions}
-                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    Vastaa nyt
-                  </button>
                 )}
-
-                {/* Peruuta */}
-                {isGenerating && (
-                  <button
-                    onClick={() => {
-                      if (confirm('Haluatko varmasti peruuttaa?')) {
-                        reset();
-                      }
-                    }}
-                    className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                    title="Peruuta"
-                  >
-                    <X className="w-4 h-4 text-gray-400" />
-                  </button>
-                )}
-
-                {/* Laajenna/Supista */}
-                <button
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                  title={isExpanded ? 'Pienennä' : 'Laajenna'}
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-gray-400" />
-                  ) : (
-                    <ChevronUp className="w-4 h-4 text-gray-400" />
-                  )}
-                </button>
               </div>
             </div>
 
-            {/* PROGRESS (näkyy kun laajennettu) */}
-            {isExpanded && showProgress && (
-              <div className="mt-3">
-                <Progress value={state.progress} className="h-2 bg-gray-800/50">
-                  <div 
-                    className="h-full bg-gradient-to-r from-orange-500 to-amber-600 transition-all duration-300" 
-                    style={{ width: `${state.progress}%` }}
-                  />
-                </Progress>
-                <div className="flex justify-between items-center mt-1">
-                  <p className="text-xs text-gray-400">{state.progress}%</p>
-                  <p className="text-xs text-gray-500">
-                    ~{Math.max(5, Math.round((100 - state.progress) / 2))}s jäljellä
-                  </p>
-                </div>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {/* ✅ SUCCESS ACTIONS */}
+              {state.stage === 'complete' && state.generatedItemId && (
+                <>
+                  <button
+                    onClick={handleEdit}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Muokkaa
+                  </button>
+                  <button
+                    onClick={handleViewAll}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    {state.type === 'cv' ? 'Kaikki CV:t' : 'Kaikki kirjeet'}
+                  </button>
+                </>
+              )}
+
+              {/* Vastaa kysymyksiin -nappi */}
+              {state.stage === 'waiting_questions' && onOpenQuestions && (
+                <button
+                  onClick={onOpenQuestions}
+                  className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Vastaa nyt
+                </button>
+              )}
+
+              {/* Sulje (vain jos valmis tai error) */}
+              {(state.stage === 'complete' || state.stage === 'error') && (
+                <button
+                  onClick={reset}
+                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                  title="Sulje"
+                >
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              )}
+
+              {/* Laajenna/Supista */}
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                title={isExpanded ? 'Pienennä' : 'Laajenna'}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                )}
+              </button>
+            </div>
           </div>
+
+          {/* PROGRESS (näkyy kun laajennettu) */}
+          {isExpanded && showProgress && (
+            <div className="mt-3">
+              <Progress value={state.progress} className="h-2 bg-gray-800/50">
+                <div 
+                  className="h-full bg-gradient-to-r from-orange-500 to-amber-600 transition-all duration-300" 
+                  style={{ width: `${state.progress}%` }}
+                />
+              </Progress>
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-xs text-gray-400">{state.progress}%</p>
+                <p className="text-xs text-gray-500">
+                  ~{Math.max(5, Math.round((100 - state.progress) / 2))}s jäljellä
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
