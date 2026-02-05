@@ -1,33 +1,16 @@
-// app/create-cover-letter/page.tsx - WITH ADDITIONAL NOTES FIELD
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useGeneration } from '@/context/GenerationContext'; // ✅ LISÄTTY
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
-  Sparkles,
-  Target,
-  Mail,
-  Crown,
-  Lock,
-  Shield,
-  CheckCircle,
-  ArrowRight,
-  Info,
-  AlertCircle,
-  Loader2,
-  Briefcase,
-  Globe,
-  Palette,
-  Zap,
-  TrendingUp,
-  ChevronDown,
-  ChevronUp,
-  MessageSquarePlus, // ✅ UUSI IKONI
-  Save,
+  Sparkles, Target, Mail, Crown, Lock, Shield, CheckCircle,
+  ArrowRight, Info, AlertCircle, Loader2, Briefcase, Globe,
+  Palette, Zap, TrendingUp, ChevronDown, ChevronUp,
+  MessageSquarePlus, Save,
 } from "lucide-react";
 
 import { useTokens } from "@/hooks/useTokens";
@@ -46,7 +29,6 @@ export default function CreateCoverLetterPage() {
   const { user, isLoaded: userLoaded } = useUser();
   const { language } = useLanguage();
   
-  const [isLoading, setIsLoading] = useState(false);
   const [letterType, setLetterType] = useState<LetterType>("job_specific");
   const [letterVersion, setLetterVersion] = useState<LetterVersion>("v1");
   const [jobPosting, setJobPosting] = useState("");
@@ -56,7 +38,7 @@ export default function CreateCoverLetterPage() {
   const [letterLanguage, setLetterLanguage] = useState<LetterLanguage>("finnish");
   const [letterStyle, setLetterStyle] = useState<LetterStyle>("formal");
   
-  // ✅ UUSI: Lisätiedot-kenttä
+  // ✅ Lisätiedot-kenttä
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [saveAdditionalNotes, setSaveAdditionalNotes] = useState(false);
   const [previousNotes, setPreviousNotes] = useState<string>("");
@@ -72,6 +54,15 @@ export default function CreateCoverLetterPage() {
   const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
   const freeUsage = useFreeUsage();
 
+  // ✅ GLOBAL GENERATION
+  const {
+    startGeneration,
+    setStage,
+    completeGeneration,
+    failGeneration,
+    cancelGeneration,
+    isGenerating,
+  } = useGeneration();
   // ✅ SAMA LOGIIKKA KUIN create-cv:ssä
   const canUseATS = plan_type !== 'free'; // Basic TAI Premium
   const canUseV2 = plan_type === 'premium' && letterType === 'job_specific'; // VAIN Premium
@@ -259,6 +250,7 @@ export default function CreateCoverLetterPage() {
   };
 
   // --- GENERATE HANDLER ---
+ // --- GENERATE HANDLER ---
   const handleGenerateLetter = async (confirmedViolations?: any) => {
     if (!isProfileValid) {
       toast.error(t.noProfile);
@@ -276,11 +268,15 @@ export default function CreateCoverLetterPage() {
       return;
     }
 
-
     console.log('🚀 Starting generation with type:', apiType);
 
-    setIsLoading(true);
     try {
+      // ✅ 1. START GENERATION
+      startGeneration('cover_letter', {
+        templateType: letterType,
+        language: letterLanguage
+      });
+
       let jobTitle = undefined;
       let companyName = undefined;
       let jobDescription = jobPosting;
@@ -353,34 +349,48 @@ export default function CreateCoverLetterPage() {
         saveNotes: saveAdditionalNotes 
       });
 
+      // ✅ 2. ANALYZE STAGE
+      setStage('analyzing', 20);
+
       const response = await fetch("/api/generate-cover-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
 
+      // ✅ 3. GENERATE STAGE
+      setStage('generating', 50);
+
       const data = await response.json();
 
       console.log('📨 API Response:', data);
 
+      // ✅ 4. FINALIZE STAGE
+      setStage('finalizing', 80);
+
+      // ✅ 5. HANDLE CONFIRMATION
       if (response.status === 400 && data.needsConfirmation) {
         setPendingViolations(data.violations);
         setShowConfirmation(true);
-        setIsLoading(false);
+        cancelGeneration(); // Pause generation
         return;
       }
 
+      // ✅ 6. SUCCESS
       if (data.success) {
+      completeGeneration();
         toast.success(t.success);
-        router.push(`/edit-cover-letter/${data.coverLetterId}`);
+        
+        setTimeout(() => {
+          router.push(`/edit-cover-letter/${data.coverLetterId}`);
+        }, 1000);
       } else {
-        toast.error(data.error || t.error);
+        throw new Error(data.error || t.error);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Generation error:', error);
+      failGeneration(error.message || t.error);
       toast.error(t.error);
-    } finally {
-      if (!showConfirmation) setIsLoading(false);
     }
   };
 
@@ -392,7 +402,6 @@ export default function CreateCoverLetterPage() {
 
   const handleRejectViolations = () => {
     setShowConfirmation(false);
-    setIsLoading(false);
     toast.error(isFinnish ? "Generointi keskeytetty." : "Generation cancelled.");
   };
 
@@ -772,10 +781,10 @@ export default function CreateCoverLetterPage() {
 
                 <Button
                   onClick={() => handleGenerateLetter()}
-                  disabled={isLoading || !isProfileValid || (letterType === 'job_specific' && !jobPosting.trim())}
+                  disabled={isGenerating || !isProfileValid || (letterType === 'job_specific' && !jobPosting.trim())}
                   className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
                 >
-                  {isLoading ? (
+                  {isGenerating ? (
                     <><Loader2 className="w-5 h-5 animate-spin mr-2" />{t.generating}</>
                   ) : (
                     <><Sparkles className="w-5 h-5 mr-2" />{t.generateNow}<ArrowRight className="w-5 h-5 ml-2 opacity-50" /></>

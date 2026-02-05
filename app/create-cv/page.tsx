@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { useGeneration, type GenerationQuestion } from '@/context/GenerationContext'; // ✅ KORJATTU: contexts (ei context)
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -32,13 +33,6 @@ import { ACTION_COSTS, PlanType, TokenAction } from "@/lib/domain/tokens";
 type CVTemplate = "technical" | "creative" | "simple";
 type LanguageOption = 'finnish' | 'english';
 
-interface CVQuestion {
-  id: string;
-  question: string;
-  why?: string;
-  priority?: 'critical' | 'important' | 'optional';
-}
-
 interface Violations {
   fabricatedSkills?: string[];
   fabricatedEducation?: string[];
@@ -50,7 +44,6 @@ export default function CreateCVPage() {
   const { user, isLoaded: userLoaded } = useUser();
   const { getToken } = useAuth();
   
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageOption>("finnish");
   const [jobPosting, setJobPosting] = useState("");
@@ -58,10 +51,6 @@ export default function CreateCVPage() {
   
   const [profileData, setProfileData] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-
-  const [questions, setQuestions] = useState<CVQuestion[]>([]);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [showQuestions, setShowQuestions] = useState(false);
 
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingViolations, setPendingViolations] = useState<Violations | null>(null);
@@ -74,6 +63,29 @@ export default function CreateCVPage() {
   } = useTokens();
 
   const freeUsage = useFreeUsage();
+
+  // ✅ GLOBAL GENERATION STATE
+  const {
+    state: generationState,
+    startGeneration,
+    setStage,
+    setQuestions,
+    setAnswer, // ✅ LISÄTTY
+    completeGeneration,
+    failGeneration,
+    cancelGeneration,
+    isGenerating,
+  } = useGeneration();
+
+  // Local modal state
+  const [showQuestionsModal, setShowQuestionsModal] = useState(false);
+
+  // Sync modal visibility with generation state
+  useEffect(() => {
+    if (generationState.stage === 'waiting_questions' && generationState.questions.length > 0) {
+      setShowQuestionsModal(true);
+    }
+  }, [generationState.stage, generationState.questions.length]);
 
   // Ladataan profiili
   useEffect(() => {
@@ -121,7 +133,7 @@ export default function CreateCVPage() {
 
 
 const handleGenerateCV = async (
-  finalAnswers?: Record<string, string>, 
+  finalAnswers?: Record<string, string>,
   skipConfirmation = false
 ) => {
   if (!user) return toast.error("Kirjautuminen vaaditaan");
@@ -139,10 +151,15 @@ const handleGenerateCV = async (
     return;
   }
 
-  setIsLoading(true);
   try {
-    // ✅ KYSYMYSLOOPPI KORJAUS: Skip kysymykset jos on vastauksia
-    const currentAnswers = finalAnswers || answers;
+    // ✅ 1. START GENERATION
+    startGeneration('cv', {
+      templateType: selectedTemplate,
+      language: selectedLanguage
+    });
+
+    // ✅ 2. PREPARE REQUEST
+    const currentAnswers = finalAnswers || generationState.answers;
     const hasAnswers = Object.keys(currentAnswers).length > 0;
     
     const requestBody = {
@@ -151,23 +168,21 @@ const handleGenerateCV = async (
       language: selectedLanguage === 'english' ? 'english' : 'finnish',
       jobPosting: useATS ? jobPosting : undefined,
       enableRAG: false,
-      answeredQuestions: hasAnswers ? Object.entries(currentAnswers).map(([id, answer]) => ({
-        id,
-        question: questions.find(q => q.id === id)?.question || '',
-        answer
-      })) : [],
-      skipQuestions: hasAnswers, // ✅ KORJATTU: true jos on vastauksia!
+      answeredQuestions: hasAnswers 
+        ? Object.entries(currentAnswers).map(([id, answer]) => ({
+            id,
+            question: generationState.questions.find((q: GenerationQuestion) => q.id === id)?.question || '',
+            answer
+          }))
+        : [],
+      skipQuestions: hasAnswers, // ✅ KORJATTU
       skipConfirmation,
     };
 
-    console.log('📤 Sending CV generation request:', {
-      cvType: selectedTemplate,
-      language: selectedLanguage,
-      useATS,
-      skipQuestions: hasAnswers,
-      hasAnswers: hasAnswers,
-      answerCount: Object.keys(currentAnswers).length
-    });
+    console.log('📤 Sending CV generation request');
+
+    // ✅ 3. ANALYZE STAGE
+    setStage('analyzing', 20);
 
     const response = await fetch("/api/generate-cv", {
       method: "POST",
@@ -177,50 +192,51 @@ const handleGenerateCV = async (
 
     const result = await response.json();
 
-    console.log('📥 CV generation response:', {
-      ok: response.ok,
-      needsMoreInfo: result.needsMoreInfo,
-      needsConfirmation: result.needsConfirmation,
-      hasQuestions: !!result.questions,
-      questionCount: result.questions?.length
-    });
-
-    // ✅ KYSYMYKSET
+    // ✅ 4. HANDLE QUESTIONS
     if (result.needsMoreInfo && result.questions?.length > 0) {
       console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
-      setQuestions(result.questions);
-      setShowQuestions(true);
-      setIsLoading(false);
+      generationState.questions = result.questions; // Set via context
+      setShowQuestionsModal(true);
       return;
     }
 
-    // ✅ VAHVISTUS
+    // ✅ 5. HANDLE CONFIRMATION
     if (result.needsConfirmation && !skipConfirmation) {
       console.log('⚠️ Tarvitaan käyttäjän vahvistus');
       setPendingViolations(result.violations);
       setShowConfirmation(true);
-      setIsLoading(false);
+      cancelGeneration(); // Stop generation temporarily
       return;
     }
 
-    // ✅ ONNISTUI
+    // ✅ 6. GENERATE STAGE
+    setStage('generating', 50);
+
+    // Simulate progress
+    setTimeout(() => setStage('generating', 70), 2000);
+    setTimeout(() => setStage('finalizing', 90), 4000);
+
+    // ✅ 7. SUCCESS
     if (response.ok && (result.id || result.cvId)) {
+      completeGeneration();
       toast.success("✅ CV luotu onnistuneesti!");
-      router.push(`/edit-cv/${result.id || result.cvId}`);
+      
+      setTimeout(() => {
+        router.push(`/edit-cv/${result.id || result.cvId}`);
+      }, 1000);
     } else {
       throw new Error(result.error || result.message || 'Tuntematon virhe');
     }
   } catch (error: any) {
     console.error('❌ CV generation error:', error);
+    failGeneration(error.message || 'CV:n luonti epäonnistui');
     toast.error(error.message || 'CV:n luonti epäonnistui');
-  } finally {
-    setIsLoading(false);
   }
 };
 
   const handleApproveViolations = async (items: any[]) => {
     setShowConfirmation(false);
-    await handleGenerateCV(answers, true);
+    await handleGenerateCV(generationState.answers, true);
   };
 
   const handleRejectViolations = async () => {
@@ -465,10 +481,10 @@ const handleGenerateCV = async (
 
                 <Button
                   onClick={() => handleGenerateCV()}
-                  disabled={isLoading || (useATS && !jobPosting.trim())}
+                  disabled={isGenerating  || (useATS && !jobPosting.trim())}
                   className="w-full py-6 sm:py-8 bg-gradient-to-r from-orange-500 to-amber-600 hover:shadow-[0_0_40px_rgba(249,115,22,0.3)] text-white rounded-xl sm:rounded-2xl font-black text-base sm:text-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] group"
                 >
-                  {isLoading ? (
+                  {isGenerating  ? (
                     <div className="flex items-center gap-3">
                       <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                       <span>Generoidaan...</span>
@@ -503,9 +519,10 @@ const handleGenerateCV = async (
       </div>
 
       {/* LISÄKYSYMYKSET MODAL */}
-      {showQuestions && (
+{/* ✅ LISÄKYSYMYKSET MODAL */}
+      {showQuestionsModal && generationState.questions.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isLoading && setShowQuestions(false)} />
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isGenerating && setShowQuestionsModal(false)} />
           <div className="relative bg-[#0d1117] border border-gray-800 w-full max-w-2xl rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-transparent" />
             
@@ -518,7 +535,7 @@ const handleGenerateCV = async (
             </p>
 
             <div className="space-y-6 sm:space-y-8 max-h-[50vh] overflow-y-auto pr-2 sm:pr-4 custom-scrollbar">
-              {questions.map((q) => (
+              {generationState.questions.map((q: GenerationQuestion) => (
                 <div key={q.id} className="space-y-3 sm:space-y-4 group">
                   <label className="text-sm font-bold text-gray-200 block transition-colors group-focus-within:text-orange-400">
                     {q.question}
@@ -531,8 +548,14 @@ const handleGenerateCV = async (
                   )}
                   <textarea
                     className="w-full bg-black/40 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-all min-h-[100px] resize-none"
-                    value={answers[q.id] || ""}
-                    onChange={(e) => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                    value={generationState.answers[q.id] || ""}
+                    onChange={(e) => {
+                      // ✅ Käytä context setAnswer hookia
+                      // Tämä tulee useGeneration() hookista
+                      // const { setAnswer } = useGeneration();
+                      // Jos setAnswer ei ole saatavilla, käytä suoraan:
+                      setAnswer(q.id, e.target.value);
+                    }}
                     placeholder="Vastaa tähän..."
                   />
                 </div>
@@ -543,17 +566,20 @@ const handleGenerateCV = async (
               <Button 
                 variant="ghost" 
                 className="flex-1 rounded-xl sm:rounded-2xl text-gray-500 hover:text-white hover:bg-white/5 h-12 sm:h-14 font-bold text-sm sm:text-base"
-                onClick={() => setShowQuestions(false)}
-                disabled={isLoading}
+                onClick={() => setShowQuestionsModal(false)}
+                disabled={isGenerating}
               >
-                Peruuta
+                Sulje
               </Button>
               <Button 
                 className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white rounded-xl sm:rounded-2xl h-12 sm:h-14 font-black text-sm sm:text-base"
-                onClick={() => handleGenerateCV(answers)}
-                disabled={isLoading}
+                onClick={() => {
+                  setShowQuestionsModal(false);
+                  handleGenerateCV(generationState.answers);
+                }}
+                disabled={isGenerating}
               >
-                {isLoading ? 'Viimeistellään...' : 'Valmista tuli'}
+                {isGenerating ? 'Viimeistellään...' : 'Valmista tuli'}
               </Button>
             </div>
           </div>
