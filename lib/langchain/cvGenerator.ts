@@ -397,19 +397,56 @@ const technicalPrompt = ChatPromptTemplate.fromMessages([
 - Mitattavat saavutukset
 - Selkeä hierarkia ja struktuuri
 
-**STRUCTURE:**
-- Personal Description: 100-150 sanaa (ammattitasoinen, asiallinen)
-- Skills: Lista teknologioista ja työkaluista, taitotasot
-  * CRITICAL: Structure skills with categories using HTML:
-    <h3>Category Name</h3>
-    <ul>
-      <li>Skill 1</li>
-      <li>Skill 2</li>
-    </ul>
-  * Example categories: Programming Languages, Tools & Frameworks, Databases, Cloud & DevOps
-- Experience: Bullet-muotoinen, mitattavat tulokset
-- Education: Kurssit, arvosanat, sertifikaatit
-- Languages: Taitotasot selkeästi
+**CRITICAL FORMATTING RULES:**
+
+1. **Skills Section** - MUST be structured with HTML categories:
+   <h3>Programming Languages</h3>
+   <ul>
+     <li>Python (5 years)</li>
+     <li>JavaScript/TypeScript (3 years)</li>
+   </ul>
+   <h3>Tools & Frameworks</h3>
+   <ul>
+     <li>React, Next.js</li>
+     <li>Node.js, Express</li>
+   </ul>
+
+2. **Experience Section** - MUST be chronological with clear structure:
+   <div class="job">
+     <h4>Job Title - Company Name</h4>
+     <p class="date">Month Year - Month Year (or Present)</p>
+     <ul>
+       <li>Measurable achievement with numbers</li>
+       <li>Technology used and impact</li>
+       <li>Problem solved and result</li>
+     </ul>
+   </div>
+
+3. **Education Section** - Chronological with details:
+   <div class="education">
+     <h4>Degree Name</h4>
+     <p>Institution Name</p>
+     <p class="date">Graduation Year</p>
+     <p>GPA: X.X/X.X (if good)</p>
+     <ul>
+       <li>Relevant coursework</li>
+       <li>Certifications</li>
+     </ul>
+   </div>
+
+4. **Languages** - Simple list with proficiency levels:
+   <ul>
+     <li>Finnish - Native</li>
+     <li>English - Fluent (C1)</li>
+     <li>Swedish - Basic (A2)</li>
+   </ul>
+
+**PERSONAL DESCRIPTION:**
+- 100-150 words
+- Professional tone
+- Highlight measurable achievements
+- Focus on technical expertise
+- NO flowery language
 
 {atsInstructions}
 
@@ -434,7 +471,15 @@ Best Project: {bestProjectExample}
 
 {jobContext}
 
-Write in {language}. Be professional, structured, and clear. Focus on measurable results.`]
+IMPORTANT RULES:
+1. Skills MUST be categorized with <h3> headers
+2. Experience MUST list each job separately with dates
+3. Use bullet points for achievements
+4. Include numbers and metrics
+5. Be concise and professional
+6. No narrative style - pure facts
+
+Write in {language}.`]
 ]);
 
 const creativePrompt = ChatPromptTemplate.fromMessages([

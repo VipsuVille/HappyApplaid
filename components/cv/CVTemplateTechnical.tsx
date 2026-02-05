@@ -208,79 +208,79 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           )}
         </div>
 
-        {/* SKILLS - STRUCTURED BULLET LIST */}
-        {skillCategories.length > 0 && (
-          <div
+   {/* SKILLS - STRUCTURED BULLET LIST */}
+{skillCategories.length > 0 && (
+  <div
+    style={{
+      padding: "8mm",
+      position: "relative",
+      top: `${skillsTop}mm`,
+    }}
+  >
+    <h2
+      style={{
+        fontSize: "14pt",
+        textTransform: "uppercase",
+        letterSpacing: "0.15em",
+        borderBottom: "1px solid rgba(255,255,255,0.6)",
+        paddingBottom: "4mm",
+        marginBottom: "6mm",
+        fontWeight: "bold",
+      }}
+    >
+      Skills
+    </h2>
+
+    {skillCategories.map((category, idx) => (
+      <div key={idx} style={{ marginBottom: "5mm" }}>
+        {skillCategories.length > 1 && (
+          <h3
             style={{
-              padding: "8mm",
-              position: "relative",
-              top: `${skillsTop}mm`,
+              fontSize: "10pt",
+              fontWeight: "bold",
+              marginBottom: "2mm",
+              color: "#d4af37", // Gold accent
             }}
           >
-            <h2
+            {category.category}
+          </h3>
+        )}
+        
+        <ul
+          style={{
+            listStyleType: "none",
+            padding: 0,
+            margin: 0,
+            fontSize: "9pt",
+            lineHeight: 1.6,
+          }}
+        >
+          {category.items.map((skill, skillIdx) => (
+            <li
+              key={skillIdx}
               style={{
-                fontSize: "14pt",
-                textTransform: "uppercase",
-                letterSpacing: "0.15em",
-                borderBottom: "1px solid rgba(255,255,255,0.6)",
-                paddingBottom: "4mm",
-                marginBottom: "6mm",
-                fontWeight: "bold",
+                marginBottom: "2mm",
+                paddingLeft: "4mm",
+                position: "relative",
               }}
             >
-              Skills
-            </h2>
-
-            {skillCategories.map((category, idx) => (
-              <div key={idx} style={{ marginBottom: "5mm" }}>
-                {skillCategories.length > 1 && (
-                  <h3
-                    style={{
-                      fontSize: "10pt",
-                      fontWeight: "bold",
-                      marginBottom: "2mm",
-                      color: "#d4af37", // Gold accent
-                    }}
-                  >
-                    {category.category}
-                  </h3>
-                )}
-                
-                <ul
-                  style={{
-                    listStyleType: "none",
-                    padding: 0,
-                    margin: 0,
-                    fontSize: "9pt",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {category.items.map((skill, skillIdx) => (
-                    <li
-                      key={skillIdx}
-                      style={{
-                        marginBottom: "2mm",
-                        paddingLeft: "4mm",
-                        position: "relative",
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: "absolute",
-                          left: 0,
-                          color: "#d4af37",
-                        }}
-                      >
-                        •
-                      </span>
-                      {skill}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
+              <span
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  color: "#d4af37",
+                }}
+              >
+                •
+              </span>
+              {skill}
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </div>
+)}
       </div>
 
       {/* RIGHT COLUMN - LIGHT */}

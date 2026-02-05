@@ -378,7 +378,7 @@ export default function CreateCoverLetterPage() {
 
       // ✅ 6. SUCCESS
       if (data.success) {
-        completeGeneration(result.id); // ✅ Anna ID
+        completeGeneration(data.id); // ✅ Anna ID
         toast.success(t.success);
         
         setTimeout(() => {
