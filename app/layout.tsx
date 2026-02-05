@@ -1,11 +1,11 @@
-// app/layout.tsx - ✅ KORJATTU
+// app/layout.tsx - ✅ KORJATTU: Provider oikeassa paikassa
 
 import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from "next/font/google";
 import "./globals.css";
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import { clerkAppearance } from '@/lib/clerkAppearance';
-import { GlobalGenerationProvider } from '@/context/GenerationContext'; // ✅ OIKEA POLKU
+import { GlobalGenerationProvider } from '@/context/GenerationContext';
 import GlobalGenerationBanner from '@/components/GlobalGenerationBanner';
 
 const inter = Inter({ subsets: ["latin"] });
@@ -17,16 +17,16 @@ export default function RootLayout({
 }) {
   return (
     <ClerkProvider appearance={clerkAppearance}>
-      <GlobalGenerationProvider> {/* ✅ WRAPPAA KAIKKI */}
-        <html lang="en" suppressHydrationWarning>
-          <body className={`${inter.className} bg-gray-900`} suppressHydrationWarning>
+      <html lang="en" suppressHydrationWarning>
+        <body className={`${inter.className} bg-gray-900`} suppressHydrationWarning>
+          <GlobalGenerationProvider> {/* ✅ SISÄLLÄ body:ä */}
             <GlobalLayout>
               {children}
             </GlobalLayout>
-            <GlobalGenerationBanner /> {/* ✅ BANNER BODYN LOPUSSA */}
-          </body>
-        </html>
-      </GlobalGenerationProvider>
+            <GlobalGenerationBanner /> {/* ✅ GlobalLayout:in jälkeen */}
+          </GlobalGenerationProvider>
+        </body>
+      </html>
     </ClerkProvider>
   );
 }
