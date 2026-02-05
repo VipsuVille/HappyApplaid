@@ -1,15 +1,16 @@
 "use client";
 
-import { Download, Edit, Trash2, Loader2, Plus, FileText, ChevronLeft, ChevronRight, List, LayoutGrid } from "lucide-react";
+import { Download, Edit, Trash2, Loader2, Plus, FileText, ChevronLeft, ChevronRight, List, LayoutGrid, Sparkles, Clock } from "lucide-react";
 import { useCallback, useEffect, useState, useRef } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase-client";
 import { fetchCVs, deleteCV } from "@/services/cvService-client";
 import CVTemplate from "@/components/cv/CVSimpleTemplate";
 import TechnicalCVTemplate from "@/components/cv/CVTemplateTechnical";
 import CreativeCVTemplate from "@/components/cv/CVCreativeTemplate";
 import CVContainer from "@/components/cv/CVContainer";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface BaseCV {
   id: string;
@@ -26,6 +27,7 @@ type MobileView = 'carousel' | 'grid';
 
 export default function MyCVsPage() {
   const { userId, getToken } = useAuth();
+  const { user } = useUser();
   const [cvs, setCvs] = useState<BaseCV[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
@@ -46,46 +48,26 @@ export default function MyCVsPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const nextSlide = () => {
-    setCurrentIndex((prev) => 
-      prev === cvs.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const prevSlide = () => {
-    setCurrentIndex((prev) => 
-      prev === 0 ? cvs.length - 1 : prev - 1
-    );
-  };
+  const nextSlide = () => setCurrentIndex((prev) => prev === cvs.length - 1 ? 0 : prev + 1);
+  const prevSlide = () => setCurrentIndex((prev) => prev === 0 ? cvs.length - 1 : prev - 1);
 
   const touchStartX = useRef(0);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e: React.TouchEvent) => {
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX;
-
     if (Math.abs(diff) > 50) {
-      if (diff > 0) {
-        nextSlide();
-      } else {
-        prevSlide();
-      }
+      if (diff > 0) nextSlide();
+      else prevSlide();
     }
   };
 
   const loadCVs = async () => {
     if (!userId) {
       setLoading(false);
-      setError("Käyttäjä ei ole kirjautunut sisään");
       return;
     }
-
     setLoading(true);
-    setError(null);
-
     try {
       const token = await getToken({ template: "supabase" });
       if (!token) throw new Error("Autentikaatiotoken puuttuu");
@@ -103,82 +85,39 @@ export default function MyCVsPage() {
             cvData = parsed.cv_data || {};
             aiData = parsed.ai_data || {};
           } catch (e) {
-            console.error("Datan parsiminen epäonnistui ID:lle:", cv.id);
-            cvData = {};
-            aiData = {};
+            cvData = {}; aiData = {};
           }
         }
         
         const processImageUrl = (url: string | null | undefined): string => {
           if (!url || url.trim() === "") return "";
           const trimmed = url.trim();
-          
-          if (trimmed.startsWith('data:image') && !trimmed.includes('svg+xml')) {
-            return trimmed;
-          }
-          
-          if (trimmed.startsWith('http')) {
-            return trimmed;
-          }
-          
+          if (trimmed.startsWith('data:image') || trimmed.startsWith('http')) return trimmed;
           if (trimmed.includes('/')) {
-            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-            if (!supabaseUrl) return "";
-            return `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
+            return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${trimmed}`;
           }
-          
           return "";
         };
         
-        const profileImage = processImageUrl(
-          cv.profile_image || 
-          cvData?.profileImage || 
-          aiData?.profile_image || 
-          cvData?.photo
-        );
+        const profileImage = processImageUrl(cv.profile_image || cvData?.profileImage || aiData?.profile_image || cvData?.photo);
+        const backgroundImage = processImageUrl(cv.background_image || cvData?.backgroundImage || aiData?.background_image);
         
-        const backgroundImage = processImageUrl(
-          cv.background_image || 
-          cvData?.backgroundImage || 
-          aiData?.background_image
-        );
-        
-        if (profileImage) {
+        if (cvData) {
           cvData.profileImage = profileImage;
-          cvData.photo = profileImage;
-          if (aiData) aiData.profile_image = profileImage;
-        }
-        
-        if (backgroundImage) {
           cvData.backgroundImage = backgroundImage;
-          if (aiData) aiData.background_image = backgroundImage;
         }
         
-        return {
-          ...cv,
-          profile_image: profileImage,
-          background_image: backgroundImage,
-          cv_data: cvData,
-          ai_data: aiData
-        };
+        return { ...cv, cv_data: cvData, ai_data: aiData };
       });
 
-      console.log(`✅ Loaded ${processedData.length} CVs with processed images`);
       setCvs(processedData);
-    } catch (error) {
-      console.error("Virhe CV:iden haussa:", error);
-      setError(error instanceof Error ? error.message : "Tuntematon virhe");
+    } catch (error: any) {
+      setError(error.message);
+      toast.error("Virhe ladattaessa CV:itä");
     } finally {
       setLoading(false);
     }
   };
-
-  const setCvRef = useCallback(
-    (cvId: string) => (el: HTMLDivElement | null) => {
-      cvRefs.current[cvId] = el;
-    },
-    []
-  );
 
   const handleDownloadPDF = async (cvId: string, cvName: string) => {
     setIsDownloading(cvId);
@@ -188,9 +127,7 @@ export default function MyCVsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cvId }),
       });
-
       if (!response.ok) throw new Error("PDF:n luonti epäonnistui");
-
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -200,8 +137,9 @@ export default function MyCVsPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
+      toast.success("PDF ladattu!");
     } catch (error) {
-      alert("PDF:n lataus epäonnistui");
+      toast.error("Lataus epäonnistui");
     } finally {
       setIsDownloading(null);
     }
@@ -215,121 +153,83 @@ export default function MyCVsPage() {
       if (!token) throw new Error("Token puuttuu");
       await deleteCV(cvId, userId!, token);
       setCvs(prev => prev.filter(c => c.id !== cvId));
-      
-      if (mobileView === 'carousel' && currentIndex >= cvs.length - 1) {
-        setCurrentIndex(Math.max(0, currentIndex - 1));
-      }
+      toast.success("CV poistettu");
     } catch (error) {
-      alert("Poisto epäonnistui");
+      toast.error("Poisto epäonnistui");
     } finally {
       setDeleteLoading(null);
     }
   };
 
-  useEffect(() => {
-    loadCVs();
-  }, [userId]);
+  useEffect(() => { loadCVs(); }, [userId]);
 
   const renderCVCard = (cv: BaseCV, isCarousel: boolean = false) => {
     const templateType = cv.cv_data?.cvType || cv.ai_data?.cv_type || "simple";
     let TemplateComponent: any;
-    
     switch (templateType) {
       case "technical": TemplateComponent = TechnicalCVTemplate; break;
       case "creative": TemplateComponent = CreativeCVTemplate; break;
       default: TemplateComponent = CVTemplate;
     }
 
-    const previewHeight = isCarousel ? '500px' : '400px';
-    const previewScale = isCarousel ? 0.38 : 0.45;
+    const previewScale = isCarousel ? 0.35 : 0.42;
 
     return (
-      <div className="group bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl shadow-xl overflow-hidden flex flex-col hover:shadow-2xl transition-all">
+      <div className="group bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-[2rem] overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:border-orange-500/30">
         
-        {/* CV Esikatselu */}
-        <div 
-          className="relative bg-indigo-50/50 dark:bg-muted/20 overflow-hidden border-b-2 border-white/40 dark:border-border" 
-          style={{ height: previewHeight }}
-        >
-          <div className="absolute inset-0 flex justify-center items-start pt-8">
-            <div 
-              className="origin-top shadow-2xl" 
-              style={{ transform: `scale(${previewScale})` }}
-            >
-               <CVContainer ref={setCvRef(cv.id)}>
-                  <TemplateComponent 
-                    data={cv.cv_data} 
-                    aiData={cv.ai_data} 
-                    isEditing={false}
-                    editMode="content"
-                    showEditControls={false}
-                  />
+        {/* Preview Area */}
+        <div className="relative h-[400px] bg-gray-50 dark:bg-black/40 overflow-hidden border-b border-gray-100 dark:border-gray-800">
+          <div className="absolute inset-0 flex justify-center items-start pt-6">
+            <div className="origin-top shadow-2xl scale-[0.4] sm:scale-[0.45] transition-transform duration-500 group-hover:scale-[0.47]">
+               <CVContainer>
+                  <TemplateComponent data={cv.cv_data} aiData={cv.ai_data} isEditing={false} />
                </CVContainer>
             </div>
           </div>
           
-          {/* Poistopainike kulmassa - vain grid-näkymässä */}
-          {!isCarousel && (
-            <button 
+          <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+             <button 
               onClick={() => handleDelete(cv.id)}
-              className="absolute top-4 right-4 p-3 bg-white/90 dark:bg-card/90 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 shadow-lg z-20 transition-colors"
+              className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white backdrop-blur-md rounded-2xl transition-all"
             >
               {deleteLoading === cv.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Tiedot ja toiminnot */}
-        <div className="p-6">
+        {/* Content Area */}
+        <div className="p-6 sm:p-8">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-1">
+              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 line-clamp-1">
                 {cv.cv_data?.name || "Nimetön CV"}
               </h3>
-              <p className="text-sm text-gray-500 dark:text-muted-foreground">
-                Päivitetty: {new Date(cv.created_at).toLocaleDateString("fi-FI")}
-              </p>
+              <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                <Clock className="w-3.5 h-3.5" />
+                {new Date(cv.created_at).toLocaleDateString("fi-FI")}
+              </div>
             </div>
-            <div className="px-3 py-1 bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 rounded-full text-xs font-bold uppercase tracking-wider">
+            <div className="px-3 py-1 bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-full text-[10px] font-black uppercase tracking-tighter">
               {templateType}
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <button 
+          <div className="grid grid-cols-2 gap-3">
+            <Button 
               onClick={() => handleDownloadPDF(cv.id, cv.cv_data?.name || "CV")}
               disabled={isDownloading === cv.id}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-500 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-600 transition-all"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12 font-bold"
             >
-              {isDownloading === cv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Lataa PDF
-            </button>
-            <Link 
-              href={`/edit-cv/${cv.id}`}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-600 dark:bg-primary text-white dark:text-primary-foreground font-bold rounded-xl shadow-lg hover:bg-indigo-700 dark:hover:bg-primary/90 transition-all"
-            >
-              <Edit className="w-4 h-4" />
-              Muokkaa
+              {isDownloading === cv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              PDF
+            </Button>
+            <Link href={`/edit-cv/${cv.id}`} className="w-full">
+              <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-12 font-bold">
+                <Edit className="w-4 h-4 mr-2" />
+                Muokkaa
+              </Button>
             </Link>
           </div>
-
-          {/* Poistopainike carusellissa */}
-          {isCarousel && (
-            <button
-              onClick={() => handleDelete(cv.id)}
-              disabled={deleteLoading === cv.id}
-              className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 dark:bg-destructive/10 text-red-600 dark:text-destructive rounded-xl text-sm font-bold hover:bg-red-500/20 dark:hover:bg-destructive/20 transition-colors"
-            >
-              {deleteLoading === cv.id ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4" />
-                  Poista
-                </>
-              )}
-            </button>
-          )}
         </div>
       </div>
     );
@@ -337,162 +237,104 @@ export default function MyCVsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background flex items-center justify-center">
-        <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-8 text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 dark:text-primary mx-auto mb-4" />
-          <p className="text-lg font-bold">Ladataan...</p>
-        </div>
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+        <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">Ladataan arkistoja...</p>
       </div>
     );
   }
-
-  if (error || cvs.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background flex items-center justify-center p-4">
-        <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-12 text-center max-w-lg">
-          <FileText className="w-16 h-16 text-indigo-500 dark:text-primary mx-auto mb-6" />
-          <h2 className="text-2xl font-bold mb-4">{error ? "Hups! Jotain meni pieleen" : "Ei vielä CV:itä"}</h2>
-          <p className="text-gray-600 dark:text-muted-foreground mb-8">{error || "Luo ensimmäinen ammattimainen CV:si nyt."}</p>
-          <Link href="/create-cv" className="bg-indigo-600 dark:bg-primary text-white dark:text-primary-foreground px-8 py-3 rounded-xl font-bold hover:scale-105 transition-transform inline-block">
-            Luo uusi CV
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const showCarousel = isMobile && mobileView === 'carousel';
-  const showGrid = !isMobile || mobileView === 'grid';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background text-gray-900 dark:text-foreground relative overflow-hidden">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
       
-      {/* Koristeelliset taustapallot */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-400/20 dark:bg-indigo-400/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-pink-400/10 dark:bg-pink-400/5 rounded-full blur-3xl animate-pulse"></div>
+      {/* Background Orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
       </div>
 
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 relative z-10">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-20">
         
-        <div className="mb-12">
-          <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-6 md:p-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-pink-600 dark:from-primary dark:to-accent bg-clip-text text-transparent">
-                  Omat CV:t
-                </h1>
-                <p className="text-gray-600 dark:text-muted-foreground mt-2">Hallinnoi ja lataa ammattimaiset CV:si</p>
-              </div>
-              <Link 
-                href="/create-cv" 
-                className="flex items-center gap-2 px-8 py-4 bg-indigo-600 dark:bg-primary text-white dark:text-primary-foreground font-bold rounded-2xl shadow-xl hover:scale-105 transition-all"
-              >
-                <Plus className="w-5 h-5" />
-                Luo uusi CV
-              </Link>
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
+              <FileText className="w-3.5 h-3.5 text-orange-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">Arkisto</span>
             </div>
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight dark:text-white leading-tight">
+              Omat <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-500">CV:t</span>
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md font-medium">
+              Kaikki luomasi ansioluettelot yhdessä paikassa. Muokkaa, lataa tai päivitä tyyliä lennosta.
+            </p>
+          </div>
 
-            {/* Näkymän valitsimet mobiilissa */}
+          <div className="flex flex-col sm:flex-row gap-4">
             {isMobile && (
-              <div className="mt-6 flex gap-2">
-                <button
-                  onClick={() => setMobileView('carousel')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${
-                    mobileView === 'carousel'
-                      ? 'bg-indigo-600 dark:bg-primary text-white'
-                      : 'bg-white/50 dark:bg-muted/50 text-gray-600 dark:text-muted-foreground'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                  Carousel
-                </button>
-                
-                <button
-                  onClick={() => setMobileView('grid')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${
-                    mobileView === 'grid'
-                      ? 'bg-indigo-600 dark:bg-primary text-white'
-                      : 'bg-white/50 dark:bg-muted/50 text-gray-600 dark:text-muted-foreground'
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                  Grid
-                </button>
+              <div className="flex bg-white dark:bg-gray-900/50 p-1 rounded-2xl border border-gray-200 dark:border-gray-800">
+                <button onClick={() => setMobileView('carousel')} className={`px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all ${mobileView === 'carousel' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-500'}`}><List className="w-4 h-4"/> Selaa</button>
+                <button onClick={() => setMobileView('grid')} className={`px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all ${mobileView === 'grid' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-500'}`}><LayoutGrid className="w-4 h-4"/> Ruudukko</button>
               </div>
             )}
+            <Link href="/create-cv">
+              <Button className="w-full sm:w-auto px-8 py-7 bg-white dark:bg-white text-black hover:bg-gray-100 rounded-2xl font-black flex items-center gap-2 shadow-xl transition-transform hover:scale-[1.02]">
+                <Plus className="w-5 h-5" />
+                LUO UUSI
+              </Button>
+            </Link>
           </div>
         </div>
 
-        {showCarousel ? (
-          <div className="relative px-2">
-            <div
-              className="overflow-hidden rounded-2xl"
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-            >
-              <div
-                className="flex transition-transform duration-300 ease-out"
-                style={{
-                  transform: `translateX(-${currentIndex * 100}%)`
-                }}
-              >
+        {cvs.length === 0 ? (
+          <div className="py-20 text-center bg-white/50 dark:bg-gray-900/20 border border-dashed border-gray-300 dark:border-gray-800 rounded-[3rem]">
+            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <FileText className="w-10 h-10 text-gray-400" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Ei vielä tallennettuja CV:itä</h3>
+            <p className="text-gray-500 mb-8">Aloita luomalla ensimmäinen tekoälypohjainen ansioluettelosi.</p>
+            <Link href="/create-cv">
+              <Button variant="outline" className="rounded-xl px-8">Luo ensimmäinen CV</Button>
+            </Link>
+          </div>
+        ) : (
+          <>
+            {isMobile && mobileView === 'carousel' ? (
+              <div className="relative">
+                <div className="overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+                  <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+                    {cvs.map((cv) => (
+                      <div key={cv.id} className="w-full flex-shrink-0 px-2">
+                        {renderCVCard(cv, true)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex justify-center items-center gap-6 mt-8">
+                  <button onClick={prevSlide} className="p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg"><ChevronLeft/></button>
+                  <span className="font-black text-sm">{currentIndex + 1} / {cvs.length}</span>
+                  <button onClick={nextSlide} className="p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg"><ChevronRight/></button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-10">
                 {cvs.map((cv) => (
-                  <div key={cv.id} className="w-full flex-shrink-0 px-2">
-                    {renderCVCard(cv, true)}
+                  <div key={cv.id} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {renderCVCard(cv, false)}
                   </div>
                 ))}
               </div>
-            </div>
-
-            {cvs.length > 1 && (
-              <>
-                <button
-                  onClick={prevSlide}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-card/90 border-2 border-white/40 dark:border-border rounded-full flex items-center justify-center shadow-lg z-10"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-
-                <button
-                  onClick={nextSlide}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-card/90 border-2 border-white/40 dark:border-border rounded-full flex items-center justify-center shadow-lg z-10"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              </>
             )}
-
-            {cvs.length > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
-                {cvs.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentIndex(index)}
-                    className={`h-2 rounded-full transition-all ${
-                      index === currentIndex
-                        ? 'bg-indigo-600 dark:bg-primary w-6'
-                        : 'bg-gray-400 dark:bg-muted-foreground/30 w-2'
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-
-            <p className="text-center mt-2 text-sm text-gray-600 dark:text-muted-foreground">
-              {currentIndex + 1} / {cvs.length}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-10">
-            {cvs.map((cv) => (
-              <div key={cv.id} className="relative">
-                {renderCVCard(cv, false)}
-              </div>
-            ))}
-          </div>
+          </>
         )}
       </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 10px; }
+      `}</style>
     </div>
   );
 }
