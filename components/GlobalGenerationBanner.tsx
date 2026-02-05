@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useGeneration } from '@/contexts/GenerationContext';
+import { useGeneration } from '@/context/GenerationContext';
 import { 
   RocketIcon, 
   CheckCircleIcon, 
