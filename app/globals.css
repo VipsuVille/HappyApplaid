@@ -1,116 +1,102 @@
-/* ═══════════════════════════════════════════════════════════════
-   ✅ LISÄÄ NÄMÄ globals.css:ään
-   ═══════════════════════════════════════════════════════════════ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Professional CV - Job Experience Styles */
-.job {
-  margin-bottom: 6mm;
-  page-break-inside: avoid;
+/* 🔗 TÄRKEÄ: tuo design tokenit mukaan */
+@import "../styles/theme.css";
+
+/* =========================
+   BASE STYLES
+   ========================= */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: Arial, Helvetica, sans-serif;
+  }
 }
 
-.job h4 {
-  font-size: 11pt;
-  font-weight: bold;
-  margin-bottom: 1mm;
-  color: #2f2b28;
+/* =========================
+   ANIMATIONS
+   ========================= */
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.animate-fade {
+  animation: fade 0.8s ease-in-out;
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide {
+  background-size: 200% 200%;
+  animation: slide 2s linear infinite;
+}
+
+@keyframes slide {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* =========================
+   HERO TEXT
+   ========================= */
+.hero-title {
+  word-break: keep-all;
+  hyphens: manual;
   line-height: 1.3;
 }
 
-.job .date,
-.job p.date {
-  font-size: 9pt;
-  color: #666;
-  font-style: italic;
-  margin: 1mm 0 2mm 0;
-  line-height: 1.2;
-}
-
-.job ul {
-  margin: 2mm 0 0 0;
-  padding-left: 5mm;
-  list-style-type: disc;
-}
-
-.job li {
-  font-size: 9pt;
-  line-height: 1.5;
-  margin-bottom: 1mm;
-  color: #333;
-}
-
-/* Professional CV - Education Styles */
-.education {
-  margin-bottom: 5mm;
-  page-break-inside: avoid;
-}
-
-.education h4 {
-  font-size: 10pt;
-  font-weight: bold;
-  margin-bottom: 1mm;
-  color: #2f2b28;
-  line-height: 1.3;
-}
-
-.education p {
-  font-size: 9pt;
-  margin: 1mm 0;
-  line-height: 1.3;
-}
-
-.education .date,
-.education p.date {
-  color: #666;
-  font-style: italic;
-}
-
-.education ul {
-  margin-top: 2mm;
-  padding-left: 5mm;
-  font-size: 9pt;
-  list-style-type: disc;
-}
-
-.education li {
-  margin-bottom: 1mm;
-  line-height: 1.4;
-}
-
-/* Ensure proper text wrapping */
-.job h4,
-.job li,
-.education h4,
-.education p,
-.education li {
+.hero-subtitle,
+.hero-description {
   overflow-wrap: break-word;
-  word-wrap: break-word;
-  hyphens: auto;
 }
 
-/* Print-specific overrides for CV */
+/* =========================
+   PRINT / CV
+   ========================= */
+@page {
+  size: A4;
+  margin: 0;
+}
+
 @media print {
-  .job,
-  .education {
-    page-break-inside: avoid;
-    orphans: 3;
-    widows: 3;
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  .job h4,
-  .education h4 {
-    page-break-after: avoid;
+  .no-print {
+    display: none !important;
+  }
+
+  .cv-container {
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
   }
 }
 
-/* Responsive adjustments for preview mode */
-@media screen and (max-width: 768px) {
-  .job h4,
-  .education h4 {
-    font-size: 10pt;
-  }
-
-  .job li,
-  .education li {
-    font-size: 8pt;
-  }
-}
+/* =========================
+   ZOOM HELPERS
+   ========================= */
+.zoom-40 { zoom: 0.4; }
+.zoom-50 { zoom: 0.5; }
+.zoom-60 { zoom: 0.6; }
+.zoom-80 { zoom: 0.8; }
+.zoom-100 { zoom: 1; }

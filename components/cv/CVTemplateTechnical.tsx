@@ -97,8 +97,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
 
   const parseSkills = (): { category: string; items: string[] }[] => {
     const skillsHTML = getAIContent("skills_section");
+    
     if (!skillsHTML) {
-      // Fallback: Parse from data.skills
       const skillsText = data?.skills || "";
       if (!skillsText) return [];
       
@@ -106,10 +106,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       return [{ category: "Skills", items: skills }];
     }
 
-    // Parse HTML structure
     const categories: { category: string; items: string[] }[] = [];
-    
-    // Try to extract from <h3> + <ul> structure
     const parser = new DOMParser();
     const doc = parser.parseFromString(skillsHTML, 'text/html');
     
@@ -132,7 +129,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       }
     });
 
-    // Fallback: if no structure, split by lines
     if (categories.length === 0) {
       const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').filter(l => l.trim());
       if (lines.length > 0) {
@@ -143,10 +139,189 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     return categories;
   };
 
-  const skillCategories = parseSkills();
+  /* ============================================================
+     ✅ PARSE WORK EXPERIENCE TO CHRONOLOGICAL STRUCTURE
+  ============================================================ */
 
-  const name = data?.name || "Nimi";
-  const title = data?.title || "Ammattinimike";
+  const parseWorkExperience = (): Array<{
+    title: string;
+    company: string;
+    period: string;
+    achievements: string[];
+  }> => {
+    const expHTML = getAIContent("experience_section");
+    if (!expHTML) return [];
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(expHTML, 'text/html');
+    const jobs: Array<{
+      title: string;
+      company: string;
+      period: string;
+      achievements: string[];
+    }> = [];
+
+    // Try to parse structured jobs
+    const jobDivs = doc.querySelectorAll('.job, .work-item, .experience-item');
+    
+    if (jobDivs.length > 0) {
+      jobDivs.forEach(jobDiv => {
+        const h4 = jobDiv.querySelector('h4');
+        const titleText = h4?.textContent?.trim() || '';
+        const [title, company] = titleText.split(' - ').map(s => s.trim());
+        
+        const dateP = jobDiv.querySelector('.date, p[class*="date"]');
+        const period = dateP?.textContent?.trim() || '';
+        
+        const achievements: string[] = [];
+        jobDiv.querySelectorAll('ul li').forEach(li => {
+          const text = li.textContent?.trim();
+          if (text) achievements.push(text);
+        });
+        
+        if (title || company) {
+          jobs.push({
+            title: title || 'Position',
+            company: company || 'Company',
+            period,
+            achievements
+          });
+        }
+      });
+    } else {
+      // Fallback: try to extract from h4 + ul structure
+      const allH4 = doc.querySelectorAll('h4');
+      allH4.forEach(h4 => {
+        const titleText = h4.textContent?.trim() || '';
+        const [title, company] = titleText.split(' - ').map(s => s.trim());
+        
+        let period = '';
+        let nextElement = h4.nextElementSibling;
+        
+        if (nextElement?.classList.contains('date') || nextElement?.tagName === 'P') {
+          period = nextElement.textContent?.trim() || '';
+          nextElement = nextElement.nextElementSibling;
+        }
+        
+        const achievements: string[] = [];
+        if (nextElement?.tagName === 'UL') {
+          nextElement.querySelectorAll('li').forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) achievements.push(text);
+          });
+        }
+        
+        if (title || company) {
+          jobs.push({
+            title: title || 'Position',
+            company: company || 'Company',
+            period,
+            achievements
+          });
+        }
+      });
+    }
+
+    return jobs;
+  };
+
+  /* ============================================================
+     ✅ PARSE EDUCATION TO CHRONOLOGICAL STRUCTURE
+  ============================================================ */
+
+  const parseEducation = (): Array<{
+    degree: string;
+    institution: string;
+    year: string;
+    details: string[];
+  }> => {
+    const eduHTML = getAIContent("education_section");
+    if (!eduHTML) return [];
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(eduHTML, 'text/html');
+    const eduList: Array<{
+      degree: string;
+      institution: string;
+      year: string;
+      details: string[];
+    }> = [];
+
+    const eduDivs = doc.querySelectorAll('.education, .education-item');
+    
+    if (eduDivs.length > 0) {
+      eduDivs.forEach(eduDiv => {
+        const h4 = eduDiv.querySelector('h4');
+        const degree = h4?.textContent?.trim() || '';
+        
+        const paragraphs = eduDiv.querySelectorAll('p');
+        let institution = '';
+        let year = '';
+        
+        paragraphs.forEach((p, idx) => {
+          const text = p.textContent?.trim() || '';
+          if (idx === 0) institution = text;
+          if (p.classList.contains('date') || text.match(/\d{4}/)) {
+            year = text;
+          }
+        });
+        
+        const details: string[] = [];
+        eduDiv.querySelectorAll('ul li').forEach(li => {
+          const text = li.textContent?.trim();
+          if (text) details.push(text);
+        });
+        
+        if (degree) {
+          eduList.push({ degree, institution, year, details });
+        }
+      });
+    } else {
+      // Fallback
+      const allH4 = doc.querySelectorAll('h4');
+      allH4.forEach(h4 => {
+        const degree = h4.textContent?.trim() || '';
+        let institution = '';
+        let year = '';
+        const details: string[] = [];
+        
+        let nextElement = h4.nextElementSibling;
+        
+        if (nextElement?.tagName === 'P') {
+          institution = nextElement.textContent?.trim() || '';
+          nextElement = nextElement.nextElementSibling;
+        }
+        
+        if (nextElement?.tagName === 'P') {
+          const text = nextElement.textContent?.trim() || '';
+          if (text.match(/\d{4}/)) {
+            year = text;
+            nextElement = nextElement.nextElementSibling;
+          }
+        }
+        
+        if (nextElement?.tagName === 'UL') {
+          nextElement.querySelectorAll('li').forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) details.push(text);
+          });
+        }
+        
+        if (degree) {
+          eduList.push({ degree, institution, year, details });
+        }
+      });
+    }
+
+    return eduList;
+  };
+
+  const skillCategories = parseSkills();
+  const workExperience = parseWorkExperience();
+  const education = parseEducation();
+
+  const name = data?.name || "Name";
+  const title = data?.title || "Professional Title";
 
   /* ============================================================
      RENDER
@@ -170,13 +345,13 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             onClick={() => setSkillsTop((v) => Math.max(-20, v - 5))}
             className="px-3 py-1 bg-gray-800 text-white rounded text-xs"
           >
-            ↑ Ylös
+            ↑ Up
           </button>
           <button
             onClick={() => setSkillsTop((v) => Math.min(40, v + 5))}
             className="px-3 py-1 bg-gray-800 text-white rounded text-xs"
           >
-            ↓ Alas
+            ↓ Down
           </button>
         </div>
       )}
@@ -208,79 +383,79 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           )}
         </div>
 
-   {/* SKILLS - STRUCTURED BULLET LIST */}
-{skillCategories.length > 0 && (
-  <div
-    style={{
-      padding: "8mm",
-      position: "relative",
-      top: `${skillsTop}mm`,
-    }}
-  >
-    <h2
-      style={{
-        fontSize: "14pt",
-        textTransform: "uppercase",
-        letterSpacing: "0.15em",
-        borderBottom: "1px solid rgba(255,255,255,0.6)",
-        paddingBottom: "4mm",
-        marginBottom: "6mm",
-        fontWeight: "bold",
-      }}
-    >
-      Skills
-    </h2>
-
-    {skillCategories.map((category, idx) => (
-      <div key={idx} style={{ marginBottom: "5mm" }}>
-        {skillCategories.length > 1 && (
-          <h3
+        {/* SKILLS - STRUCTURED BULLET LIST */}
+        {skillCategories.length > 0 && (
+          <div
             style={{
-              fontSize: "10pt",
-              fontWeight: "bold",
-              marginBottom: "2mm",
-              color: "#d4af37", // Gold accent
+              padding: "8mm",
+              position: "relative",
+              top: `${skillsTop}mm`,
             }}
           >
-            {category.category}
-          </h3>
-        )}
-        
-        <ul
-          style={{
-            listStyleType: "none",
-            padding: 0,
-            margin: 0,
-            fontSize: "9pt",
-            lineHeight: 1.6,
-          }}
-        >
-          {category.items.map((skill, skillIdx) => (
-            <li
-              key={skillIdx}
+            <h2
               style={{
-                marginBottom: "2mm",
-                paddingLeft: "4mm",
-                position: "relative",
+                fontSize: "14pt",
+                textTransform: "uppercase",
+                letterSpacing: "0.15em",
+                borderBottom: "1px solid rgba(255,255,255,0.6)",
+                paddingBottom: "4mm",
+                marginBottom: "6mm",
+                fontWeight: "bold",
               }}
             >
-              <span
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  color: "#d4af37",
-                }}
-              >
-                •
-              </span>
-              {skill}
-            </li>
-          ))}
-        </ul>
-      </div>
-    ))}
-  </div>
-)}
+              Skills
+            </h2>
+
+            {skillCategories.map((category, idx) => (
+              <div key={idx} style={{ marginBottom: "5mm" }}>
+                {skillCategories.length > 1 && (
+                  <h3
+                    style={{
+                      fontSize: "10pt",
+                      fontWeight: "bold",
+                      marginBottom: "2mm",
+                      color: "#d4af37",
+                    }}
+                  >
+                    {category.category}
+                  </h3>
+                )}
+                
+                <ul
+                  style={{
+                    listStyleType: "none",
+                    padding: 0,
+                    margin: 0,
+                    fontSize: "9pt",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {category.items.map((skill, skillIdx) => (
+                    <li
+                      key={skillIdx}
+                      style={{
+                        marginBottom: "2mm",
+                        paddingLeft: "4mm",
+                        position: "relative",
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          color: "#d4af37",
+                        }}
+                      >
+                        •
+                      </span>
+                      {skill}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* RIGHT COLUMN - LIGHT */}
@@ -363,9 +538,10 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         </div>
 
         {/* CONTENT AREA */}
-        <div style={{ padding: "10mm" }}>
-          {/* EXPERIENCE */}
-          {getAIContent("experience_section") && (
+        <div style={{ padding: "10mm", fontSize: "10pt", lineHeight: 1.5 }}>
+          
+          {/* ✅ WORK EXPERIENCE - CHRONOLOGICAL */}
+          {workExperience.length > 0 && (
             <section style={{ marginBottom: "8mm" }}>
               <h2
                 style={{
@@ -380,21 +556,54 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
               >
                 Work Experience
               </h2>
-              <div
-                style={{
-                  fontSize: "10pt",
-                  lineHeight: 1.5,
-                  color: "#333",
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: getAIContent("experience_section"),
-                }}
-              />
+              
+              {workExperience.map((job, idx) => (
+                <div key={idx} style={{ marginBottom: "6mm", pageBreakInside: "avoid" }}>
+                  <h4
+                    style={{
+                      fontSize: "11pt",
+                      fontWeight: "bold",
+                      marginBottom: "1mm",
+                      color: "#2f2b28",
+                    }}
+                  >
+                    {job.title} - {job.company}
+                  </h4>
+                  {job.period && (
+                    <p
+                      style={{
+                        fontSize: "9pt",
+                        color: "#666",
+                        fontStyle: "italic",
+                        marginBottom: "2mm",
+                      }}
+                    >
+                      {job.period}
+                    </p>
+                  )}
+                  {job.achievements.length > 0 && (
+                    <ul
+                      style={{
+                        marginTop: "2mm",
+                        paddingLeft: "5mm",
+                        fontSize: "9pt",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {job.achievements.map((achievement, achIdx) => (
+                        <li key={achIdx} style={{ marginBottom: "1mm" }}>
+                          {achievement}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
             </section>
           )}
 
-          {/* EDUCATION */}
-          {getAIContent("education_section") && (
+          {/* ✅ EDUCATION - CHRONOLOGICAL */}
+          {education.length > 0 && (
             <section style={{ marginBottom: "8mm" }}>
               <h2
                 style={{
@@ -409,16 +618,55 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
               >
                 Education
               </h2>
-              <div
-                style={{
-                  fontSize: "10pt",
-                  lineHeight: 1.5,
-                  color: "#333",
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: getAIContent("education_section"),
-                }}
-              />
+              
+              {education.map((edu, idx) => (
+                <div key={idx} style={{ marginBottom: "5mm", pageBreakInside: "avoid" }}>
+                  <h4
+                    style={{
+                      fontSize: "10pt",
+                      fontWeight: "bold",
+                      marginBottom: "1mm",
+                    }}
+                  >
+                    {edu.degree}
+                  </h4>
+                  {edu.institution && (
+                    <p
+                      style={{
+                        fontSize: "9pt",
+                        margin: "1mm 0",
+                      }}
+                    >
+                      {edu.institution}
+                    </p>
+                  )}
+                  {edu.year && (
+                    <p
+                      style={{
+                        fontSize: "9pt",
+                        color: "#666",
+                        fontStyle: "italic",
+                        margin: "1mm 0",
+                      }}
+                    >
+                      {edu.year}
+                    </p>
+                  )}
+                  {edu.details.length > 0 && (
+                    <ul
+                      style={{
+                        marginTop: "2mm",
+                        paddingLeft: "5mm",
+                        fontSize: "9pt",
+                      }}
+                    >
+                      {edu.details.map((detail, detIdx) => (
+                        <li key={detIdx}>{detail}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
             </section>
           )}
 
