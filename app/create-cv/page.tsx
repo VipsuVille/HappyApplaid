@@ -284,7 +284,10 @@ export default function CreateCVPage() {
   // ✅ KORJATTU: Submit-funktio modalille
   const handleSubmitQuestions = async () => {
     console.log('📝 Submitting answers:', generationState.answers);
-    
+    if (isGenerating && generationState.stage !== 'waiting_questions') {
+  console.log('⚠️ Already generating (not in question state), ignoring');
+  return;
+}
     // Tarkista että kaikki kysymykset on vastattu
     const unansweredQuestions = generationState.questions.filter(
       (q: GenerationQuestion) => !generationState.answers[q.id]?.trim()
