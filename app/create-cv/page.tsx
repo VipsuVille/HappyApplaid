@@ -73,8 +73,30 @@ export default function CreateCVPage() {
     completeGeneration,
     failGeneration,
     cancelGeneration,
+    resetState,
     isGenerating,
   } = useGeneration();
+
+  // ✅ CLEANUP: Reset CV state kun komponentti mountataan
+  useEffect(() => {
+    console.log('🧹 CV page mounted - resetting CV state');
+    resetState('cv');
+  }, []); // Tyhjä dependency array = ajetaan vain mountissa
+
+  // ✅ TIMEOUT: Automaattinen reset jos generointi kestää yli 60s
+  useEffect(() => {
+    if (!isGenerating) return;
+
+    const timeoutId = setTimeout(() => {
+      if (isGenerating && generationState.stage !== 'complete') {
+        console.error('⏰ Generation timeout - resetting state');
+        failGeneration('Generointi kesti liian kauan (timeout)');
+        toast.error('Generointi kesti liian kauan. Yritä uudelleen.');
+      }
+    }, 60000); // 60 sekuntia
+
+    return () => clearTimeout(timeoutId);
+  }, [isGenerating, generationState.stage]);
 
   // Local modal state
   const [showQuestionsModal, setShowQuestionsModal] = useState(false);
@@ -83,6 +105,8 @@ export default function CreateCVPage() {
   useEffect(() => {
     if (generationState.stage === 'waiting_questions' && generationState.questions.length > 0) {
       setShowQuestionsModal(true);
+    } else if (generationState.stage === 'idle' || generationState.stage === 'complete') {
+      setShowQuestionsModal(false);
     }
   }, [generationState.stage, generationState.questions.length]);
 
@@ -155,6 +179,11 @@ export default function CreateCVPage() {
     }
 
     try {
+      // ✅ RESET: Jos tämä on uusi yritys kysymysten jälkeen
+      if (finalAnswers && generationState.stage === 'waiting_questions') {
+        console.log('🔄 Resetting state after questions answered');
+      }
+
       startGeneration('cv', {
         templateType: selectedTemplate,
         language: selectedLanguage
@@ -284,10 +313,13 @@ export default function CreateCVPage() {
   // ✅ KORJATTU: Submit-funktio modalille
   const handleSubmitQuestions = async () => {
     console.log('📝 Submitting answers:', generationState.answers);
+    
+    // ✅ GUARD: Jos jo generoidaan, älä tee mitään
     if (isGenerating && generationState.stage !== 'waiting_questions') {
-  console.log('⚠️ Already generating (not in question state), ignoring');
-  return;
-}
+      console.log('⚠️ Already generating (not in question state), ignoring');
+      return;
+    }
+    
     // Tarkista että kaikki kysymykset on vastattu
     const unansweredQuestions = generationState.questions.filter(
       (q: GenerationQuestion) => !generationState.answers[q.id]?.trim()
@@ -578,6 +610,15 @@ export default function CreateCVPage() {
       {/* ✅ KORJATTU KYSYMYSMODAALI */}
       {showQuestionsModal && generationState.questions.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          {/* Debug info - poista tämä tuotannossa */}
+          {console.log('🔍 Modal state:', {
+            isGenerating,
+            stage: generationState.stage,
+            questionsCount: generationState.questions.length,
+            answersCount: Object.keys(generationState.answers).length,
+            buttonWillBeDisabled: isGenerating && generationState.stage !== 'waiting_questions'
+          })}
+          
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isGenerating && setShowQuestionsModal(false)} />
           <div className="relative bg-[#0d1117] border border-gray-800 w-full max-w-2xl rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-transparent" />
@@ -589,6 +630,25 @@ export default function CreateCVPage() {
             <p className="text-gray-400 text-sm mb-8 sm:mb-10">
               AI haluaa varmistaa, että CV:stä tulee mahdollisimman vakuuttava.
             </p>
+
+            {/* ✅ HÄTÄNAPPI: Jos state on rikki */}
+            {isGenerating && generationState.stage !== 'waiting_questions' && (
+              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <p className="text-red-400 text-sm mb-3">
+                  ⚠️ Generointi on jumissa. Yritä resetoida:
+                </p>
+                <button
+                  onClick={() => {
+                    cancelGeneration();
+                    setShowQuestionsModal(false);
+                    toast.info('State resetoitu. Yritä uudelleen.');
+                  }}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold"
+                >
+                  Resetoi ja sulje
+                </button>
+              </div>
+            )}
 
             <div className="space-y-6 sm:space-y-8 max-h-[50vh] overflow-y-auto pr-2 sm:pr-4 custom-scrollbar">
               {generationState.questions.map((q: GenerationQuestion) => (
@@ -616,17 +676,23 @@ export default function CreateCVPage() {
               <Button 
                 variant="ghost" 
                 className="flex-1 rounded-xl sm:rounded-2xl text-gray-500 hover:text-white hover:bg-white/5 h-12 sm:h-14 font-bold text-sm sm:text-base"
-                onClick={() => setShowQuestionsModal(false)}
-                disabled={isGenerating}
+                onClick={() => {
+                  setShowQuestionsModal(false);
+                  // ✅ Peruuta generointi jos kysytään kysymyksiä
+                  if (generationState.stage === 'waiting_questions') {
+                    cancelGeneration();
+                  }
+                }}
+                disabled={isGenerating && generationState.stage !== 'waiting_questions'}
               >
                 Sulje
               </Button>
               <Button 
                 className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white rounded-xl sm:rounded-2xl h-12 sm:h-14 font-black text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleSubmitQuestions}
-                disabled={isGenerating}
+                disabled={isGenerating && generationState.stage !== 'waiting_questions'}
               >
-                {isGenerating ? (
+                {isGenerating && generationState.stage !== 'waiting_questions' ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Viimeistellään...</span>

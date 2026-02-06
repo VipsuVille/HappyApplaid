@@ -1,15 +1,17 @@
-// context/GenerationContext.tsx
-// ✅ FINAL: generatedItemId lisätty
-
-'use client';
+// contexts/GenerationContext.tsx - KORJATTU VERSIO
+"use client";
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+
+// ════════════════════════════════════════════════════════════════
+// TYPES
+// ════════════════════════════════════════════════════════════════
 
 export type GenerationType = 'cv' | 'cover_letter';
 
-export type GenerationStage = 
+export type GenerationStage =
   | 'idle'
-  | 'starting'
   | 'analyzing'
   | 'waiting_questions'
   | 'generating'
@@ -21,164 +23,259 @@ export interface GenerationQuestion {
   id: string;
   question: string;
   why?: string;
-  priority?: 'critical' | 'important' | 'optional';
+  helpText?: string;
+  priority?: 'critical' | 'important' | 'helpful';
+  category?: string;
 }
 
-interface GenerationState {
+export interface GenerationState {
   type: GenerationType | null;
   stage: GenerationStage;
   progress: number;
   questions: GenerationQuestion[];
   answers: Record<string, string>;
   error: string | null;
-  startedAt: number | null;
-  templateType?: string;
-  language?: string;
-  generatedItemId?: string; // ✅ UUSI: ID kun valmis
+  resultId: string | null;
+  metadata?: Record<string, any>;
 }
 
-interface GenerationContextValue {
-  state: GenerationState;
+interface GenerationContextType {
+  // ✅ ERILLINEN STATE CV:LLE JA COVER LETTERILLE
+  cvState: GenerationState;
+  coverLetterState: GenerationState;
   
-  startGeneration: (type: GenerationType, metadata?: { templateType?: string; language?: string }) => void;
+  // ✅ GETTERIT AKTIIVISELLE STATELLE
+  state: GenerationState;
+  isGenerating: boolean;
+  
+  // Actions
+  startGeneration: (type: GenerationType, metadata?: Record<string, any>) => void;
   setStage: (stage: GenerationStage, progress?: number) => void;
   setQuestions: (questions: GenerationQuestion[]) => void;
   setAnswer: (questionId: string, answer: string) => void;
-  setError: (error: string) => void;
-  completeGeneration: (itemId?: string) => void; // ✅ MUUTETTU: Valinnainen ID
+  completeGeneration: (resultId: string) => void;
   failGeneration: (error: string) => void;
   cancelGeneration: () => void;
-  reset: () => void;
-  
-  isGenerating: boolean;
-  hasQuestions: boolean;
-  questionCount: number;
+  resetState: (type?: GenerationType) => void;
 }
 
-const GenerationContext = createContext<GenerationContextValue | undefined>(undefined);
+// ════════════════════════════════════════════════════════════════
+// INITIAL STATES
+// ════════════════════════════════════════════════════════════════
 
-const INITIAL_STATE: GenerationState = {
+const createInitialState = (): GenerationState => ({
   type: null,
   stage: 'idle',
   progress: 0,
   questions: [],
   answers: {},
   error: null,
-  startedAt: null,
-  generatedItemId: undefined,
-};
+  resultId: null,
+  metadata: {},
+});
 
-export function GlobalGenerationProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<GenerationState>(INITIAL_STATE);
+// ════════════════════════════════════════════════════════════════
+// CONTEXT
+// ════════════════════════════════════════════════════════════════
 
-  const startGeneration = useCallback((
-    type: GenerationType, 
-    metadata?: { templateType?: string; language?: string }
-  ) => {
-    setState({
-      ...INITIAL_STATE,
-      type,
-      stage: 'starting',
-      progress: 0,
-      startedAt: Date.now(),
-      templateType: metadata?.templateType,
-      language: metadata?.language,
-    });
+const GenerationContext = createContext<GenerationContextType | undefined>(undefined);
+
+export function GenerationProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  
+  // ✅ ERILLINEN STATE KUMMALLEKIN
+  const [cvState, setCvState] = useState<GenerationState>(createInitialState());
+  const [coverLetterState, setCoverLetterState] = useState<GenerationState>(createInitialState());
+  
+  // ✅ AKTIIVINEN TYYPPI (viimeksi aloitettu)
+  const [activeType, setActiveType] = useState<GenerationType | null>(null);
+  
+  // ✅ GETTERI AKTIIVISELLE STATELLE
+  const state = activeType === 'cv' ? cvState : 
+                activeType === 'cover_letter' ? coverLetterState : 
+                createInitialState();
+  
+  // ✅ KRIITTINEN: Kysymystilassa ei ole "generating" - käyttäjä voi vastata!
+  const isGenerating = state.stage !== 'idle' && 
+                       state.stage !== 'complete' && 
+                       state.stage !== 'error' &&
+                       state.stage !== 'waiting_questions'; // ✅ LISÄTTY!
+  
+  // ✅ HELPER: Päivitä oikea state
+  const updateState = useCallback((type: GenerationType, updater: (prev: GenerationState) => GenerationState) => {
+    if (type === 'cv') {
+      setCvState(updater);
+    } else {
+      setCoverLetterState(updater);
+    }
   }, []);
-
+  
+  // ════════════════════════════════════════════════════════════════
+  // ACTIONS
+  // ════════════════════════════════════════════════════════════════
+  
+  const startGeneration = useCallback((type: GenerationType, metadata?: Record<string, any>) => {
+    console.log(`🚀 [Context] Starting ${type} generation`);
+    
+    // ✅ TARKISTA ETTÄ TOINEN EI OLE KESKEN
+    const otherType = type === 'cv' ? 'cover_letter' : 'cv';
+    const otherState = otherType === 'cv' ? cvState : coverLetterState;
+    
+    if (otherState.stage !== 'idle' && 
+        otherState.stage !== 'complete' && 
+        otherState.stage !== 'error') {
+      console.error(`❌ [Context] Cannot start ${type} - ${otherType} is still generating`);
+      throw new Error(`Generointi on jo käynnissä (${otherType}). Odota sen valmistumista.`);
+    }
+    
+    setActiveType(type);
+    
+    updateState(type, () => ({
+      type,
+      stage: 'analyzing',
+      progress: 10,
+      questions: [],
+      answers: {},
+      error: null,
+      resultId: null,
+      metadata: metadata || {},
+    }));
+  }, [cvState, coverLetterState, updateState]);
+  
   const setStage = useCallback((stage: GenerationStage, progress?: number) => {
-    setState(prev => ({
+    if (!activeType) {
+      console.warn('⚠️ [Context] setStage called but no active type');
+      return;
+    }
+    
+    updateState(activeType, (prev) => ({
       ...prev,
       stage,
       progress: progress ?? prev.progress,
     }));
-  }, []);
-
+  }, [activeType, updateState]);
+  
   const setQuestions = useCallback((questions: GenerationQuestion[]) => {
-    setState(prev => ({
+    if (!activeType) return;
+    
+    console.log(`❓ [Context] Setting ${questions.length} questions for ${activeType}`);
+    
+    updateState(activeType, (prev) => ({
       ...prev,
-      stage: 'waiting_questions',
       questions,
-      answers: {},
+      stage: 'waiting_questions',
+      progress: 30,
     }));
-  }, []);
-
+  }, [activeType, updateState]);
+  
   const setAnswer = useCallback((questionId: string, answer: string) => {
-    setState(prev => ({
+    if (!activeType) return;
+    
+    updateState(activeType, (prev) => ({
       ...prev,
       answers: {
         ...prev.answers,
         [questionId]: answer,
       },
     }));
-  }, []);
-
-  const setError = useCallback((error: string) => {
-    setState(prev => ({
-      ...prev,
-      stage: 'error',
-      error,
-    }));
-  }, []);
-
-  const completeGeneration = useCallback((itemId?: string) => {
-    setState(prev => ({
+  }, [activeType, updateState]);
+  
+  const completeGeneration = useCallback((resultId: string) => {
+    if (!activeType) return;
+    
+    console.log(`✅ [Context] ${activeType} generation complete:`, resultId);
+    
+    updateState(activeType, (prev) => ({
       ...prev,
       stage: 'complete',
       progress: 100,
-      generatedItemId: itemId, // ✅ Tallenna ID
+      resultId,
     }));
     
-    // ✅ EI AUTOMAATTISTA RESETTIÄ - Käyttäjä sulkee itse bannerista
-  }, []);
-
+    // ✅ NAVIGATE OIKEALLE SIVULLE
+    setTimeout(() => {
+      if (activeType === 'cv') {
+        router.push(`/edit-cv/${resultId}`);
+      } else {
+        router.push(`/edit-cover-letter/${resultId}`);
+      }
+    }, 500);
+  }, [activeType, updateState, router]);
+  
   const failGeneration = useCallback((error: string) => {
-    setState(prev => ({
+    if (!activeType) return;
+    
+    console.error(`❌ [Context] ${activeType} generation failed:`, error);
+    
+    updateState(activeType, (prev) => ({
       ...prev,
       stage: 'error',
       error,
     }));
-  }, []);
-
+  }, [activeType, updateState]);
+  
   const cancelGeneration = useCallback(() => {
-    setState(INITIAL_STATE);
-  }, []);
-
-  const reset = useCallback(() => {
-    setState(INITIAL_STATE);
-  }, []);
-
-  const isGenerating = state.stage !== 'idle' && state.stage !== 'complete' && state.stage !== 'error';
-  const hasQuestions = state.questions.length > 0;
-  const questionCount = state.questions.length;
-
+    if (!activeType) return;
+    
+    console.log(`🛑 [Context] Cancelling ${activeType} generation`);
+    
+    updateState(activeType, () => createInitialState());
+    setActiveType(null);
+  }, [activeType, updateState]);
+  
+  const resetState = useCallback((type?: GenerationType) => {
+    if (type) {
+      console.log(`🔄 [Context] Resetting ${type} state`);
+      updateState(type, () => createInitialState());
+      if (activeType === type) {
+        setActiveType(null);
+      }
+    } else {
+      console.log('🔄 [Context] Resetting ALL states');
+      setCvState(createInitialState());
+      setCoverLetterState(createInitialState());
+      setActiveType(null);
+    }
+  }, [activeType, updateState]);
+  
+  const value: GenerationContextType = {
+    cvState,
+    coverLetterState,
+    state,
+    isGenerating,
+    startGeneration,
+    setStage,
+    setQuestions,
+    setAnswer,
+    completeGeneration,
+    failGeneration,
+    cancelGeneration,
+    resetState,
+  };
+  
   return (
-    <GenerationContext.Provider
-      value={{
-        state,
-        startGeneration,
-        setStage,
-        setQuestions,
-        setAnswer,
-        setError,
-        completeGeneration,
-        failGeneration,
-        cancelGeneration,
-        reset,
-        isGenerating,
-        hasQuestions,
-        questionCount,
-      }}
-    >
+    <GenerationContext.Provider value={value}>
       {children}
     </GenerationContext.Provider>
   );
 }
 
+// ════════════════════════════════════════════════════════════════
+// HOOK
+// ════════════════════════════════════════════════════════════════
+
 export function useGeneration() {
   const context = useContext(GenerationContext);
+  
   if (!context) {
-    throw new Error('useGeneration must be used within GlobalGenerationProvider');
+    throw new Error('useGeneration must be used within GenerationProvider');
   }
+  
   return context;
 }
+
+// ════════════════════════════════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════════════════════════════════
+
+export default GenerationContext;
