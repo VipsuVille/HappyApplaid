@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useGeneration, type GenerationQuestion } from '@/context/GenerationContext'; // ✅ KORJATTU: contexts (ei context)
+import { useGeneration, type GenerationQuestion } from '@/context/GenerationContext';
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -20,7 +20,6 @@ import {
   AlertCircle,
   Loader2,
   Globe,
-  Languages,
 } from "lucide-react";
 
 import { useTokens } from "@/hooks/useTokens";
@@ -70,7 +69,7 @@ export default function CreateCVPage() {
     startGeneration,
     setStage,
     setQuestions,
-    setAnswer, // ✅ LISÄTTY
+    setAnswer,
     completeGeneration,
     failGeneration,
     cancelGeneration,
@@ -129,152 +128,142 @@ export default function CreateCVPage() {
     return tokens >= costs.total;
   };
 
+  // ✅ KORJATTU: handleGenerateCV
+  const handleGenerateCV = async (
+    finalAnswers?: Record<string, string>,
+    skipConfirmation = false
+  ) => {
+    // ✅ GUARD: Estä duplikaatit
+    if (isGenerating) {
+      console.log('⚠️ Already generating, ignoring duplicate call');
+      return;
+    }
 
+    if (!user) return toast.error("Kirjautuminen vaaditaan");
+    if (!profileData) {
+      toast.error("Täytä profiilitiedot ensin!");
+      router.push("/profile");
+      return;
+    }
 
+    if (!canCreateCV()) {
+      const msg = plan_type === 'free' 
+        ? 'Ilmainen kokeilu on jo käytetty.' 
+        : `Tarvitset ${costs.total} tokenia.`;
+      toast.error(msg);
+      return;
+    }
 
-// ✅ KORJAUS: create-cv/page.tsx handleGenerateCV funktiossa
-// ✅ KORJATTU: create-cv/page.tsx handleGenerateCV
+    try {
+      startGeneration('cv', {
+        templateType: selectedTemplate,
+        language: selectedLanguage
+      });
 
-const handleGenerateCV = async (
-  finalAnswers?: Record<string, string>,
-  skipConfirmation = false
-) => {
-  // ✅ GUARD: Estä duplikaatit
-  if (isGenerating) {
-    console.log('⚠️ Already generating, ignoring duplicate call');
-    return;
-  }
-
-  if (!user) return toast.error("Kirjautuminen vaaditaan");
-  if (!profileData) {
-    toast.error("Täytä profiilitiedot ensin!");
-    router.push("/profile");
-    return;
-  }
-
-  if (!canCreateCV()) {
-    const msg = plan_type === 'free' 
-      ? 'Ilmainen kokeilu on jo käytetty.' 
-      : `Tarvitset ${costs.total} tokenia.`;
-    toast.error(msg);
-    return;
-  }
-
-  try {
-    startGeneration('cv', {
-      templateType: selectedTemplate,
-      language: selectedLanguage
-    });
-
-    const currentAnswers = finalAnswers || generationState.answers;
-    const hasAnswers = Object.keys(currentAnswers).length > 0;
-    
-    // ✅ PARSE JSON ARRAYS
-    const parseJsonField = (field: any) => {
-      if (!field) return [];
-      if (Array.isArray(field)) return field;
-      if (typeof field === 'string') {
-        try {
-          const parsed = JSON.parse(field);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-          return [];
+      const currentAnswers = finalAnswers || generationState.answers;
+      const hasAnswers = Object.keys(currentAnswers).length > 0;
+      
+      // ✅ PARSE JSON ARRAYS
+      const parseJsonField = (field: any) => {
+        if (!field) return [];
+        if (Array.isArray(field)) return field;
+        if (typeof field === 'string') {
+          try {
+            const parsed = JSON.parse(field);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            return [];
+          }
         }
+        return [];
+      };
+
+      // ✅ CONVERT ARRAY TO STRING
+      const arrayToString = (field: any) => {
+        if (!field) return '';
+        if (typeof field === 'string') return field;
+        if (Array.isArray(field)) {
+          return field.filter(Boolean).join(', ');
+        }
+        return '';
+      };
+
+      const requestBody = {
+        profileData: {
+          ...profileData,
+          work_experience: parseJsonField(profileData.work_experience),
+          education: parseJsonField(profileData.education),
+          certificates: parseJsonField(profileData.certificates),
+          portfolio_links: parseJsonField(profileData.portfolio_links),
+          skills: arrayToString(profileData.skills),
+          languages: arrayToString(profileData.languages),
+        },
+        cvType: selectedTemplate,
+        language: selectedLanguage === 'english' ? 'english' : 'finnish',
+        jobPosting: useATS ? jobPosting : undefined,
+        enableRAG: false,
+        answeredQuestions: hasAnswers 
+          ? Object.entries(currentAnswers).map(([id, answer]) => ({
+              id,
+              question: generationState.questions.find((q: GenerationQuestion) => q.id === id)?.question || '',
+              answer
+            }))
+          : [],
+        skipQuestions: hasAnswers,
+        skipConfirmation,
+      };
+
+      console.log('📤 Sending CV generation request:', {
+        cvType: requestBody.cvType,
+        language: requestBody.language,
+        hasJobPosting: !!requestBody.jobPosting,
+        hasAnswers: hasAnswers,
+        answerCount: requestBody.answeredQuestions?.length || 0
+      });
+
+      setStage('analyzing', 20);
+
+      const response = await fetch("/api/generate-cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+
+      const result = await response.json();
+
+      // Handle questions
+      if (result.needsMoreInfo && result.questions?.length > 0) {
+        console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
+        setQuestions(result.questions);
+        setStage('waiting_questions', 30);
+        return;
       }
-      return [];
-    };
 
-    // ✅ CONVERT ARRAY TO STRING
-    const arrayToString = (field: any) => {
-      if (!field) return '';
-      if (typeof field === 'string') return field; // Already string
-      if (Array.isArray(field)) {
-        return field.filter(Boolean).join(', ');
+      // Handle confirmation
+      if (result.needsConfirmation && !skipConfirmation) {
+        console.log('⚠️ Tarvitaan käyttäjän vahvistus');
+        setPendingViolations(result.violations);
+        setShowConfirmation(true);
+        cancelGeneration();
+        return;
       }
-      return '';
-    };
 
-    const requestBody = {
-      profileData: {
-        ...profileData,
-        // ✅ ARRAYS (backend expects arrays)
-        work_experience: parseJsonField(profileData.work_experience),
-        education: parseJsonField(profileData.education),
-        certificates: parseJsonField(profileData.certificates),
-        portfolio_links: parseJsonField(profileData.portfolio_links),
-        
-        // ✅ STRINGS (backend expects comma-separated strings)
-        skills: arrayToString(profileData.skills),
-        languages: arrayToString(profileData.languages),
-      },
-      cvType: selectedTemplate,
-      language: selectedLanguage === 'english' ? 'english' : 'finnish',
-      jobPosting: useATS ? jobPosting : undefined,
-      enableRAG: false,
-      answeredQuestions: hasAnswers 
-        ? Object.entries(currentAnswers).map(([id, answer]) => ({
-            id,
-            question: generationState.questions.find((q: GenerationQuestion) => q.id === id)?.question || '',
-            answer
-          }))
-        : [],
-      skipQuestions: hasAnswers,
-      skipConfirmation,
-    };
+      setStage('generating', 50);
+      setTimeout(() => setStage('generating', 70), 2000);
+      setTimeout(() => setStage('finalizing', 90), 4000);
 
-    console.log('📤 Sending CV generation request:', {
-      cvType: requestBody.cvType,
-      language: requestBody.language,
-      hasJobPosting: !!requestBody.jobPosting,
-      workExperienceCount: requestBody.profileData.work_experience.length,
-      educationCount: requestBody.profileData.education.length,
-      skillsType: typeof requestBody.profileData.skills,
-      skillsValue: requestBody.profileData.skills,
-    });
-
-    setStage('analyzing', 20);
-
-    const response = await fetch("/api/generate-cv", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
-    });
-
-    const result = await response.json();
-
-    // Handle questions
-    if (result.needsMoreInfo && result.questions?.length > 0) {
-      console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
-      setQuestions(result.questions);
-      setStage('waiting_questions', 30);
-      return;
+      if (response.ok && (result.id || result.cvId)) {
+        completeGeneration(result.id || result.cvId);
+        toast.success("✅ CV luotu onnistuneesti!");
+      } else {
+        throw new Error(result.error || result.message || 'Tuntematon virhe');
+      }
+    } catch (error: any) {
+      console.error('❌ CV generation error:', error);
+      failGeneration(error.message || 'CV:n luonti epäonnistui');
+      toast.error(error.message || 'CV:n luonti epäonnistui');
     }
-
-    // Handle confirmation
-    if (result.needsConfirmation && !skipConfirmation) {
-      console.log('⚠️ Tarvitaan käyttäjän vahvistus');
-      setPendingViolations(result.violations);
-      setShowConfirmation(true);
-      cancelGeneration();
-      return;
-    }
-
-    setStage('generating', 50);
-    setTimeout(() => setStage('generating', 70), 2000);
-    setTimeout(() => setStage('finalizing', 90), 4000);
-
-    if (response.ok && (result.id || result.cvId)) {
-      completeGeneration(result.id || result.cvId);
-      toast.success("✅ CV luotu onnistuneesti!");
-    } else {
-      throw new Error(result.error || result.message || 'Tuntematon virhe');
-    }
-  } catch (error: any) {
-    console.error('❌ CV generation error:', error);
-    failGeneration(error.message || 'CV:n luonti epäonnistui');
-    toast.error(error.message || 'CV:n luonti epäonnistui');
-  }
-};
+  };
 
   const handleApproveViolations = async (items: any[]) => {
     setShowConfirmation(false);
@@ -290,6 +279,29 @@ const handleGenerateCV = async (
   const handleEditViolations = async () => {
     setShowConfirmation(false);
     router.push("/profile");
+  };
+
+  // ✅ KORJATTU: Submit-funktio modalille
+  const handleSubmitQuestions = async () => {
+    console.log('📝 Submitting answers:', generationState.answers);
+    
+    // Tarkista että kaikki kysymykset on vastattu
+    const unansweredQuestions = generationState.questions.filter(
+      (q: GenerationQuestion) => !generationState.answers[q.id]?.trim()
+    );
+
+    if (unansweredQuestions.length > 0) {
+      toast.error(`Vastaa kaikkiin kysymyksiin (${unansweredQuestions.length} puuttuu)`);
+      return;
+    }
+
+    // Sulje modaali
+    setShowQuestionsModal(false);
+    
+    // ✅ ANNA HETKINEN ENNEN UUTTA GENEROINTIA
+    setTimeout(() => {
+      handleGenerateCV(generationState.answers);
+    }, 300);
   };
 
   if (!userLoaded || profileLoading || tokensLoading) {
@@ -523,10 +535,10 @@ const handleGenerateCV = async (
 
                 <Button
                   onClick={() => handleGenerateCV()}
-                  disabled={isGenerating  || (useATS && !jobPosting.trim())}
+                  disabled={isGenerating || (useATS && !jobPosting.trim())}
                   className="w-full py-6 sm:py-8 bg-gradient-to-r from-orange-500 to-amber-600 hover:shadow-[0_0_40px_rgba(249,115,22,0.3)] text-white rounded-xl sm:rounded-2xl font-black text-base sm:text-lg transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] group"
                 >
-                  {isGenerating  ? (
+                  {isGenerating ? (
                     <div className="flex items-center gap-3">
                       <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                       <span>Generoidaan...</span>
@@ -560,8 +572,7 @@ const handleGenerateCV = async (
         </div>
       </div>
 
-      {/* LISÄKYSYMYKSET MODAL */}
-{/* ✅ LISÄKYSYMYKSET MODAL */}
+      {/* ✅ KORJATTU KYSYMYSMODAALI */}
       {showQuestionsModal && generationState.questions.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isGenerating && setShowQuestionsModal(false)} />
@@ -591,13 +602,7 @@ const handleGenerateCV = async (
                   <textarea
                     className="w-full bg-black/40 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-4 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-all min-h-[100px] resize-none"
                     value={generationState.answers[q.id] || ""}
-                    onChange={(e) => {
-                      // ✅ Käytä context setAnswer hookia
-                      // Tämä tulee useGeneration() hookista
-                      // const { setAnswer } = useGeneration();
-                      // Jos setAnswer ei ole saatavilla, käytä suoraan:
-                      setAnswer(q.id, e.target.value);
-                    }}
+                    onChange={(e) => setAnswer(q.id, e.target.value)}
                     placeholder="Vastaa tähän..."
                   />
                 </div>
@@ -614,14 +619,18 @@ const handleGenerateCV = async (
                 Sulje
               </Button>
               <Button 
-                className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white rounded-xl sm:rounded-2xl h-12 sm:h-14 font-black text-sm sm:text-base"
-                onClick={() => {
-                  setShowQuestionsModal(false);
-                  handleGenerateCV(generationState.answers);
-                }}
+                className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white rounded-xl sm:rounded-2xl h-12 sm:h-14 font-black text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleSubmitQuestions}
                 disabled={isGenerating}
               >
-                {isGenerating ? 'Viimeistellään...' : 'Valmista tuli'}
+                {isGenerating ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Viimeistellään...</span>
+                  </div>
+                ) : (
+                  'Valmista tuli'
+                )}
               </Button>
             </div>
           </div>
