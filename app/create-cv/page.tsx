@@ -103,9 +103,19 @@ export default function CreateCVPage() {
 
   // Sync modal visibility with generation state
   useEffect(() => {
+    console.log('🔄 [Modal Sync] useEffect triggered:', {
+      stage: generationState.stage,
+      questionsCount: generationState.questions.length,
+      showQuestionsModal,
+      shouldOpen: generationState.stage === 'waiting_questions' && generationState.questions.length > 0,
+      shouldClose: generationState.stage === 'idle' || generationState.stage === 'complete'
+    });
+    
     if (generationState.stage === 'waiting_questions' && generationState.questions.length > 0) {
+      console.log('✅ [Modal Sync] Opening questions modal');
       setShowQuestionsModal(true);
     } else if (generationState.stage === 'idle' || generationState.stage === 'complete') {
+      console.log('🔒 [Modal Sync] Closing questions modal');
       setShowQuestionsModal(false);
     }
   }, [generationState.stage, generationState.questions.length]);
@@ -361,8 +371,17 @@ export default function CreateCVPage() {
       // Handle questions
       if (result.needsMoreInfo && result.questions?.length > 0) {
         console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
+        console.log('📝 Kysymykset:', result.questions);
+        
         setQuestions(result.questions);
         setStage('waiting_questions', 30);
+        
+        // ✅ PAKKO-AVAUS: Varmista että modaali avautuu
+        setTimeout(() => {
+          console.log('🔓 Avataan kysymysmodaali');
+          setShowQuestionsModal(true);
+        }, 100);
+        
         return;
       }
 
