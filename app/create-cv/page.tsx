@@ -192,41 +192,77 @@ export default function CreateCVPage() {
       const currentAnswers = finalAnswers || generationState.answers;
       const hasAnswers = Object.keys(currentAnswers).length > 0;
       
-      // ✅ PARSE JSON ARRAYS
-      const parseJsonField = (field: any) => {
-        if (!field) return [];
+      // ✅ PARSE JSON ARRAYS - TURVALLINEN VERSIO
+      const parseJsonField = (field: any): any[] => {
+        // Jos null tai undefined, palauta tyhjä array
+        if (field == null) return [];
+        
+        // Jos jo array, palauta se
         if (Array.isArray(field)) return field;
+        
+        // Jos string, yritä parsia
         if (typeof field === 'string') {
+          // Tyhjä string → tyhjä array
+          if (field.trim() === '') return [];
+          
           try {
             const parsed = JSON.parse(field);
             return Array.isArray(parsed) ? parsed : [];
           } catch (e) {
+            // Jos parse epäonnistuu, palauta tyhjä array
             return [];
           }
         }
+        
+        // Muu tyyppi → tyhjä array
         return [];
       };
 
-      // ✅ CONVERT ARRAY TO STRING
-      const arrayToString = (field: any) => {
-        if (!field) return '';
+      // ✅ CONVERT ARRAY TO STRING - TURVALLINEN VERSIO
+      const arrayToString = (field: any): string => {
+        // Jos null tai undefined, palauta tyhjä string
+        if (field == null) return '';
+        
+        // Jos jo string, palauta se
         if (typeof field === 'string') return field;
+        
+        // Jos array, yhdistä pilkulla
         if (Array.isArray(field)) {
-          return field.filter(Boolean).join(', ');
+          return field
+            .filter(item => item != null && item !== '') // Suodata pois null/undefined/tyhjät
+            .join(', ');
         }
+        
+        // Muu tyyppi → tyhjä string
         return '';
       };
 
       const requestBody = {
-        profileData: {
-          ...profileData,
-          work_experience: parseJsonField(profileData.work_experience),
-          education: parseJsonField(profileData.education),
-          certificates: parseJsonField(profileData.certificates),
-          portfolio_links: parseJsonField(profileData.portfolio_links),
-          skills: arrayToString(profileData.skills),
-          languages: arrayToString(profileData.languages),
-        },
+        profileData: (() => {
+          try {
+            return {
+              ...profileData,
+              work_experience: parseJsonField(profileData?.work_experience),
+              education: parseJsonField(profileData?.education),
+              certificates: parseJsonField(profileData?.certificates),
+              portfolio_links: parseJsonField(profileData?.portfolio_links),
+              skills: arrayToString(profileData?.skills),
+              languages: arrayToString(profileData?.languages),
+            };
+          } catch (parseError) {
+            console.error('❌ Profile data parsing error:', parseError);
+            // Fallback: palauta raaka data
+            return {
+              ...profileData,
+              work_experience: profileData?.work_experience || [],
+              education: profileData?.education || [],
+              certificates: profileData?.certificates || [],
+              portfolio_links: profileData?.portfolio_links || [],
+              skills: profileData?.skills || '',
+              languages: profileData?.languages || '',
+            };
+          }
+        })(),
         cvType: selectedTemplate,
         language: selectedLanguage === 'english' ? 'english' : 'finnish',
         jobPosting: useATS ? jobPosting : undefined,
@@ -247,7 +283,17 @@ export default function CreateCVPage() {
         language: requestBody.language,
         hasJobPosting: !!requestBody.jobPosting,
         hasAnswers: hasAnswers,
-        answerCount: requestBody.answeredQuestions?.length || 0
+        answerCount: requestBody.answeredQuestions?.length || 0,
+        profileDataTypes: {
+          work_experience: Array.isArray(requestBody.profileData.work_experience) ? 'array' : typeof requestBody.profileData.work_experience,
+          education: Array.isArray(requestBody.profileData.education) ? 'array' : typeof requestBody.profileData.education,
+          skills: typeof requestBody.profileData.skills,
+          languages: typeof requestBody.profileData.languages,
+        },
+        profileDataLengths: {
+          work_experience: requestBody.profileData.work_experience?.length || 0,
+          education: requestBody.profileData.education?.length || 0,
+        }
       });
 
       setStage('analyzing', 20);
@@ -608,10 +654,20 @@ export default function CreateCVPage() {
       </div>
 
       {/* ✅ KORJATTU KYSYMYSMODAALI */}
+      {showQuestionsModal && generationState.questions.length > 0 && (() => {
+        // Debug info - voidaan poistaa tuotannossa
+        console.log('🔍 Modal state:', {
+          isGenerating,
+          stage: generationState.stage,
+          questionsCount: generationState.questions.length,
+          answersCount: Object.keys(generationState.answers).length,
+          buttonWillBeDisabled: isGenerating && generationState.stage !== 'waiting_questions'
+        });
+        return null;
+      })()}
+      
       {showQuestionsModal && generationState.questions.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-         
-          
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isGenerating && setShowQuestionsModal(false)} />
           <div className="relative bg-[#0d1117] border border-gray-800 w-full max-w-2xl rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-transparent" />

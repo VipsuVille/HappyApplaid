@@ -36,6 +36,9 @@ export interface GenerationState {
   answers: Record<string, string>;
   error: string | null;
   resultId: string | null;
+  generatedItemId: string | null; // ✅ LISÄTTY (alias resultId:lle)
+  templateType?: string; // ✅ LISÄTTY
+  language?: string; // ✅ LISÄTTY
   metadata?: Record<string, any>;
 }
 
@@ -47,6 +50,7 @@ interface GenerationContextType {
   // ✅ GETTERIT AKTIIVISELLE STATELLE
   state: GenerationState;
   isGenerating: boolean;
+  questionCount: number; // ✅ LISÄTTY
   
   // Actions
   startGeneration: (type: GenerationType, metadata?: Record<string, any>) => void;
@@ -57,6 +61,7 @@ interface GenerationContextType {
   failGeneration: (error: string) => void;
   cancelGeneration: () => void;
   resetState: (type?: GenerationType) => void;
+  reset: () => void; // ✅ LISÄTTY (alias resetState:lle)
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -71,6 +76,9 @@ const createInitialState = (): GenerationState => ({
   answers: {},
   error: null,
   resultId: null,
+  generatedItemId: null, // ✅ LISÄTTY
+  templateType: undefined, // ✅ LISÄTTY
+  language: undefined, // ✅ LISÄTTY
   metadata: {},
 });
 
@@ -100,6 +108,9 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
                        state.stage !== 'complete' && 
                        state.stage !== 'error' &&
                        state.stage !== 'waiting_questions'; // ✅ LISÄTTY!
+  
+  // ✅ LISÄTTY: Kysymysten määrä
+  const questionCount = state.questions?.length || 0;
   
   // ✅ HELPER: Päivitä oikea state
   const updateState = useCallback((type: GenerationType, updater: (prev: GenerationState) => GenerationState) => {
@@ -138,6 +149,9 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
       answers: {},
       error: null,
       resultId: null,
+      generatedItemId: null, // ✅ LISÄTTY
+      templateType: metadata?.templateType, // ✅ LISÄTTY
+      language: metadata?.language, // ✅ LISÄTTY
       metadata: metadata || {},
     }));
   }, [cvState, coverLetterState, updateState]);
@@ -190,6 +204,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
       stage: 'complete',
       progress: 100,
       resultId,
+      generatedItemId: resultId, // ✅ LISÄTTY (sama kuin resultId)
     }));
     
     // ✅ NAVIGATE OIKEALLE SIVULLE
@@ -243,6 +258,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
     coverLetterState,
     state,
     isGenerating,
+    questionCount, // ✅ LISÄTTY
     startGeneration,
     setStage,
     setQuestions,
@@ -251,6 +267,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
     failGeneration,
     cancelGeneration,
     resetState,
+    reset: () => resetState(), // ✅ LISÄTTY (alias)
   };
   
   return (
