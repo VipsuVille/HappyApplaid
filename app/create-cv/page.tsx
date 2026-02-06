@@ -66,6 +66,7 @@ export default function CreateCVPage() {
   // ✅ GLOBAL GENERATION STATE
   const {
     state: generationState,
+    cvState, // ✅ LISÄTTY: Suora pääsy CV staten
     startGeneration,
     setStage,
     setQuestions,
@@ -104,21 +105,21 @@ export default function CreateCVPage() {
   // Sync modal visibility with generation state
   useEffect(() => {
     console.log('🔄 [Modal Sync] useEffect triggered:', {
-      stage: generationState.stage,
-      questionsCount: generationState.questions.length,
+      stage: cvState.stage, // ✅ MUUTETTU: generationState → cvState
+      questionsCount: cvState.questions.length, // ✅ MUUTETTU
       showQuestionsModal,
-      shouldOpen: generationState.stage === 'waiting_questions' && generationState.questions.length > 0,
-      shouldClose: generationState.stage === 'idle' || generationState.stage === 'complete'
+      shouldOpen: cvState.stage === 'waiting_questions' && cvState.questions.length > 0,
+      shouldClose: cvState.stage === 'idle' || cvState.stage === 'complete'
     });
     
-    if (generationState.stage === 'waiting_questions' && generationState.questions.length > 0) {
+    if (cvState.stage === 'waiting_questions' && cvState.questions.length > 0) {
       console.log('✅ [Modal Sync] Opening questions modal');
       setShowQuestionsModal(true);
-    } else if (generationState.stage === 'idle' || generationState.stage === 'complete') {
+    } else if (cvState.stage === 'idle' || cvState.stage === 'complete') {
       console.log('🔒 [Modal Sync] Closing questions modal');
       setShowQuestionsModal(false);
     }
-  }, [generationState.stage, generationState.questions.length]);
+  }, [cvState.stage, cvState.questions.length, showQuestionsModal]); // ✅ MUUTETTU dependencies
 
   // Ladataan profiili
   useEffect(() => {
@@ -199,7 +200,7 @@ export default function CreateCVPage() {
         language: selectedLanguage
       });
 
-      const currentAnswers = finalAnswers || generationState.answers;
+      const currentAnswers = finalAnswers || cvState.answers;
       const hasAnswers = Object.keys(currentAnswers).length > 0;
       
       // ✅ PARSE JSON ARRAYS - TURVALLINEN VERSIO
@@ -333,7 +334,7 @@ export default function CreateCVPage() {
         answeredQuestions: hasAnswers 
           ? Object.entries(currentAnswers).map(([id, answer]) => ({
               id,
-              question: generationState.questions.find((q: GenerationQuestion) => q.id === id)?.question || '',
+              question: cvState.questions.find((q: GenerationQuestion) => q.id === id)?.question || '',
               answer
             }))
           : [],
@@ -429,17 +430,17 @@ export default function CreateCVPage() {
 
   // ✅ KORJATTU: Submit-funktio modalille
   const handleSubmitQuestions = async () => {
-    console.log('📝 Submitting answers:', generationState.answers);
+    console.log('📝 Submitting answers:', cvState.answers);
     
     // ✅ GUARD: Jos jo generoidaan, älä tee mitään
-    if (isGenerating && generationState.stage !== 'waiting_questions') {
+    if (isGenerating && cvState.stage !== 'waiting_questions') {
       console.log('⚠️ Already generating (not in question state), ignoring');
       return;
     }
     
     // Tarkista että kaikki kysymykset on vastattu
-    const unansweredQuestions = generationState.questions.filter(
-      (q: GenerationQuestion) => !generationState.answers[q.id]?.trim()
+    const unansweredQuestions = cvState.questions.filter(
+      (q: GenerationQuestion) => !cvState.answers[q.id]?.trim()
     );
 
     if (unansweredQuestions.length > 0) {
@@ -452,7 +453,7 @@ export default function CreateCVPage() {
     
     // ✅ ANNA HETKINEN ENNEN UUTTA GENEROINTIA
     setTimeout(() => {
-      handleGenerateCV(generationState.answers);
+      handleGenerateCV(cvState.answers);
     }, 300);
   };
 
@@ -725,19 +726,19 @@ export default function CreateCVPage() {
       </div>
 
       {/* ✅ KORJATTU KYSYMYSMODAALI */}
-      {showQuestionsModal && generationState.questions.length > 0 && (() => {
+      {showQuestionsModal && cvState.questions.length > 0 && (() => {
         // Debug info - voidaan poistaa tuotannossa
         console.log('🔍 Modal state:', {
           isGenerating,
-          stage: generationState.stage,
-          questionsCount: generationState.questions.length,
-          answersCount: Object.keys(generationState.answers).length,
-          buttonWillBeDisabled: isGenerating && generationState.stage !== 'waiting_questions'
+          stage: cvState.stage,
+          questionsCount: cvState.questions.length,
+          answersCount: Object.keys(cvState.answers).length,
+          buttonWillBeDisabled: isGenerating && cvState.stage !== 'waiting_questions'
         });
         return null;
       })()}
       
-      {showQuestionsModal && generationState.questions.length > 0 && (
+      {showQuestionsModal && cvState.questions.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isGenerating && setShowQuestionsModal(false)} />
           <div className="relative bg-[#0d1117] border border-gray-800 w-full max-w-2xl rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl overflow-hidden">
@@ -752,7 +753,7 @@ export default function CreateCVPage() {
             </p>
 
             {/* ✅ HÄTÄNAPPI: Jos state on rikki */}
-            {isGenerating && generationState.stage !== 'waiting_questions' && (
+            {isGenerating && cvState.stage !== 'waiting_questions' && (
               <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
                 <p className="text-red-400 text-sm mb-3">
                   ⚠️ Generointi on jumissa. Yritä resetoida:
@@ -771,7 +772,7 @@ export default function CreateCVPage() {
             )}
 
             <div className="space-y-6 sm:space-y-8 max-h-[50vh] overflow-y-auto pr-2 sm:pr-4 custom-scrollbar">
-              {generationState.questions.map((q: GenerationQuestion) => (
+              {cvState.questions.map((q: GenerationQuestion) => (
                 <div key={q.id} className="space-y-3 sm:space-y-4 group">
                   <label className="text-sm font-bold text-gray-200 block transition-colors group-focus-within:text-orange-400">
                     {q.question}
@@ -799,20 +800,20 @@ export default function CreateCVPage() {
                 onClick={() => {
                   setShowQuestionsModal(false);
                   // ✅ Peruuta generointi jos kysytään kysymyksiä
-                  if (generationState.stage === 'waiting_questions') {
+                  if (cvState.stage === 'waiting_questions') {
                     cancelGeneration();
                   }
                 }}
-                disabled={isGenerating && generationState.stage !== 'waiting_questions'}
+                disabled={isGenerating && cvState.stage !== 'waiting_questions'}
               >
                 Sulje
               </Button>
               <Button 
                 className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white rounded-xl sm:rounded-2xl h-12 sm:h-14 font-black text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleSubmitQuestions}
-                disabled={isGenerating && generationState.stage !== 'waiting_questions'}
+                disabled={isGenerating && cvState.stage !== 'waiting_questions'}
               >
-                {isGenerating && generationState.stage !== 'waiting_questions' ? (
+                {isGenerating && cvState.stage !== 'waiting_questions' ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Viimeistellään...</span>
