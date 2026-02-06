@@ -388,15 +388,7 @@ export default function PricingPage() {
             </p>
           </div>
           
-          <div className="bg-white/70 dark:bg-neutral-900/50 border border-gray-200 dark:border-neutral-800 rounded-2xl p-6 text-center">
-            <div className="text-4xl font-black text-emerald-500 mb-2">250+</div>
-            <p className="text-sm text-gray-600 dark:text-neutral-400">
-              {isEN ? 'applications per job posting' : 'hakemusta per työpaikkailmoitus'}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-neutral-500 mt-1">
-              {isEN ? 'Average for skilled roles' : 'Keskiarvo osaavissa tehtävissä'}
-            </p>
-          </div>
+
         </div>
 
         <h2 className="text-2xl md:text-3xl font-bold text-center text-gray-900 dark:text-white mb-4">
