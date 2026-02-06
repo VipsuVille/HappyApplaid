@@ -373,15 +373,13 @@ export default function CreateCVPage() {
       if (result.needsMoreInfo && result.questions?.length > 0) {
         console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
         console.log('📝 Kysymykset:', result.questions);
+        console.log('🔍 [DEBUG] Calling setQuestions with', result.questions.length, 'questions');
+        console.log('🔍 [DEBUG] Current cvState:', cvState);
         
+        // ✅ setQuestions asettaa automaattisesti stage: 'waiting_questions'
         setQuestions(result.questions);
-        setStage('waiting_questions', 30);
         
-        // ✅ PAKKO-AVAUS: Varmista että modaali avautuu
-        setTimeout(() => {
-          console.log('🔓 Avataan kysymysmodaali');
-          setShowQuestionsModal(true);
-        }, 100);
+        console.log('🔍 [DEBUG] setQuestions called');
         
         return;
       }
