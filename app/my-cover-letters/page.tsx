@@ -1,8 +1,8 @@
-// app/my-cover-letters/page.tsx - ✅ KORJATTU (Grid-näkymä kuin CV:ssä, carousel mobiilissa)
+// app/my-cover-letters/page.tsx
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import Link from 'next/link';
 import {
@@ -18,10 +18,14 @@ import {
   ChevronLeft,
   ChevronRight,
   List,
+  Clock,
+  Sparkles,
 } from 'lucide-react';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface CoverLetter {
   id: string;
@@ -54,33 +58,17 @@ export default function MyCoverLettersPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const nextSlide = () => {
-    setCurrentIndex((prev) => 
-      prev === coverLetters.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const prevSlide = () => {
-    setCurrentIndex((prev) => 
-      prev === 0 ? coverLetters.length - 1 : prev - 1
-    );
-  };
+  const nextSlide = () => setCurrentIndex((prev) => prev === coverLetters.length - 1 ? 0 : prev + 1);
+  const prevSlide = () => setCurrentIndex((prev) => prev === 0 ? coverLetters.length - 1 : prev - 1);
 
   const touchStartX = useRef(0);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e: React.TouchEvent) => {
     const touchEndX = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX;
-
     if (Math.abs(diff) > 50) {
-      if (diff > 0) {
-        nextSlide();
-      } else {
-        prevSlide();
-      }
+      if (diff > 0) nextSlide();
+      else prevSlide();
     }
   };
 
@@ -105,6 +93,7 @@ export default function MyCoverLettersPage() {
     } catch (error) {
       console.error('Error loading cover letters:', error);
       setError('Hakukirjeiden lataaminen epäonnistui');
+      toast.error('Virhe ladattaessa hakukirjeitä');
     } finally {
       setLoading(false);
     }
@@ -126,13 +115,14 @@ export default function MyCoverLettersPage() {
       if (error) throw error;
       
       setCoverLetters(prev => prev.filter(letter => letter.id !== id));
+      toast.success('Hakukirje poistettu');
       
       if (mobileView === 'carousel' && currentIndex >= coverLetters.length - 1) {
         setCurrentIndex(Math.max(0, currentIndex - 1));
       }
     } catch (error) {
       console.error('Error deleting cover letter:', error);
-      alert('Hakukirjeen poistaminen epäonnistui');
+      toast.error('Poisto epäonnistui');
     } finally {
       setDeleteLoading(null);
     }
@@ -161,9 +151,10 @@ export default function MyCoverLettersPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
+      toast.success('PDF ladattu!');
     } catch (error) {
       console.error('PDF download failed:', error);
-      alert('PDF:n lataus epäonnistui');
+      toast.error('Lataus epäonnistui');
     } finally {
       setIsDownloading(null);
     }
@@ -185,7 +176,6 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  // ✅ KORJATTU: SAMA DATA KUIN EDIT-SIVU JA PDF!
   function convertToCoverLetterData(letter: CoverLetter) {
     return {
       name: letter.content?.contactInfo?.name || 
@@ -239,25 +229,14 @@ export default function MyCoverLettersPage() {
     const isATSOptimized = !!letter.ai_data?.ats_optimization;
     const isRAG = !!letter.ai_data?.rag_used;
 
-    const previewHeight = isCarousel ? '500px' : '400px';
-    const previewScale = isCarousel ? 0.38 : 0.45;
-
     return (
-      <div className="group bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl shadow-xl overflow-hidden flex flex-col hover:shadow-2xl transition-all">
+      <div className="group bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-[2rem] overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:border-orange-500/30">
         
-        {/* ✅ PREVIEW - Samanlainen kuin CV:ssä */}
-        <div
-          className="relative bg-indigo-50/50 dark:bg-muted/20 overflow-hidden border-b-2 border-white/40 dark:border-border"
-          style={{ 
-            height: previewHeight,
-          }}
-        >
-          <div className="absolute inset-0 flex justify-center items-start pt-8">
-            <div 
-              className="origin-top shadow-2xl"
-              style={{ transform: `scale(${previewScale})` }}
-            >
-              <CoverLetterContainer className="bg-white shadow-lg">
+        {/* Preview Area */}
+        <div className="relative h-[400px] bg-gray-50 dark:bg-black/40 overflow-hidden border-b border-gray-100 dark:border-gray-800">
+          <div className="absolute inset-0 flex justify-center items-start pt-6">
+            <div className="origin-top shadow-2xl scale-[0.4] sm:scale-[0.45] transition-transform duration-500 group-hover:scale-[0.47]">
+              <CoverLetterContainer>
                 <CoverLetterTemplate
                   data={convertToCoverLetterData(letter)}
                   isPdfPreview={false}
@@ -267,98 +246,66 @@ export default function MyCoverLettersPage() {
             </div>
           </div>
           
-          {/* Poistopainike kulmassa - vain grid-näkymässä */}
-          {!isCarousel && (
+          <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <button 
               onClick={() => handleDelete(letter.id)}
-              disabled={deleteLoading === letter.id}
-              className="absolute top-4 right-4 p-3 bg-white/90 dark:bg-card/90 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 shadow-lg z-20 transition-colors"
+              className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white backdrop-blur-md rounded-2xl transition-all"
             >
-              {deleteLoading === letter.id ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Trash2 className="w-5 h-5" />
-              )}
+              {deleteLoading === letter.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Tiedot ja toiminnot */}
-        <div className="p-6">
+        {/* Content Area */}
+        <div className="p-6 sm:p-8">
           <div className="flex justify-between items-start mb-6">
             <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-1">
+              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 line-clamp-1">
                 {displayTitle}
               </h3>
-              <p className="text-sm text-gray-500 dark:text-muted-foreground">
-                Päivitetty: {new Date(letter.created_at).toLocaleDateString('fi-FI')}
-              </p>
+              <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                <Clock className="w-3.5 h-3.5" />
+                {new Date(letter.created_at).toLocaleDateString("fi-FI")}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-1">
               {isRAG && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 rounded-full text-xs font-bold uppercase tracking-wider border border-purple-500/30">
+                <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 rounded-full text-[10px] font-black uppercase tracking-tighter flex items-center gap-1">
                   <Database className="w-3 h-3" />
                   RAG
-                </span>
+                </div>
               )}
-              
               {isATSOptimized && (
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                <div className={`px-3 py-1 border rounded-full text-[10px] font-black uppercase tracking-tighter flex items-center gap-1 ${
                   atsScore >= 75 
-                    ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30' 
+                    ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400' 
                     : atsScore >= 50 
-                    ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30'
-                    : 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30'
+                    ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                    : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
                 }`}>
                   <TrendingUp className="w-3 h-3" />
                   ATS {atsScore}%
-                </span>
+                </div>
               )}
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <button
+          <div className="grid grid-cols-2 gap-3">
+            <Button 
               onClick={() => handleDownloadPDF(letter.id, displayTitle)}
               disabled={isDownloading === letter.id}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-emerald-500 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-600 transition-all"
+              className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12 font-bold"
             >
-              {isDownloading === letter.id ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  Lataa PDF
-                </>
-              )}
-            </button>
-
-            <Link
-              href={`/edit-cover-letter/${letter.id}`}
-              className="flex-1 flex items-center justify-center gap-2 py-3 bg-indigo-600 dark:bg-primary text-white dark:text-primary-foreground font-bold rounded-xl shadow-lg hover:bg-indigo-700 dark:hover:bg-primary/90 transition-all"
-            >
-              <Edit className="w-4 h-4" />
-              Muokkaa
+              {isDownloading === letter.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              PDF
+            </Button>
+            <Link href={`/edit-cover-letter/${letter.id}`} className="w-full">
+              <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-12 font-bold">
+                <Edit className="w-4 h-4 mr-2" />
+                Muokkaa
+              </Button>
             </Link>
           </div>
-
-          {/* Poistopainike carusellissa */}
-          {isCarousel && (
-            <button
-              onClick={() => handleDelete(letter.id)}
-              disabled={deleteLoading === letter.id}
-              className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 dark:bg-destructive/10 text-red-600 dark:text-destructive rounded-xl text-sm font-bold hover:bg-red-500/20 dark:hover:bg-destructive/20 transition-colors"
-            >
-              {deleteLoading === letter.id ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4" />
-                  Poista
-                </>
-              )}
-            </button>
-          )}
         </div>
       </div>
     );
@@ -366,190 +313,104 @@ export default function MyCoverLettersPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background flex items-center justify-center">
-        <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-8 text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 dark:text-primary mx-auto mb-4" />
-          <p className="text-lg font-bold">Ladataan...</p>
-        </div>
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+        <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">Ladataan hakukirjeitä...</p>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background">
-        <div className="max-w-2xl mx-auto py-16 px-4">
-          <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-8 text-center">
-            <h2 className="text-2xl font-bold mb-4">Virhe</h2>
-            <p className="text-red-600 dark:text-destructive mb-6">{error}</p>
-            <button 
-              onClick={loadCoverLetters} 
-              className="px-6 py-3 bg-indigo-600 dark:bg-primary text-white dark:text-primary-foreground font-bold rounded-xl"
-            >
-              Yritä uudelleen
-            </button>
+  return (
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
+      
+      {/* Background Orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-20">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
+              <FileText className="w-3.5 h-3.5 text-orange-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">Arkisto</span>
+            </div>
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight dark:text-white leading-tight">
+              Omat <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 to-amber-500">Hakukirjeet</span>
+            </h1>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md font-medium">
+              Kaikki luomasi hakukirjeet yhdessä paikassa. Muokkaa, lataa tai päivitä tyyliä lennosta.
+            </p>
           </div>
-        </div>
-      </div>
-    );
-  }
 
-  if (coverLetters.length === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background">
-        <div className="max-w-2xl mx-auto py-16 px-4">
-          <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-12 text-center">
-            <FileText className="h-20 w-20 text-indigo-500 dark:text-primary mx-auto mb-6" />
-            <h2 className="text-2xl font-bold mb-3">Ei vielä hakukirjeitä</h2>
-            <p className="text-gray-600 dark:text-muted-foreground mb-6">Luo ensimmäinen hakukirjeesi.</p>
-            <Link
-              href="/create-cover-letter"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 dark:bg-primary text-white dark:text-primary-foreground font-bold rounded-xl hover:scale-105 transition-transform"
-            >
-              <Plus className="w-5 h-5" />
-              Luo hakukirje
+          <div className="flex flex-col sm:flex-row gap-4">
+            {isMobile && (
+              <div className="flex bg-white dark:bg-gray-900/50 p-1 rounded-2xl border border-gray-200 dark:border-gray-800">
+                <button onClick={() => setMobileView('carousel')} className={`px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all ${mobileView === 'carousel' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-500'}`}><List className="w-4 h-4"/> Selaa</button>
+                <button onClick={() => setMobileView('grid')} className={`px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-bold transition-all ${mobileView === 'grid' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-500'}`}><LayoutGrid className="w-4 h-4"/> Ruudukko</button>
+              </div>
+            )}
+            <Link href="/create-cover-letter">
+              <Button className="w-full sm:w-auto px-8 py-7 bg-white dark:bg-white text-black hover:bg-gray-100 rounded-2xl font-black flex items-center gap-2 shadow-xl transition-transform hover:scale-[1.02]">
+                <Plus className="w-5 h-5" />
+                LUO UUSI
+              </Button>
             </Link>
           </div>
         </div>
-      </div>
-    );
-  }
 
-  const showCarousel = isMobile && mobileView === 'carousel';
-  const showGrid = !isMobile || mobileView === 'grid';
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background text-gray-900 dark:text-foreground relative overflow-hidden">
-      
-      {/* Koristeelliset taustapallot */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-400/20 dark:bg-indigo-400/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-pink-400/10 dark:bg-pink-400/5 rounded-full blur-3xl animate-pulse"></div>
-      </div>
-
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 relative z-10">
-        
-        <div className="mb-12">
-          <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-6 md:p-8">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h1 className="text-4xl font-extrabold bg-gradient-to-r from-indigo-600 to-pink-600 dark:from-primary dark:to-accent bg-clip-text text-transparent">
-                  Omat hakukirjeet
-                </h1>
-                <p className="text-gray-600 dark:text-muted-foreground mt-2">
-                  Hallinnoi ja lataa ammattimaiset hakukirjeet
-                </p>
-              </div>
-
-              <Link
-                href="/create-cover-letter"
-                className="flex items-center gap-2 px-8 py-4 bg-indigo-600 dark:bg-primary text-white dark:text-primary-foreground font-bold rounded-2xl shadow-xl hover:scale-105 transition-all"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Luo uusi</span>
-              </Link>
+        {coverLetters.length === 0 ? (
+          <div className="py-20 text-center bg-white/50 dark:bg-gray-900/20 border border-dashed border-gray-300 dark:border-gray-800 rounded-[3rem]">
+            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <FileText className="w-10 h-10 text-gray-400" />
             </div>
-
-            {/* Näkymän valitsimet */}
-            {isMobile && (
-              <div className="mt-6 flex gap-2">
-                <button
-                  onClick={() => setMobileView('carousel')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${
-                    mobileView === 'carousel'
-                      ? 'bg-indigo-600 dark:bg-primary text-white'
-                      : 'bg-white/50 dark:bg-muted/50 text-gray-600 dark:text-muted-foreground'
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                  Carousel
-                </button>
-                
-                <button
-                  onClick={() => setMobileView('grid')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl font-bold text-sm ${
-                    mobileView === 'grid'
-                      ? 'bg-indigo-600 dark:bg-primary text-white'
-                      : 'bg-white/50 dark:bg-muted/50 text-gray-600 dark:text-muted-foreground'
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                  Grid
-                </button>
-              </div>
-            )}
+            <h3 className="text-xl font-bold mb-2">Ei vielä tallennettuja hakukirjeitä</h3>
+            <p className="text-gray-500 mb-8">Aloita luomalla ensimmäinen tekoälypohjainen hakukirjeesi.</p>
+            <Link href="/create-cover-letter">
+              <Button variant="outline" className="rounded-xl px-8">Luo ensimmäinen hakukirje</Button>
+            </Link>
           </div>
-        </div>
-
-        {showCarousel ? (
-          <div className="relative px-2">
-            <div
-              className="overflow-hidden rounded-2xl"
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-            >
-              <div
-                className="flex transition-transform duration-300 ease-out"
-                style={{
-                  transform: `translateX(-${currentIndex * 100}%)`
-                }}
-              >
+        ) : (
+          <>
+            {isMobile && mobileView === 'carousel' ? (
+              <div className="relative">
+                <div className="overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+                  <div className="flex transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+                    {coverLetters.map((letter) => (
+                      <div key={letter.id} className="w-full flex-shrink-0 px-2">
+                        {renderLetterCard(letter, true)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="flex justify-center items-center gap-6 mt-8">
+                  <button onClick={prevSlide} className="p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg"><ChevronLeft/></button>
+                  <span className="font-black text-sm">{currentIndex + 1} / {coverLetters.length}</span>
+                  <button onClick={nextSlide} className="p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg"><ChevronRight/></button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 sm:gap-10">
                 {coverLetters.map((letter) => (
-                  <div key={letter.id} className="w-full flex-shrink-0 px-2">
-                    {renderLetterCard(letter, true)}
+                  <div key={letter.id} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {renderLetterCard(letter, false)}
                   </div>
                 ))}
               </div>
-            </div>
-
-            {coverLetters.length > 1 && (
-              <>
-                <button
-                  onClick={prevSlide}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-card/90 border-2 border-white/40 dark:border-border rounded-full flex items-center justify-center shadow-lg z-10"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-
-                <button
-                  onClick={nextSlide}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-card/90 border-2 border-white/40 dark:border-border rounded-full flex items-center justify-center shadow-lg z-10"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              </>
             )}
-
-            {coverLetters.length > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
-                {coverLetters.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentIndex(index)}
-                    className={`h-2 rounded-full transition-all ${
-                      index === currentIndex
-                        ? 'bg-indigo-600 dark:bg-primary w-6'
-                        : 'bg-gray-400 dark:bg-muted-foreground/30 w-2'
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-
-            <p className="text-center mt-2 text-sm text-gray-600 dark:text-muted-foreground">
-              {currentIndex + 1} / {coverLetters.length}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-10">
-            {coverLetters.map((letter) => (
-              <div key={letter.id} className="relative">
-                {renderLetterCard(letter, false)}
-              </div>
-            ))}
-          </div>
+          </>
         )}
       </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 10px; }
+      `}</style>
     </div>
   );
 }

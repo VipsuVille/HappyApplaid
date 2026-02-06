@@ -133,11 +133,18 @@ export default function CreateCVPage() {
 
 
 // ✅ KORJAUS: create-cv/page.tsx handleGenerateCV funktiossa
+// ✅ KORJATTU: create-cv/page.tsx handleGenerateCV
 
 const handleGenerateCV = async (
   finalAnswers?: Record<string, string>,
   skipConfirmation = false
 ) => {
+  // ✅ GUARD: Estä duplikaatit
+  if (isGenerating) {
+    console.log('⚠️ Already generating, ignoring duplicate call');
+    return;
+  }
+
   if (!user) return toast.error("Kirjautuminen vaaditaan");
   if (!profileData) {
     toast.error("Täytä profiilitiedot ensin!");
@@ -162,7 +169,7 @@ const handleGenerateCV = async (
     const currentAnswers = finalAnswers || generationState.answers;
     const hasAnswers = Object.keys(currentAnswers).length > 0;
     
-    // ✅ PARSE JSON FIELDS
+    // ✅ PARSE JSON ARRAYS
     const parseJsonField = (field: any) => {
       if (!field) return [];
       if (Array.isArray(field)) return field;
@@ -171,23 +178,34 @@ const handleGenerateCV = async (
           const parsed = JSON.parse(field);
           return Array.isArray(parsed) ? parsed : [];
         } catch (e) {
-          console.error('Failed to parse field:', e);
           return [];
         }
       }
       return [];
     };
 
+    // ✅ CONVERT ARRAY TO STRING
+    const arrayToString = (field: any) => {
+      if (!field) return '';
+      if (typeof field === 'string') return field; // Already string
+      if (Array.isArray(field)) {
+        return field.filter(Boolean).join(', ');
+      }
+      return '';
+    };
+
     const requestBody = {
       profileData: {
         ...profileData,
-        // ✅ PARSE STRINGIT → ARRAYT
+        // ✅ ARRAYS (backend expects arrays)
         work_experience: parseJsonField(profileData.work_experience),
         education: parseJsonField(profileData.education),
-        skills: parseJsonField(profileData.skills),
-        languages: parseJsonField(profileData.languages),
         certificates: parseJsonField(profileData.certificates),
         portfolio_links: parseJsonField(profileData.portfolio_links),
+        
+        // ✅ STRINGS (backend expects comma-separated strings)
+        skills: arrayToString(profileData.skills),
+        languages: arrayToString(profileData.languages),
       },
       cvType: selectedTemplate,
       language: selectedLanguage === 'english' ? 'english' : 'finnish',
@@ -210,6 +228,8 @@ const handleGenerateCV = async (
       hasJobPosting: !!requestBody.jobPosting,
       workExperienceCount: requestBody.profileData.work_experience.length,
       educationCount: requestBody.profileData.education.length,
+      skillsType: typeof requestBody.profileData.skills,
+      skillsValue: requestBody.profileData.skills,
     });
 
     setStage('analyzing', 20);
@@ -226,7 +246,7 @@ const handleGenerateCV = async (
     if (result.needsMoreInfo && result.questions?.length > 0) {
       console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
       setQuestions(result.questions);
-      setStage('waiting_questions', 30); // ✅ SET STAGE
+      setStage('waiting_questions', 30);
       return;
     }
 
@@ -246,9 +266,6 @@ const handleGenerateCV = async (
     if (response.ok && (result.id || result.cvId)) {
       completeGeneration(result.id || result.cvId);
       toast.success("✅ CV luotu onnistuneesti!");
-      
-      // ✅ EI AUTOMAATTISTA REDIRECTIÄ
-      // Käyttäjä valitsee bannerista
     } else {
       throw new Error(result.error || result.message || 'Tuntematon virhe');
     }
