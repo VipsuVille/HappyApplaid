@@ -220,10 +220,6 @@ const handleGenerateCV = async (
     if (response.ok && (result.id || result.cvId)) {
   completeGeneration(result.id || result.cvId); // ✅ Anna ID
       toast.success("✅ CV luotu onnistuneesti!");
-      
-      setTimeout(() => {
-        router.push(`/edit-cv/${result.id || result.cvId}`);
-      }, 1000);
     } else {
       throw new Error(result.error || result.message || 'Tuntematon virhe');
     }

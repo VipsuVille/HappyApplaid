@@ -1,3 +1,6 @@
+// components/cv/CVTemplateTechnical.tsx
+// ✅ KORJATTU: Lisätty fallback work_experience ja education JSON parsintaan
+
 "use client";
 import React, { useState } from "react";
 import { UserFormData, AIData, EditMode } from "@/types";
@@ -92,7 +95,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     PARSE SKILLS TO STRUCTURED FORMAT
+     PARSE SKILLS
   ============================================================ */
 
   const parseSkills = (): { category: string; items: string[] }[] => {
@@ -140,7 +143,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     ✅ PARSE WORK EXPERIENCE TO CHRONOLOGICAL STRUCTURE
+     ✅ PARSE WORK EXPERIENCE - WITH JSON FALLBACK
   ============================================================ */
 
   const parseWorkExperience = (): Array<{
@@ -150,8 +153,34 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     achievements: string[];
   }> => {
     const expHTML = getAIContent("experience_section");
-    if (!expHTML) return [];
+    
+    // ✅ FALLBACK: Jos ei HTML:ää, yritä parsea data.work_experience JSON
+    if (!expHTML) {
+      try {
+        const rawExp = data?.work_experience || (data as any)?.workExperience;
+        if (!rawExp) return [];
+        
+        const parsed = typeof rawExp === 'string' ? JSON.parse(rawExp) : rawExp;
+        if (!Array.isArray(parsed)) return [];
+        
+        return parsed.map((job: any) => ({
+          title: job.position || 'Position',
+          company: job.company || 'Company',
+          period: job.duration || '',
+          achievements: [
+            job.description,
+            job.biggestAchievement,
+            job.whatYouLearned,
+            job.howYourStrengthShowed
+          ].filter(Boolean).map(text => text.trim())
+        }));
+      } catch (e) {
+        console.error('Failed to parse work_experience:', e);
+        return [];
+      }
+    }
 
+    // HTML parsing (original logic)
     const parser = new DOMParser();
     const doc = parser.parseFromString(expHTML, 'text/html');
     const jobs: Array<{
@@ -161,7 +190,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       achievements: string[];
     }> = [];
 
-    // Try to parse structured jobs
     const jobDivs = doc.querySelectorAll('.job, .work-item, .experience-item');
     
     if (jobDivs.length > 0) {
@@ -189,7 +217,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         }
       });
     } else {
-      // Fallback: try to extract from h4 + ul structure
       const allH4 = doc.querySelectorAll('h4');
       allH4.forEach(h4 => {
         const titleText = h4.textContent?.trim() || '';
@@ -226,7 +253,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     ✅ PARSE EDUCATION TO CHRONOLOGICAL STRUCTURE
+     ✅ PARSE EDUCATION - WITH JSON FALLBACK
   ============================================================ */
 
   const parseEducation = (): Array<{
@@ -236,8 +263,34 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     details: string[];
   }> => {
     const eduHTML = getAIContent("education_section");
-    if (!eduHTML) return [];
+    
+    // ✅ FALLBACK: Jos ei HTML:ää, yritä parsea data.education JSON
+    if (!eduHTML) {
+      try {
+        const rawEdu = data?.education || (data as any)?.education_history;
+        if (!rawEdu) return [];
+        
+        const parsed = typeof rawEdu === 'string' ? JSON.parse(rawEdu) : rawEdu;
+        if (!Array.isArray(parsed)) return [];
+        
+        return parsed.map((edu: any) => ({
+          degree: edu.degree || 'Degree',
+          institution: edu.school || edu.institution || 'Institution',
+          year: edu.year || '',
+          details: [
+            edu.whyThisField,
+            edu.specialization,
+            edu.proudestMoment,
+            edu.favoriteSubjects
+          ].filter(Boolean).map(text => text.trim())
+        }));
+      } catch (e) {
+        console.error('Failed to parse education:', e);
+        return [];
+      }
+    }
 
+    // HTML parsing (original logic)
     const parser = new DOMParser();
     const doc = parser.parseFromString(eduHTML, 'text/html');
     const eduList: Array<{
@@ -277,7 +330,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         }
       });
     } else {
-      // Fallback
       const allH4 = doc.querySelectorAll('h4');
       allH4.forEach(h4 => {
         const degree = h4.textContent?.trim() || '';
@@ -383,7 +435,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           )}
         </div>
 
-        {/* SKILLS - STRUCTURED BULLET LIST */}
+        {/* SKILLS */}
         {skillCategories.length > 0 && (
           <div
             style={{
@@ -540,7 +592,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         {/* CONTENT AREA */}
         <div style={{ padding: "10mm", fontSize: "10pt", lineHeight: 1.5 }}>
           
-          {/* ✅ WORK EXPERIENCE - CHRONOLOGICAL */}
+          {/* ✅ WORK EXPERIENCE */}
           {workExperience.length > 0 && (
             <section style={{ marginBottom: "8mm" }}>
               <h2
@@ -602,7 +654,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             </section>
           )}
 
-          {/* ✅ EDUCATION - CHRONOLOGICAL */}
+          {/* ✅ EDUCATION */}
           {education.length > 0 && (
             <section style={{ marginBottom: "8mm" }}>
               <h2

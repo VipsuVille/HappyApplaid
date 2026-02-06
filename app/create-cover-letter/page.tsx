@@ -380,10 +380,6 @@ export default function CreateCoverLetterPage() {
       if (data.success) {
         completeGeneration(data.id); // ✅ Anna ID
         toast.success(t.success);
-        
-        setTimeout(() => {
-          router.push(`/edit-cover-letter/${data.coverLetterId}`);
-        }, 1000);
       } else {
         throw new Error(data.error || t.error);
       }
