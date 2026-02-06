@@ -610,14 +610,7 @@ export default function CreateCVPage() {
       {/* ✅ KORJATTU KYSYMYSMODAALI */}
       {showQuestionsModal && generationState.questions.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-          {/* Debug info - poista tämä tuotannossa */}
-          {console.log('🔍 Modal state:', {
-            isGenerating,
-            stage: generationState.stage,
-            questionsCount: generationState.questions.length,
-            answersCount: Object.keys(generationState.answers).length,
-            buttonWillBeDisabled: isGenerating && generationState.stage !== 'waiting_questions'
-          })}
+         
           
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => !isGenerating && setShowQuestionsModal(false)} />
           <div className="relative bg-[#0d1117] border border-gray-800 w-full max-w-2xl rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 shadow-2xl overflow-hidden">
