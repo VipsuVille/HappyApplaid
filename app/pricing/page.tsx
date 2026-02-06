@@ -581,7 +581,6 @@ export default function PricingPage() {
                     </p>
                     <ul className="text-sm text-gray-700 dark:text-neutral-300 space-y-1">
                       <li>• {isEN ? '75% rejected without optimization' : '75% hylätään ilman optimointia'}</li>
-                      <li>• {isEN ? '750 applications for one skilled role' : '750 hakemusta yhteen osaavaan tehtävään'} ({isEN ? 'Finland 2024' : 'Suomi 2024'})</li>
                       <li>• {isEN ? '98% of Fortune 500 use ATS' : '98% Fortune 500:sta käyttää ATS:ää'}</li>
                     </ul>
                   </div>
