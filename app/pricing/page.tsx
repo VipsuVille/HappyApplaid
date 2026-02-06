@@ -461,8 +461,17 @@ export default function PricingPage() {
             highlight
           />
         </div>
-
-        {/* ✅ WHY PREMIUM MATTERS - STEP-BY-STEP JOURNEY */}
+        {/* Compare plans */}
+        <div className="mt-16 text-center">
+          <button
+            onClick={() => setShowCompare(true)}
+            className="inline-flex items-center gap-2 bg-gray-200 dark:bg-neutral-800 hover:bg-gray-300 dark:hover:bg-neutral-700 text-gray-900 dark:text-white px-6 py-3 rounded-xl font-semibold transition-all border border-gray-300 dark:border-neutral-700 hover:border-amber-400/50"
+          >
+            <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+            {isEN ? 'Compare plans in detail' : 'Vertaa paketteja tarkemmin'}
+          </button>
+        </div>
+       {/* ✅ WHY PREMIUM MATTERS - SUORA & ASIALLINEN */}
         <div className="mt-20 max-w-4xl mx-auto">
           <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-3xl p-8 md:p-12">
             <div className="flex items-start gap-4 mb-8">
@@ -471,12 +480,12 @@ export default function PricingPage() {
               </div>
               <div>
                 <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
-                  {isEN ? 'Your application journey in 2025' : 'Hakemuksesi matka vuonna 2025'}
+                  {isEN ? 'Why we recommend Premium' : 'Miksi suosittelemme Premiumia'}
                 </h3>
                 <p className="text-gray-600 dark:text-neutral-400">
                   {isEN
-                    ? 'From "Send" to "Interview": Here\'s what really happens'
-                    : 'Lähetyksestä haastatteluun: Näin se todella menee'}
+                    ? 'If you actually want the job, here\'s the reality'
+                    : 'Jos oikeasti haluat töihin, tässä todellisuus'}
                 </p>
               </div>
             </div>
@@ -487,7 +496,7 @@ export default function PricingPage() {
                 1
               </div>
               <div className="bg-red-500/10 rounded-xl p-5 border border-red-400/30">
-                <h4 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                <h4 className="font-bold text-gray-900 dark:text-white mb-2">
                   ❌ {isEN ? 'Without ATS optimization' : 'Ilman ATS-optimointia'}
                 </h4>
                 <div className="space-y-2 text-sm text-gray-700 dark:text-neutral-300">
@@ -496,12 +505,12 @@ export default function PricingPage() {
                       {isEN ? 'You send application → ' : 'Lähetät hakemuksen → '}
                     </span>
                     {isEN 
-                      ? 'ATS scans your CV (keyword match: 45%)'
-                      : 'ATS skannaa CV:si (avainsanaosuma: 45%)'}
+                      ? 'ATS scans for keywords (45% match)'
+                      : 'ATS skannaa avainsanoja (45% osuma)'}
                   </p>
                   <p>
                     <span className="font-semibold">
-                      {isEN ? 'ATS filters → ' : 'ATS suodattaa → '}
+                      {isEN ? 'Result → ' : 'Tulos → '}
                     </span>
                     <span className="text-red-600 dark:text-red-400 font-bold">
                       {isEN ? 'AUTO-REJECTED' : 'AUTOMAATTINEN HYLKÄYS'}
@@ -509,8 +518,8 @@ export default function PricingPage() {
                   </p>
                   <p className="text-red-600 dark:text-red-400 italic">
                     {isEN 
-                      ? '🚫 Hiring manager never sees your CV. No interview. No job.'
-                      : '🚫 Rekrytoija ei koskaan näe CV:täsi. Ei haastattelua. Ei työtä.'}
+                      ? '🚫 Recruiter never sees your CV'
+                      : '🚫 Rekrytoija ei koskaan näe CV:täsi'}
                   </p>
                 </div>
               </div>
@@ -522,8 +531,8 @@ export default function PricingPage() {
                 2
               </div>
               <div className="bg-emerald-500/10 rounded-xl p-5 border border-emerald-400/30">
-                <h4 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                  ✅ {isEN ? 'With Premium (V2 ATS optimization)' : 'Premiumilla (V2 ATS-optimointi)'}
+                <h4 className="font-bold text-gray-900 dark:text-white mb-2">
+                  ✅ {isEN ? 'With Premium (V2 optimization)' : 'Premiumilla (V2-optimointi)'}
                 </h4>
                 <div className="space-y-2 text-sm text-gray-700 dark:text-neutral-300">
                   <p>
@@ -531,81 +540,72 @@ export default function PricingPage() {
                       {isEN ? 'You send application → ' : 'Lähetät hakemuksen → '}
                     </span>
                     {isEN 
-                      ? 'ATS scans your CV (keyword match: 82%)'
-                      : 'ATS skannaa CV:si (avainsanaosuma: 82%)'}
+                      ? 'ATS scans for keywords (82% match)'
+                      : 'ATS skannaa avainsanoja (82% osuma)'}
                   </p>
                   <p>
                     <span className="font-semibold">
-                      {isEN ? 'ATS filters → ' : 'ATS suodattaa → '}
+                      {isEN ? 'Result → ' : 'Tulos → '}
                     </span>
                     <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                      {isEN ? 'PASSED TO HIRING MANAGER' : 'VÄLITETÄÄN REKRYTOIJALLE'}
+                      {isEN ? 'PASSED TO RECRUITER' : 'VÄLITETÄÄN REKRYTOIJALLE'}
                     </span>
                   </p>
                   <p className="text-emerald-600 dark:text-emerald-400 font-semibold">
                     {isEN 
-                      ? '✓ Human reads your CV → Interview invitation → Job offer'
-                      : '✓ Ihminen lukee CV:si → Haastattelukutsu → Työtarjous'}
+                      ? '✓ Human reads CV → Interview → Job'
+                      : '✓ Ihminen lukee → Haastattelu → Työ'}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* ✅ STEP 3: THE RESULT */}
+            {/* ✅ STEP 3: THE NUMBERS */}
             <div className="relative pl-8">
               <div className="absolute -left-[13px] top-0 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
                 3
               </div>
               <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-xl p-5 border border-amber-400/30">
-                <h4 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  🎯 {isEN ? 'The outcome' : 'Lopputulos'}
+                <h4 className="font-bold text-gray-900 dark:text-white mb-3">
+                  🎯 {isEN ? 'The competition' : 'Kilpailu'}
                 </h4>
                 <div className="space-y-3">
                   <p className="text-sm text-gray-700 dark:text-neutral-300">
                     {isEN
-                      ? '**Same qualifications. Same experience. Same skills.** The only difference? Your competition is already using ATS optimization.'
-                      : '**Samat kvalifikaatiot. Sama kokemus. Samat taidot.** Ainoa ero? Kilpailijasi käyttävät jo ATS-optimointia.'}
+                      ? 'You\'re competing against hundreds who are already optimizing. Same skills, different tools.'
+                      : 'Kilpailet satoja vastaan jotka jo optimoivat. Samat taidot, eri työkalut.'}
                   </p>
                   <div className="bg-white/50 dark:bg-neutral-800/50 rounded-lg p-4">
-                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-2">
-                      📊 {isEN ? 'Industry data:' : 'Alan data:'}
+                    <p className="text-sm font-bold text-gray-900 dark:text-white mb-2">
+                      📊 {isEN ? 'The numbers:' : 'Luvut:'}
                     </p>
                     <ul className="text-sm text-gray-700 dark:text-neutral-300 space-y-1">
-                      <li>• {isEN ? '75% of resumes never reach humans without optimization' : '75% CV:istä ei koskaan päädy ihmisille ilman optimointia'}</li>
-                      <li>• {isEN ? '98% of Fortune 500 companies use ATS screening' : '98% Fortune 500 -yrityksistä käyttää ATS-seulontaa'}</li>
-                      <li>• {isEN ? '250+ applications compete for each skilled role' : '250+ hakemusta kilpailee jokaisesta osaavasta tehtävästä'}</li>
+                      <li>• {isEN ? '75% rejected without optimization' : '75% hylätään ilman optimointia'}</li>
+                      <li>• {isEN ? '750 applications for one skilled role' : '750 hakemusta yhteen osaavaan tehtävään'} ({isEN ? 'Finland 2024' : 'Suomi 2024'})</li>
+                      <li>• {isEN ? '98% of Fortune 500 use ATS' : '98% Fortune 500:sta käyttää ATS:ää'}</li>
                     </ul>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* ✅ HAPPY APPLIED BRAND MOMENT */}
-            <div className="mt-8 pt-6 border-t border-amber-500/20 text-center">
-              <p className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+            {/* ✅ HAPPY APPLIED BRAND */}
+            <div className="mt-8 pt-6 border-t border-amber-500/20">
+              <p className="text-base font-bold text-gray-900 dark:text-white mb-2 text-center">
                 {isEN 
-                  ? 'Apply with confidence. Apply happy.' 
-                  : 'Hae luottavaisesti. Hae onnellisesti.'}
+                  ? 'Apply with confidence.' 
+                  : 'Hae luottavaisesti.'}
               </p>
-              <p className="text-sm text-gray-600 dark:text-neutral-400 italic">
+              <p className="text-sm text-gray-600 dark:text-neutral-400 text-center">
                 {isEN
-                  ? "💡 That's what Happy Applied is all about: Maximizing your chances, minimizing your stress. From application to interview, we've got you covered."
-                  : '💡 Siinä Happy Applied:n idea: Maksimoi mahdollisuutesi, minimoi stressisi. Hakemuksesta haastatteluun, me hoidamme homman.'}
+                  ? 'That\'s Happy Applied: Maximize your chances, minimize stress.'
+                  : 'Se on Happy Applied: Maksimoi mahdollisuudet, minimoi stressi.'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Compare plans */}
-        <div className="mt-16 text-center">
-          <button
-            onClick={() => setShowCompare(true)}
-            className="inline-flex items-center gap-2 bg-gray-200 dark:bg-neutral-800 hover:bg-gray-300 dark:hover:bg-neutral-700 text-gray-900 dark:text-white px-6 py-3 rounded-xl font-semibold transition-all border border-gray-300 dark:border-neutral-700 hover:border-amber-400/50"
-          >
-            <AlertCircle className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-            {isEN ? 'Compare plans in detail' : 'Vertaa paketteja tarkemmin'}
-          </button>
-        </div>
+
 
         {/* Promo code section */}
         <div className="mt-16 max-w-md mx-auto">
