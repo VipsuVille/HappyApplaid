@@ -132,6 +132,8 @@ export default function CreateCVPage() {
 
 
 
+// ✅ KORJAUS: create-cv/page.tsx handleGenerateCV funktiossa
+
 const handleGenerateCV = async (
   finalAnswers?: Record<string, string>,
   skipConfirmation = false
@@ -152,18 +154,41 @@ const handleGenerateCV = async (
   }
 
   try {
-    // ✅ 1. START GENERATION
     startGeneration('cv', {
       templateType: selectedTemplate,
       language: selectedLanguage
     });
 
-    // ✅ 2. PREPARE REQUEST
     const currentAnswers = finalAnswers || generationState.answers;
     const hasAnswers = Object.keys(currentAnswers).length > 0;
     
+    // ✅ PARSE JSON FIELDS
+    const parseJsonField = (field: any) => {
+      if (!field) return [];
+      if (Array.isArray(field)) return field;
+      if (typeof field === 'string') {
+        try {
+          const parsed = JSON.parse(field);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          console.error('Failed to parse field:', e);
+          return [];
+        }
+      }
+      return [];
+    };
+
     const requestBody = {
-      profileData,
+      profileData: {
+        ...profileData,
+        // ✅ PARSE STRINGIT → ARRAYT
+        work_experience: parseJsonField(profileData.work_experience),
+        education: parseJsonField(profileData.education),
+        skills: parseJsonField(profileData.skills),
+        languages: parseJsonField(profileData.languages),
+        certificates: parseJsonField(profileData.certificates),
+        portfolio_links: parseJsonField(profileData.portfolio_links),
+      },
       cvType: selectedTemplate,
       language: selectedLanguage === 'english' ? 'english' : 'finnish',
       jobPosting: useATS ? jobPosting : undefined,
@@ -175,13 +200,18 @@ const handleGenerateCV = async (
             answer
           }))
         : [],
-      skipQuestions: hasAnswers, // ✅ KORJATTU
+      skipQuestions: hasAnswers,
       skipConfirmation,
     };
 
-    console.log('📤 Sending CV generation request');
+    console.log('📤 Sending CV generation request:', {
+      cvType: requestBody.cvType,
+      language: requestBody.language,
+      hasJobPosting: !!requestBody.jobPosting,
+      workExperienceCount: requestBody.profileData.work_experience.length,
+      educationCount: requestBody.profileData.education.length,
+    });
 
-    // ✅ 3. ANALYZE STAGE
     setStage('analyzing', 20);
 
     const response = await fetch("/api/generate-cv", {
@@ -192,34 +222,33 @@ const handleGenerateCV = async (
 
     const result = await response.json();
 
-    // ✅ 4. HANDLE QUESTIONS
+    // Handle questions
     if (result.needsMoreInfo && result.questions?.length > 0) {
       console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
-      generationState.questions = result.questions; // Set via context
-      setShowQuestionsModal(true);
+      setQuestions(result.questions);
+      setStage('waiting_questions', 30); // ✅ SET STAGE
       return;
     }
 
-    // ✅ 5. HANDLE CONFIRMATION
+    // Handle confirmation
     if (result.needsConfirmation && !skipConfirmation) {
       console.log('⚠️ Tarvitaan käyttäjän vahvistus');
       setPendingViolations(result.violations);
       setShowConfirmation(true);
-      cancelGeneration(); // Stop generation temporarily
+      cancelGeneration();
       return;
     }
 
-    // ✅ 6. GENERATE STAGE
     setStage('generating', 50);
-
-    // Simulate progress
     setTimeout(() => setStage('generating', 70), 2000);
     setTimeout(() => setStage('finalizing', 90), 4000);
 
-    // ✅ 7. SUCCESScom
     if (response.ok && (result.id || result.cvId)) {
-  completeGeneration(result.id || result.cvId); // ✅ Anna ID
+      completeGeneration(result.id || result.cvId);
       toast.success("✅ CV luotu onnistuneesti!");
+      
+      // ✅ EI AUTOMAATTISTA REDIRECTIÄ
+      // Käyttäjä valitsee bannerista
     } else {
       throw new Error(result.error || result.message || 'Tuntematon virhe');
     }

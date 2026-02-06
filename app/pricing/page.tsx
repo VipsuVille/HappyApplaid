@@ -367,7 +367,7 @@ export default function PricingPage() {
         </div>
 
         {/* ✅ STATS SECTION */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto mb-20">
           <div className="bg-white/70 dark:bg-neutral-900/50 border border-gray-200 dark:border-neutral-800 rounded-2xl p-6 text-center">
             <div className="text-4xl font-black text-orange-500 mb-2">75%</div>
             <p className="text-sm text-gray-600 dark:text-neutral-400">
