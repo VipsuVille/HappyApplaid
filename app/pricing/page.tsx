@@ -251,15 +251,19 @@ function CompareModal({ onClose, isEN }: { onClose: () => void; isEN: boolean })
                   ? '**If you\'re applying to companies with 50+ employees, ATS is not optional—it\'s standard.** These companies receive hundreds of applications per role. They use software to filter candidates.'
                   : '**Jos haet yrityksiin, joissa on 50+ työntekijää, ATS ei ole valinnainen—se on standardi.** Nämä yritykset saavat satoja hakemuksia per rooli. Ne käyttävät ohjelmistoa hakijoiden suodattamiseen.'}
               </p>
-              <p className="text-sm text-gray-700 dark:text-neutral-300">
+              
+              <div className="bg-white/50 dark:bg-neutral-800/50 rounded-lg p-4 border-l-4 border-red-400">
+                <p className="text-sm text-gray-700 dark:text-neutral-300">
+                  {isEN
+                    ? '**Your competition is already using ATS optimization.** While your CV gets auto-rejected at 45% keyword match, theirs passes at 82% and lands on the desk. Same qualifications. Different tools. Different outcome.'
+                    : '**Kilpailijasi käyttävät jo ATS-optimointia.** Kun sinun CV:si hylätään automaattisesti 45% avainsanaosumalla, heidän CV:nsä menee läpi 82%:lla ja päätyy pöydälle. Samat pätevyydet. Eri työkalut. Eri lopputulos.'}
+                </p>
+              </div>
+              
+              <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
                 {isEN
-                  ? '**Without ATS optimization, you\'re competing with one hand tied behind your back.** Your experience and skills never reach the hiring manager.'
-                  : '**Ilman ATS-optimointia kilpailet yksi käsi sidottuna selän taakse.** Kokemuksesi ja taitosi eivät koskaan tavoita rekrytoijaa.'}
-              </p>
-              <p className="text-sm font-bold text-amber-700 dark:text-amber-300">
-                {isEN
-                  ? '💡 Premium isn\'t an upgrade—it\'s the baseline for competitive roles in 2025.'
-                  : '💡 Premium ei ole päivitys—se on perusvaatimus kilpailluille tehtäville vuonna 2025.'}
+                  ? '✓ Level the playing field. Premium puts you in the same league as candidates who are already optimizing.'
+                  : '✓ Tasoita pelikenttä. Premium vie sinut samalle viivalle hakijoiden kanssa, jotka jo optimoivat.'}
               </p>
             </div>
           </div>
@@ -367,7 +371,10 @@ export default function PricingPage() {
           <div className="bg-white/70 dark:bg-neutral-900/50 border border-gray-200 dark:border-neutral-800 rounded-2xl p-6 text-center">
             <div className="text-4xl font-black text-orange-500 mb-2">75%</div>
             <p className="text-sm text-gray-600 dark:text-neutral-400">
-              {isEN ? 'of resumes filtered by ATS' : 'CV:istä karsitaan ATS:llä'}
+              {isEN ? 'of resumes never reach humans' : 'CV:istä ei koskaan päädy ihmisille'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-neutral-500 mt-1">
+              {isEN ? 'Source: Jobscan 2024' : 'Lähde: Jobscan 2024'}
             </p>
           </div>
           
@@ -376,12 +383,18 @@ export default function PricingPage() {
             <p className="text-sm text-gray-600 dark:text-neutral-400">
               {isEN ? 'of Fortune 500 use ATS' : 'Fortune 500:sta käyttää ATS:ää'}
             </p>
+            <p className="text-xs text-gray-500 dark:text-neutral-500 mt-1">
+              {isEN ? 'Source: Capterra 2024' : 'Lähde: Capterra 2024'}
+            </p>
           </div>
           
           <div className="bg-white/70 dark:bg-neutral-900/50 border border-gray-200 dark:border-neutral-800 rounded-2xl p-6 text-center">
-            <div className="text-4xl font-black text-emerald-500 mb-2">3x</div>
+            <div className="text-4xl font-black text-emerald-500 mb-2">250+</div>
             <p className="text-sm text-gray-600 dark:text-neutral-400">
-              {isEN ? 'more interviews with ATS optimization' : 'enemmän haastatteluja ATS-optimoinnilla'}
+              {isEN ? 'applications per job posting' : 'hakemusta per työpaikkailmoitus'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-neutral-500 mt-1">
+              {isEN ? 'Average for skilled roles' : 'Keskiarvo osaavissa tehtävissä'}
             </p>
           </div>
         </div>
@@ -449,68 +462,135 @@ export default function PricingPage() {
           />
         </div>
 
-        {/* ✅ WHY PREMIUM MATTERS - FAKTAT */}
+        {/* ✅ WHY PREMIUM MATTERS - STEP-BY-STEP JOURNEY */}
         <div className="mt-20 max-w-4xl mx-auto">
           <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-3xl p-8 md:p-12">
-            <div className="flex items-start gap-4 mb-6">
+            <div className="flex items-start gap-4 mb-8">
               <div className="p-3 bg-amber-500 rounded-2xl">
                 <AlertCircle className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
-                  {isEN ? 'Why ATS optimization matters' : 'Miksi ATS-optimointi on tärkeää'}
+                  {isEN ? 'Your application journey in 2025' : 'Hakemuksesi matka vuonna 2025'}
                 </h3>
                 <p className="text-gray-600 dark:text-neutral-400">
                   {isEN
-                    ? 'The modern job market reality'
-                    : 'Modernin työmarkkinan todellisuus'}
+                    ? 'From "Send" to "Interview": Here\'s what really happens'
+                    : 'Lähetyksestä haastatteluun: Näin se todella menee'}
                 </p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />
-                <p className="text-gray-700 dark:text-neutral-300">
-                  {isEN
-                    ? '**Companies with 50+ employees almost always use ATS.** Your resume is scanned by software before any human sees it.'
-                    : '**Yritykset, joissa on 50+ työntekijää, käyttävät lähes aina ATS:ää.** CV:si skannataan ohjelmistolla ennen kuin kukaan ihminen näkee sen.'}
-                </p>
+            {/* ✅ STEP 1: WITHOUT ATS - REJECTION */}
+            <div className="relative pl-8 pb-8 border-l-4 border-red-400">
+              <div className="absolute -left-[13px] top-0 w-6 h-6 bg-red-400 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                1
               </div>
-
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />
-                <p className="text-gray-700 dark:text-neutral-300">
-                  {isEN
-                    ? '**ATS looks for specific keywords, formatting, and structure.** A great candidate with poor formatting gets rejected automatically.'
-                    : '**ATS etsii tiettyjä avainsanoja, muotoilua ja rakennetta.** Loistava kandidaatti huonolla muotoilulla hylätään automaattisesti.'}
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />
-                <p className="text-gray-700 dark:text-neutral-300">
-                  {isEN
-                    ? '**Our V2 engine analyzes job postings and optimizes your CV iteratively.** It doesn\'t stop until it hits 75%+ keyword match—the threshold that gets you past ATS.'
-                    : '**V2-moottori analysoi työpaikkailmoitukset ja optimoi CV:si iteratiivisesti.** Se ei pysähdy ennen kuin saavuttaa 75%+ avainsanaosuman—kynnyksen, joka vie sinut ATS:n läpi.'}
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2 flex-shrink-0" />
-                <p className="text-gray-700 dark:text-neutral-300 font-semibold">
-                  {isEN
-                    ? '**Result:** 3x more interview invitations. Your skills finally reach the people who matter.'
-                    : '**Tulos:** 3x enemmän haastattelukutsuja. Taitosi pääsevät vihdoin niiden ihmisten tietoon, joilla on merkitystä.'}
-                </p>
+              <div className="bg-red-500/10 rounded-xl p-5 border border-red-400/30">
+                <h4 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  ❌ {isEN ? 'Without ATS optimization' : 'Ilman ATS-optimointia'}
+                </h4>
+                <div className="space-y-2 text-sm text-gray-700 dark:text-neutral-300">
+                  <p>
+                    <span className="font-semibold">
+                      {isEN ? 'You send application → ' : 'Lähetät hakemuksen → '}
+                    </span>
+                    {isEN 
+                      ? 'ATS scans your CV (keyword match: 45%)'
+                      : 'ATS skannaa CV:si (avainsanaosuma: 45%)'}
+                  </p>
+                  <p>
+                    <span className="font-semibold">
+                      {isEN ? 'ATS filters → ' : 'ATS suodattaa → '}
+                    </span>
+                    <span className="text-red-600 dark:text-red-400 font-bold">
+                      {isEN ? 'AUTO-REJECTED' : 'AUTOMAATTINEN HYLKÄYS'}
+                    </span>
+                  </p>
+                  <p className="text-red-600 dark:text-red-400 italic">
+                    {isEN 
+                      ? '🚫 Hiring manager never sees your CV. No interview. No job.'
+                      : '🚫 Rekrytoija ei koskaan näe CV:täsi. Ei haastattelua. Ei työtä.'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 pt-6 border-t border-amber-500/20">
+            {/* ✅ STEP 2: WITH ATS - PASS */}
+            <div className="relative pl-8 pb-8 border-l-4 border-emerald-400">
+              <div className="absolute -left-[13px] top-0 w-6 h-6 bg-emerald-400 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                2
+              </div>
+              <div className="bg-emerald-500/10 rounded-xl p-5 border border-emerald-400/30">
+                <h4 className="font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  ✅ {isEN ? 'With Premium (V2 ATS optimization)' : 'Premiumilla (V2 ATS-optimointi)'}
+                </h4>
+                <div className="space-y-2 text-sm text-gray-700 dark:text-neutral-300">
+                  <p>
+                    <span className="font-semibold">
+                      {isEN ? 'You send application → ' : 'Lähetät hakemuksen → '}
+                    </span>
+                    {isEN 
+                      ? 'ATS scans your CV (keyword match: 82%)'
+                      : 'ATS skannaa CV:si (avainsanaosuma: 82%)'}
+                  </p>
+                  <p>
+                    <span className="font-semibold">
+                      {isEN ? 'ATS filters → ' : 'ATS suodattaa → '}
+                    </span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                      {isEN ? 'PASSED TO HIRING MANAGER' : 'VÄLITETÄÄN REKRYTOIJALLE'}
+                    </span>
+                  </p>
+                  <p className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                    {isEN 
+                      ? '✓ Human reads your CV → Interview invitation → Job offer'
+                      : '✓ Ihminen lukee CV:si → Haastattelukutsu → Työtarjous'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* ✅ STEP 3: THE RESULT */}
+            <div className="relative pl-8">
+              <div className="absolute -left-[13px] top-0 w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                3
+              </div>
+              <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 rounded-xl p-5 border border-amber-400/30">
+                <h4 className="font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  🎯 {isEN ? 'The outcome' : 'Lopputulos'}
+                </h4>
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-700 dark:text-neutral-300">
+                    {isEN
+                      ? '**Same qualifications. Same experience. Same skills.** The only difference? Your competition is already using ATS optimization.'
+                      : '**Samat kvalifikaatiot. Sama kokemus. Samat taidot.** Ainoa ero? Kilpailijasi käyttävät jo ATS-optimointia.'}
+                  </p>
+                  <div className="bg-white/50 dark:bg-neutral-800/50 rounded-lg p-4">
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-2">
+                      📊 {isEN ? 'Industry data:' : 'Alan data:'}
+                    </p>
+                    <ul className="text-sm text-gray-700 dark:text-neutral-300 space-y-1">
+                      <li>• {isEN ? '75% of resumes never reach humans without optimization' : '75% CV:istä ei koskaan päädy ihmisille ilman optimointia'}</li>
+                      <li>• {isEN ? '98% of Fortune 500 companies use ATS screening' : '98% Fortune 500 -yrityksistä käyttää ATS-seulontaa'}</li>
+                      <li>• {isEN ? '250+ applications compete for each skilled role' : '250+ hakemusta kilpailee jokaisesta osaavasta tehtävästä'}</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ✅ HAPPY APPLIED BRAND MOMENT */}
+            <div className="mt-8 pt-6 border-t border-amber-500/20 text-center">
+              <p className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                {isEN 
+                  ? 'Apply with confidence. Apply happy.' 
+                  : 'Hae luottavaisesti. Hae onnellisesti.'}
+              </p>
               <p className="text-sm text-gray-600 dark:text-neutral-400 italic">
                 {isEN
-                  ? '💡 Think of it this way: Basic gets you a professional CV. Premium gets you past the gatekeepers into the interview room.'
-                  : '💡 Ajattele näin: Basic antaa sinulle ammattimaisen CV:n. Premium vie sinut portinvartijoiden ohi haastatteluhuoneeseen.'}
+                  ? "💡 That's what Happy Applied is all about: Maximizing your chances, minimizing your stress. From application to interview, we've got you covered."
+                  : '💡 Siinä Happy Applied:n idea: Maksimoi mahdollisuutesi, minimoi stressisi. Hakemuksesta haastatteluun, me hoidamme homman.'}
               </p>
             </div>
           </div>
