@@ -237,80 +237,89 @@ export default function CreateCVPage() {
         return '';
       };
 
+      // ✅ HELPER: Muunna arrayt API:n odottamaan string-muotoon
+      const formatEducationForApi = (education: any): string => {
+        if (!education) return '';
+        const eduArray = Array.isArray(education) ? education : 
+                         typeof education === 'string' ? JSON.parse(education) : [];
+        
+        return eduArray
+          .filter((edu: any) => edu.school && edu.degree)
+          .map((edu: any) => {
+            const period = edu.isOngoing ? `${edu.year} - Kesken` : edu.year;
+            return `${edu.degree}, ${edu.school}${period ? ` (${period})` : ""}`;
+          })
+          .join("\n");
+      };
+
+      const formatWorkExperienceForApi = (workExperience: any): string => {
+        if (!workExperience) return '';
+        const workArray = Array.isArray(workExperience) ? workExperience :
+                          typeof workExperience === 'string' ? JSON.parse(workExperience) : [];
+        
+        return workArray
+          .filter((work: any) => work.company || work.position)
+          .map((work: any) => {
+            let formatted = "";
+            if (work.position && work.company) {
+              formatted = `${work.position}, ${work.company}`;
+            } else if (work.position) {
+              formatted = work.position;
+            } else if (work.company) {
+              formatted = work.company;
+            }
+
+            if (work.duration) {
+              formatted += ` (${work.duration})`;
+            }
+
+            if (work.description) {
+              formatted += `\n${work.description}`;
+            }
+
+            return formatted;
+          })
+          .join("\n\n");
+      };
+
       const requestBody = {
-        // ✅ SUORA MUOTO - ei tarvitse converttausta API:ssa
-        name: profileData?.name,
-        email: profileData?.email,
-        phone: profileData?.phone,
-        location: profileData?.location,
-        job_title: profileData?.job_title || profileData?.jobTitle,
-        profile_summary: profileData?.profile_summary || profileData?.profileSummary,
-        
-        // ✅ Parsitut arrayt (API odottaa näitä suoraan)
-        work_experience: (() => {
-          try {
-            const parsed = parseJsonField(profileData?.work_experience);
-            // API odottaa arrayta objekteista, ei stringiä
-            return parsed.length > 0 ? parsed : [];
-          } catch (e) {
-            return [];
-          }
-        })(),
-        
-        education: (() => {
-          try {
-            const parsed = parseJsonField(profileData?.education);
-            return parsed.length > 0 ? parsed : [];
-          } catch (e) {
-            return [];
-          }
-        })(),
-        
-        certificates: (() => {
-          try {
-            return parseJsonField(profileData?.certificates);
-          } catch (e) {
-            return [];
-          }
-        })(),
-        
-        portfolio_links: (() => {
-          try {
-            return parseJsonField(profileData?.portfolio_links);
-          } catch (e) {
-            return [];
-          }
-        })(),
-        
-        // ✅ Stringit (API odottaa näitä suoraan)
-        skills: arrayToString(profileData?.skills),
-        languages: arrayToString(profileData?.languages),
-        hobbies: profileData?.hobbies || '',
-        
-        // ✅ Persoonallisuuskentät
-        working_style: profileData?.working_style || '',
-        problem_solving: profileData?.problem_solving || '',
-        unique_strength: profileData?.unique_strength || '',
-        superpower: profileData?.superpower || '',
-        energy_sources: profileData?.energy_sources || '',
-        learning_style: profileData?.learning_style || '',
-        team_role: profileData?.team_role || '',
-        values_example: profileData?.values_example || '',
-        career_goals: profileData?.career_goals || '',
-        best_project_example: profileData?.best_project_example || '',
-        failure_lesson: profileData?.failure_lesson || '',
-        
-        // ✅ Kuvat
-        profile_image: profileData?.profile_image || profileData?.profileImage,
-        background_image: profileData?.background_image || profileData?.backgroundImage,
-        
-        // ✅ CV asetukset
+        profileData: {
+          name: profileData?.name,
+          email: profileData?.email,
+          phone: profileData?.phone,
+          location: profileData?.location,
+          jobTitle: profileData?.job_title || profileData?.jobTitle,
+          
+          // ✅ STRING-MUOTO (sama kuin types/index.ts)
+          education: formatEducationForApi(profileData?.education),
+          workExperience: formatWorkExperienceForApi(profileData?.work_experience),
+          skills: arrayToString(profileData?.skills),
+          languages: arrayToString(profileData?.languages),
+          hobbies: profileData?.hobbies || '',
+          
+          // Persoonallisuus
+          workingStyle: profileData?.working_style || '',
+          problemSolving: profileData?.problem_solving || '',
+          energySources: profileData?.energy_sources || '',
+          uniqueStrength: profileData?.unique_strength || '',
+          learningStyle: profileData?.learning_style || '',
+          teamRole: profileData?.team_role || '',
+          valuesExample: profileData?.values_example || '',
+          superpower: profileData?.superpower || '',
+          
+          // Storyt
+          careerGoals: profileData?.career_goals || '',
+          bestProjectExample: profileData?.best_project_example || '',
+          failureLesson: profileData?.failure_lesson || '',
+          
+          // Kuvat
+          profileImage: profileData?.profile_image || profileData?.profileImage,
+          backgroundImage: profileData?.background_image || profileData?.backgroundImage,
+        },
         cvType: selectedTemplate,
         language: selectedLanguage === 'english' ? 'english' : 'finnish',
         jobPosting: useATS ? jobPosting : undefined,
         enableRAG: false,
-        
-        // ✅ Kysymykset
         answeredQuestions: hasAnswers 
           ? Object.entries(currentAnswers).map(([id, answer]) => ({
               id,
@@ -328,14 +337,15 @@ export default function CreateCVPage() {
         hasJobPosting: !!requestBody.jobPosting,
         hasAnswers: hasAnswers,
         answerCount: requestBody.answeredQuestions?.length || 0,
-        profileDataTypes: {
-          work_experience: `array[${requestBody.work_experience?.length || 0}]`,
-          education: `array[${requestBody.education?.length || 0}]`,
-          skills: typeof requestBody.skills,
-          languages: typeof requestBody.languages,
-        },
-        hasName: !!requestBody.name,
-        hasEmail: !!requestBody.email,
+        profileData: {
+          hasName: !!requestBody.profileData.name,
+          hasEmail: !!requestBody.profileData.email,
+          educationType: typeof requestBody.profileData.education,
+          educationLength: requestBody.profileData.education?.length || 0,
+          workExpType: typeof requestBody.profileData.workExperience,
+          workExpLength: requestBody.profileData.workExperience?.length || 0,
+          skillsType: typeof requestBody.profileData.skills,
+        }
       });
 
       setStage('analyzing', 20);
