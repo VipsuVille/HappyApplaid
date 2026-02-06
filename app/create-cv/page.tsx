@@ -238,35 +238,79 @@ export default function CreateCVPage() {
       };
 
       const requestBody = {
-        profileData: (() => {
+        // ✅ SUORA MUOTO - ei tarvitse converttausta API:ssa
+        name: profileData?.name,
+        email: profileData?.email,
+        phone: profileData?.phone,
+        location: profileData?.location,
+        job_title: profileData?.job_title || profileData?.jobTitle,
+        profile_summary: profileData?.profile_summary || profileData?.profileSummary,
+        
+        // ✅ Parsitut arrayt (API odottaa näitä suoraan)
+        work_experience: (() => {
           try {
-            return {
-              ...profileData,
-              work_experience: parseJsonField(profileData?.work_experience),
-              education: parseJsonField(profileData?.education),
-              certificates: parseJsonField(profileData?.certificates),
-              portfolio_links: parseJsonField(profileData?.portfolio_links),
-              skills: arrayToString(profileData?.skills),
-              languages: arrayToString(profileData?.languages),
-            };
-          } catch (parseError) {
-            console.error('❌ Profile data parsing error:', parseError);
-            // Fallback: palauta raaka data
-            return {
-              ...profileData,
-              work_experience: profileData?.work_experience || [],
-              education: profileData?.education || [],
-              certificates: profileData?.certificates || [],
-              portfolio_links: profileData?.portfolio_links || [],
-              skills: profileData?.skills || '',
-              languages: profileData?.languages || '',
-            };
+            const parsed = parseJsonField(profileData?.work_experience);
+            // API odottaa arrayta objekteista, ei stringiä
+            return parsed.length > 0 ? parsed : [];
+          } catch (e) {
+            return [];
           }
         })(),
+        
+        education: (() => {
+          try {
+            const parsed = parseJsonField(profileData?.education);
+            return parsed.length > 0 ? parsed : [];
+          } catch (e) {
+            return [];
+          }
+        })(),
+        
+        certificates: (() => {
+          try {
+            return parseJsonField(profileData?.certificates);
+          } catch (e) {
+            return [];
+          }
+        })(),
+        
+        portfolio_links: (() => {
+          try {
+            return parseJsonField(profileData?.portfolio_links);
+          } catch (e) {
+            return [];
+          }
+        })(),
+        
+        // ✅ Stringit (API odottaa näitä suoraan)
+        skills: arrayToString(profileData?.skills),
+        languages: arrayToString(profileData?.languages),
+        hobbies: profileData?.hobbies || '',
+        
+        // ✅ Persoonallisuuskentät
+        working_style: profileData?.working_style || '',
+        problem_solving: profileData?.problem_solving || '',
+        unique_strength: profileData?.unique_strength || '',
+        superpower: profileData?.superpower || '',
+        energy_sources: profileData?.energy_sources || '',
+        learning_style: profileData?.learning_style || '',
+        team_role: profileData?.team_role || '',
+        values_example: profileData?.values_example || '',
+        career_goals: profileData?.career_goals || '',
+        best_project_example: profileData?.best_project_example || '',
+        failure_lesson: profileData?.failure_lesson || '',
+        
+        // ✅ Kuvat
+        profile_image: profileData?.profile_image || profileData?.profileImage,
+        background_image: profileData?.background_image || profileData?.backgroundImage,
+        
+        // ✅ CV asetukset
         cvType: selectedTemplate,
         language: selectedLanguage === 'english' ? 'english' : 'finnish',
         jobPosting: useATS ? jobPosting : undefined,
         enableRAG: false,
+        
+        // ✅ Kysymykset
         answeredQuestions: hasAnswers 
           ? Object.entries(currentAnswers).map(([id, answer]) => ({
               id,
@@ -285,15 +329,13 @@ export default function CreateCVPage() {
         hasAnswers: hasAnswers,
         answerCount: requestBody.answeredQuestions?.length || 0,
         profileDataTypes: {
-          work_experience: Array.isArray(requestBody.profileData.work_experience) ? 'array' : typeof requestBody.profileData.work_experience,
-          education: Array.isArray(requestBody.profileData.education) ? 'array' : typeof requestBody.profileData.education,
-          skills: typeof requestBody.profileData.skills,
-          languages: typeof requestBody.profileData.languages,
+          work_experience: `array[${requestBody.work_experience?.length || 0}]`,
+          education: `array[${requestBody.education?.length || 0}]`,
+          skills: typeof requestBody.skills,
+          languages: typeof requestBody.languages,
         },
-        profileDataLengths: {
-          work_experience: requestBody.profileData.work_experience?.length || 0,
-          education: requestBody.profileData.education?.length || 0,
-        }
+        hasName: !!requestBody.name,
+        hasEmail: !!requestBody.email,
       });
 
       setStage('analyzing', 20);
