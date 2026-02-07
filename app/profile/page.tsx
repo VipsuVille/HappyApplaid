@@ -320,20 +320,13 @@ const EnhancedProfilePage: React.FC = () => {
             }
           }
           
-          // ✅ KRIITTINEN KORJAUS: Varmista että skills on AINA array
-         const normalizedSkills = Array.isArray(data.profile.skills)
-  ? data.profile.skills
-  : typeof data.profile.skills === 'string'
-  ? [] // Jos string, muuta tyhjäksi arrayks
-  : [];
-
 setProfileData({
   ...data.profile,
   profileImage: imageUrl,
   workExperience: data.profile.workExperience || [],
   education: data.profile.education || [],
   languages: data.profile.languages || [],
-  skills: normalizedSkills, // ✅ AINA ARRAY
+  skills: data.profile.skills || [], // ← Ota sellaisenaan!
 });
 
         }

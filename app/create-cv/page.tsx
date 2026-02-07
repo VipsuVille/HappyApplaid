@@ -1,23 +1,55 @@
-// app/create-cv/page.tsx - COMPLETE VERSION WITH VALIDATION
-'use client';
+// app/create-cv/page.tsx - TÄYSIN TÄYDELLINEN VERSIO (700+ riviä)
+"use client";
 
-import { useState, useEffect, useMemo } from 'react';
-import { useUser } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { Loader2, Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect, useMemo } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { useGeneration, GenerationQuestion } from '@/context/GenerationContext';
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  Sparkles, FileText, Crown, CheckCircle, ArrowRight, 
+  Info, AlertCircle, Loader2, Briefcase, Globe,
+  CheckCircle2, Zap
+} from "lucide-react";
 import { validateProfile } from '@/lib/profileValidation';
 import ProfileValidationBanner from '@/components/ProfileValidationBanner';
+import { useTokens } from "@/hooks/useTokens";
+import { useLanguage } from '@/context/LanguageContext';
+
+type CVTemplate = "simple" | "technical" | "professional";
+type CVLanguage = "finnish" | "english";
 
 export default function CreateCVPage() {
-  const { user } = useUser();
   const router = useRouter();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { language } = useLanguage();
   
+  const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
+  const [selectedLanguage, setSelectedLanguage] = useState<CVLanguage>("finnish");
+  const [useATS, setUseATS] = useState(false);
+  const [jobPosting, setJobPosting] = useState("");
+  
+  const [profileData, setProfileData] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  // ✅ KYSYMYSMODAALI STATE
+  const [showQuestionsModal, setShowQuestionsModal] = useState(false);
+  const [localQuestions, setLocalQuestions] = useState<GenerationQuestion[]>([]);
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
+  const [preFilled, setPreFilled] = useState<Record<string, boolean>>({});
+
+  // ✅ CONFIRMATION STATE
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingViolations, setPendingViolations] = useState<any[]>([]);
+  const [skipConfirmation, setSkipConfirmation] = useState(false);
+
+  const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
+
   const {
     cvState,
     startGeneration,
+    setStage,
     setQuestions,
     setAnswer,
     completeGeneration,
@@ -27,25 +59,7 @@ export default function CreateCVPage() {
     isGenerating,
   } = useGeneration();
 
-  // Local modal state
-  const [showQuestionsModal, setShowQuestionsModal] = useState(false);
-  
-  // ✅ LOCAL STATE kysymyksille (välittömästi käytettävissä)
-  const [localQuestions, setLocalQuestions] = useState<GenerationQuestion[]>([]);
-  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
-  
-  // ✅ Pre-filled vastaukset user_responses taulusta
-  const [preFilled, setPreFilled] = useState<Record<string, boolean>>({});
-
-  const [selectedTemplate, setSelectedTemplate] = useState<'simple' | 'technical' | 'professional'>('simple');
-  const [selectedLanguage, setSelectedLanguage] = useState<'finnish' | 'english'>('finnish');
-  const [useATS, setUseATS] = useState(false);
-  const [jobPosting, setJobPosting] = useState('');
-  const [skipConfirmation, setSkipConfirmation] = useState(false);
-  const [profileData, setProfileData] = useState<any>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [pendingViolations, setPendingViolations] = useState<any[]>([]);
+  const isFinnish = language === 'fi' || (language as string) === 'finnish';
 
   // ✅ PROFILE VALIDATION
   const profileValidation = useMemo(() => {
@@ -53,14 +67,79 @@ export default function CreateCVPage() {
     return validateProfile(profileData);
   }, [profileData]);
 
-  // ✅ CLEANUP: Reset CV state kun komponentti mountataan
+  const t = {
+    en: {
+      title: "Create a",
+      titleHighlight: "Professional",
+      titleEnd: "CV.",
+      subtitle: "Let AI build your perfect resume.",
+      balance: "Your Balance",
+      sectionTemplate: "1. CV Template",
+      sectionLanguage: "2. Language",
+      sectionOptimization: "3. ATS Optimization (Optional)",
+      simple: "Simple",
+      simpleDesc: "Clean and minimal",
+      technical: "Technical",
+      technicalDesc: "For IT professionals",
+      professional: "Professional",
+      professionalDesc: "Business-oriented",
+      languageLabel: "CV Language",
+      languageHelp: "Which language should the CV be written in?",
+      atsToggle: "Optimize for ATS",
+      atsInfo: "Paste job posting. AI analyzes and optimizes.",
+      jobPostingPlaceholder: "Job posting text...",
+      summary: "Summary",
+      cvGeneration: "CV Generation",
+      cost: "Cost",
+      free: "FREE",
+      generateNow: "Create CV Now",
+      generating: "Generating...",
+      processTime: "Takes ~30 seconds.",
+      noProfile: "Complete profile first!",
+      success: "✅ CV created!",
+      error: "Error occurred",
+    },
+    fi: {
+      title: "Luo",
+      titleHighlight: "Ammattimainen",
+      titleEnd: "CV.",
+      subtitle: "Anna AI:n rakentaa täydellinen ansioluettelo.",
+      balance: "Saldosi",
+      sectionTemplate: "1. CV-pohja",
+      sectionLanguage: "2. Kieli",
+      sectionOptimization: "3. ATS-optimointi (Valinnainen)",
+      simple: "Simple",
+      simpleDesc: "Selkeä ja minimalistinen",
+      technical: "Technical",
+      technicalDesc: "IT-ammattilaisille",
+      professional: "Professional",
+      professionalDesc: "Liikemaailmaan",
+      languageLabel: "CV:n kieli",
+      languageHelp: "Millä kielellä CV kirjoitetaan?",
+      atsToggle: "Optimoi ATS:lle",
+      atsInfo: "Liitä ilmoitus. AI analysoi ja optimoi.",
+      jobPostingPlaceholder: "Työpaikkailmoitus...",
+      summary: "Yhteenveto",
+      cvGeneration: "CV:n generointi",
+      cost: "Kustannus",
+      free: "ILMAINEN",
+      generateNow: "Luo CV",
+      generating: "Generoidaan...",
+      processTime: "Kestää ~30 sekuntia.",
+      noProfile: "Täydennä profiili ensin!",
+      success: "✅ CV luotu!",
+      error: "Tapahtui virhe",
+    }
+  }[isFinnish ? 'fi' : 'en'];
+
+  // ✅ CLEANUP
   useEffect(() => {
     console.log('🧹 CV page mounted - resetting CV state');
     resetState('cv');
-    window.scrollTo(0, 0); // Scroll to top
+    window.scrollTo(0, 0);
   }, []);
 
-  // ✅ TIMEOUT PROTECTION: 60s timeout
+  // ✅ TIMEOUT PROTECTION
   useEffect(() => {
     if (!isGenerating) return;
     
@@ -70,45 +149,38 @@ export default function CreateCVPage() {
         failGeneration('Generointi kesti liian kauan (timeout)');
         toast.error('Generointi kesti liian kauan. Yritä uudelleen.');
       }
-    }, 60000); // 60s
+    }, 60000);
     
     return () => clearTimeout(timeoutId);
   }, [isGenerating, cvState.stage]);
 
-  // Ladataan profiili
+  // ✅ LOAD PROFILE - EI PAKKO-OHJAUSTA
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) return;
-
       try {
-        const res = await fetch(`/api/user-profile/${user.id}`);
-        const data = await res.json();
-
-        if (data.success && data.profile) {
-          setProfileData(data.profile);
-        } else {
-          toast.error('Täytä ensin profiilisi!');
-          setTimeout(() => router.push('/profile'), 2000);
+        setProfileLoading(true);
+        const response = await fetch(`/api/user-profile/${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProfileData(data.profile || data);
         }
       } catch (error) {
-        console.error('Profile load error:', error);
-        toast.error('Profiilin lataus epäonnistui');
+        console.error("❌ Profile load error:", error);
       } finally {
-        setIsLoadingProfile(false);
+        setProfileLoading(false);
       }
     };
+    if (userLoaded && user) loadProfile();
+  }, [userLoaded, user]);
 
-    loadProfile();
-  }, [user, router]);
-
-  // ✅ HELPER: Hae tallennetut vastaukset user_responses taulusta
+  // ✅ HELPER: Hae tallennetut vastaukset
   const fetchSavedResponses = async () => {
     try {
       const res = await fetch('/api/user-responses?context=cv_generation&limit=100');
       const data = await res.json();
       
       if (data.success && data.responses) {
-        // Muunna array mapiksi: question_text -> answer
         const savedMap: Record<string, string> = {};
         data.responses.forEach((r: any) => {
           savedMap[r.question_text] = r.answer;
@@ -121,7 +193,7 @@ export default function CreateCVPage() {
     return {};
   };
 
-  // ✅ HELPER: Tallenna vastaus user_responses tauluun
+  // ✅ HELPER: Tallenna vastaus
   const saveResponse = async (questionText: string, answer: string, category: string) => {
     try {
       await fetch('/api/user-responses/save', {
@@ -140,11 +212,8 @@ export default function CreateCVPage() {
     }
   };
 
-  // ✅ KORJATTU: Submit-funktio modalille
+  // ✅ SUBMIT QUESTIONS
   const handleSubmitQuestions = async () => {
-    console.log('📝 Submitting answers:', localAnswers);
-    
-    // Tarkista että kaikki kysymykset on vastattu
     const unansweredQuestions = localQuestions.filter(
       (q: GenerationQuestion) => !localAnswers[q.id]?.trim()
     );
@@ -154,86 +223,46 @@ export default function CreateCVPage() {
       return;
     }
 
-    // ✅ TALLENNA VASTAUKSET user_responses tauluun
     for (const q of localQuestions) {
       const answer = localAnswers[q.id];
-      if (answer && !preFilled[q.id]) { // Tallenna vain uudet vastaukset
+      if (answer && !preFilled[q.id]) {
         await saveResponse(q.question, answer, q.category || 'other');
       }
     }
 
-    // Sulje modaali
     setShowQuestionsModal(false);
-    
-    // ✅ ANNA HETKINEN ENNEN UUTTA GENEROINTIA
-    setTimeout(() => {
-      handleGenerateCV(localAnswers);
-    }, 300);
+    setTimeout(() => handleGenerateCV(localAnswers), 300);
   };
 
-  // Main generation function
+  // ✅ MAIN GENERATION
   const handleGenerateCV = async (finalAnswers?: Record<string, string>) => {
-    // ✅ VALIDOI PROFIILI
+    // ✅ VALIDOI PROFIILI - EI OHJAA, VAIN ESTÄÄ
     if (!profileValidation?.isValid) {
-      toast.error('Täydennä profiilisi ensin!');
+      toast.error(t.noProfile);
       return;
     }
 
     if (!user || !profileData) {
-      toast.error('Täytä ensin profiilisi!');
-      router.push('/profile');
+      toast.error(t.noProfile);
       return;
     }
 
     try {
-      // ✅ HAE TALLENNETUT VASTAUKSET
       const savedResponses = await fetchSavedResponses();
-      
       const currentAnswers = finalAnswers || localAnswers;
       const hasAnswers = Object.keys(currentAnswers).length > 0;
 
       if (!hasAnswers) {
-        console.log('🚀 Starting generation (type: cv)');
         startGeneration('cv', {
           templateType: selectedTemplate,
           language: selectedLanguage
         });
       }
 
-      // ✅ PARSE JSON ARRAYS - TURVALLINEN VERSIO
-      const parseJsonField = (field: any): any[] => {
-        if (field == null) return [];
-        if (Array.isArray(field)) return field;
-        if (typeof field === 'string') {
-          if (field.trim() === '') return [];
-          try {
-            const parsed = JSON.parse(field);
-            return Array.isArray(parsed) ? parsed : [];
-          } catch (e) {
-            return [];
-          }
-        }
-        return [];
-      };
-
-      // ✅ CONVERT ARRAY TO STRING - TURVALLINEN VERSIO
-      const arrayToString = (field: any): string => {
-        if (field == null) return '';
-        if (typeof field === 'string') return field;
-        if (Array.isArray(field)) {
-          return field
-            .filter(item => item != null && item !== '')
-            .join(', ');
-        }
-        return '';
-      };
-
-      // ✅ HELPER: Muunna arrayt API:n odottamaan string-muotoon
       const formatEducationForApi = (education: any): string => {
         if (!education) return '';
         const eduArray = Array.isArray(education) ? education : 
                          typeof education === 'string' ? JSON.parse(education) : [];
-        
         return eduArray
           .filter((edu: any) => edu.school && edu.degree)
           .map((edu: any) => {
@@ -247,30 +276,24 @@ export default function CreateCVPage() {
         if (!workExperience) return '';
         const workArray = Array.isArray(workExperience) ? workExperience :
                           typeof workExperience === 'string' ? JSON.parse(workExperience) : [];
-        
         return workArray
           .filter((work: any) => work.company || work.position)
           .map((work: any) => {
-            let formatted = "";
-            if (work.position && work.company) {
-              formatted = `${work.position}, ${work.company}`;
-            } else if (work.position) {
-              formatted = work.position;
-            } else if (work.company) {
-              formatted = work.company;
-            }
-
-            if (work.duration) {
-              formatted += ` (${work.duration})`;
-            }
-
-            if (work.description) {
-              formatted += `\n${work.description}`;
-            }
-
+            let formatted = work.position && work.company 
+              ? `${work.position}, ${work.company}` 
+              : work.position || work.company || "";
+            if (work.duration) formatted += ` (${work.duration})`;
+            if (work.description) formatted += `\n${work.description}`;
             return formatted;
           })
           .join("\n\n");
+      };
+
+      const arrayToString = (field: any): string => {
+        if (!field) return '';
+        if (typeof field === 'string') return field;
+        if (Array.isArray(field)) return field.filter(i => i).join(', ');
+        return '';
       };
 
       const requestBody = {
@@ -280,15 +303,11 @@ export default function CreateCVPage() {
           phone: profileData?.phone,
           location: profileData?.location,
           jobTitle: profileData?.job_title || profileData?.jobTitle,
-          
-          // ✅ STRING-MUOTO (sama kuin types/index.ts)
           education: formatEducationForApi(profileData?.education),
           workExperience: formatWorkExperienceForApi(profileData?.work_experience),
           skills: arrayToString(profileData?.skills),
           languages: arrayToString(profileData?.languages),
           hobbies: profileData?.hobbies || '',
-          
-          // Persoonallisuus
           workingStyle: profileData?.working_style || '',
           problemSolving: profileData?.problem_solving || '',
           energySources: profileData?.energy_sources || '',
@@ -297,13 +316,9 @@ export default function CreateCVPage() {
           teamRole: profileData?.team_role || '',
           valuesExample: profileData?.values_example || '',
           superpower: profileData?.superpower || '',
-          
-          // Storyt
           careerGoals: profileData?.career_goals || '',
           bestProjectExample: profileData?.best_project_example || '',
           failureLesson: profileData?.failure_lesson || '',
-          
-          // Kuvat
           profileImage: profileData?.profile_image || profileData?.profileImage,
           backgroundImage: profileData?.background_image || profileData?.backgroundImage,
         },
@@ -322,22 +337,7 @@ export default function CreateCVPage() {
         skipConfirmation,
       };
 
-      console.log('📤 Sending CV generation request:', {
-        cvType: requestBody.cvType,
-        language: requestBody.language,
-        hasJobPosting: !!requestBody.jobPosting,
-        hasAnswers: hasAnswers,
-        answerCount: requestBody.answeredQuestions?.length || 0,
-        profileData: {
-          hasName: !!requestBody.profileData.name,
-          hasEmail: !!requestBody.profileData.email,
-          educationType: typeof requestBody.profileData.education,
-          educationLength: requestBody.profileData.education?.length || 0,
-          workExpType: typeof requestBody.profileData.workExperience,
-          workExpLength: requestBody.profileData.workExperience?.length || 0,
-          skillsType: typeof requestBody.profileData.skills,
-        }
-      });
+      setStage('analyzing', 20);
 
       const response = await fetch('/api/generate-cv', {
         method: 'POST',
@@ -345,14 +345,14 @@ export default function CreateCVPage() {
         body: JSON.stringify(requestBody),
       });
 
+      setStage('generating', 50);
       const result = await response.json();
+      setStage('finalizing', 80);
 
-      // Handle questions
+      // ✅ HANDLE QUESTIONS
       if (result.needsMoreInfo && result.questions?.length > 0) {
         console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
-        console.log('📝 Kysymykset:', result.questions);
         
-        // ✅ PRE-FILL: Täytä vastaukset jos löytyvät user_responses taulusta
         const preFilledAnswers: Record<string, string> = {};
         const preFilledFlags: Record<string, boolean> = {};
         
@@ -361,251 +361,302 @@ export default function CreateCVPage() {
           if (saved) {
             preFilledAnswers[q.id] = saved;
             preFilledFlags[q.id] = true;
-            console.log(`✅ Pre-filled answer for: ${q.question.substring(0, 50)}...`);
           }
         });
         
-        // ✅ TALLENNA LOCAL STATE (välittömästi käytettävissä)
         setLocalQuestions(result.questions);
         setLocalAnswers(preFilledAnswers);
         setPreFilled(preFilledFlags);
-        
-        // ✅ TALLENNA MYÖS CONTEXT (taustalle)
         setQuestions(result.questions);
-        
-        // ✅ AVAA MODAALI
         setShowQuestionsModal(true);
-        
         return;
       }
 
-      // Handle confirmation
+      // ✅ HANDLE CONFIRMATION
       if (result.needsConfirmation && !skipConfirmation) {
-        console.log('⚠️ Tarvitaan käyttäjän vahvistus');
         setPendingViolations(result.violations);
         setShowConfirmation(true);
         cancelGeneration();
         return;
       }
 
-      // Success
+      // ✅ SUCCESS
       if (result.success && result.cvId) {
-        console.log('✅ CV luotu onnistuneesti:', result.cvId);
         completeGeneration(result.cvId);
-        toast.success('CV luotu! Siirrytään muokkaukseen...');
+        toast.success(t.success);
         setTimeout(() => router.push(`/edit-cv/${result.cvId}`), 500);
       } else {
-        throw new Error(result.error || 'CV generointi epäonnistui');
+        throw new Error(result.error || t.error);
       }
-
     } catch (error: any) {
-      console.error('CV generation error:', error);
-      failGeneration(error.message || 'Generointi epäonnistui');
-      toast.error(error.message || 'Jotain meni pieleen');
+      console.error('❌ Generation error:', error);
+      failGeneration(error.message || t.error);
+      toast.error(t.error);
     }
   };
 
-  if (isLoadingProfile) {
+  if (!userLoaded || profileLoading || tokensLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-400" />
+      <div className="min-h-screen bg-[#030711] flex items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-700 via-gray-800 to-slate-900 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        
-        {/* HEADER */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-black bg-gradient-to-r from-orange-400 via-amber-500 to-orange-500 bg-clip-text text-transparent mb-4">
-            Luo uusi CV
-          </h1>
-          <p className="text-gray-300 text-lg">
-            Valitse tyyli, kieli ja anna AI:n tehdä loput
-          </p>
+    <div className="min-h-screen bg-[#030711] text-[#e7e3dc]">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="relative z-10 max-w-6xl mx-auto px-4 py-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
+              <FileText className="w-3.5 h-3.5 text-orange-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">AI CV</span>
+            </div>
+            <h1 className="text-4xl md:text-6xl font-black text-white">
+              {t.title} <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">{t.titleHighlight}</span> {t.titleEnd}
+            </h1>
+            <p className="text-gray-400 text-lg">{t.subtitle}</p>
+          </div>
+
+          <div className="bg-gray-900/40 border border-gray-800 p-5 rounded-3xl flex items-center gap-6">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">{t.balance}</p>
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-2xl font-black text-white">{tokens.toLocaleString()}</span>
+                <span className="text-xs font-bold text-orange-500">TKN</span>
+              </div>
+            </div>
+            <div className="w-px h-10 bg-gray-800" />
+            <Crown className={`w-6 h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
+          </div>
         </div>
 
         {/* ✅ PROFILE VALIDATION BANNER */}
         {profileValidation && !profileValidation.isValid && (
-          <div className="mb-8">
+          <div className="mb-10">
             <ProfileValidationBanner 
               validation={profileValidation}
               context="cv"
-              language="fi"
+              language={isFinnish ? 'fi' : 'en'}
             />
           </div>
         )}
 
-        {/* TEMPLATE SELECTION */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl mb-8">
-          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-orange-400" />
-            Valitse CV-tyyli
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { 
-                id: 'simple', 
-                name: 'Simple', 
-                desc: 'Selkeä ja minimalistinen',
-                emoji: '📄',
-                features: ['Perus layout', 'Helppolukuinen', 'ATS-ystävällinen']
-              },
-              { 
-                id: 'technical', 
-                name: 'Technical', 
-                desc: 'IT-alan ammattilaisille',
-                emoji: '💻',
-                features: ['Tekninen tyyli', 'Projektilistaukset', 'Skill bars']
-              },
-              { 
-                id: 'professional', 
-                name: 'Professional', 
-                desc: 'Liikemaailmaan',
-                emoji: '👔',
-                features: ['Premium design', 'Taustaväri', 'Profiilkuva']
-              }
-            ].map((template) => (
-              <button
-                key={template.id}
-                onClick={() => setSelectedTemplate(template.id as any)}
-                className={`group p-6 rounded-2xl border-2 transition-all text-left ${
-                  selectedTemplate === template.id
-                    ? 'bg-gradient-to-br from-orange-500 to-amber-600 border-orange-400 shadow-xl scale-105'
-                    : 'bg-white/5 border-white/10 hover:border-orange-400/50 hover:scale-102'
-                }`}
-              >
-                <div className="text-4xl mb-3">{template.emoji}</div>
-                <h3 className="font-bold text-xl text-white mb-2">{template.name}</h3>
-                <p className="text-sm text-gray-300 mb-3">{template.desc}</p>
-                <ul className="space-y-1">
-                  {template.features.map((f, i) => (
-                    <li key={i} className="text-xs text-gray-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-orange-400" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* LANGUAGE SELECTION */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl mb-8">
-          <h2 className="text-2xl font-bold text-white mb-6">Kieli</h2>
-          
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { id: 'finnish', name: '🇫🇮 Suomi' },
-              { id: 'english', name: '🇬🇧 English' }
-            ].map((lang) => (
-              <button
-                key={lang.id}
-                onClick={() => setSelectedLanguage(lang.id as any)}
-                className={`p-4 rounded-2xl border-2 transition-all ${
-                  selectedLanguage === lang.id
-                    ? 'bg-gradient-to-br from-orange-500 to-amber-600 border-orange-400'
-                    : 'bg-white/5 border-white/10 hover:border-orange-400/50'
-                }`}
-              >
-                <span className="font-bold text-lg text-white">{lang.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ATS OPTIMIZATION */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl mb-8">
-          <div className="flex items-start gap-4 mb-4">
-            <input
-              type="checkbox"
-              checked={useATS}
-              onChange={(e) => setUseATS(e.target.checked)}
-              className="w-5 h-5 rounded mt-1"
-              id="ats-checkbox"
-            />
-            <div className="flex-1">
-              <label htmlFor="ats-checkbox" className="text-2xl font-bold text-white cursor-pointer block mb-2">
-                ATS-optimointi 🎯
-              </label>
-              <p className="text-sm text-gray-400">
-                Optimoi CV työpaikkailmoituksen perusteella. AI analysoi ilmoituksen ja räätälöi CV:n sen mukaan.
-              </p>
-            </div>
-          </div>
-          
-          {useATS && (
-            <div className="mt-4">
-              <label className="block text-sm font-bold text-gray-300 mb-2">
-                Liitä työpaikkailmoitus tähän:
-              </label>
-              <textarea
-                value={jobPosting}
-                onChange={(e) => setJobPosting(e.target.value)}
-                placeholder="Kopioi koko työpaikkailmoitus tähän (tehtävänkuvaus, vaatimukset, toiveet...)"
-                className="w-full h-40 bg-black/30 border border-white/10 rounded-2xl p-4 text-white placeholder-gray-500 focus:border-orange-400/50 focus:outline-none transition-all resize-none"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                💡 Mitä enemmän tietoa annat, sitä paremmin AI voi optimoida CV:n
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* GENERATE BUTTON */}
-        <Button
-          onClick={() => handleGenerateCV()}
-          disabled={isGenerating || !profileValidation?.isValid}
-          className="w-full h-16 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-xl font-black rounded-2xl shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isGenerating ? (
-            <div className="flex flex-col items-center gap-1">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin" />
-                Generoidaan...
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-8 space-y-10">
+            
+            {/* SECTION 1: TEMPLATE */}
+            <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
+              <div className="flex items-center gap-3 mb-8">
+                <Briefcase className="w-10 h-10 p-2 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30" />
+                <h3 className="text-xl font-bold text-white">{t.sectionTemplate}</h3>
               </div>
-              {cvState.progress > 0 && (
-                <span className="text-xs font-normal opacity-80">
-                  {cvState.progress}% valmis
-                </span>
-              )}
-            </div>
-          ) : !profileValidation?.isValid ? (
-            <>
-              <AlertCircle className="w-6 h-6 mr-2" />
-              Täydennä profiili ensin
-            </>
-          ) : (
-            <>
-              <Zap className="w-6 h-6 mr-2" />
-              Luo CV
-            </>
-          )}
-        </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[
+                  { 
+                    id: "simple", 
+                    label: t.simple, 
+                    desc: t.simpleDesc, 
+                    icon: FileText,
+                    features: ['Perus layout', 'Helppolukuinen', 'ATS-ystävällinen']
+                  },
+                  { 
+                    id: "technical", 
+                    label: t.technical, 
+                    desc: t.technicalDesc, 
+                    icon: Briefcase,
+                    features: ['Tekninen tyyli', 'Projektilistaukset', 'Skill bars']
+                  },
+                  { 
+                    id: "professional", 
+                    label: t.professional, 
+                    desc: t.professionalDesc, 
+                    icon: Crown,
+                    features: ['Premium design', 'Taustaväri', 'Profiilkuva']
+                  },
+                ].map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => setSelectedTemplate(template.id as CVTemplate)}
+                    className={`relative p-6 rounded-3xl border text-left transition-all ${
+                      selectedTemplate === template.id 
+                        ? 'border-orange-500/50 bg-orange-500/5' 
+                        : 'border-gray-800 bg-black/20 hover:border-gray-700'
+                    }`}
+                  >
+                    <template.icon className={`w-6 h-6 mb-4 ${selectedTemplate === template.id ? 'text-orange-400' : 'text-gray-500'}`} />
+                    <p className="font-bold text-white mb-2">{template.label}</p>
+                    <p className="text-xs text-gray-500 mb-3">{template.desc}</p>
+                    <ul className="space-y-1">
+                      {template.features.map((f, i) => (
+                        <li key={i} className="text-xs text-gray-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-orange-400" />
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                    {selectedTemplate === template.id && <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-orange-500" />}
+                  </button>
+                ))}
+              </div>
+            </section>
 
-        {/* Info text */}
-        <p className="text-center text-sm text-gray-400 mt-4">
-          {isGenerating 
-            ? 'Tämä voi kestää 30-60 sekuntia...'
-            : !profileValidation?.isValid
-            ? 'Täydennä puuttuvat profiilitiedot aloittaaksesi'
-            : 'AI luo sinulle ammattimaisen CV:n muutamassa sekunnissa'
-          }
-        </p>
+            {/* SECTION 2: LANGUAGE */}
+            <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
+              <div className="flex items-center gap-3 mb-8">
+                <Globe className="w-10 h-10 p-2 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30" />
+                <h3 className="text-xl font-bold text-white">{t.sectionLanguage}</h3>
+              </div>
+
+              <div className="mb-8">
+                <label className="block text-sm font-bold text-gray-300 mb-3">
+                  {t.languageLabel}
+                </label>
+                <p className="text-xs text-gray-500 mb-4">{t.languageHelp}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'finnish', label: 'Suomi', flag: '🇫🇮' },
+                    { id: 'english', label: 'English', flag: '🇬🇧' },
+                  ].map((lang) => (
+                    <button
+                      key={lang.id}
+                      onClick={() => setSelectedLanguage(lang.id as CVLanguage)}
+                      className={`relative p-4 rounded-2xl border text-left transition-all ${
+                        selectedLanguage === lang.id
+                          ? 'border-blue-500/50 bg-blue-500/10'
+                          : 'border-gray-800 bg-black/20 hover:border-gray-700'
+                      }`}
+                    >
+                      <div className="text-2xl mb-2">{lang.flag}</div>
+                      <p className="font-bold text-white text-sm">{lang.label}</p>
+                      {selectedLanguage === lang.id && (
+                        <CheckCircle className="absolute top-3 right-3 w-4 h-4 text-blue-400" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* SECTION 3: ATS OPTIMIZATION */}
+            <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
+              <div className="flex items-start gap-4 mb-6">
+                <input
+                  type="checkbox"
+                  checked={useATS}
+                  onChange={(e) => setUseATS(e.target.checked)}
+                  className="w-5 h-5 rounded mt-1"
+                  id="ats-cv-checkbox"
+                />
+                <div className="flex-1">
+                  <label htmlFor="ats-cv-checkbox" className="text-xl font-bold text-white cursor-pointer block mb-2">
+                    {t.atsToggle} 🎯
+                  </label>
+                  <p className="text-xs text-gray-500">{t.atsInfo}</p>
+                </div>
+              </div>
+              
+              {useATS && (
+                <textarea
+                  value={jobPosting}
+                  onChange={(e) => setJobPosting(e.target.value)}
+                  placeholder={t.jobPostingPlaceholder}
+                  className="w-full h-48 bg-black/40 border border-white/10 rounded-3xl p-6 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none mt-4"
+                />
+              )}
+            </section>
+
+          </div>
+
+          {/* SIDEBAR */}
+          <div className="lg:col-span-4">
+            <div className="lg:sticky lg:top-12">
+              <div className="bg-gray-900/40 border border-gray-800 rounded-[2.5rem] p-8">
+                <h3 className="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] mb-8">{t.summary}</h3>
+                
+                <div className="space-y-5 mb-10">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">{t.cvGeneration}</span>
+                    <span className="text-white font-bold">{plan_type === 'free' ? '0' : '50'} TKN</span>
+                  </div>
+                  
+                  <div className="pt-4 border-t border-gray-800 space-y-3">
+                    <div className="flex items-center gap-2 text-xs">
+                      <FileText className="w-4 h-4 text-orange-400" />
+                      <span className="text-gray-400">Pohja:</span>
+                      <span className="text-white font-bold capitalize">{selectedTemplate}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <Globe className="w-4 h-4 text-blue-400" />
+                      <span className="text-gray-400">Kieli:</span>
+                      <span className="text-white font-bold capitalize">{selectedLanguage}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="pt-5 border-t border-gray-800">
+                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">{t.cost}</p>
+                    <p className="text-3xl font-black text-white">
+                      {plan_type === 'free' ? t.free : (
+                        <>
+                          50
+                          <span className="text-xs text-orange-500 ml-1">TKN</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => handleGenerateCV()}
+                  disabled={isGenerating || !profileValidation?.isValid}
+                  className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      {t.generating}
+                      {cvState.progress > 0 && (
+                        <span className="ml-2 text-xs opacity-80">
+                          ({cvState.progress}%)
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <><Sparkles className="w-5 h-5 mr-2" />{t.generateNow}<ArrowRight className="w-5 h-5 ml-2 opacity-50" /></>
+                  )}
+                </Button>
+                
+                {!profileValidation?.isValid && (
+                  <div className="mt-6 flex gap-3 p-4 bg-red-500/10 rounded-2xl border border-red-500/20">
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-red-400 mb-1">{t.noProfile}</p>
+                      <button 
+                        onClick={() => router.push('/profile')}
+                        className="text-xs text-red-300 underline hover:text-red-200"
+                      >
+                        Täytä profiili →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ✅ KYSYMYSMODAALI - ISOMPI JA PAREMPI */}
+      {/* ✅ KYSYMYSMODAALI */}
       {showQuestionsModal && localQuestions.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowQuestionsModal(false)} />
           
           <div className="relative bg-gradient-to-br from-gray-900/95 via-slate-900/95 to-gray-900/95 backdrop-blur-2xl rounded-3xl border-2 border-orange-400/30 shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden">
             
-            {/* Header */}
             <div className="bg-gradient-to-r from-orange-500 to-amber-600 p-6">
               <h2 className="text-2xl font-black text-white mb-2">
                 Tarkennetaanko hieman?
@@ -615,7 +666,6 @@ export default function CreateCVPage() {
               </p>
             </div>
 
-            {/* Questions */}
             <div className="p-6 space-y-6 max-h-[50vh] overflow-y-auto">
               {localQuestions.map((q: GenerationQuestion) => (
                 <div key={q.id} className="space-y-3 group">
@@ -649,7 +699,6 @@ export default function CreateCVPage() {
               ))}
             </div>
 
-            {/* Footer */}
             <div className="flex gap-4 p-6 border-t border-white/10">
               <Button 
                 variant="ghost" 
@@ -669,7 +718,7 @@ export default function CreateCVPage() {
         </div>
       )}
 
-      {/* ✅ CONFIRMATION MODAL - Guardian violations */}
+      {/* ✅ CONFIRMATION MODAL */}
       {showConfirmation && pendingViolations.length > 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
