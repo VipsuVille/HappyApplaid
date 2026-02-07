@@ -334,7 +334,7 @@ export default function CVQuestionsModal({
             className="px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg hover:bg-slate-700/50 disabled:opacity-50 text-slate-300 transition-colors flex items-center gap-2"
           >
             <SkipForward className="w-4 h-4" />
-            Peruuta
+            Ohita kysymykset - Generoi silti
           </button>
           <button
             onClick={handleSubmit}

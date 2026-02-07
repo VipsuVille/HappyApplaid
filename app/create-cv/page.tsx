@@ -246,7 +246,10 @@ export default function CreateCVPage() {
   };
 
   // ✅ MAIN GENERATION
-  const handleGenerateCV = async (finalAnswers?: Record<string, string>) => {
+  const handleGenerateCV = async (
+    finalAnswers?: Record<string, string>,
+    skipQuestionsExplicitly = false // ✅ UUSI: Käyttäjä ohitti kysymykset
+  ) => {
     // ✅ VALIDOI PROFIILI - EI OHJAA, VAIN ESTÄÄ
     if (!profileValidation?.isValid) {
       toast.error(t.noProfile);
@@ -355,7 +358,7 @@ export default function CreateCVPage() {
               answer
             }))
           : [],
-        skipQuestions: hasAnswers,
+        skipQuestions: hasAnswers || skipQuestionsExplicitly, // ✅ Ohita jos vastauksia TAI käyttäjä ohitti
         skipConfirmation,
       };
 
@@ -692,7 +695,12 @@ export default function CreateCVPage() {
           questions={localQuestions}
           preFilled={preFilled}
           onSubmit={handleSubmitQuestions}
-          onCancel={() => setShowQuestionsModal(false)}
+          onCancel={() => {
+            // ✅ Sulje modaali JA jatka generointia ilman vastauksia
+            setShowQuestionsModal(false);
+            console.log('⏭️ CV: Käyttäjä ohitti kysymykset - generoidaan ilman vastauksia');
+            setTimeout(() => handleGenerateCV({}, true), 300); // ✅ skipQuestionsExplicitly = true
+          }}
         />
       )}
 
