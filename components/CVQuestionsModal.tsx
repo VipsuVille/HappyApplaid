@@ -286,7 +286,8 @@ export default function CVQuestionsModal({
                       className="w-full p-3 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm min-h-[100px] bg-white/80 text-slate-900 placeholder-slate-500"
                     />
                     <div className="mt-2 text-xs text-slate-600 text-right">
-                      {answer.text?.length || 0} merkkiä {(answer.text?.length ?? 0) answer.type !== 'skip' && (answer.text?.length ?? 0) < 10 && '(vähintään 10)'}
+                      {answer.text?.length || 0} merkkiä
+                      {(answer.text?.length ?? 0) < 10 && ' (vähintään 10)'}
                     </div>
                   </div>
                 )}
