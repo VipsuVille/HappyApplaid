@@ -12,7 +12,8 @@ import {
   Palette, Zap, TrendingUp, ChevronDown, ChevronUp,
   MessageSquarePlus, Save,
 } from "lucide-react";
-
+import { validateProfile } from '@/lib/profileValidation';
+import ProfileValidationBanner from '@/components/ProfileValidationBanner';
 import { useTokens } from "@/hooks/useTokens";
 import { useFreeUsage } from '@/hooks/useFreeUsage';
 import { useLanguage } from '@/context/LanguageContext';
@@ -44,6 +45,7 @@ export default function CreateCoverLetterPage() {
   const [previousNotes, setPreviousNotes] = useState<string>("");
   
   const [profileData, setProfileData] = useState<any>(null);
+
   const [profileLoading, setProfileLoading] = useState(true);
 
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -68,6 +70,10 @@ export default function CreateCoverLetterPage() {
   const canUseV2 = plan_type === 'premium' && letterType === 'job_specific'; // VAIN Premium
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
+  const profileValidation = useMemo(() => {
+  if (!profileData) return null;
+  return validateProfile(profileData);
+}, [profileData]);
 
   const t = {
     en: {
@@ -251,13 +257,12 @@ export default function CreateCoverLetterPage() {
 
   // --- GENERATE HANDLER ---
  // --- GENERATE HANDLER ---
-  const handleGenerateLetter = async (confirmedViolations?: any) => {
-    if (!isProfileValid) {
-      toast.error(t.noProfile);
-      router.push('/profile');
-      return;
-    }
-
+    const handleGenerateLetter = async (confirmedViolations?: any) => {
+  // ✅ VALIDOI PROFIILI
+  if (!profileValidation?.isValid) {
+    toast.error(t.noProfile);
+    return;
+  }
     if (letterType === 'job_specific' && !jobPosting.trim()) {
       toast.error(t.jobPostingRequired);
       return;
@@ -421,6 +426,7 @@ export default function CreateCoverLetterPage() {
   }
 
   return (
+
     <div className="min-h-screen bg-[#030711] text-[#e7e3dc]">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
@@ -451,7 +457,15 @@ export default function CreateCoverLetterPage() {
             <Crown className={`w-6 h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
           </div>
         </div>
-
+{profileValidation && !profileValidation.isValid && (
+  <div className="mb-10">
+    <ProfileValidationBanner 
+      validation={profileValidation}
+      context="cover_letter"
+      language={isFinnish ? 'fi' : 'en'}
+    />
+  </div>
+)}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-10">
             
@@ -777,8 +791,7 @@ export default function CreateCoverLetterPage() {
 
                 <Button
                   onClick={() => handleGenerateLetter()}
-                  disabled={isGenerating || !isProfileValid || (letterType === 'job_specific' && !jobPosting.trim())}
-                  className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
+                  disabled={isGenerating || !profileValidation?.isValid || (letterType === 'job_specific' && !jobPosting.trim())}                  className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
                 >
                   {isGenerating ? (
                     <><Loader2 className="w-5 h-5 animate-spin mr-2" />{t.generating}</>
@@ -787,7 +800,7 @@ export default function CreateCoverLetterPage() {
                   )}
                 </Button>
                 
-                {!isProfileValid && (
+{!profileValidation?.isValid && (
                   <div className="mt-6 flex gap-3 p-4 bg-red-500/10 rounded-2xl border border-red-500/20">
                     <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
                     <div>

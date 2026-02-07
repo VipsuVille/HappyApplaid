@@ -160,14 +160,84 @@ export default function EditCVPage() {
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64data = reader.result as string;
-      handleContentChange(type, base64data);
+      
+      console.log('📤 Uploading image:', { type, size: file.size });
+      
+      // ✅ PÄIVITÄ KAIKKI POLUT
+      setCvData(prev => {
+        if (!prev) return prev;
+        
+        const updated: any = {
+          ...prev,
+          // Päivitä top-level
+          [type]: base64data,
+          
+          content: {
+            ...prev.content,
+            
+            // Päivitä cv_data
+            cv_data: {
+              ...prev.content.cv_data,
+              [type]: base64data,
+            },
+            
+            // Päivitä ai_data
+            ai_data: {
+              ...prev.content.ai_data,
+              [type === 'profileImage' ? 'profile_image' : 'background_image']: base64data,
+            }
+          },
+        };
+        
+        console.log('✅ Image uploaded to state');
+        return updated;
+      });
+      
       toast.success('Kuva ladattu!');
     };
     reader.readAsDataURL(file);
   };
 
   const handleSelectImage = (image: UserImage, type: 'profileImage' | 'backgroundImage') => {
-    handleContentChange(type, image.signedUrl || '');
+    const imageUrl = image.signedUrl || '';
+    
+    console.log('🖼️ Selecting image:', { type, imageUrl });
+    
+    // ✅ PÄIVITÄ KAIKKI MAHDOLLISET POLUT
+    setCvData(prev => {
+      if (!prev) return prev;
+      
+      const updated: any = {
+        ...prev,
+        // Päivitä top-level kentät
+        [type]: imageUrl,
+        
+        content: {
+          ...prev.content,
+          
+          // Päivitä cv_data
+          cv_data: {
+            ...prev.content.cv_data,
+            [type]: imageUrl,
+          },
+          
+          // Päivitä ai_data
+          ai_data: {
+            ...prev.content.ai_data,
+            [type === 'profileImage' ? 'profile_image' : 'background_image']: imageUrl,
+          }
+        },
+      };
+      
+      console.log('✅ CV data updated:', {
+        topLevel: updated[type],
+        cvData: updated.content.cv_data[type],
+        aiData: type === 'profileImage' ? updated.content.ai_data.profile_image : updated.content.ai_data.background_image
+      });
+      
+      return updated;
+    });
+    
     toast.success('Kuva valittu!');
   };
 

@@ -1,13 +1,15 @@
-// app/create-cv/page.tsx - FINAL VERSION
+// app/create-cv/page.tsx - COMPLETE VERSION WITH VALIDATION
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Loader2, Sparkles, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useGeneration, GenerationQuestion } from '@/context/GenerationContext';
+import { validateProfile } from '@/lib/profileValidation';
+import ProfileValidationBanner from '@/components/ProfileValidationBanner';
 
 export default function CreateCVPage() {
   const { user } = useUser();
@@ -44,6 +46,12 @@ export default function CreateCVPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingViolations, setPendingViolations] = useState<any[]>([]);
+
+  // ✅ PROFILE VALIDATION
+  const profileValidation = useMemo(() => {
+    if (!profileData) return null;
+    return validateProfile(profileData);
+  }, [profileData]);
 
   // ✅ CLEANUP: Reset CV state kun komponentti mountataan
   useEffect(() => {
@@ -165,6 +173,12 @@ export default function CreateCVPage() {
 
   // Main generation function
   const handleGenerateCV = async (finalAnswers?: Record<string, string>) => {
+    // ✅ VALIDOI PROFIILI
+    if (!profileValidation?.isValid) {
+      toast.error('Täydennä profiilisi ensin!');
+      return;
+    }
+
     if (!user || !profileData) {
       toast.error('Täytä ensin profiilisi!');
       router.push('/profile');
@@ -404,7 +418,7 @@ export default function CreateCVPage() {
       <div className="max-w-4xl mx-auto">
         
         {/* HEADER */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <h1 className="text-5xl font-black bg-gradient-to-r from-orange-400 via-amber-500 to-orange-500 bg-clip-text text-transparent mb-4">
             Luo uusi CV
           </h1>
@@ -412,6 +426,17 @@ export default function CreateCVPage() {
             Valitse tyyli, kieli ja anna AI:n tehdä loput
           </p>
         </div>
+
+        {/* ✅ PROFILE VALIDATION BANNER */}
+        {profileValidation && !profileValidation.isValid && (
+          <div className="mb-8">
+            <ProfileValidationBanner 
+              validation={profileValidation}
+              context="cv"
+              language="fi"
+            />
+          </div>
+        )}
 
         {/* TEMPLATE SELECTION */}
         <div className="bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10 shadow-2xl mb-8">
@@ -534,7 +559,7 @@ export default function CreateCVPage() {
         {/* GENERATE BUTTON */}
         <Button
           onClick={() => handleGenerateCV()}
-          disabled={isGenerating || !profileData}
+          disabled={isGenerating || !profileValidation?.isValid}
           className="w-full h-16 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-xl font-black rounded-2xl shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isGenerating ? (
@@ -549,10 +574,10 @@ export default function CreateCVPage() {
                 </span>
               )}
             </div>
-          ) : !profileData ? (
+          ) : !profileValidation?.isValid ? (
             <>
               <AlertCircle className="w-6 h-6 mr-2" />
-              Täytä profiili ensin
+              Täydennä profiili ensin
             </>
           ) : (
             <>
@@ -566,6 +591,8 @@ export default function CreateCVPage() {
         <p className="text-center text-sm text-gray-400 mt-4">
           {isGenerating 
             ? 'Tämä voi kestää 30-60 sekuntia...'
+            : !profileValidation?.isValid
+            ? 'Täydennä puuttuvat profiilitiedot aloittaaksesi'
             : 'AI luo sinulle ammattimaisen CV:n muutamassa sekunnissa'
           }
         </p>
