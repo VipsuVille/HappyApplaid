@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { validateProfile } from '@/lib/profileValidation';
 import ProfileValidationBanner from '@/components/ProfileValidationBanner';
+import CVQuestionsModal from '@/components/CVQuestionsModal';
 import { useTokens } from "@/hooks/useTokens";
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -36,7 +37,6 @@ export default function CreateCVPage() {
   // ✅ KYSYMYSMODAALI STATE
   const [showQuestionsModal, setShowQuestionsModal] = useState(false);
   const [localQuestions, setLocalQuestions] = useState<GenerationQuestion[]>([]);
-  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>({});
   const [preFilled, setPreFilled] = useState<Record<string, boolean>>({});
 
   // ✅ CONFIRMATION STATE
@@ -51,7 +51,6 @@ export default function CreateCVPage() {
     startGeneration,
     setStage,
     setQuestions,
-    setAnswer,
     completeGeneration,
     failGeneration,
     cancelGeneration,
@@ -139,17 +138,17 @@ export default function CreateCVPage() {
     window.scrollTo(0, 0);
   }, []);
 
-  // ✅ TIMEOUT PROTECTION
+  // ✅ TIMEOUT PROTECTION (3 minuuttia)
   useEffect(() => {
     if (!isGenerating) return;
     
     const timeoutId = setTimeout(() => {
       if (isGenerating && cvState.stage !== 'complete') {
-        console.error('⏰ Generation timeout - resetting state');
-        failGeneration('Generointi kesti liian kauan (timeout)');
-        toast.error('Generointi kesti liian kauan. Yritä uudelleen.');
+        console.error('⏰ Generation timeout after 3 minutes');
+        failGeneration('Generointi kesti yli 3 minuuttia');
+        toast.error('Generointi kesti yli 3 minuuttia. Yritä uudelleen.');
       }
-    }, 60000);
+    }, 180000); // 3 minuuttia (180000ms)
     
     return () => clearTimeout(timeoutId);
   }, [isGenerating, cvState.stage]);
@@ -213,25 +212,37 @@ export default function CreateCVPage() {
   };
 
   // ✅ SUBMIT QUESTIONS
-  const handleSubmitQuestions = async () => {
-    const unansweredQuestions = localQuestions.filter(
-      (q: GenerationQuestion) => !localAnswers[q.id]?.trim()
-    );
+  // ✅ SUBMIT QUESTIONS - Uusi modaali palauttaa monipuolisemman datan
+  const handleSubmitQuestions = async (questionAnswers: Array<{
+    id: string;
+    question: string;
+    answer: string;
+    answerType: 'use' | 'mention' | 'interested' | 'skip';
+    shouldSave: boolean;
+    category: string;
+  }>) => {
+    console.log('📝 CV: Submitting answers:', questionAnswers);
 
-    if (unansweredQuestions.length > 0) {
-      toast.error(`Vastaa kaikkiin kysymyksiin (${unansweredQuestions.length} puuttuu)`);
-      return;
-    }
-
-    for (const q of localQuestions) {
-      const answer = localAnswers[q.id];
-      if (answer && !preFilled[q.id]) {
-        await saveResponse(q.question, answer, q.category || 'other');
+    // ✅ TALLENNA VASTAUKSET jotka merkitty tallennettavaksi
+    for (const qa of questionAnswers) {
+      if (qa.shouldSave && qa.answer) {
+        await saveResponse(qa.question, qa.answer, qa.category);
       }
     }
 
+    // ✅ Sulje modaali
     setShowQuestionsModal(false);
-    setTimeout(() => handleGenerateCV(localAnswers), 300);
+    
+    // ✅ Muunna yksinkertaisempaan muotoon API:lle
+    const simpleAnswers: Record<string, string> = {};
+    questionAnswers.forEach(qa => {
+      if (qa.answer) {
+        simpleAnswers[qa.id] = qa.answer;
+      }
+    });
+    
+    // ✅ Jatka generointia vastauksilla
+    setTimeout(() => handleGenerateCV(simpleAnswers), 300);
   };
 
   // ✅ MAIN GENERATION
@@ -249,7 +260,7 @@ export default function CreateCVPage() {
 
     try {
       const savedResponses = await fetchSavedResponses();
-      const currentAnswers = finalAnswers || localAnswers;
+      const currentAnswers = finalAnswers || {}; // ✅ Tyhjä objekti jos ei finalAnswers
       const hasAnswers = Object.keys(currentAnswers).length > 0;
 
       if (!hasAnswers) {
@@ -289,11 +300,22 @@ export default function CreateCVPage() {
           .join("\n\n");
       };
 
-      const arrayToString = (field: any): string => {
-        if (!field) return '';
-        if (typeof field === 'string') return field;
-        if (Array.isArray(field)) return field.filter(i => i).join(', ');
-        return '';
+      // ✅ HELPER: Muunna skills/languages ARRAY-muotoon API:lle
+      const formatSkillsForApi = (skills: any): string[] => {
+        if (!skills) return [];
+        if (Array.isArray(skills)) {
+          // Jos array objekteja: [{name: "Python"}, ...]
+          if (skills.length > 0 && typeof skills[0] === 'object' && skills[0].name) {
+            return skills.map((s: any) => s.name).filter(Boolean);
+          }
+          // Jos array stringejä: ["Python", "JavaScript"]
+          return skills.filter(Boolean);
+        }
+        if (typeof skills === 'string') {
+          // Jos comma-separated string: "Python, JavaScript"
+          return skills.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        return [];
       };
 
       const requestBody = {
@@ -305,8 +327,8 @@ export default function CreateCVPage() {
           jobTitle: profileData?.job_title || profileData?.jobTitle,
           education: formatEducationForApi(profileData?.education),
           workExperience: formatWorkExperienceForApi(profileData?.work_experience),
-          skills: arrayToString(profileData?.skills),
-          languages: arrayToString(profileData?.languages),
+          skills: formatSkillsForApi(profileData?.skills), // ✅ ARRAY
+          languages: formatSkillsForApi(profileData?.languages), // ✅ ARRAY
           hobbies: profileData?.hobbies || '',
           workingStyle: profileData?.working_style || '',
           problemSolving: profileData?.problem_solving || '',
@@ -337,7 +359,10 @@ export default function CreateCVPage() {
         skipConfirmation,
       };
 
-      setStage('analyzing', 20);
+      // ✅ setStage VAIN jos vastaukset on annettu (muuten ei active type)
+      if (hasAnswers) {
+        setStage('analyzing', 20);
+      }
 
       const response = await fetch('/api/generate-cv', {
         method: 'POST',
@@ -345,13 +370,24 @@ export default function CreateCVPage() {
         body: JSON.stringify(requestBody),
       });
 
-      setStage('generating', 50);
+      if (hasAnswers) {
+        setStage('generating', 50);
+      }
+      
       const result = await response.json();
-      setStage('finalizing', 80);
+      
+      if (hasAnswers) {
+        setStage('finalizing', 80);
+      }
 
       // ✅ HANDLE QUESTIONS
       if (result.needsMoreInfo && result.questions?.length > 0) {
         console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
+        
+        // ✅ PERUUTA generointi jos ei vielä aloitettu
+        if (!hasAnswers) {
+          cancelGeneration();
+        }
         
         const preFilledAnswers: Record<string, string> = {};
         const preFilledFlags: Record<string, boolean> = {};
@@ -365,7 +401,7 @@ export default function CreateCVPage() {
         });
         
         setLocalQuestions(result.questions);
-        setLocalAnswers(preFilledAnswers);
+        // ✅ setLocalAnswers ei enää tarvita - modaali hoitaa vastaukset
         setPreFilled(preFilledFlags);
         setQuestions(result.questions);
         setShowQuestionsModal(true);
@@ -650,72 +686,14 @@ export default function CreateCVPage() {
         </div>
       </div>
 
-      {/* ✅ KYSYMYSMODAALI */}
+      {/* ✅ KYSYMYSMODAALI - UUSI PARANNETTU */}
       {showQuestionsModal && localQuestions.length > 0 && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowQuestionsModal(false)} />
-          
-          <div className="relative bg-gradient-to-br from-gray-900/95 via-slate-900/95 to-gray-900/95 backdrop-blur-2xl rounded-3xl border-2 border-orange-400/30 shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden">
-            
-            <div className="bg-gradient-to-r from-orange-500 to-amber-600 p-6">
-              <h2 className="text-2xl font-black text-white mb-2">
-                Tarkennetaanko hieman?
-              </h2>
-              <p className="text-white/90">
-                AI haluaa varmistaa, että CV:stä tulee mahdollisimman vakuuttava.
-              </p>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[50vh] overflow-y-auto">
-              {localQuestions.map((q: GenerationQuestion) => (
-                <div key={q.id} className="space-y-3 group">
-                  <label className="text-sm font-bold text-gray-200 block">
-                    {q.question}
-                    {preFilled[q.id] && (
-                      <span className="ml-2 text-xs text-green-400 font-normal">
-                        ✓ Tallennettu vastaus
-                      </span>
-                    )}
-                  </label>
-                  {q.why && (
-                    <div className="flex gap-2 items-start text-xs text-gray-500">
-                      <span className="text-orange-500/50">Miksi:</span>
-                      <span>{q.why}</span>
-                    </div>
-                  )}
-                  <textarea
-                    className="w-full bg-black/40 border border-gray-800 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-all min-h-[120px] resize-none"
-                    value={localAnswers[q.id] || ""}
-                    onChange={(e) => {
-                      setLocalAnswers(prev => ({
-                        ...prev,
-                        [q.id]: e.target.value
-                      }));
-                      setAnswer(q.id, e.target.value);
-                    }}
-                    placeholder="Vastaa tähän..."
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-4 p-6 border-t border-white/10">
-              <Button 
-                variant="ghost" 
-                className="flex-1 rounded-xl text-gray-500 hover:text-white hover:bg-white/5 h-14 font-bold"
-                onClick={() => setShowQuestionsModal(false)}
-              >
-                Sulje
-              </Button>
-              <Button 
-                className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-14 font-black"
-                onClick={handleSubmitQuestions}
-              >
-                Valmista tuli
-              </Button>
-            </div>
-          </div>
-        </div>
+        <CVQuestionsModal
+          questions={localQuestions}
+          preFilled={preFilled}
+          onSubmit={handleSubmitQuestions}
+          onCancel={() => setShowQuestionsModal(false)}
+        />
       )}
 
       {/* ✅ CONFIRMATION MODAL */}
