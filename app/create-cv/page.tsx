@@ -18,7 +18,7 @@ import CVQuestionsModal from '@/components/CVQuestionsModal';
 import { useTokens } from "@/hooks/useTokens";
 import { useLanguage } from '@/context/LanguageContext';
 
-type CVTemplate = "simple" | "technical" | "professional";
+type CVTemplate = "simple" | "technical" | "creative"; // ✅ KORJATTU: professional → creative
 type CVLanguage = "finnish" | "english";
 
 export default function CreateCVPage() {
@@ -511,7 +511,7 @@ export default function CreateCVPage() {
                     features: ['Tekninen tyyli', 'Projektilistaukset', 'Skill bars']
                   },
                   { 
-                    id: "professional", 
+                    id: "creative", // ✅ KORJATTU: professional → creative
                     label: t.professional, 
                     desc: t.professionalDesc, 
                     icon: Crown,
