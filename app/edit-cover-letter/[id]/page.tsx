@@ -1,5 +1,3 @@
-// app/edit-cover-letter/[id]/page.tsx - ✅ COMPLETE VERSION
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,8 +7,9 @@ import { toast } from 'sonner';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Palette, RotateCcw, X, Eye, Settings, 
-  AlignLeft, AlignCenter, AlignRight,
-  CheckCircle, Clock
+  AlignLeft, AlignCenter, AlignJustify,
+  CheckCircle, Clock, FileText, Sparkles,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 import IterativeFeedback from '@/components/IterativeFeedback';
@@ -90,9 +89,9 @@ export default function EditCoverLetterPage() {
     textAlign: 'justify',
   });
 
-  // ✅ ITERATION COST
   const iterationCost = plan_type === 'premium' ? 30 : 50;
 
+  // Detect mobile
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -103,6 +102,7 @@ export default function EditCoverLetterPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Load cover letter
   useEffect(() => {
     const loadCoverLetter = async () => {
       if (!userId || !id) {
@@ -135,7 +135,6 @@ export default function EditCoverLetterPage() {
           setLocation(letter.content?.contactInfo?.location || letter.ai_data?.location || '');
           setContent(letter.content?.body || letter.ai_data?.html?.content || '');
           
-          // Load style settings
           const loadedStyle: StyleSettings = {
             headerColor: letter.content?.headerColor || 'rgb(181, 152, 79)',
             headerLayout: letter.content?.headerLayout || 'top',
@@ -241,6 +240,7 @@ export default function EditCoverLetterPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
+      toast.success('PDF ladattu!');
     } catch (error) {
       console.error('PDF error:', error);
       toast.error('PDF:n luonti epäonnistui');
@@ -267,6 +267,7 @@ export default function EditCoverLetterPage() {
         throw new Error(errorData.error || 'Delete failed');
       }
       
+      toast.success('Hakukirje poistettu');
       router.push('/my-cover-letters');
     } catch (error) {
       console.error('Delete error:', error);
@@ -275,7 +276,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  // ✅ HANDLE ITERATION SUCCESS
   const handleIterationSuccess = (
     newContent: string, 
     summary: string,
@@ -341,15 +341,14 @@ export default function EditCoverLetterPage() {
       },
       textAlign: 'justify',
     });
+    toast.success('Tyylit palautettu oletuksiin');
   };
 
   if (isLoading || !letterData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background flex items-center justify-center">
-        <div className="bg-white/70 dark:bg-card/70 backdrop-blur-xl border-2 border-white/40 dark:border-border rounded-3xl p-8 text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-600 dark:text-primary mx-auto mb-4" />
-          <p className="text-lg font-bold">Ladataan...</p>
-        </div>
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+        <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">Ladataan hakukirjettä...</p>
       </div>
     );
   }
@@ -362,82 +361,87 @@ export default function EditCoverLetterPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 dark:bg-background">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
       
+      {/* Background Orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
+      </div>
+
       {/* TOOLBAR */}
-      <div className="sticky top-0 z-50 bg-white/90 dark:bg-card/90 backdrop-blur-xl border-b border-gray-200 dark:border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
             
-            <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <button 
                 onClick={() => router.push('/my-cover-letters')}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-muted rounded-xl transition-colors"
+                className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm flex-shrink-0"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               
-              <div className="min-w-0">
-                <h1 className="text-lg md:text-xl font-bold truncate">
-                  Muokkaa hakukirjettä
-                </h1>
-                <p className="text-sm text-gray-600 dark:text-muted-foreground truncate">
-                  {letterData.title}
-                </p>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <h1 className="text-sm sm:text-lg font-black truncate">
+                    {letterData.title}
+                  </h1>
+                </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button 
                 onClick={() => setShowStylePanel(!showStylePanel)}
-                className={`p-2 md:p-3 rounded-xl transition-colors ${
+                className={`p-2 sm:p-3 rounded-xl transition-all ${
                   showStylePanel 
-                    ? 'bg-indigo-600 dark:bg-primary text-white' 
-                    : 'hover:bg-gray-100 dark:hover:bg-muted'
+                    ? 'bg-orange-500 text-white shadow-lg' 
+                    : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
-                title="Muotoilu"
               >
-                <Settings className="w-5 h-5" />
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               
               <button 
                 onClick={handleDownloadPDF}
                 disabled={isDownloading}
-                className="p-2 md:p-3 hover:bg-gray-100 dark:hover:bg-muted rounded-xl transition-colors"
+                className="p-2 sm:p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm"
               >
                 {isDownloading ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-indigo-600 dark:text-primary" />
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-orange-500" />
                 ) : (
-                  <Download className="w-5 h-5" />
+                  <Download className="w-4 h-4 sm:w-5 sm:h-5" />
                 )}
               </button>
               
               <button 
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="p-2 md:p-3 hover:bg-red-50 dark:hover:bg-destructive/20 rounded-xl transition-colors"
+                className="p-2 sm:p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shadow-sm"
               >
                 {isDeleting ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-red-500" />
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-red-500" />
                 ) : (
-                  <Trash2 className="w-5 h-5 text-red-500" />
+                  <Trash2 className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
                 )}
               </button>
               
               <button 
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50"
+                className="px-3 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50 shadow-lg transition-all text-xs sm:text-sm"
               >
                 {isSaving ? (
                   <>
                     <Loader2 className="w-4 h-4 inline mr-2 animate-spin" />
-                    Tallennetaan...
+                    <span className="hidden sm:inline">Tallennetaan...</span>
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4 inline mr-2" />
-                    Tallenna
+                    <span className="hidden sm:inline">Tallenna</span>
                   </>
                 )}
               </button>
@@ -446,18 +450,18 @@ export default function EditCoverLetterPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         
-        {/* ✅ SUCCESS BANNER */}
+        {/* SUCCESS BANNER */}
         {showSuccess && (
-          <div className="mb-8 p-6 bg-green-500/10 border-2 border-green-500/30 rounded-3xl animate-in slide-in-from-top-4">
+          <div className="mb-6 p-4 sm:p-6 bg-green-500/10 border-2 border-green-500/30 rounded-2xl animate-in slide-in-from-top-4">
             <div className="flex items-start gap-3">
-              <CheckCircle className="w-6 h-6 text-green-400 shrink-0" />
+              <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500 shrink-0" />
               <div>
-                <h4 className="text-lg font-bold text-green-400 mb-1">
+                <h4 className="text-sm sm:text-lg font-bold text-green-600 dark:text-green-400 mb-1">
                   ✅ Kirje päivitetty onnistuneesti!
                 </h4>
-                <p className="text-sm text-green-300/70">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   {latestChanges}
                 </p>
               </div>
@@ -465,19 +469,19 @@ export default function EditCoverLetterPage() {
           </div>
         )}
         
-        <div className="flex gap-6">
+        <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
           
-          {/* ✅ STYLE PANEL (TÄYDELLINEN) */}
+          {/* STYLE PANEL */}
           {showStylePanel && (
-            <div className="w-80 bg-white dark:bg-card border border-gray-200 dark:border-border rounded-2xl p-6 h-fit sticky top-24 shadow-xl">
+            <div className="lg:w-80 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-6 shadow-xl lg:sticky lg:top-24 lg:h-fit">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-indigo-600 dark:text-primary" />
+                <h3 className="text-sm sm:text-lg font-black flex items-center gap-2 uppercase tracking-wider">
+                  <Palette className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                   Muotoilu
                 </h3>
                 <button
                   onClick={() => setShowStylePanel(false)}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-muted rounded transition-colors"
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors lg:hidden"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -486,35 +490,35 @@ export default function EditCoverLetterPage() {
               <div className="space-y-6">
                 {/* Header Color */}
                 <div>
-                  <label className="text-sm font-bold mb-2 block">Header-väri</label>
+                  <label className="text-xs font-bold mb-2 block uppercase tracking-wider">Header-väri</label>
                   <input
                     type="color"
                     value={styleSettings.headerColor.startsWith('rgb') ? '#B59850' : styleSettings.headerColor}
                     onChange={(e) => setStyleSettings(prev => ({ ...prev, headerColor: e.target.value }))}
-                    className="w-full h-12 rounded-lg cursor-pointer border border-gray-300 dark:border-border"
+                    className="w-full h-12 rounded-lg cursor-pointer border-2 border-gray-200 dark:border-gray-700"
                   />
                 </div>
 
                 {/* Header Layout */}
                 <div>
-                  <label className="text-sm font-bold mb-2 block">Asettelu</label>
+                  <label className="text-xs font-bold mb-2 block uppercase tracking-wider">Asettelu</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => setStyleSettings(prev => ({ ...prev, headerLayout: 'top' }))}
-                      className={`p-3 rounded-lg border-2 text-sm font-semibold transition-all ${
+                      className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all ${
                         styleSettings.headerLayout === 'top'
-                          ? 'border-indigo-600 dark:border-primary bg-indigo-50 dark:bg-primary/10 text-indigo-600 dark:text-primary'
-                          : 'border-gray-300 dark:border-border hover:bg-gray-50 dark:hover:bg-muted'
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
                       Yläosa
                     </button>
                     <button
                       onClick={() => setStyleSettings(prev => ({ ...prev, headerLayout: 'left' }))}
-                      className={`p-3 rounded-lg border-2 text-sm font-semibold transition-all ${
+                      className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all ${
                         styleSettings.headerLayout === 'left'
-                          ? 'border-indigo-600 dark:border-primary bg-indigo-50 dark:bg-primary/10 text-indigo-600 dark:text-primary'
-                          : 'border-gray-300 dark:border-border hover:bg-gray-50 dark:hover:bg-muted'
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
                       Vasen
@@ -522,25 +526,11 @@ export default function EditCoverLetterPage() {
                   </div>
                 </div>
 
-                {/* Sidebar Content */}
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Sivupalkki</label>
-                  <select
-                    value={styleSettings.sidebarContent}
-                    onChange={(e) => setStyleSettings(prev => ({ ...prev, sidebarContent: e.target.value as any }))}
-                    className="w-full px-3 py-2 bg-white dark:bg-background border border-gray-300 dark:border-border rounded-lg text-sm"
-                  >
-                    <option value="contact">Yhteystiedot</option>
-                    <option value="highlights">Vahvuudet</option>
-                    <option value="none">Ei mitään</option>
-                  </select>
-                </div>
-
                 {/* Font Size */}
                 <div>
-                  <label className="text-sm font-bold mb-2 block flex justify-between">
+                  <label className="text-xs font-bold mb-2 block flex justify-between uppercase tracking-wider">
                     <span>Fonttikoko</span>
-                    <span className="text-indigo-600 dark:text-primary">{styleSettings.fontSize}pt</span>
+                    <span className="text-orange-500">{styleSettings.fontSize}pt</span>
                   </label>
                   <input
                     type="range"
@@ -549,15 +539,15 @@ export default function EditCoverLetterPage() {
                     step="0.5"
                     value={styleSettings.fontSize}
                     onChange={(e) => setStyleSettings(prev => ({ ...prev, fontSize: parseFloat(e.target.value) }))}
-                    className="w-full"
+                    className="w-full accent-orange-500"
                   />
                 </div>
 
                 {/* Line Height */}
                 <div>
-                  <label className="text-sm font-bold mb-2 block flex justify-between">
+                  <label className="text-xs font-bold mb-2 block flex justify-between uppercase tracking-wider">
                     <span>Riviväli</span>
-                    <span className="text-indigo-600 dark:text-primary">{styleSettings.lineHeight}</span>
+                    <span className="text-orange-500">{styleSettings.lineHeight}</span>
                   </label>
                   <input
                     type="range"
@@ -566,131 +556,50 @@ export default function EditCoverLetterPage() {
                     step="0.1"
                     value={styleSettings.lineHeight}
                     onChange={(e) => setStyleSettings(prev => ({ ...prev, lineHeight: parseFloat(e.target.value) }))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Letter Spacing */}
-                <div>
-                  <label className="text-sm font-bold mb-2 block flex justify-between">
-                    <span>Kirjainväli</span>
-                    <span className="text-indigo-600 dark:text-primary">{styleSettings.letterSpacing}px</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="-1"
-                    max="3"
-                    step="0.1"
-                    value={styleSettings.letterSpacing}
-                    onChange={(e) => setStyleSettings(prev => ({ ...prev, letterSpacing: parseFloat(e.target.value) }))}
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Paragraph Spacing */}
-                <div>
-                  <label className="text-sm font-bold mb-2 block flex justify-between">
-                    <span>Kappaleväli</span>
-                    <span className="text-indigo-600 dark:text-primary">{styleSettings.paragraphSpacing}px</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="8"
-                    max="32"
-                    step="4"
-                    value={styleSettings.paragraphSpacing}
-                    onChange={(e) => setStyleSettings(prev => ({ ...prev, paragraphSpacing: parseInt(e.target.value) }))}
-                    className="w-full"
+                    className="w-full accent-orange-500"
                   />
                 </div>
 
                 {/* Text Alignment */}
                 <div>
-                  <label className="text-sm font-bold mb-2 block">Tekstin tasaus</label>
+                  <label className="text-xs font-bold mb-2 block uppercase tracking-wider">Tekstin tasaus</label>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setStyleSettings(prev => ({ ...prev, textAlign: 'left' }))}
-                      className={`flex-1 p-2 rounded-lg border-2 transition-all ${
+                      className={`flex-1 p-2 rounded-xl border-2 transition-all ${
                         styleSettings.textAlign === 'left'
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                          : 'border-gray-300 hover:bg-gray-50'
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
                       <AlignLeft className="w-4 h-4 mx-auto" />
                     </button>
                     <button
                       onClick={() => setStyleSettings(prev => ({ ...prev, textAlign: 'center' }))}
-                      className={`flex-1 p-2 rounded-lg border-2 transition-all ${
+                      className={`flex-1 p-2 rounded-xl border-2 transition-all ${
                         styleSettings.textAlign === 'center'
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                          : 'border-gray-300 hover:bg-gray-50'
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
                       <AlignCenter className="w-4 h-4 mx-auto" />
                     </button>
                     <button
                       onClick={() => setStyleSettings(prev => ({ ...prev, textAlign: 'justify' }))}
-                      className={`flex-1 p-2 rounded-lg border-2 transition-all ${
+                      className={`flex-1 p-2 rounded-xl border-2 transition-all ${
                         styleSettings.textAlign === 'justify'
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-600'
-                          : 'border-gray-300 hover:bg-gray-50'
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                       }`}
                     >
-                      <AlignRight className="w-4 h-4 mx-auto" />
+                      <AlignJustify className="w-4 h-4 mx-auto" />
                     </button>
-                  </div>
-                </div>
-
-                {/* Margins */}
-                <div>
-                  <label className="text-sm font-bold mb-2 block">Marginaalit (px)</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      value={styleSettings.margins.top}
-                      onChange={(e) => setStyleSettings(prev => ({
-                        ...prev,
-                        margins: { ...prev.margins, top: parseInt(e.target.value) }
-                      }))}
-                      placeholder="Ylä"
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    />
-                    <input
-                      type="number"
-                      value={styleSettings.margins.right}
-                      onChange={(e) => setStyleSettings(prev => ({
-                        ...prev,
-                        margins: { ...prev.margins, right: parseInt(e.target.value) }
-                      }))}
-                      placeholder="Oikea"
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    />
-                    <input
-                      type="number"
-                      value={styleSettings.margins.bottom}
-                      onChange={(e) => setStyleSettings(prev => ({
-                        ...prev,
-                        margins: { ...prev.margins, bottom: parseInt(e.target.value) }
-                      }))}
-                      placeholder="Ala"
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    />
-                    <input
-                      type="number"
-                      value={styleSettings.margins.left}
-                      onChange={(e) => setStyleSettings(prev => ({
-                        ...prev,
-                        margins: { ...prev.margins, left: parseInt(e.target.value) }
-                      }))}
-                      placeholder="Vasen"
-                      className="px-3 py-2 border rounded-lg text-sm"
-                    />
                   </div>
                 </div>
 
                 <button
                   onClick={handleResetStyles}
-                  className="w-full px-4 py-2 bg-gray-100 dark:bg-muted hover:bg-gray-200 dark:hover:bg-muted/80 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
                 >
                   <RotateCcw className="w-4 h-4" />
                   Palauta oletukset
@@ -700,45 +609,75 @@ export default function EditCoverLetterPage() {
           )}
 
           {/* PREVIEW & EDIT */}
-          <div className="flex-1 space-y-6">
+          <div className="flex-1 space-y-4 sm:space-y-6">
             
-            {/* PREVIEW (lyhennetty) */}
-            <div className="bg-white dark:bg-card rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-border">
-              <div className="flex items-center justify-center p-6 bg-gray-50 dark:bg-muted/20">
+            {/* PREVIEW */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-800">
+              <div className="flex items-center justify-center p-4 sm:p-6 bg-gray-50 dark:bg-black/20">
                 <div
                   className="bg-white shadow-2xl"
                   style={{
                     width: '210mm',
                     minHeight: '297mm',
                     fontFamily: "'Merriweather', serif",
-                    transform: isMobile ? 'scale(0.35)' : 'scale(0.75)',
+                    transform: isMobile ? 'scale(0.35)' : 'scale(0.65)',
                     transformOrigin: isMobile ? 'top center' : 'center',
                   }}
                 >
-                  {/* Letter content - kopioi dokumentista 4 rivit 200-400 */}
-                  <div className="p-12">
-                    <p className="text-gray-600 mb-8">{today}</p>
+                  <div 
+                    className="p-12"
+                    style={{
+                      paddingTop: `${styleSettings.margins.top}px`,
+                      paddingRight: `${styleSettings.margins.right}px`,
+                      paddingBottom: `${styleSettings.margins.bottom}px`,
+                      paddingLeft: `${styleSettings.margins.left}px`,
+                    }}
+                  >
+                    {/* Header */}
+                    <div className="mb-8">
+                      <h1 
+                        className="text-3xl font-bold mb-2"
+                        style={{ color: styleSettings.headerColor }}
+                      >
+                        {name}
+                      </h1>
+                      <div className="text-sm text-gray-600 space-y-1">
+                        <p>{email}</p>
+                        <p>{phone}</p>
+                        <p>{location}</p>
+                      </div>
+                    </div>
+
+                    <p className="text-gray-600 mb-8 text-sm">{today}</p>
                     
+                    {/* Content */}
                     {editingField === 'content' ? (
                       <textarea
                         value={tempValue}
                         onChange={(e) => setTempValue(e.target.value)}
                         onBlur={() => saveField('content')}
                         rows={20}
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-indigo-300 rounded-xl"
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-orange-300 rounded-xl text-sm"
                         autoFocus
                       />
                     ) : (
                       <div
                         onClick={() => startEditing('content', content)}
-                        className="cursor-pointer hover:bg-gray-50 p-4 rounded-xl"
+                        className="cursor-pointer hover:bg-gray-50 p-4 rounded-xl transition-colors"
                         style={{
                           lineHeight: styleSettings.lineHeight,
                           fontSize: `${styleSettings.fontSize}pt`,
+                          letterSpacing: `${styleSettings.letterSpacing}px`,
+                          textAlign: styleSettings.textAlign,
                         }}
                       >
                         {paragraphs.map((p, i) => (
-                          <p key={i} style={{ marginBottom: `${styleSettings.paragraphSpacing}px` }}>
+                          <p 
+                            key={i} 
+                            style={{ 
+                              marginBottom: i < paragraphs.length - 1 ? `${styleSettings.paragraphSpacing}px` : 0 
+                            }}
+                          >
                             {p}
                           </p>
                         ))}
@@ -749,7 +688,7 @@ export default function EditCoverLetterPage() {
               </div>
             </div>
 
-            {/* ✅ ITERATIIVINEN MUOKKAUS */}
+            {/* ITERATIVE FEEDBACK */}
             <IterativeFeedback
               coverLetterId={id}
               iterationCost={iterationCost}
@@ -757,10 +696,10 @@ export default function EditCoverLetterPage() {
               onSuccess={handleIterationSuccess}
             />
 
-            {/* ✅ MUUTOSHISTORIA */}
+            {/* CHANGE HISTORY */}
             {letterData?.ai_data?.iterations?.length > 0 && (
-              <div className="bg-gray-900/40 border border-gray-800 rounded-3xl p-8">
-                <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-8 shadow-xl">
+                <h3 className="text-lg sm:text-xl font-black mb-6 flex items-center gap-2 uppercase tracking-wider">
                   <Clock className="w-5 h-5 text-gray-400" />
                   Muutoshistoria
                 </h3>
@@ -768,17 +707,17 @@ export default function EditCoverLetterPage() {
                   {letterData.ai_data.iterations.map((iter: any, i: number) => (
                     <div 
                       key={i}
-                      className="p-4 bg-black/20 border border-gray-800 rounded-2xl"
+                      className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-gray-800 rounded-xl"
                     >
                       <div className="flex items-start justify-between gap-4 mb-2">
-                        <p className="text-sm font-bold text-white">
+                        <p className="text-sm font-bold">
                           Versio {iter.version}
                         </p>
                         <p className="text-xs text-gray-500">
                           {new Date(iter.timestamp).toLocaleString('fi-FI')}
                         </p>
                       </div>
-                      <p className="text-sm text-gray-400 mb-2">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                         💬 <span className="italic">"{iter.user_feedback}"</span>
                       </p>
                       <p className="text-xs text-gray-500">
@@ -789,7 +728,7 @@ export default function EditCoverLetterPage() {
                           {iter.affected_sections.map((section: string) => (
                             <span 
                               key={section}
-                              className="px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-[10px] font-bold text-purple-300"
+                              className="px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded text-[10px] font-bold text-purple-600 dark:text-purple-400"
                             >
                               {section}
                             </span>
@@ -803,8 +742,8 @@ export default function EditCoverLetterPage() {
             )}
 
             {/* Info */}
-            <div className="bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4">
-              <p className="text-sm font-bold text-indigo-900 dark:text-indigo-100 flex items-center gap-2">
+            <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+              <p className="text-sm font-bold text-orange-900 dark:text-orange-100 flex items-center gap-2">
                 <Eye className="w-4 h-4" />
                 Klikkaa tekstiä muokataksesi sitä suoraan tai käytä AI-muokkausta!
               </p>
@@ -814,18 +753,20 @@ export default function EditCoverLetterPage() {
       </div>
 
       <style jsx global>{`
-        @keyframes slide-in {
-          from {
-            opacity: 0;
-            transform: translateX(100px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
         }
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out;
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(156, 163, 175, 0.1);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(156, 163, 175, 0.3);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(156, 163, 175, 0.5);
         }
       `}</style>
     </div>

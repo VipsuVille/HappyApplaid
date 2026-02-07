@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
-  Upload, User, Image as ImageIconLucide, Sparkles, Eye, Edit3
+  Upload, User, Image as ImageIconLucide, Sparkles, 
+  Eye, Edit3, ChevronLeft, ChevronRight, FileText
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
@@ -13,6 +14,7 @@ import { BaseCV, CVTemplateProps } from '@/types';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
 import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
+import { toast } from 'sonner';
 
 export default function EditCVPage() {
   const params = useParams();
@@ -26,14 +28,27 @@ export default function EditCVPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[];
     backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
-  
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Carousel states for mobile image selection
+  const [profileCarouselIndex, setProfileCarouselIndex] = useState(0);
+  const [bgCarouselIndex, setBgCarouselIndex] = useState(0);
+
+  // --- DETECT MOBILE ---
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // --- INITIAL LOAD ---
   useEffect(() => {
@@ -48,22 +63,18 @@ export default function EditCVPage() {
         if (error) throw error;
         
         if (data) {
-          // ✅ PROSESSOI KUVAT ENNEN TALLENNUSTA
           const processImageUrl = (url: string | null | undefined): string => {
             if (!url || url.trim() === "") return "";
             const trimmed = url.trim();
             
-            // Base64 → OK (paitsi SVG)
             if (trimmed.startsWith('data:image') && !trimmed.includes('svg+xml')) {
               return trimmed;
             }
             
-            // HTTP URL → OK
             if (trimmed.startsWith('http')) {
               return trimmed;
             }
             
-            // Supabase path → Rakenna public URL
             if (trimmed.includes('/')) {
               const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
               if (!supabaseUrl) return "";
@@ -73,19 +84,16 @@ export default function EditCVPage() {
             return "";
           };
           
-          // ✅ HAE PROFIILIKUVA
           const profileImage = processImageUrl(
             data.content?.cv_data?.profileImage || 
             data.content?.ai_data?.profile_image
           );
           
-          // ✅ HAE TAUSTAKUVA
           const backgroundImage = processImageUrl(
             data.content?.cv_data?.backgroundImage || 
             data.content?.ai_data?.background_image
           );
           
-          // ✅ TALLENNA PROSESSOIDUT KUVAT
           if (data.content) {
             if (!data.content.ai_data) data.content.ai_data = {};
             
@@ -100,11 +108,6 @@ export default function EditCVPage() {
             }
           }
           
-          console.log(`✅ CV loaded with images:`, {
-            hasProfile: !!profileImage,
-            hasBackground: !!backgroundImage
-          });
-          
           setCvData(data);
         }
 
@@ -113,7 +116,7 @@ export default function EditCVPage() {
 
       } catch (err) {
         console.error('Error initializing CV page:', err);
-        setErrorMessage('CV:n lataaminen epäonnistui');
+        toast.error('CV:n lataaminen epäonnistui');
       } finally {
         setIsLoading(false);
       }
@@ -150,7 +153,7 @@ export default function EditCVPage() {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('Kuva on liian suuri (max 5MB)');
+      toast.error('Kuva on liian suuri (max 5MB)');
       return;
     }
 
@@ -158,12 +161,14 @@ export default function EditCVPage() {
     reader.onloadend = async () => {
       const base64data = reader.result as string;
       handleContentChange(type, base64data);
+      toast.success('Kuva ladattu!');
     };
     reader.readAsDataURL(file);
   };
 
   const handleSelectImage = (image: UserImage, type: 'profileImage' | 'backgroundImage') => {
     handleContentChange(type, image.signedUrl || '');
+    toast.success('Kuva valittu!');
   };
 
   const handleSave = async () => {
@@ -175,12 +180,11 @@ export default function EditCVPage() {
 
       await updateCV(id, { content: cvData.content }, token);
       
-      setSuccessMessage('✅ CV tallennettu!');
-      setTimeout(() => setSuccessMessage(null), 3000);
+      toast.success('✅ CV tallennettu!');
       setIsEditing(false);
     } catch (error) {
       console.error('Save error:', error);
-      setErrorMessage('Tallennus epäonnistui');
+      toast.error('Tallennus epäonnistui');
     } finally {
       setIsSaving(false);
     }
@@ -206,9 +210,10 @@ export default function EditCVPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
+      toast.success('PDF ladattu!');
     } catch (error) {
       console.error('PDF error:', error);
-      alert('PDF:n luonti epäonnistui');
+      toast.error('PDF:n luonti epäonnistui');
     } finally {
       setIsDownloading(false);
     }
@@ -220,11 +225,37 @@ export default function EditCVPage() {
       const token = await getToken({ template: 'supabase' });
       if (!token || !userId) throw new Error('No token');
       await deleteCV(id, userId, token);
+      toast.success('CV poistettu');
       router.push('/my-cvs');
     } catch (error) {
       console.error('Delete error:', error);
-      alert('Poisto epäonnistui');
+      toast.error('Poisto epäonnistui');
     }
+  };
+
+  // --- CAROUSEL NAVIGATION ---
+  const nextProfileImage = () => {
+    setProfileCarouselIndex((prev) => 
+      prev === availableImages.profileImages.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevProfileImage = () => {
+    setProfileCarouselIndex((prev) => 
+      prev === 0 ? availableImages.profileImages.length - 1 : prev - 1
+    );
+  };
+
+  const nextBgImage = () => {
+    setBgCarouselIndex((prev) => 
+      prev === availableImages.backgroundImages.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevBgImage = () => {
+    setBgCarouselIndex((prev) => 
+      prev === 0 ? availableImages.backgroundImages.length - 1 : prev - 1
+    );
   };
 
   // --- RENDER TEMPLATE FUNCTION ---
@@ -292,11 +323,9 @@ export default function EditCVPage() {
   // --- LOADING STATE ---
   if (isLoading || !cvData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 flex items-center justify-center">
-        <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-[2rem] shadow-2xl p-8 text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-orange-400 mx-auto mb-4" />
-          <p className="text-lg font-bold text-gray-100">Ladataan CV:tä...</p>
-        </div>
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+        <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">Ladataan CV:tä...</p>
       </div>
     );
   }
@@ -307,66 +336,63 @@ export default function EditCVPage() {
 
   // --- MAIN RENDER ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 font-sans text-gray-100 relative overflow-hidden">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
       
-      {/* Background Decor */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/8 to-gray-700/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-        <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-amber-500/8 to-orange-600/8 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+      {/* Background Orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
       </div>
 
       {/* TOP BAR */}
-      <div className="px-2 md:px-6 py-3 md:py-4 mt-16 sticky top-16 z-40">
-        <div className="max-w-[1800px] mx-auto backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl md:rounded-2xl shadow-2xl p-3 md:p-4">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
             
             {/* LEFT: Back + Title */}
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <button 
                 onClick={() => router.push('/my-cvs')}
-                className="p-2 h-9 w-9 md:h-10 md:w-10 bg-white/5 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center shadow-lg hover:bg-white/10 transition-colors flex-shrink-0"
+                className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm flex-shrink-0"
               >
-                <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 text-gray-300" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-sm md:text-xl font-bold text-gray-100 truncate">
+                  <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <h1 className="text-sm sm:text-lg font-black truncate">
                     {cvData.title || 'Nimetön CV'}
                   </h1>
-                  <span className="hidden sm:inline-flex px-2 py-0.5 bg-orange-500/20 text-orange-300 text-xs font-semibold rounded-full border border-orange-400/30 flex-shrink-0 capitalize">
-                    {cvData.content?.cv_data?.cvType || 'Simple'}
-                  </span>
                 </div>
               </div>
             </div>
             
             {/* RIGHT: Action Buttons */}
-            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {!isEditing ? (
                 <button 
                   onClick={() => setIsEditing(true)}
-                  className="px-3 md:px-4 h-9 md:h-10 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl flex items-center gap-2 shadow-lg transition-all text-xs md:text-sm font-bold"
+                  className="px-3 sm:px-4 h-9 sm:h-11 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl flex items-center gap-2 shadow-lg transition-all text-xs sm:text-sm font-bold"
                 >
-                  <Edit3 className="w-3 h-3 md:w-4 md:h-4" />
+                  <Edit3 className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="hidden sm:inline">Muokkaa</span>
                 </button>
               ) : (
                 <>
                   <button 
                     onClick={() => setIsEditing(false)}
-                    className="px-3 h-9 md:h-10 bg-white/5 backdrop-blur-md border border-white/10 text-gray-300 rounded-xl hover:bg-white/10 transition-colors text-xs md:text-sm font-semibold flex items-center gap-1"
+                    className="px-3 h-9 sm:h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-xs sm:text-sm font-semibold flex items-center gap-1"
                   >
-                    <Eye className="w-3 h-3 md:w-4 md:h-4" />
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span className="hidden sm:inline">Esikatsele</span>
                   </button>
                   <button 
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="px-3 md:px-4 h-9 md:h-10 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl flex items-center gap-2 shadow-lg disabled:opacity-50 transition-all text-xs md:text-sm font-bold"
+                    className="px-3 sm:px-4 h-9 sm:h-11 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl flex items-center gap-2 shadow-lg disabled:opacity-50 transition-all text-xs sm:text-sm font-bold"
                   >
-                    {isSaving ? <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin" /> : <Save className="w-3 h-3 md:w-4 md:h-4" />}
+                    {isSaving ? <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <Save className="w-3 h-3 sm:w-4 sm:h-4" />}
                     <span className="hidden sm:inline">Tallenna</span>
                   </button>
                 </>
@@ -375,177 +401,228 @@ export default function EditCVPage() {
               <button 
                 onClick={handleDownloadPDF}
                 disabled={isDownloading}
-                className="p-2 h-9 w-9 md:h-10 md:w-10 bg-white/5 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center shadow-lg hover:bg-white/10 transition-colors"
-                title="Lataa PDF"
+                className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm flex items-center justify-center"
               >
-                {isDownloading ? <Loader2 className="w-3 h-3 md:w-4 md:h-4 animate-spin text-orange-400" /> : <Download className="w-3 h-3 md:w-4 md:h-4 text-gray-300" />}
+                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> : <Download className="w-4 h-4" />}
               </button>
               
               <button 
                 onClick={handleDelete} 
-                className="p-2 h-9 w-9 md:h-10 md:w-10 bg-white/5 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center shadow-lg hover:bg-red-500/20 transition-colors"
-                title="Poista CV"
+                className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shadow-sm flex items-center justify-center"
               >
-                <Trash2 className="w-4 h-4 md:w-5 md:h-5 text-red-400" />
+                <Trash2 className="w-4 h-4 text-red-500" />
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Notifications */}
-      {successMessage && (
-        <div className="fixed top-24 right-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 md:px-6 py-3 rounded-xl shadow-2xl z-50 animate-fade-in font-bold flex items-center gap-2 border border-green-400/30">
-          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-          {successMessage}
-        </div>
-      )}
-      {errorMessage && (
-        <div className="fixed top-24 right-4 bg-gradient-to-r from-red-500 to-pink-600 text-white px-4 md:px-6 py-3 rounded-xl shadow-2xl z-50 animate-fade-in font-bold border border-red-400/30">
-          {errorMessage}
-        </div>
-      )}
-
       {/* MAIN CONTENT GRID */}
-      <div className="max-w-[1800px] mx-auto p-2 md:p-6 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           
-          {/* LEFT SIDEBAR */}
+          {/* LEFT SIDEBAR - Image Controls */}
           <div className="lg:col-span-3 space-y-4">
             
-            {/* Profile Picture */}
-            <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl shadow-xl p-4 md:p-5">
-              <h3 className="text-sm md:text-base font-bold text-gray-100 mb-4 flex items-center gap-2">
-                <div className="bg-orange-500/20 backdrop-blur-md p-1.5 rounded-lg border border-orange-400/30">
-                  <User className="w-4 h-4 text-orange-400" />
+            {/* Profile Picture Card */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-orange-500/10 border border-orange-500/20 p-2 rounded-xl">
+                  <User className="w-4 h-4 text-orange-500" />
                 </div>
-                Profiilikuva
-              </h3>
+                <h3 className="text-sm font-black uppercase tracking-wider">Profiilikuva</h3>
+              </div>
               
-              <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
-                <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-2 border-orange-400/30 shadow-lg bg-gray-800/50 flex-shrink-0">
-                  {currentProfile ? (
-                    <img src={currentProfile} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-10 h-10 md:w-12 md:h-12 text-gray-500 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
-                  )}
-                </div>
-                <div className="flex-1 w-full">
-                   <label className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500/20 backdrop-blur-md border border-orange-400/30 text-orange-300 rounded-xl text-xs md:text-sm font-bold hover:bg-orange-500/30 transition-colors w-full">
-                    <Upload className="w-3 h-3 md:w-4 md:h-4" />
-                    Lataa uusi
-                    <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
-                   </label>
-                </div>
+              {/* Current Profile Image */}
+              <div className="relative w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-orange-500/20 shadow-lg bg-gray-100 dark:bg-gray-800">
+                {currentProfile ? (
+                  <img src={currentProfile} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-12 h-12 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
+                )}
               </div>
 
+              {/* Upload Button */}
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors mb-4">
+                <Upload className="w-4 h-4" />
+                Lataa uusi
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
+              </label>
+
+              {/* Available Images - Mobile Carousel / Desktop Grid */}
               {availableImages.profileImages.length > 0 && (
                 <div className="mt-4">
-                  <p className="text-xs text-gray-400 mb-3 font-semibold">Valitse valmis kuva:</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {availableImages.profileImages.slice(0, 8).map((img) => (
-                      <button 
-                        key={img.id}
-                        onClick={() => handleSelectImage(img, 'profileImage')}
-                        className={`aspect-square rounded-full overflow-hidden border-2 transition-all relative group ${
-                          currentProfile === img.signedUrl 
-                            ? 'border-orange-400 ring-2 ring-orange-400/30 scale-110' 
-                            : 'border-white/10 hover:border-orange-300/50'
-                        }`}
-                      >
-                        <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
-                        {img.is_ai_generated && (
-                          <div className="absolute bottom-0 right-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-tl-lg p-0.5">
-                            <Sparkles className="w-2 h-2 text-white" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-bold uppercase tracking-wider">Valitse kuva:</p>
+                  
+                  {isMobile && availableImages.profileImages.length > 4 ? (
+                    // MOBILE CAROUSEL
+                    <div className="relative">
+                      <div className="overflow-hidden rounded-xl">
+                        <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${profileCarouselIndex * 100}%)` }}>
+                          {availableImages.profileImages.map((img) => (
+                            <button 
+                              key={img.id}
+                              onClick={() => handleSelectImage(img, 'profileImage')}
+                              className={`w-full flex-shrink-0 aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                                currentProfile === img.signedUrl 
+                                  ? 'border-orange-500 ring-4 ring-orange-500/30' 
+                                  : 'border-gray-200 dark:border-gray-700'
+                              }`}
+                            >
+                              <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                              {img.is_ai_generated && (
+                                <div className="absolute top-2 right-2 bg-purple-500 rounded-lg p-1">
+                                  <Sparkles className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex justify-center items-center gap-3 mt-3">
+                        <button onClick={prevProfileImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-bold">{profileCarouselIndex + 1} / {availableImages.profileImages.length}</span>
+                        <button onClick={nextProfileImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // DESKTOP GRID
+                    <div className="grid grid-cols-4 gap-2">
+                      {availableImages.profileImages.slice(0, 8).map((img) => (
+                        <button 
+                          key={img.id}
+                          onClick={() => handleSelectImage(img, 'profileImage')}
+                          className={`aspect-square rounded-xl overflow-hidden border-2 transition-all relative ${
+                            currentProfile === img.signedUrl 
+                              ? 'border-orange-500 ring-2 ring-orange-500/30 scale-105' 
+                              : 'border-gray-200 dark:border-gray-700 hover:border-orange-300'
+                          }`}
+                        >
+                          <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                          {img.is_ai_generated && (
+                            <div className="absolute bottom-0 right-0 bg-purple-500 rounded-tl-lg p-0.5">
+                              <Sparkles className="w-2 h-2 text-white" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Background Image */}
-            <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl shadow-xl p-4 md:p-5">
-              <h3 className="text-sm md:text-base font-bold text-gray-100 mb-4 flex items-center gap-2">
-                <div className="bg-amber-500/20 backdrop-blur-md p-1.5 rounded-lg border border-amber-400/30">
-                  <ImageIconLucide className="w-4 h-4 text-amber-400" />
+            {/* Background Image Card */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl">
+                  <ImageIconLucide className="w-4 h-4 text-amber-500" />
                 </div>
-                Taustakuva
-              </h3>
-
-              <div className="mb-4">
-                <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/20 backdrop-blur-md border-2 border-dashed border-amber-400/30 text-amber-300 rounded-xl text-xs md:text-sm font-bold hover:bg-amber-500/30 transition-colors">
-                  <Upload className="w-4 h-4" />
-                  Lataa taustakuva
-                  <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'backgroundImage')} />
-                </label>
+                <h3 className="text-sm font-black uppercase tracking-wider">Taustakuva</h3>
               </div>
 
+              {/* Upload Button */}
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold transition-colors mb-4">
+                <Upload className="w-4 h-4" />
+                Lataa taustakuva
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'backgroundImage')} />
+              </label>
+
+              {/* Available Background Images */}
               {availableImages.backgroundImages.length > 0 && (
-                <div className="mb-2">
-                   <div className="flex items-center justify-between mb-3">
-                     <p className="text-xs text-gray-400 font-semibold">Valitse taustakuva:</p>
-                     <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold border border-amber-400/30">
-                       {availableImages.backgroundImages.length}
-                     </span>
-                   </div>
-                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-80 overflow-y-auto p-1 custom-scrollbar">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Valitse tausta:</p>
+                    <span className="text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-bold border border-amber-500/30">
+                      {availableImages.backgroundImages.length}
+                    </span>
+                  </div>
+                  
+                  {isMobile && availableImages.backgroundImages.length > 2 ? (
+                    // MOBILE CAROUSEL
+                    <div className="relative">
+                      <div className="overflow-hidden rounded-xl">
+                        <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${bgCarouselIndex * 100}%)` }}>
+                          {availableImages.backgroundImages.map((img) => (
+                            <button
+                              key={img.id}
+                              onClick={() => handleSelectImage(img, 'backgroundImage')}
+                              className={`w-full flex-shrink-0 aspect-video rounded-xl overflow-hidden border-2 relative transition-all ${
+                                currentBg === img.signedUrl 
+                                  ? 'border-amber-500 ring-4 ring-amber-500/30' 
+                                  : 'border-gray-200 dark:border-gray-700'
+                              }`}
+                            >
+                              <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                              {img.is_ai_generated && (
+                                <div className="absolute top-2 right-2 bg-purple-500 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <Sparkles className="w-2.5 h-2.5" />
+                                  AI
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex justify-center items-center gap-3 mt-3">
+                        <button onClick={prevBgImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-bold">{bgCarouselIndex + 1} / {availableImages.backgroundImages.length}</span>
+                        <button onClick={nextBgImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // DESKTOP GRID
+                    <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto custom-scrollbar">
                       {availableImages.backgroundImages.map((img) => (
                         <button
                           key={img.id}
                           onClick={() => handleSelectImage(img, 'backgroundImage')}
                           className={`aspect-video rounded-xl overflow-hidden border-2 relative group transition-all ${
                             currentBg === img.signedUrl 
-                              ? 'border-amber-400 ring-2 ring-amber-400/30 scale-105' 
-                              : 'border-white/10 hover:border-amber-300/50'
+                              ? 'border-amber-500 ring-2 ring-amber-500/30 scale-105' 
+                              : 'border-gray-200 dark:border-gray-700 hover:border-amber-300'
                           }`}
-                          title={img.name}
                         >
                           <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
-                          
                           {img.is_ai_generated && (
-                            <div className="absolute top-1.5 right-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg border border-white/20">
+                            <div className="absolute top-1.5 right-1.5 bg-purple-500 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/20">
                               <Sparkles className="w-2.5 h-2.5" />
                               AI
                             </div>
                           )}
-                          
-                          <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-2">
-                            <p className="text-white text-[10px] text-center font-semibold">{img.name}</p>
-                          </div>
                         </button>
                       ))}
-                   </div>
+                    </div>
+                  )}
                 </div>
               )}
-
-              {availableImages.backgroundImages.length === 0 && (
-                <p className="text-xs text-gray-500 text-center py-6 bg-gray-800/30 rounded-xl border border-dashed border-gray-700">
-                  Ei tallennettuja taustakuvia
-                </p>
-              )}
             </div>
-
           </div>
 
           {/* CENTER: CV PREVIEW */}
           <div className="lg:col-span-9">
-            <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl md:rounded-3xl shadow-2xl p-2 md:p-6 overflow-hidden">
-               <div className="overflow-x-auto pb-4 custom-scrollbar flex justify-center bg-gray-900/30 rounded-xl border border-white/5 inner-shadow">
-                  <div 
-                    className="origin-top transition-transform duration-300 bg-white shadow-2xl mt-4 mb-4 print:shadow-none print:m-0"
-                    style={{
-                      width: '210mm',
-                      minHeight: '297mm',
-                      transform: window.innerWidth < 640 ? 'scale(0.4)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.85)',
-                      transformOrigin: 'top center'
-                    }}
-                  >
-                    {renderTemplate()}
-                  </div>
-               </div>
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-6 overflow-hidden">
+              <div className="overflow-x-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800">
+                <div 
+                  className="origin-top transition-transform duration-300 bg-white shadow-2xl my-4"
+                  style={{
+                    width: '210mm',
+                    minHeight: '297mm',
+                    transform: isMobile ? 'scale(0.35)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.75)',
+                    transformOrigin: 'top center'
+                  }}
+                >
+                  {renderTemplate()}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -558,32 +635,15 @@ export default function EditCVPage() {
           width: 8px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05);
+          background: rgba(156, 163, 175, 0.1);
           border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.15);
+          background: rgba(156, 163, 175, 0.3);
           border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255,255,255,0.25);
-        }
-        .inner-shadow {
-          box-shadow: inset 0 0 30px rgba(0,0,0,0.3);
-        }
-        @keyframes fade-in {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.3s ease-out;
-        }
-        
-        /* Mobile optimizations */
-        @media (max-width: 640px) {
-          .custom-scrollbar {
-            scrollbar-width: thin;
-          }
+          background: rgba(156, 163, 175, 0.5);
         }
       `}</style>
     </div>

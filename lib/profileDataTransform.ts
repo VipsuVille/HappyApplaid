@@ -59,6 +59,13 @@ export interface DBProfileData {
   best_project_example: string | null;
   failure_lesson: string | null;
 
+  // ✅ LISÄÄ PUUTTUVAT KENTÄT PROFIILISIVULTA
+  ideal_work_environment?: string | null;
+  feedback_example?: string | null;
+  workplace_frustration?: string | null;
+  proud_moment?: string | null;
+  what_if_money?: string | null;
+
   hobbies: string | null;
   age: string | null;
   linkedin: string | null;
@@ -97,6 +104,13 @@ export function transformUIToDB(
     best_project_example: uiProfile.bestProjectExample || null,
     failure_lesson: uiProfile.failureLesson || null,
 
+    // ✅ LISÄÄ PUUTTUVAT KENTÄT (profiilisivulta)
+    ideal_work_environment: (uiProfile as any).idealWorkEnvironment || null,
+    feedback_example: (uiProfile as any).feedbackExample || null,
+    workplace_frustration: (uiProfile as any).workplaceFrustration || null,
+    proud_moment: (uiProfile as any).proudMoment || null,
+    what_if_money: (uiProfile as any).whatIfMoney || null,
+
     education: uiProfile.education || [],
     work_experience: uiProfile.workExperience || [],
     languages: uiProfile.languages || [],
@@ -107,10 +121,6 @@ export function transformUIToDB(
     language: "finnish",
   };
 }
-
-/* ======================================================
-   DATABASE → LANGCHAIN
-====================================================== */
 
 /* ======================================================
    DATABASE → LANGCHAIN (KORJATTU)
@@ -159,7 +169,7 @@ export function transformDBToLangChain(
     .join(". ");
 
   // ✅ MUUNNA PROFILE_IMAGE TÄYDEKSI URL:KSI
- let profileImageUrl: string | undefined = undefined;
+  let profileImageUrl: string | undefined = undefined;
   
   if (dbProfile.profile_image) {
     if (dbProfile.profile_image.startsWith('http')) {
@@ -216,6 +226,7 @@ export function transformDBToLangChain(
     profileImage: profileImageUrl,
   };
 }
+
 /* ======================================================
    VALIDATION
 ====================================================== */
