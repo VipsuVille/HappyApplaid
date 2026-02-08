@@ -6,7 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Upload, User, Image as ImageIconLucide, Sparkles, 
-  Eye, Edit3, ChevronLeft, ChevronRight, FileText
+  Eye, Edit3, ChevronLeft, ChevronRight, FileText, X
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
@@ -29,6 +29,10 @@ export default function EditCVPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Inline editing states
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [tempValue, setTempValue] = useState<string>('');
   
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[];
@@ -145,6 +149,25 @@ export default function EditCVPage() {
     });
   }, []);
 
+  // Inline editing handlers
+  const startEditing = (field: string, currentValue: string) => {
+    setEditingField(field);
+    setTempValue(currentValue || '');
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditingField(null);
+    setTempValue('');
+  };
+
+  const saveField = (field: string) => {
+    handleContentChange(field, tempValue);
+    setEditingField(null);
+    setTempValue('');
+    toast.success(`${field} päivitetty!`);
+  };
+
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
     type: 'profileImage' | 'backgroundImage'
@@ -252,6 +275,7 @@ export default function EditCVPage() {
       
       toast.success('✅ CV tallennettu!');
       setIsEditing(false);
+      setEditingField(null);
     } catch (error) {
       console.error('Save error:', error);
       toast.error('Tallennus epäonnistui');
@@ -263,13 +287,23 @@ export default function EditCVPage() {
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No authentication token');
+
       const response = await fetch('/api/generate-cv-pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ cvId: id }),
       });
 
-      if (!response.ok) throw new Error('PDF generation failed');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('PDF generation error:', errorText);
+        throw new Error('PDF generation failed');
+      }
       
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -283,7 +317,7 @@ export default function EditCVPage() {
       toast.success('PDF ladattu!');
     } catch (error) {
       console.error('PDF error:', error);
-      toast.error('PDF:n luonti epäonnistui');
+      toast.error('PDF:n luonti epäonnistui. Yritä uudelleen hetken kuluttua.');
     } finally {
       setIsDownloading(false);
     }
@@ -404,6 +438,13 @@ export default function EditCVPage() {
   const currentBg = cvData.content?.cv_data?.backgroundImage || cvData.content?.ai_data?.background_image || '';
   const currentProfile = cvData.content?.cv_data?.profileImage || cvData.content?.ai_data?.profile_image || '';
 
+  // Get editable fields
+  const name = cvData.content?.cv_data?.name || '';
+  const email = cvData.content?.cv_data?.email || '';
+  const phone = cvData.content?.cv_data?.phone || '';
+  const location = cvData.content?.cv_data?.location || '';
+  const title = cvData.content?.cv_data?.title || '';
+
   // --- MAIN RENDER ---
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
@@ -451,7 +492,10 @@ export default function EditCVPage() {
               ) : (
                 <>
                   <button 
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditingField(null);
+                    }}
                     className="px-3 h-9 sm:h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-xs sm:text-sm font-semibold flex items-center gap-1"
                   >
                     <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -491,8 +535,187 @@ export default function EditCVPage() {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           
-          {/* LEFT SIDEBAR - Image Controls */}
+          {/* LEFT SIDEBAR - Image Controls + Text Editing */}
           <div className="lg:col-span-3 space-y-4">
+            
+            {/* EDITABLE FIELDS CARD */}
+            {isEditing && (
+              <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded-xl">
+                    <Edit3 className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <h3 className="text-sm font-black uppercase tracking-wider">Muokkaa tietoja</h3>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Name */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Nimi</label>
+                    {editingField === 'name' ? (
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={tempValue}
+                          onChange={(e) => setTempValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveField('name');
+                            if (e.key === 'Escape') cancelEditing();
+                          }}
+                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
+                          autoFocus
+                        />
+                        <button onClick={() => saveField('name')} className="px-2 bg-green-500 text-white rounded-lg">
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditing('name', name)}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
+                      >
+                        {name || 'Klikkaa muokataksesi'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Sähköposti</label>
+                    {editingField === 'email' ? (
+                      <div className="flex gap-1">
+                        <input
+                          type="email"
+                          value={tempValue}
+                          onChange={(e) => setTempValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveField('email');
+                            if (e.key === 'Escape') cancelEditing();
+                          }}
+                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
+                          autoFocus
+                        />
+                        <button onClick={() => saveField('email')} className="px-2 bg-green-500 text-white rounded-lg">
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditing('email', email)}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
+                      >
+                        {email || 'Klikkaa muokataksesi'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Puhelin</label>
+                    {editingField === 'phone' ? (
+                      <div className="flex gap-1">
+                        <input
+                          type="tel"
+                          value={tempValue}
+                          onChange={(e) => setTempValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveField('phone');
+                            if (e.key === 'Escape') cancelEditing();
+                          }}
+                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
+                          autoFocus
+                        />
+                        <button onClick={() => saveField('phone')} className="px-2 bg-green-500 text-white rounded-lg">
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditing('phone', phone)}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
+                      >
+                        {phone || 'Klikkaa muokataksesi'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Location */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Sijainti</label>
+                    {editingField === 'location' ? (
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={tempValue}
+                          onChange={(e) => setTempValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveField('location');
+                            if (e.key === 'Escape') cancelEditing();
+                          }}
+                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
+                          autoFocus
+                        />
+                        <button onClick={() => saveField('location')} className="px-2 bg-green-500 text-white rounded-lg">
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditing('location', location)}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
+                      >
+                        {location || 'Klikkaa muokataksesi'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Ammattinimike</label>
+                    {editingField === 'title' ? (
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          value={tempValue}
+                          onChange={(e) => setTempValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveField('title');
+                            if (e.key === 'Escape') cancelEditing();
+                          }}
+                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
+                          autoFocus
+                        />
+                        <button onClick={() => saveField('title')} className="px-2 bg-green-500 text-white rounded-lg">
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditing('title', title)}
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
+                      >
+                        {title || 'Klikkaa muokataksesi'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Profile Picture Card */}
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
@@ -694,6 +917,16 @@ export default function EditCVPage() {
                 </div>
               </div>
             </div>
+
+            {/* Info */}
+            {isEditing && (
+              <div className="mt-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                <p className="text-sm font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                  <Eye className="w-4 h-4" />
+                  Klikkaa tekstikenttiä vasemmalla muokataksesi niitä!
+                </p>
+              </div>
+            )}
           </div>
 
         </div>
