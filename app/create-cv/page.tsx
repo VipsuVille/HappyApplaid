@@ -18,7 +18,7 @@ import CVQuestionsModal from '@/components/CVQuestionsModal';
 import { useTokens } from "@/hooks/useTokens";
 import { useLanguage } from '@/context/LanguageContext';
 
-type CVTemplate = "simple" | "technical" | "creative"; // ✅ KORJATTU: professional → creative
+type CVTemplate = "simple" | "technical" | "creative"; // ✅ Technical palautettu - käyttää samaa dataa!
 type CVLanguage = "finnish" | "english";
 
 export default function CreateCVPage() {
@@ -80,23 +80,23 @@ export default function CreateCVPage() {
       simpleDesc: "Clean and minimal",
       technical: "Technical",
       technicalDesc: "For IT professionals",
-      professional: "Professional",
-      professionalDesc: "Business-oriented",
+      professional: "Creative",
+      professionalDesc: "Visually stunning",
       languageLabel: "CV Language",
       languageHelp: "Which language should the CV be written in?",
       atsToggle: "Optimize for ATS",
-      atsInfo: "Paste job posting. AI analyzes and optimizes.",
-      jobPostingPlaceholder: "Job posting text...",
+      atsInfo: "Paste job posting. AI will analyze and optimize.",
+      jobPostingPlaceholder: "Paste job posting here...",
       summary: "Summary",
       cvGeneration: "CV Generation",
       cost: "Cost",
       free: "FREE",
       generateNow: "Create CV Now",
       generating: "Generating...",
-      processTime: "Takes ~30 seconds.",
-      noProfile: "Complete profile first!",
-      success: "✅ CV created!",
-      error: "Error occurred",
+      processTime: "Takes about 30 seconds.",
+      noProfile: "Complete your profile first!",
+      success: "✅ CV created successfully!",
+      error: "An error occurred during generation",
     },
     fi: {
       title: "Luo",
@@ -107,27 +107,27 @@ export default function CreateCVPage() {
       sectionTemplate: "1. CV-pohja",
       sectionLanguage: "2. Kieli",
       sectionOptimization: "3. ATS-optimointi (Valinnainen)",
-      simple: "Simple",
+      simple: "Yksinkertainen",
       simpleDesc: "Selkeä ja minimalistinen",
-      technical: "Technical",
+      technical: "Tekninen",
       technicalDesc: "IT-ammattilaisille",
-      professional: "Professional",
-      professionalDesc: "Liikemaailmaan",
+      professional: "Luova",
+      professionalDesc: "Visuaalisesti upea",
       languageLabel: "CV:n kieli",
       languageHelp: "Millä kielellä CV kirjoitetaan?",
       atsToggle: "Optimoi ATS:lle",
-      atsInfo: "Liitä ilmoitus. AI analysoi ja optimoi.",
-      jobPostingPlaceholder: "Työpaikkailmoitus...",
+      atsInfo: "Liitä työpaikkailmoitus. AI analysoi ja optimoi.",
+      jobPostingPlaceholder: "Liitä työpaikkailmoitus tähän...",
       summary: "Yhteenveto",
       cvGeneration: "CV:n generointi",
       cost: "Kustannus",
       free: "ILMAINEN",
-      generateNow: "Luo CV",
+      generateNow: "Luo CV Nyt",
       generating: "Generoidaan...",
-      processTime: "Kestää ~30 sekuntia.",
+      processTime: "Kestää noin 30 sekuntia.",
       noProfile: "Täydennä profiili ensin!",
-      success: "✅ CV luotu!",
-      error: "Tapahtui virhe",
+      success: "✅ CV luotu onnistuneesti!",
+      error: "Tapahtui virhe generoinnissa",
     }
   }[isFinnish ? 'fi' : 'en'];
 
@@ -321,6 +321,11 @@ export default function CreateCVPage() {
         return [];
       };
 
+      // ✅ TECHNICAL TEMPLATE WORKAROUND:
+      // Backend ei tue "technical" tyyppiä, joten muunnetaan se "simple":ksi.
+      // TechnicalCVTemplate käyttää samaa dataa kuin SimpleCVTemplate.
+      // originalCvType säilyttää käyttäjän valinnan edit-cv sivua varten.
+      
       const requestBody = {
         profileData: {
           name: profileData?.name,
@@ -347,7 +352,8 @@ export default function CreateCVPage() {
           profileImage: profileData?.profile_image || profileData?.profileImage,
           backgroundImage: profileData?.background_image || profileData?.backgroundImage,
         },
-        cvType: selectedTemplate,
+        cvType: selectedTemplate === 'technical' ? 'simple' : selectedTemplate, // ✅ Technical käyttää simple backendia
+        originalCvType: selectedTemplate, // ✅ Säilytä alkuperäinen tyyppi edit-cv:lle
         language: selectedLanguage === 'english' ? 'english' : 'finnish',
         jobPosting: useATS ? jobPosting : undefined,
         enableRAG: false,
@@ -501,21 +507,27 @@ export default function CreateCVPage() {
                     label: t.simple, 
                     desc: t.simpleDesc, 
                     icon: FileText,
-                    features: ['Perus layout', 'Helppolukuinen', 'ATS-ystävällinen']
+                    features: isFinnish 
+                      ? ['Perus layout', 'Helppolukuinen', 'ATS-ystävällinen']
+                      : ['Basic layout', 'Easy to read', 'ATS-friendly']
                   },
                   { 
                     id: "technical", 
                     label: t.technical, 
                     desc: t.technicalDesc, 
                     icon: Briefcase,
-                    features: ['Tekninen tyyli', 'Projektilistaukset', 'Skill bars']
+                    features: isFinnish
+                      ? ['Tekninen tyyli', 'Projektilistaukset', 'Osaamisalueet']
+                      : ['Technical style', 'Project listings', 'Skill categories']
                   },
                   { 
-                    id: "creative", // ✅ KORJATTU: professional → creative
+                    id: "creative",
                     label: t.professional, 
                     desc: t.professionalDesc, 
                     icon: Crown,
-                    features: ['Premium design', 'Taustaväri', 'Profiilkuva']
+                    features: isFinnish
+                      ? ['Premium design', 'Taustaväri', 'Profiilkuva']
+                      : ['Premium design', 'Background color', 'Profile image']
                   },
                 ].map((template) => (
                   <button
