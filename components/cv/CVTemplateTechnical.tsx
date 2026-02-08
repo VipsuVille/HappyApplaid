@@ -1,5 +1,5 @@
 // components/cv/CVTemplateTechnical.tsx
-// ✅ KORJATTU: Lisätty fallback work_experience ja education JSON parsintaan
+// ✅ PARANNETTU: Paremmat fontit ja A4-optimointi
 
 "use client";
 import React, { useState } from "react";
@@ -143,7 +143,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     ✅ PARSE WORK EXPERIENCE - WITH JSON FALLBACK
+     PARSE WORK EXPERIENCE - WITH JSON FALLBACK
   ============================================================ */
 
   const parseWorkExperience = (): Array<{
@@ -154,7 +154,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   }> => {
     const expHTML = getAIContent("experience_section");
     
-    // ✅ FALLBACK: Jos ei HTML:ää, yritä parsea data.work_experience JSON
     if (!expHTML) {
       try {
         const rawExp = data?.work_experience || (data as any)?.workExperience;
@@ -180,7 +179,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       }
     }
 
-    // HTML parsing (original logic)
     const parser = new DOMParser();
     const doc = parser.parseFromString(expHTML, 'text/html');
     const jobs: Array<{
@@ -253,7 +251,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     ✅ PARSE EDUCATION - WITH JSON FALLBACK
+     PARSE EDUCATION - WITH JSON FALLBACK
   ============================================================ */
 
   const parseEducation = (): Array<{
@@ -264,7 +262,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   }> => {
     const eduHTML = getAIContent("education_section");
     
-    // ✅ FALLBACK: Jos ei HTML:ää, yritä parsea data.education JSON
     if (!eduHTML) {
       try {
         const rawEdu = data?.education || (data as any)?.education_history;
@@ -290,7 +287,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       }
     }
 
-    // HTML parsing (original logic)
     const parser = new DOMParser();
     const doc = parser.parseFromString(eduHTML, 'text/html');
     const eduList: Array<{
@@ -385,9 +381,15 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       style={{
         width: "210mm",
         height: "297mm",
-        fontFamily: "Arial, Helvetica, sans-serif",
+        fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
       }}
     >
+      {/* ✅ GOOGLE FONTS */}
+      <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+        rel="stylesheet"
+      />
+
       {/* EDIT CONTROLS */}
       {isEditing && showEditControls && editMode === "content" && (
         <div
@@ -416,20 +418,30 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           top: 0,
           width: "70mm",
           height: "297mm",
-          background: "#2f2b28",
+          background: "linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%)",
           color: "white",
         }}
       >
         {/* PROFILE IMAGE */}
-        <div style={{ width: "100%", height: "90mm", overflow: "hidden" }}>
+        <div style={{ width: "100%", height: "85mm", overflow: "hidden" }}>
           {profileImg ? (
             <img
               src={profileImg}
               alt=""
               className="w-full h-full object-cover"
+              style={{ filter: "contrast(1.05) brightness(0.95)" }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-4xl font-bold bg-gray-600">
+            <div 
+              className="w-full h-full flex items-center justify-center"
+              style={{
+                fontSize: "48pt",
+                fontWeight: 300,
+                background: "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)",
+                fontFamily: "'Inter', sans-serif",
+                letterSpacing: "0.05em"
+              }}
+            >
               {name.substring(0, 2).toUpperCase()}
             </div>
           )}
@@ -439,34 +451,37 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         {skillCategories.length > 0 && (
           <div
             style={{
-              padding: "8mm",
+              padding: "7mm 8mm",
               position: "relative",
               top: `${skillsTop}mm`,
             }}
           >
             <h2
               style={{
-                fontSize: "14pt",
+                fontSize: "13pt",
+                fontWeight: 600,
                 textTransform: "uppercase",
-                letterSpacing: "0.15em",
-                borderBottom: "1px solid rgba(255,255,255,0.6)",
-                paddingBottom: "4mm",
-                marginBottom: "6mm",
-                fontWeight: "bold",
+                letterSpacing: "0.18em",
+                borderBottom: "1.5px solid rgba(255,255,255,0.25)",
+                paddingBottom: "3.5mm",
+                marginBottom: "5mm",
+                fontFamily: "'Inter', sans-serif",
               }}
             >
               Skills
             </h2>
 
             {skillCategories.map((category, idx) => (
-              <div key={idx} style={{ marginBottom: "5mm" }}>
+              <div key={idx} style={{ marginBottom: "4.5mm" }}>
                 {skillCategories.length > 1 && (
                   <h3
                     style={{
-                      fontSize: "10pt",
-                      fontWeight: "bold",
+                      fontSize: "9.5pt",
+                      fontWeight: 600,
                       marginBottom: "2mm",
-                      color: "#d4af37",
+                      color: "#f0c674",
+                      fontFamily: "'Inter', sans-serif",
+                      letterSpacing: "0.03em",
                     }}
                   >
                     {category.category}
@@ -478,8 +493,10 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                     listStyleType: "none",
                     padding: 0,
                     margin: 0,
-                    fontSize: "9pt",
-                    lineHeight: 1.6,
+                    fontSize: "8.5pt",
+                    lineHeight: 1.65,
+                    fontWeight: 300,
+                    fontFamily: "'Inter', sans-serif",
                   }}
                 >
                   {category.items.map((skill, skillIdx) => (
@@ -489,13 +506,15 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                         marginBottom: "2mm",
                         paddingLeft: "4mm",
                         position: "relative",
+                        color: "rgba(255,255,255,0.92)",
                       }}
                     >
                       <span
                         style={{
                           position: "absolute",
                           left: 0,
-                          color: "#d4af37",
+                          color: "#f0c674",
+                          fontSize: "10pt",
                         }}
                       >
                         •
@@ -521,11 +540,11 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         {/* HEADER WITH BACKGROUND */}
         <div
           style={{
-            height: "90mm",
+            height: "85mm",
             position: "relative",
             backgroundImage: bgImage
               ? `url(${bgImage})`
-              : "linear-gradient(135deg, #444, #111)",
+              : "linear-gradient(135deg, #2c3e50 0%, #34495e 100%)",
             backgroundSize: "cover",
             backgroundPosition: "center",
             color: "white",
@@ -535,7 +554,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(0,0,0,0.45)",
+              background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)",
             }}
           />
 
@@ -554,18 +573,26 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           >
             <h1
               style={{
-                fontSize: "32pt",
-                fontWeight: "bold",
+                fontSize: "30pt",
+                fontWeight: 700,
                 marginBottom: "2mm",
+                fontFamily: "'Playfair Display', serif",
+                letterSpacing: "0.02em",
+                textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
               }}
             >
               {name}
             </h1>
             <p
               style={{
-                fontSize: "14pt",
+                fontSize: "13pt",
                 marginTop: "2mm",
                 marginBottom: "4mm",
+                fontWeight: 400,
+                fontFamily: "'Inter', sans-serif",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                opacity: 0.95,
               }}
             >
               {title}
@@ -574,60 +601,72 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             <div
               style={{
                 marginTop: "4mm",
-                fontSize: "9pt",
-                opacity: 0.95,
+                fontSize: "8.5pt",
+                opacity: 0.92,
                 display: "flex",
-                gap: "8mm",
+                gap: "7mm",
                 flexWrap: "wrap",
                 justifyContent: "center",
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 300,
               }}
             >
-              {data?.email && <span>📧 {data.email}</span>}
-              {data?.phone && <span>📞 {data.phone}</span>}
-              {data?.location && <span>📍 {data.location}</span>}
+              {data?.email && <span>✉ {data.email}</span>}
+              {data?.phone && <span>☎ {data.phone}</span>}
+              {data?.location && <span>⚲ {data.location}</span>}
             </div>
           </div>
         </div>
 
         {/* CONTENT AREA */}
-        <div style={{ padding: "10mm", fontSize: "10pt", lineHeight: 1.5 }}>
+        <div style={{ 
+          padding: "9mm 10mm", 
+          fontSize: "9.5pt", 
+          lineHeight: 1.55,
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 300,
+        }}>
           
-          {/* ✅ WORK EXPERIENCE */}
+          {/* WORK EXPERIENCE */}
           {workExperience.length > 0 && (
-            <section style={{ marginBottom: "8mm" }}>
+            <section style={{ marginBottom: "7mm" }}>
               <h2
                 style={{
-                  fontSize: "12pt",
-                  fontWeight: "bold",
+                  fontSize: "11.5pt",
+                  fontWeight: 600,
                   textTransform: "uppercase",
-                  borderBottom: "2px solid #2f2b28",
+                  borderBottom: "2px solid #1a1a1a",
                   paddingBottom: "2mm",
                   marginBottom: "4mm",
-                  letterSpacing: "0.1em",
+                  letterSpacing: "0.12em",
+                  fontFamily: "'Inter', sans-serif",
+                  color: "#1a1a1a",
                 }}
               >
                 Work Experience
               </h2>
               
               {workExperience.map((job, idx) => (
-                <div key={idx} style={{ marginBottom: "6mm", pageBreakInside: "avoid" }}>
+                <div key={idx} style={{ marginBottom: "5.5mm", pageBreakInside: "avoid" }}>
                   <h4
                     style={{
-                      fontSize: "11pt",
-                      fontWeight: "bold",
+                      fontSize: "10.5pt",
+                      fontWeight: 600,
                       marginBottom: "1mm",
-                      color: "#2f2b28",
+                      color: "#1a1a1a",
+                      fontFamily: "'Inter', sans-serif",
                     }}
                   >
-                    {job.title} - {job.company}
+                    {job.title} <span style={{ fontWeight: 400, color: "#555" }}>—</span> {job.company}
                   </h4>
                   {job.period && (
                     <p
                       style={{
-                        fontSize: "9pt",
+                        fontSize: "8.5pt",
                         color: "#666",
                         fontStyle: "italic",
                         marginBottom: "2mm",
+                        fontWeight: 300,
                       }}
                     >
                       {job.period}
@@ -639,11 +678,12 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                         marginTop: "2mm",
                         paddingLeft: "5mm",
                         fontSize: "9pt",
-                        lineHeight: 1.5,
+                        lineHeight: 1.6,
+                        fontWeight: 300,
                       }}
                     >
                       {job.achievements.map((achievement, achIdx) => (
-                        <li key={achIdx} style={{ marginBottom: "1mm" }}>
+                        <li key={achIdx} style={{ marginBottom: "1.5mm", color: "#333" }}>
                           {achievement}
                         </li>
                       ))}
@@ -654,18 +694,20 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             </section>
           )}
 
-          {/* ✅ EDUCATION */}
+          {/* EDUCATION */}
           {education.length > 0 && (
-            <section style={{ marginBottom: "8mm" }}>
+            <section style={{ marginBottom: "7mm" }}>
               <h2
                 style={{
-                  fontSize: "12pt",
-                  fontWeight: "bold",
+                  fontSize: "11.5pt",
+                  fontWeight: 600,
                   textTransform: "uppercase",
-                  borderBottom: "2px solid #2f2b28",
+                  borderBottom: "2px solid #1a1a1a",
                   paddingBottom: "2mm",
                   marginBottom: "4mm",
-                  letterSpacing: "0.1em",
+                  letterSpacing: "0.12em",
+                  fontFamily: "'Inter', sans-serif",
+                  color: "#1a1a1a",
                 }}
               >
                 Education
@@ -676,8 +718,10 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   <h4
                     style={{
                       fontSize: "10pt",
-                      fontWeight: "bold",
+                      fontWeight: 600,
                       marginBottom: "1mm",
+                      fontFamily: "'Inter', sans-serif",
+                      color: "#1a1a1a",
                     }}
                   >
                     {edu.degree}
@@ -687,6 +731,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                       style={{
                         fontSize: "9pt",
                         margin: "1mm 0",
+                        fontWeight: 400,
+                        color: "#444",
                       }}
                     >
                       {edu.institution}
@@ -695,10 +741,11 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   {edu.year && (
                     <p
                       style={{
-                        fontSize: "9pt",
+                        fontSize: "8.5pt",
                         color: "#666",
                         fontStyle: "italic",
                         margin: "1mm 0",
+                        fontWeight: 300,
                       }}
                     >
                       {edu.year}
@@ -709,11 +756,13 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                       style={{
                         marginTop: "2mm",
                         paddingLeft: "5mm",
-                        fontSize: "9pt",
+                        fontSize: "8.5pt",
+                        lineHeight: 1.6,
+                        fontWeight: 300,
                       }}
                     >
                       {edu.details.map((detail, detIdx) => (
-                        <li key={detIdx}>{detail}</li>
+                        <li key={detIdx} style={{ color: "#333" }}>{detail}</li>
                       ))}
                     </ul>
                   )}
@@ -727,22 +776,25 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             <section>
               <h2
                 style={{
-                  fontSize: "12pt",
-                  fontWeight: "bold",
+                  fontSize: "11.5pt",
+                  fontWeight: 600,
                   textTransform: "uppercase",
-                  borderBottom: "2px solid #2f2b28",
+                  borderBottom: "2px solid #1a1a1a",
                   paddingBottom: "2mm",
                   marginBottom: "4mm",
-                  letterSpacing: "0.1em",
+                  letterSpacing: "0.12em",
+                  fontFamily: "'Inter', sans-serif",
+                  color: "#1a1a1a",
                 }}
               >
                 Languages
               </h2>
               <div
                 style={{
-                  fontSize: "10pt",
-                  lineHeight: 1.5,
+                  fontSize: "9.5pt",
+                  lineHeight: 1.6,
                   color: "#333",
+                  fontWeight: 300,
                 }}
                 dangerouslySetInnerHTML={{
                   __html: getAIContent("languages_section"),
