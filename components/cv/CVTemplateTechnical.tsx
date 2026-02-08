@@ -1,811 +1,975 @@
-// components/cv/CVTemplateTechnical.tsx
-// ✅ PARANNETTU: Paremmat fontit ja A4-optimointi
+'use client';
 
-"use client";
-import React, { useState } from "react";
-import { UserFormData, AIData, EditMode } from "@/types";
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
+import { 
+  Save, ArrowLeft, Trash2, Download, Loader2, 
+  Upload, User, Image as ImageIconLucide, Sparkles, 
+  Eye, Edit3, ChevronLeft, ChevronRight, FileText, X, Camera
+} from 'lucide-react';
+import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
+import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
+import { BaseCV } from '@/types';
+import { toast } from 'sonner';
 
-interface TechnicalCVTemplateProps {
-  data: UserFormData;
-  aiData: AIData;
-  isEditing: boolean;
-  showEditControls: boolean;
-  editMode: EditMode | null;
-  onContentChange?: (field: keyof UserFormData, value: any) => void;
-}
+export default function EditCVPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { userId, getToken } = useAuth();
+  const id = params?.id as string;
 
-const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
-  data,
-  aiData,
-  isEditing,
-  showEditControls,
-  editMode,
-  onContentChange,
-}) => {
-  const [skillsTop, setSkillsTop] = useState(0);
+  // --- STATE ---
+  const [cvData, setCvData] = useState<BaseCV | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Modal states
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showBgModal, setShowBgModal] = useState(false);
+  
+  const [availableImages, setAvailableImages] = useState<{
+    profileImages: UserImage[];
+    backgroundImages: UserImage[];
+  }>({ profileImages: [], backgroundImages: [] });
 
-  /* ============================================================
-     IMAGE HANDLING
-  ============================================================ */
+  // Carousel states
+  const [profileCarouselIndex, setProfileCarouselIndex] = useState(0);
+  const [bgCarouselIndex, setBgCarouselIndex] = useState(0);
 
-  const isValidImage = (src?: string | null) => {
-    if (!src) return false;
-    const s = String(src).trim();
-    return (
-      s !== "" &&
-      !s.includes("cv_files/default") &&
-      (s.startsWith("http://") ||
-        s.startsWith("https://") ||
-        s.startsWith("data:image"))
+  // --- DETECT MOBILE ---
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // --- INITIAL LOAD ---
+  useEffect(() => {
+    const init = async () => {
+      if (!userId || !id) return;
+
+      try {
+        const token = await getToken({ template: 'supabase' });
+        if (!token) throw new Error('No authentication token');
+
+        const { data, error } = await fetchCVById(id, userId, token);
+        if (error) throw error;
+        
+        if (data) {
+          const processImageUrl = (url: string | null | undefined): string => {
+            if (!url || url.trim() === "") return "";
+            const trimmed = url.trim();
+            
+            if (trimmed.startsWith('data:image') && !trimmed.includes('svg+xml')) {
+              return trimmed;
+            }
+            
+            if (trimmed.startsWith('http')) {
+              return trimmed;
+            }
+            
+            if (trimmed.includes('/')) {
+              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+              if (!supabaseUrl) return "";
+              return `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
+            }
+            
+            return "";
+          };
+          
+          const profileImage = processImageUrl(
+            data.content?.cv_data?.profileImage || 
+            data.content?.ai_data?.profile_image
+          );
+          
+          const backgroundImage = processImageUrl(
+            data.content?.cv_data?.backgroundImage || 
+            data.content?.ai_data?.background_image
+          );
+          
+          if (data.content) {
+            if (!data.content.ai_data) data.content.ai_data = {};
+            
+            if (profileImage) {
+              data.content.cv_data.profileImage = profileImage;
+              data.content.ai_data.profile_image = profileImage;
+            }
+            
+            if (backgroundImage) {
+              data.content.cv_data.backgroundImage = backgroundImage;
+              data.content.ai_data.background_image = backgroundImage;
+            }
+          }
+          
+          setCvData(data);
+        }
+
+        const images = await getAllAvailableImagesAction();
+        setAvailableImages(images);
+
+      } catch (err) {
+        console.error('Error initializing CV page:', err);
+        toast.error('CV:n lataaminen epäonnistui');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    init();
+  }, [id, userId, getToken]);
+
+  // --- HANDLERS ---
+  const handleContentChange = useCallback((field: string, value: any) => {
+    setCvData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        content: {
+          ...prev.content,
+          cv_data: {
+            ...prev.content.cv_data,
+            [field]: value,
+          },
+        },
+      };
+    });
+  }, []);
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>, 
+    type: 'profileImage' | 'backgroundImage'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Kuva on liian suuri (max 5MB)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64data = reader.result as string;
+      
+      setCvData(prev => {
+        if (!prev) return prev;
+        
+        const updated: any = {
+          ...prev,
+          [type]: base64data,
+          content: {
+            ...prev.content,
+            cv_data: {
+              ...prev.content.cv_data,
+              [type]: base64data,
+            },
+            ai_data: {
+              ...prev.content.ai_data,
+              [type === 'profileImage' ? 'profile_image' : 'background_image']: base64data,
+            }
+          },
+        };
+        
+        return updated;
+      });
+      
+      setShowProfileModal(false);
+      setShowBgModal(false);
+      toast.success('Kuva ladattu!');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSelectImage = (image: UserImage, type: 'profileImage' | 'backgroundImage') => {
+    const imageUrl = image.signedUrl || '';
+    
+    setCvData(prev => {
+      if (!prev) return prev;
+      
+      const updated: any = {
+        ...prev,
+        [type]: imageUrl,
+        content: {
+          ...prev.content,
+          cv_data: {
+            ...prev.content.cv_data,
+            [type]: imageUrl,
+          },
+          ai_data: {
+            ...prev.content.ai_data,
+            [type === 'profileImage' ? 'profile_image' : 'background_image']: imageUrl,
+          }
+        },
+      };
+      
+      return updated;
+    });
+    
+    setShowProfileModal(false);
+    setShowBgModal(false);
+    toast.success('Kuva valittu!');
+  };
+
+  const handleSave = async () => {
+    if (!cvData || !userId) return;
+    setIsSaving(true);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No token');
+
+      await updateCV(id, { content: cvData.content }, token);
+      
+      toast.success('✅ CV tallennettu!');
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error('Tallennus epäonnistui');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!cvData || !userId) return;
+    
+    setIsDownloading(true);
+    try {
+      // Use the same approach as my-cvs page - direct API call without auth header
+      const response = await fetch(`/api/cvs/${id}/pdf`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('PDF generation failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CV_${cvData.title || 'dokumentti'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      toast.success('✅ PDF ladattu!');
+    } catch (error) {
+      console.error('PDF error:', error);
+      toast.error('PDF:n luonti epäonnistui');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Haluatko varmasti poistaa tämän CV:n?')) return;
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token || !userId) throw new Error('No token');
+      await deleteCV(id, userId, token);
+      toast.success('CV poistettu');
+      router.push('/my-cvs');
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Poisto epäonnistui');
+    }
+  };
+
+  // Carousel navigation
+  const nextProfileImage = () => {
+    setProfileCarouselIndex((prev) => 
+      prev === availableImages.profileImages.length - 1 ? 0 : prev + 1
     );
   };
 
-  const getProfileImage = (): string | null => {
-    const sources = [
-      (data as any)?.profile_image,
-      data?.profileImage,
-      (data as any)?.photo,
-      aiData?.profile_image,
-      (aiData?.html as any)?.profile_image,
-    ];
-
-    for (const src of sources) {
-      if (!isValidImage(src)) continue;
-      return String(src).trim();
-    }
-    return null;
+  const prevProfileImage = () => {
+    setProfileCarouselIndex((prev) => 
+      prev === 0 ? availableImages.profileImages.length - 1 : prev - 1
+    );
   };
 
-  const getBackgroundImage = (): string | null => {
-    const sources = [
-      (data as any)?.background_image,
-      data?.backgroundImage,
-      aiData?.background_image,
-      aiData?.background_image_url,
-      (aiData?.html as any)?.background_image,
-    ];
-
-    for (const src of sources) {
-      if (!isValidImage(src)) continue;
-      return String(src).trim();
-    }
-    return null;
+  const nextBgImage = () => {
+    setBgCarouselIndex((prev) => 
+      prev === availableImages.backgroundImages.length - 1 ? 0 : prev + 1
+    );
   };
 
-  const profileImg = getProfileImage();
-  const bgImage = getBackgroundImage();
-
-  /* ============================================================
-     AI CONTENT
-  ============================================================ */
-
-  const getAIContent = (field: keyof AIData): string => {
-    let content = aiData?.[field];
-
-    if (!content && aiData?.html) {
-      content = aiData.html[field as keyof typeof aiData.html];
-    }
-
-    if (typeof content === "string" && content.trim()) {
-      if (content.toLowerCase().includes("error generating")) return "";
-      if (content.trim().length < 20) return "";
-      return content;
-    }
-    return "";
+  const prevBgImage = () => {
+    setBgCarouselIndex((prev) => 
+      prev === 0 ? availableImages.backgroundImages.length - 1 : prev - 1
+    );
   };
 
-  /* ============================================================
-     PARSE SKILLS
-  ============================================================ */
+  // --- LOADING STATE ---
+  if (isLoading || !cvData) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
+        <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+        <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">Ladataan CV:tä...</p>
+      </div>
+    );
+  }
 
-  const parseSkills = (): { category: string; items: string[] }[] => {
-    const skillsHTML = getAIContent("skills_section");
-    
-    if (!skillsHTML) {
-      const skillsText = data?.skills || "";
-      if (!skillsText) return [];
-      
-      const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
-      return [{ category: "Skills", items: skills }];
+  const currentBg = cvData.content?.cv_data?.backgroundImage || cvData.content?.ai_data?.background_image || '';
+  const currentProfile = cvData.content?.cv_data?.profileImage || cvData.content?.ai_data?.profile_image || '';
+
+  // Get all content
+  const name = cvData.content?.cv_data?.name || '';
+  const email = cvData.content?.cv_data?.email || '';
+  const phone = cvData.content?.cv_data?.phone || '';
+  const location = cvData.content?.cv_data?.location || '';
+  const title = cvData.content?.cv_data?.title || '';
+
+  // --- EDITABLE TEXT COMPONENT ---
+  const EditableText = ({ 
+    field, 
+    value, 
+    placeholder = 'Klikkaa muokataksesi',
+    multiline = false,
+    className = '',
+    style = {}
+  }: { 
+    field: string; 
+    value: string; 
+    placeholder?: string;
+    multiline?: boolean;
+    className?: string;
+    style?: React.CSSProperties;
+  }) => {
+    const [isEditing, setIsLocalEditing] = useState(false);
+    const [tempValue, setTempValue] = useState(value);
+
+    useEffect(() => {
+      setTempValue(value);
+    }, [value]);
+
+    const handleSave = () => {
+      handleContentChange(field, tempValue);
+      setIsLocalEditing(false);
+      toast.success('Päivitetty!');
+    };
+
+    const handleCancel = () => {
+      setTempValue(value);
+      setIsLocalEditing(false);
+    };
+
+    if (!isEditing && isLocalEditing) {
+      return (
+        <div className="relative inline-block w-full">
+          {multiline ? (
+            <textarea
+              value={tempValue}
+              onChange={(e) => setTempValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') handleCancel();
+                if (e.key === 'Enter' && e.ctrlKey) handleSave();
+              }}
+              className="w-full px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-orange-400 rounded outline-none"
+              style={style}
+              autoFocus
+              rows={4}
+            />
+          ) : (
+            <input
+              type="text"
+              value={tempValue}
+              onChange={(e) => setTempValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') handleCancel();
+                if (e.key === 'Enter') handleSave();
+              }}
+              className="w-full px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-orange-400 rounded outline-none"
+              style={style}
+              autoFocus
+            />
+          )}
+          <div className="absolute -top-6 right-0 flex gap-1 text-xs">
+            <button
+              onClick={handleSave}
+              className="px-2 py-0.5 bg-green-500 text-white rounded"
+            >
+              ✓
+            </button>
+            <button
+              onClick={handleCancel}
+              className="px-2 py-0.5 bg-gray-500 text-white rounded"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      );
     }
 
-    const categories: { category: string; items: string[] }[] = [];
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(skillsHTML, 'text/html');
-    
-    const sections = doc.querySelectorAll('h3, h4, strong');
-    sections.forEach((heading) => {
-      const category = heading.textContent?.trim() || 'Skills';
-      const items: string[] = [];
-      
-      let nextElement = heading.nextElementSibling;
-      while (nextElement && nextElement.tagName === 'UL') {
-        nextElement.querySelectorAll('li').forEach(li => {
-          const text = li.textContent?.trim();
-          if (text) items.push(text);
-        });
-        nextElement = nextElement.nextElementSibling;
-      }
-      
-      if (items.length > 0) {
-        categories.push({ category, items });
-      }
-    });
-
-    if (categories.length === 0) {
-      const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').filter(l => l.trim());
-      if (lines.length > 0) {
-        categories.push({ category: 'Skills', items: lines });
-      }
-    }
-
-    return categories;
+    return (
+      <div
+        onClick={() => isEditing && setIsLocalEditing(true)}
+        className={`${className} ${isEditing ? 'cursor-pointer hover:bg-orange-50/30 dark:hover:bg-orange-900/10 transition-colors rounded px-1' : ''}`}
+        style={style}
+      >
+        {value || placeholder}
+      </div>
+    );
   };
 
-  /* ============================================================
-     PARSE WORK EXPERIENCE - WITH JSON FALLBACK
-  ============================================================ */
-
-  const parseWorkExperience = (): Array<{
-    title: string;
-    company: string;
-    period: string;
-    achievements: string[];
-  }> => {
-    const expHTML = getAIContent("experience_section");
-    
-    if (!expHTML) {
-      try {
-        const rawExp = data?.work_experience || (data as any)?.workExperience;
-        if (!rawExp) return [];
-        
-        const parsed = typeof rawExp === 'string' ? JSON.parse(rawExp) : rawExp;
-        if (!Array.isArray(parsed)) return [];
-        
-        return parsed.map((job: any) => ({
-          title: job.position || 'Position',
-          company: job.company || 'Company',
-          period: job.duration || '',
-          achievements: [
-            job.description,
-            job.biggestAchievement,
-            job.whatYouLearned,
-            job.howYourStrengthShowed
-          ].filter(Boolean).map(text => text.trim())
-        }));
-      } catch (e) {
-        console.error('Failed to parse work_experience:', e);
-        return [];
-      }
-    }
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(expHTML, 'text/html');
-    const jobs: Array<{
-      title: string;
-      company: string;
-      period: string;
-      achievements: string[];
-    }> = [];
-
-    const jobDivs = doc.querySelectorAll('.job, .work-item, .experience-item');
-    
-    if (jobDivs.length > 0) {
-      jobDivs.forEach(jobDiv => {
-        const h4 = jobDiv.querySelector('h4');
-        const titleText = h4?.textContent?.trim() || '';
-        const [title, company] = titleText.split(' - ').map(s => s.trim());
-        
-        const dateP = jobDiv.querySelector('.date, p[class*="date"]');
-        const period = dateP?.textContent?.trim() || '';
-        
-        const achievements: string[] = [];
-        jobDiv.querySelectorAll('ul li').forEach(li => {
-          const text = li.textContent?.trim();
-          if (text) achievements.push(text);
-        });
-        
-        if (title || company) {
-          jobs.push({
-            title: title || 'Position',
-            company: company || 'Company',
-            period,
-            achievements
-          });
-        }
-      });
-    } else {
-      const allH4 = doc.querySelectorAll('h4');
-      allH4.forEach(h4 => {
-        const titleText = h4.textContent?.trim() || '';
-        const [title, company] = titleText.split(' - ').map(s => s.trim());
-        
-        let period = '';
-        let nextElement = h4.nextElementSibling;
-        
-        if (nextElement?.classList.contains('date') || nextElement?.tagName === 'P') {
-          period = nextElement.textContent?.trim() || '';
-          nextElement = nextElement.nextElementSibling;
-        }
-        
-        const achievements: string[] = [];
-        if (nextElement?.tagName === 'UL') {
-          nextElement.querySelectorAll('li').forEach(li => {
-            const text = li.textContent?.trim();
-            if (text) achievements.push(text);
-          });
-        }
-        
-        if (title || company) {
-          jobs.push({
-            title: title || 'Position',
-            company: company || 'Company',
-            period,
-            achievements
-          });
-        }
-      });
-    }
-
-    return jobs;
-  };
-
-  /* ============================================================
-     PARSE EDUCATION - WITH JSON FALLBACK
-  ============================================================ */
-
-  const parseEducation = (): Array<{
-    degree: string;
-    institution: string;
-    year: string;
-    details: string[];
-  }> => {
-    const eduHTML = getAIContent("education_section");
-    
-    if (!eduHTML) {
-      try {
-        const rawEdu = data?.education || (data as any)?.education_history;
-        if (!rawEdu) return [];
-        
-        const parsed = typeof rawEdu === 'string' ? JSON.parse(rawEdu) : rawEdu;
-        if (!Array.isArray(parsed)) return [];
-        
-        return parsed.map((edu: any) => ({
-          degree: edu.degree || 'Degree',
-          institution: edu.school || edu.institution || 'Institution',
-          year: edu.year || '',
-          details: [
-            edu.whyThisField,
-            edu.specialization,
-            edu.proudestMoment,
-            edu.favoriteSubjects
-          ].filter(Boolean).map(text => text.trim())
-        }));
-      } catch (e) {
-        console.error('Failed to parse education:', e);
-        return [];
-      }
-    }
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(eduHTML, 'text/html');
-    const eduList: Array<{
-      degree: string;
-      institution: string;
-      year: string;
-      details: string[];
-    }> = [];
-
-    const eduDivs = doc.querySelectorAll('.education, .education-item');
-    
-    if (eduDivs.length > 0) {
-      eduDivs.forEach(eduDiv => {
-        const h4 = eduDiv.querySelector('h4');
-        const degree = h4?.textContent?.trim() || '';
-        
-        const paragraphs = eduDiv.querySelectorAll('p');
-        let institution = '';
-        let year = '';
-        
-        paragraphs.forEach((p, idx) => {
-          const text = p.textContent?.trim() || '';
-          if (idx === 0) institution = text;
-          if (p.classList.contains('date') || text.match(/\d{4}/)) {
-            year = text;
-          }
-        });
-        
-        const details: string[] = [];
-        eduDiv.querySelectorAll('ul li').forEach(li => {
-          const text = li.textContent?.trim();
-          if (text) details.push(text);
-        });
-        
-        if (degree) {
-          eduList.push({ degree, institution, year, details });
-        }
-      });
-    } else {
-      const allH4 = doc.querySelectorAll('h4');
-      allH4.forEach(h4 => {
-        const degree = h4.textContent?.trim() || '';
-        let institution = '';
-        let year = '';
-        const details: string[] = [];
-        
-        let nextElement = h4.nextElementSibling;
-        
-        if (nextElement?.tagName === 'P') {
-          institution = nextElement.textContent?.trim() || '';
-          nextElement = nextElement.nextElementSibling;
-        }
-        
-        if (nextElement?.tagName === 'P') {
-          const text = nextElement.textContent?.trim() || '';
-          if (text.match(/\d{4}/)) {
-            year = text;
-            nextElement = nextElement.nextElementSibling;
-          }
-        }
-        
-        if (nextElement?.tagName === 'UL') {
-          nextElement.querySelectorAll('li').forEach(li => {
-            const text = li.textContent?.trim();
-            if (text) details.push(text);
-          });
-        }
-        
-        if (degree) {
-          eduList.push({ degree, institution, year, details });
-        }
-      });
-    }
-
-    return eduList;
-  };
-
-  const skillCategories = parseSkills();
-  const workExperience = parseWorkExperience();
-  const education = parseEducation();
-
-  const name = data?.name || "Name";
-  const title = data?.title || "Professional Title";
-
-  /* ============================================================
-     RENDER
-  ============================================================ */
-
+  // --- MAIN RENDER ---
   return (
-    <div
-      className="bg-white mx-auto relative overflow-hidden shadow-2xl"
-      style={{
-        width: "210mm",
-        height: "297mm",
-        fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
-      }}
-    >
-      {/* ✅ GOOGLE FONTS */}
-      <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
-        rel="stylesheet"
-      />
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
+      
+      {/* Background Orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
+      </div>
 
-      {/* EDIT CONTROLS */}
-      {isEditing && showEditControls && editMode === "content" && (
-        <div
-          className="fixed right-6 top-1/2 -translate-y-1/2 z-50 bg-white p-3 rounded-xl shadow-lg flex flex-col gap-2"
-        >
-          <button
-            onClick={() => setSkillsTop((v) => Math.max(-20, v - 5))}
-            className="px-3 py-1 bg-gray-800 text-white rounded text-xs"
-          >
-            ↑ Up
-          </button>
-          <button
-            onClick={() => setSkillsTop((v) => Math.min(40, v + 5))}
-            className="px-3 py-1 bg-gray-800 text-white rounded text-xs"
-          >
-            ↓ Down
-          </button>
+      {/* TOP BAR */}
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
+            
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              <button 
+                onClick={() => router.push('/my-cvs')}
+                className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm flex-shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <h1 className="text-sm sm:text-lg font-black truncate">
+                    {cvData.title || 'Nimetön CV'}
+                  </h1>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {!isEditing ? (
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="px-3 sm:px-4 h-9 sm:h-11 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl flex items-center gap-2 shadow-lg transition-all text-xs sm:text-sm font-bold"
+                >
+                  <Edit3 className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">Muokkaa</span>
+                </button>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => setIsEditing(false)}
+                    className="px-3 h-9 sm:h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-xs sm:text-sm font-semibold flex items-center gap-1"
+                  >
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Esikatsele</span>
+                  </button>
+                  <button 
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="px-3 sm:px-4 h-9 sm:h-11 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl flex items-center gap-2 shadow-lg disabled:opacity-50 transition-all text-xs sm:text-sm font-bold"
+                  >
+                    {isSaving ? <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <Save className="w-3 h-3 sm:w-4 sm:h-4" />}
+                    <span className="hidden sm:inline">Tallenna</span>
+                  </button>
+                </>
+              )}
+              
+              <button 
+                onClick={handleDownloadPDF}
+                disabled={isDownloading}
+                className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm flex items-center justify-center"
+              >
+                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> : <Download className="w-4 h-4" />}
+              </button>
+              
+              <button 
+                onClick={handleDelete} 
+                className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shadow-sm flex items-center justify-center"
+              >
+                <Trash2 className="w-4 h-4 text-red-500" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN CONTENT */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        
+        {/* Info Banner */}
+        {isEditing && (
+          <div className="mb-6 p-4 sm:p-6 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 border-2 border-orange-200 dark:border-orange-800 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm sm:text-lg font-bold text-orange-600 dark:text-orange-400 mb-2">
+                  💡 Muokkaa CV:tä klikkaamalla
+                </h4>
+                <ul className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                  <li>• <strong>Klikkaa mitä tahansa tekstiä</strong> muokataksesi sitä</li>
+                  <li>• <strong>Klikkaa kuvia</strong> vaihtaaksesi profiilikuvan tai taustakuvan</li>
+                  <li>• Tallenna <kbd className="px-1 py-0.5 bg-white dark:bg-gray-800 rounded border">Enter</kbd>, peruuta <kbd className="px-1 py-0.5 bg-white dark:bg-gray-800 rounded border">Esc</kbd></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CV PREVIEW */}
+        <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-6 overflow-hidden">
+          <div className="overflow-x-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800">
+            <div 
+              className="origin-top transition-transform duration-300 bg-white shadow-2xl my-4"
+              style={{
+                width: '210mm',
+                minHeight: '297mm',
+                transform: isMobile ? 'scale(0.35)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.75)',
+                transformOrigin: 'top center',
+                fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
+              }}
+            >
+              {/* Google Fonts */}
+              <link
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+                rel="stylesheet"
+              />
+
+              {/* LEFT COLUMN - DARK */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: "70mm",
+                  height: "297mm",
+                  background: "linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%)",
+                  color: "white",
+                }}
+              >
+                {/* PROFILE IMAGE - Clickable */}
+                <div 
+                  style={{ width: "100%", height: "85mm", overflow: "hidden", position: "relative" }}
+                  className={isEditing ? "group cursor-pointer" : ""}
+                  onClick={() => isEditing && setShowProfileModal(true)}
+                >
+                  {currentProfile ? (
+                    <>
+                      <img
+                        src={currentProfile}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        style={{ filter: "contrast(1.05) brightness(0.95)" }}
+                      />
+                      {isEditing && (
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Camera className="w-12 h-12 text-white" />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div 
+                      className={`w-full h-full flex items-center justify-center ${isEditing ? 'hover:bg-gray-700' : ''}`}
+                      style={{
+                        fontSize: "48pt",
+                        fontWeight: 300,
+                        background: "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)",
+                        fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "0.05em"
+                      }}
+                    >
+                      {name.substring(0, 2).toUpperCase() || "??"}
+                      {isEditing && (
+                        <Camera className="absolute w-12 h-12 text-white/50" />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* SKILLS SECTION */}
+                <div style={{ padding: "7mm 8mm" }}>
+                  <h2
+                    style={{
+                      fontSize: "13pt",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.18em",
+                      borderBottom: "1.5px solid rgba(255,255,255,0.25)",
+                      paddingBottom: "3.5mm",
+                      marginBottom: "5mm",
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    Taidot
+                  </h2>
+                  
+                  <EditableText
+                    field="skills"
+                    value={cvData.content?.cv_data?.skills || ''}
+                    placeholder="Klikkaa lisätäksesi taitoja"
+                    multiline
+                    style={{
+                      fontSize: "8.5pt",
+                      lineHeight: 1.65,
+                      fontWeight: 300,
+                      fontFamily: "'Inter', sans-serif",
+                      color: "rgba(255,255,255,0.92)",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN - LIGHT */}
+              <div
+                style={{
+                  marginLeft: "70mm",
+                  width: "140mm",
+                  height: "297mm",
+                }}
+              >
+                {/* HEADER WITH BACKGROUND - Clickable */}
+                <div
+                  style={{
+                    height: "85mm",
+                    position: "relative",
+                    backgroundImage: currentBg
+                      ? `url(${currentBg})`
+                      : "linear-gradient(135deg, #2c3e50 0%, #34495e 100%)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    color: "white",
+                  }}
+                  className={isEditing ? "group cursor-pointer" : ""}
+                  onClick={() => isEditing && setShowBgModal(true)}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)",
+                    }}
+                  />
+                  
+                  {isEditing && (
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Camera className="w-16 h-16 text-white" />
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      position: "relative",
+                      zIndex: 10,
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      textAlign: "center",
+                      padding: "10mm",
+                    }}
+                  >
+                    <EditableText
+                      field="name"
+                      value={name}
+                      placeholder="Nimesi"
+                      style={{
+                        fontSize: "30pt",
+                        fontWeight: 700,
+                        marginBottom: "2mm",
+                        fontFamily: "'Playfair Display', serif",
+                        letterSpacing: "0.02em",
+                        textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
+                      }}
+                    />
+                    
+                    <EditableText
+                      field="title"
+                      value={title}
+                      placeholder="Ammattinimike"
+                      style={{
+                        fontSize: "13pt",
+                        marginTop: "2mm",
+                        marginBottom: "4mm",
+                        fontWeight: 400,
+                        fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        opacity: 0.95,
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        marginTop: "4mm",
+                        fontSize: "8.5pt",
+                        opacity: 0.92,
+                        display: "flex",
+                        gap: "7mm",
+                        flexWrap: "wrap",
+                        justifyContent: "center",
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 300,
+                      }}
+                    >
+                      <EditableText
+                        field="email"
+                        value={email ? `✉ ${email}` : ''}
+                        placeholder="✉ sähköposti"
+                      />
+                      <EditableText
+                        field="phone"
+                        value={phone ? `☎ ${phone}` : ''}
+                        placeholder="☎ puhelin"
+                      />
+                      <EditableText
+                        field="location"
+                        value={location ? `⚲ ${location}` : ''}
+                        placeholder="⚲ sijainti"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* CONTENT AREA */}
+                <div style={{ 
+                  padding: "9mm 10mm", 
+                  fontSize: "9.5pt", 
+                  lineHeight: 1.55,
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 300,
+                }}>
+                  
+                  {/* WORK EXPERIENCE */}
+                  <section style={{ marginBottom: "7mm" }}>
+                    <h2
+                      style={{
+                        fontSize: "11.5pt",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        borderBottom: "2px solid #1a1a1a",
+                        paddingBottom: "2mm",
+                        marginBottom: "4mm",
+                        letterSpacing: "0.12em",
+                        fontFamily: "'Inter', sans-serif",
+                        color: "#1a1a1a",
+                      }}
+                    >
+                      Työkokemus
+                    </h2>
+                    
+                    <EditableText
+                      field="workExperience"
+                      value={cvData.content?.cv_data?.workExperience || ''}
+                      placeholder="Klikkaa lisätäksesi työkokemusta"
+                      multiline
+                      style={{
+                        fontSize: "9pt",
+                        lineHeight: 1.6,
+                        fontWeight: 300,
+                      }}
+                    />
+                  </section>
+
+                  {/* EDUCATION */}
+                  <section style={{ marginBottom: "7mm" }}>
+                    <h2
+                      style={{
+                        fontSize: "11.5pt",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        borderBottom: "2px solid #1a1a1a",
+                        paddingBottom: "2mm",
+                        marginBottom: "4mm",
+                        letterSpacing: "0.12em",
+                        fontFamily: "'Inter', sans-serif",
+                        color: "#1a1a1a",
+                      }}
+                    >
+                      Koulutus
+                    </h2>
+                    
+                    <EditableText
+                      field="education"
+                      value={cvData.content?.cv_data?.education || ''}
+                      placeholder="Klikkaa lisätäksesi koulutusta"
+                      multiline
+                      style={{
+                        fontSize: "8.5pt",
+                        lineHeight: 1.6,
+                        fontWeight: 300,
+                      }}
+                    />
+                  </section>
+
+                  {/* LANGUAGES */}
+                  <section>
+                    <h2
+                      style={{
+                        fontSize: "11.5pt",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        borderBottom: "2px solid #1a1a1a",
+                        paddingBottom: "2mm",
+                        marginBottom: "4mm",
+                        letterSpacing: "0.12em",
+                        fontFamily: "'Inter', sans-serif",
+                        color: "#1a1a1a",
+                      }}
+                    >
+                      Kielet
+                    </h2>
+                    
+                    <EditableText
+                      field="languages"
+                      value={cvData.content?.cv_data?.languages || ''}
+                      placeholder="Klikkaa lisätäksesi kieliä"
+                      multiline
+                      style={{
+                        fontSize: "9.5pt",
+                        lineHeight: 1.6,
+                        color: "#333",
+                        fontWeight: 300,
+                      }}
+                    />
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PROFILE IMAGE MODAL */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <User className="w-6 h-6 text-orange-500" />
+                Valitse profiilikuva
+              </h3>
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {/* Upload */}
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-orange-500/10 hover:bg-orange-500/20 border-2 border-dashed border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors mb-6">
+                <Upload className="w-5 h-5" />
+                Lataa uusi kuva
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
+              </label>
+
+              {/* Grid */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                {availableImages.profileImages.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => handleSelectImage(img, 'profileImage')}
+                    className={`aspect-square rounded-xl overflow-hidden border-2 transition-all relative ${
+                      currentProfile === img.signedUrl 
+                        ? 'border-orange-500 ring-4 ring-orange-500/30 scale-95' 
+                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 hover:scale-105'
+                    }`}
+                  >
+                    <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                    {img.is_ai_generated && (
+                      <div className="absolute bottom-1 right-1 bg-purple-500 rounded-lg p-1">
+                        <Sparkles className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* LEFT COLUMN - DARK */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: "70mm",
-          height: "297mm",
-          background: "linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%)",
-          color: "white",
-        }}
-      >
-        {/* PROFILE IMAGE */}
-        <div style={{ width: "100%", height: "85mm", overflow: "hidden" }}>
-          {profileImg ? (
-            <img
-              src={profileImg}
-              alt=""
-              className="w-full h-full object-cover"
-              style={{ filter: "contrast(1.05) brightness(0.95)" }}
-            />
-          ) : (
-            <div 
-              className="w-full h-full flex items-center justify-center"
-              style={{
-                fontSize: "48pt",
-                fontWeight: 300,
-                background: "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)",
-                fontFamily: "'Inter', sans-serif",
-                letterSpacing: "0.05em"
-              }}
-            >
-              {name.substring(0, 2).toUpperCase()}
+      {/* BACKGROUND IMAGE MODAL */}
+      {showBgModal && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <ImageIconLucide className="w-6 h-6 text-amber-500" />
+                Valitse taustakuva
+              </h3>
+              <button
+                onClick={() => setShowBgModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* SKILLS */}
-        {skillCategories.length > 0 && (
-          <div
-            style={{
-              padding: "7mm 8mm",
-              position: "relative",
-              top: `${skillsTop}mm`,
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "13pt",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.18em",
-                borderBottom: "1.5px solid rgba(255,255,255,0.25)",
-                paddingBottom: "3.5mm",
-                marginBottom: "5mm",
-                fontFamily: "'Inter', sans-serif",
-              }}
-            >
-              Skills
-            </h2>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {/* Upload */}
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold transition-colors mb-6">
+                <Upload className="w-5 h-5" />
+                Lataa uusi taustakuva
+                <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'backgroundImage')} />
+              </label>
 
-            {skillCategories.map((category, idx) => (
-              <div key={idx} style={{ marginBottom: "4.5mm" }}>
-                {skillCategories.length > 1 && (
-                  <h3
-                    style={{
-                      fontSize: "9.5pt",
-                      fontWeight: 600,
-                      marginBottom: "2mm",
-                      color: "#f0c674",
-                      fontFamily: "'Inter', sans-serif",
-                      letterSpacing: "0.03em",
-                    }}
+              {/* Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {availableImages.backgroundImages.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => handleSelectImage(img, 'backgroundImage')}
+                    className={`aspect-video rounded-xl overflow-hidden border-2 transition-all relative ${
+                      currentBg === img.signedUrl 
+                        ? 'border-amber-500 ring-4 ring-amber-500/30 scale-95' 
+                        : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 hover:scale-105'
+                    }`}
                   >
-                    {category.category}
-                  </h3>
-                )}
-                
-                <ul
-                  style={{
-                    listStyleType: "none",
-                    padding: 0,
-                    margin: 0,
-                    fontSize: "8.5pt",
-                    lineHeight: 1.65,
-                    fontWeight: 300,
-                    fontFamily: "'Inter', sans-serif",
-                  }}
-                >
-                  {category.items.map((skill, skillIdx) => (
-                    <li
-                      key={skillIdx}
-                      style={{
-                        marginBottom: "2mm",
-                        paddingLeft: "4mm",
-                        position: "relative",
-                        color: "rgba(255,255,255,0.92)",
-                      }}
-                    >
-                      <span
-                        style={{
-                          position: "absolute",
-                          left: 0,
-                          color: "#f0c674",
-                          fontSize: "10pt",
-                        }}
-                      >
-                        •
-                      </span>
-                      {skill}
-                    </li>
-                  ))}
-                </ul>
+                    <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                    {img.is_ai_generated && (
+                      <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        AI
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* RIGHT COLUMN - LIGHT */}
-      <div
-        style={{
-          marginLeft: "70mm",
-          width: "140mm",
-          height: "297mm",
-        }}
-      >
-        {/* HEADER WITH BACKGROUND */}
-        <div
-          style={{
-            height: "85mm",
-            position: "relative",
-            backgroundImage: bgImage
-              ? `url(${bgImage})`
-              : "linear-gradient(135deg, #2c3e50 0%, #34495e 100%)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            color: "white",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)",
-            }}
-          />
-
-          <div
-            style={{
-              position: "relative",
-              zIndex: 10,
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              textAlign: "center",
-              padding: "10mm",
-            }}
-          >
-            <h1
-              style={{
-                fontSize: "30pt",
-                fontWeight: 700,
-                marginBottom: "2mm",
-                fontFamily: "'Playfair Display', serif",
-                letterSpacing: "0.02em",
-                textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
-              }}
-            >
-              {name}
-            </h1>
-            <p
-              style={{
-                fontSize: "13pt",
-                marginTop: "2mm",
-                marginBottom: "4mm",
-                fontWeight: 400,
-                fontFamily: "'Inter', sans-serif",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                opacity: 0.95,
-              }}
-            >
-              {title}
-            </p>
-
-            <div
-              style={{
-                marginTop: "4mm",
-                fontSize: "8.5pt",
-                opacity: 0.92,
-                display: "flex",
-                gap: "7mm",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                fontFamily: "'Inter', sans-serif",
-                fontWeight: 300,
-              }}
-            >
-              {data?.email && <span>✉ {data.email}</span>}
-              {data?.phone && <span>☎ {data.phone}</span>}
-              {data?.location && <span>⚲ {data.location}</span>}
             </div>
           </div>
         </div>
+      )}
 
-        {/* CONTENT AREA */}
-        <div style={{ 
-          padding: "9mm 10mm", 
-          fontSize: "9.5pt", 
-          lineHeight: 1.55,
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 300,
-        }}>
-          
-          {/* WORK EXPERIENCE */}
-          {workExperience.length > 0 && (
-            <section style={{ marginBottom: "7mm" }}>
-              <h2
-                style={{
-                  fontSize: "11.5pt",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  borderBottom: "2px solid #1a1a1a",
-                  paddingBottom: "2mm",
-                  marginBottom: "4mm",
-                  letterSpacing: "0.12em",
-                  fontFamily: "'Inter', sans-serif",
-                  color: "#1a1a1a",
-                }}
-              >
-                Work Experience
-              </h2>
-              
-              {workExperience.map((job, idx) => (
-                <div key={idx} style={{ marginBottom: "5.5mm", pageBreakInside: "avoid" }}>
-                  <h4
-                    style={{
-                      fontSize: "10.5pt",
-                      fontWeight: 600,
-                      marginBottom: "1mm",
-                      color: "#1a1a1a",
-                      fontFamily: "'Inter', sans-serif",
-                    }}
-                  >
-                    {job.title} <span style={{ fontWeight: 400, color: "#555" }}>—</span> {job.company}
-                  </h4>
-                  {job.period && (
-                    <p
-                      style={{
-                        fontSize: "8.5pt",
-                        color: "#666",
-                        fontStyle: "italic",
-                        marginBottom: "2mm",
-                        fontWeight: 300,
-                      }}
-                    >
-                      {job.period}
-                    </p>
-                  )}
-                  {job.achievements.length > 0 && (
-                    <ul
-                      style={{
-                        marginTop: "2mm",
-                        paddingLeft: "5mm",
-                        fontSize: "9pt",
-                        lineHeight: 1.6,
-                        fontWeight: 300,
-                      }}
-                    >
-                      {job.achievements.map((achievement, achIdx) => (
-                        <li key={achIdx} style={{ marginBottom: "1.5mm", color: "#333" }}>
-                          {achievement}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </section>
-          )}
-
-          {/* EDUCATION */}
-          {education.length > 0 && (
-            <section style={{ marginBottom: "7mm" }}>
-              <h2
-                style={{
-                  fontSize: "11.5pt",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  borderBottom: "2px solid #1a1a1a",
-                  paddingBottom: "2mm",
-                  marginBottom: "4mm",
-                  letterSpacing: "0.12em",
-                  fontFamily: "'Inter', sans-serif",
-                  color: "#1a1a1a",
-                }}
-              >
-                Education
-              </h2>
-              
-              {education.map((edu, idx) => (
-                <div key={idx} style={{ marginBottom: "5mm", pageBreakInside: "avoid" }}>
-                  <h4
-                    style={{
-                      fontSize: "10pt",
-                      fontWeight: 600,
-                      marginBottom: "1mm",
-                      fontFamily: "'Inter', sans-serif",
-                      color: "#1a1a1a",
-                    }}
-                  >
-                    {edu.degree}
-                  </h4>
-                  {edu.institution && (
-                    <p
-                      style={{
-                        fontSize: "9pt",
-                        margin: "1mm 0",
-                        fontWeight: 400,
-                        color: "#444",
-                      }}
-                    >
-                      {edu.institution}
-                    </p>
-                  )}
-                  {edu.year && (
-                    <p
-                      style={{
-                        fontSize: "8.5pt",
-                        color: "#666",
-                        fontStyle: "italic",
-                        margin: "1mm 0",
-                        fontWeight: 300,
-                      }}
-                    >
-                      {edu.year}
-                    </p>
-                  )}
-                  {edu.details.length > 0 && (
-                    <ul
-                      style={{
-                        marginTop: "2mm",
-                        paddingLeft: "5mm",
-                        fontSize: "8.5pt",
-                        lineHeight: 1.6,
-                        fontWeight: 300,
-                      }}
-                    >
-                      {edu.details.map((detail, detIdx) => (
-                        <li key={detIdx} style={{ color: "#333" }}>{detail}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </section>
-          )}
-
-          {/* LANGUAGES */}
-          {getAIContent("languages_section") && (
-            <section>
-              <h2
-                style={{
-                  fontSize: "11.5pt",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  borderBottom: "2px solid #1a1a1a",
-                  paddingBottom: "2mm",
-                  marginBottom: "4mm",
-                  letterSpacing: "0.12em",
-                  fontFamily: "'Inter', sans-serif",
-                  color: "#1a1a1a",
-                }}
-              >
-                Languages
-              </h2>
-              <div
-                style={{
-                  fontSize: "9.5pt",
-                  lineHeight: 1.6,
-                  color: "#333",
-                  fontWeight: 300,
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: getAIContent("languages_section"),
-                }}
-              />
-            </section>
-          )}
-        </div>
-      </div>
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 8px;
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(156, 163, 175, 0.1);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(156, 163, 175, 0.3);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(156, 163, 175, 0.5);
+        }
+      `}</style>
     </div>
   );
-};
-
-export default TechnicalCVTemplate;
+}
