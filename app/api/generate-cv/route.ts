@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - KORJATTU convertProfileToApiFormat
+// app/api/generate-cv/route.ts - KORJATTU cvType tallentuu oikein
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -107,8 +107,8 @@ function convertProfileToApiFormat(profileData: any): any {
 
 export async function POST(request: Request) {
   const startTime = Date.now();
-  console.log("🚀 CV Generation API (Oppiva Versio)");
-  const ROUTE_VERSION = '2025-01-17-DEFENSIVE-V3';
+  console.log("🚀 CV Generation API (cvType Fix)");
+  const ROUTE_VERSION = '2025-02-08-CVTYPE-FIX';
   console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
   
   try {
@@ -120,8 +120,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       profileData,
-      cvType = "simple",
-      originalCvType, // ✅ LISÄTTY
+      cvType = "simple", // ✅ Tämä on OIKEA tyyppi (technical/simple/creative)
       forceGenerate = false,
       jobPosting,
       enableRAG = false,
@@ -132,12 +131,12 @@ export async function POST(request: Request) {
       skipValidation = false
     } = body;
 
-    console.log(`📋 Request:`, {
-      cvType,
-      hasConfirmedViolations: !!confirmedViolations,
-      skipValidation,
+    // ✅ DEBUG: Näytä mitä saatiin
+    console.log(`📋 Request received:`, {
+      cvType: cvType,                    // ✅ "technical"
+      hasProfileData: !!profileData,
       hasAnsweredQuestions: !!answeredQuestions,
-      hasProfileData: !!profileData
+      skipQuestions: skipQuestions,
     });
 
     const action: TokenAction = enableRAG 
@@ -221,7 +220,7 @@ export async function POST(request: Request) {
       input = {
         userId,
         cvId: `cv_${Date.now()}`,
-        cvType,
+        cvType,  // ✅ Käytä OIKEAA tyyppiä (technical/simple/creative)
         language,
         name: apiProfile.name || "",
         email: apiProfile.email || "",
@@ -275,11 +274,19 @@ export async function POST(request: Request) {
 
       input = transformDBToLangChain(data, cvType);
       input.userId = userId;
+      input.cvType = cvType;  // ✅ Varmista että cvType on oikein
       input.jobPosting = jobPosting;
       input.enableRAG = enableRAG;
       input.skipQuestions = skipQuestions || false;
       input.answeredQuestions = answeredQuestions || [];
     }
+
+    // ✅ DEBUG: Näytä mitä lähetetään generaattorille
+    console.log(`🎨 Sending to generator:`, {
+      cvType: input.cvType,              // ✅ Pitäisi olla "technical"
+      hasName: !!input.name,
+      hasSkills: !!input.skills,
+    });
 
     // ✅ KÄSITTELE VAHVISTUKSET (sama kuin ennen)
     if (confirmedViolations && Array.isArray(confirmedViolations)) {
@@ -312,10 +319,10 @@ export async function POST(request: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // GENERATE CV
+    // GENERATE CV - ✅ cvType välittyy generaattorille
     // ════════════════════════════════════════════════════════════════
 
-    console.log(`🤖 Generating CV...`);
+    console.log(`🤖 Generating CV with type: ${input.cvType}`);
     const result = await generateCVSafely(input);
 
     // Jos tarvitaan lisäkysymyksiä
@@ -383,14 +390,16 @@ export async function POST(request: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // SAVE CV
+    // ✅ SAVE CV - KORJATTU: cvType tallentuu OIKEIN!
     // ════════════════════════════════════════════════════════════════
+
+    console.log(`💾 Saving CV with type: ${cvType}`);
 
     const { data: saved, error: saveError } = await supabaseAdmin
       .from("cvs")
       .insert({
         user_id: userId,
-    title: `${input.name || "My"} CV - ${originalCvType || cvType}`, // ✅ Käytä originalCvType titlessa
+        title: `${input.name || "My"} CV - ${cvType}`,  // ✅ Käytä OIKEAA tyyppiä titlessa
         profile_image: input.profileImage || null,
         background_image: result.background_image || null,
         content: {
@@ -398,11 +407,11 @@ export async function POST(request: Request) {
           ai_data: {
             html: result.html,
             personal_description: result.personal_description,
+            cvType: cvType,  // ✅ KRIITTINEN: Tallenna OIKEA tyyppi!
             profile_image: result.profile_image || input.profileImage || null,
             background_image: result.background_image || null,
             profile_initials: result.profile_initials,
             fullTextContent: result.fullTextContent,
-    cvType: originalCvType || cvType, // ✅ Tallenna originalCvType
           }
         },
         profile_initials: result.profile_initials,
@@ -410,9 +419,7 @@ export async function POST(request: Request) {
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
         job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
         metadata: {
- cv_type: originalCvType || cvType, // ✅ Tallenna originalCvType!
-      backend_cv_type: cvType,           // ✅ Säilytä backend tyyppi
-
+          cv_type: cvType,  // ✅ KRIITTINEN: Tallenna OIKEA tyyppi!
           action: action,
           tier: tier,
           generation_time: Date.now() - startTime,
@@ -428,6 +435,12 @@ export async function POST(request: Request) {
         { status: 500 }
       );
     }
+
+    // ✅ DEBUG: Varmista että tallentui oikein
+    console.log(`✅ CV saved with ID: ${saved.id}`);
+    console.log(`   - Title: ${input.name || "My"} CV - ${cvType}`);
+    console.log(`   - metadata.cv_type: ${cvType}`);
+    console.log(`   - ai_data.cvType: ${cvType}`);
 
     // ════════════════════════════════════════════════════════════════
     // CONSUME TOKENS

@@ -352,8 +352,7 @@ export default function CreateCVPage() {
           profileImage: profileData?.profile_image || profileData?.profileImage,
           backgroundImage: profileData?.background_image || profileData?.backgroundImage,
         },
-        cvType: selectedTemplate === 'technical' ? 'simple' : selectedTemplate, // ✅ Technical käyttää simple backendia
-        originalCvType: selectedTemplate, // ✅ Säilytä alkuperäinen tyyppi edit-cv:lle
+        cvType: selectedTemplate, // ✅ Lähetä oikea tyyppi backendille (simple | technical | creative)
         language: selectedLanguage === 'english' ? 'english' : 'finnish',
         jobPosting: useATS ? jobPosting : undefined,
         enableRAG: false,
