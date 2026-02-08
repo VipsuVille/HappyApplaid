@@ -344,7 +344,7 @@ export default function EditCVPage() {
     className?: string;
     style?: React.CSSProperties;
   }) => {
-    const [isEditing, setIsLocalEditing] = useState(false);
+    const [isLocalEditing, setIsLocalEditing] = useState(false);
     const [tempValue, setTempValue] = useState(value);
 
     useEffect(() => {
@@ -362,7 +362,7 @@ export default function EditCVPage() {
       setIsLocalEditing(false);
     };
 
-    if (!isEditing && isLocalEditing) {
+    if (isEditing && isLocalEditing) {
       return (
         <div className="relative inline-block w-full">
           {multiline ? (
