@@ -115,7 +115,9 @@ export function transformUIToDB(
     work_experience: uiProfile.workExperience || [],
     languages: uiProfile.languages || [],
 
-    skills: uiProfile.skills || null,
+    skills: Array.isArray(uiProfile.skills) 
+  ? JSON.stringify(uiProfile.skills) 
+  : uiProfile.skills || null,
 
     // ✅ NORMALISOITU
     language: "finnish",

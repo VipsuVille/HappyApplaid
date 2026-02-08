@@ -112,7 +112,16 @@ export async function GET() {
       workExperience: Array.isArray(dbProfile.work_experience) ? dbProfile.work_experience : [],
       languages: Array.isArray(dbProfile.languages) ? dbProfile.languages : [],
 
-      skills: dbProfile.skills || "",
+      skills: (() => {
+  if (!dbProfile.skills) return [];
+  if (Array.isArray(dbProfile.skills)) return dbProfile.skills;
+  try {
+    const parsed = JSON.parse(dbProfile.skills);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+})(),
 
       // Persoonallisuuskysymykset
       workingStyle: dbProfile.working_style || "",
