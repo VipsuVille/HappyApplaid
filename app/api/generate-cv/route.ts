@@ -121,6 +121,7 @@ export async function POST(request: Request) {
     const {
       profileData,
       cvType = "simple",
+      originalCvType, // ✅ LISÄTTY
       forceGenerate = false,
       jobPosting,
       enableRAG = false,
@@ -389,7 +390,7 @@ export async function POST(request: Request) {
       .from("cvs")
       .insert({
         user_id: userId,
-        title: `${input.name || "My"} CV - ${cvType}`,
+    title: `${input.name || "My"} CV - ${originalCvType || cvType}`, // ✅ Käytä originalCvType titlessa
         profile_image: input.profileImage || null,
         background_image: result.background_image || null,
         content: {
@@ -401,7 +402,7 @@ export async function POST(request: Request) {
             background_image: result.background_image || null,
             profile_initials: result.profile_initials,
             fullTextContent: result.fullTextContent,
-            cvType: cvType,
+    cvType: originalCvType || cvType, // ✅ Tallenna originalCvType
           }
         },
         profile_initials: result.profile_initials,
@@ -409,7 +410,9 @@ export async function POST(request: Request) {
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
         job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
         metadata: {
-          cv_type: cvType,
+ cv_type: originalCvType || cvType, // ✅ Tallenna originalCvType!
+      backend_cv_type: cvType,           // ✅ Säilytä backend tyyppi
+
           action: action,
           tier: tier,
           generation_time: Date.now() - startTime,
