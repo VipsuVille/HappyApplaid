@@ -191,7 +191,7 @@ export async function extractGroundTruthAI(
     ['system', `Extract verifiable facts from user profile. Works for ANY profession.
 
 Return JSON with these exact fields:
-{
+{{
   "technicalSkills": string[],
   "softSkills": string[],
   "education": string[],
@@ -202,7 +202,7 @@ Return JSON with these exact fields:
   "personalityTraits": string[],
   "careerLevel": "entry" | "mid" | "senior" | "expert",
   "yearsOfExperience": number
-}
+    }}
 
 Extract ONLY what exists. Do NOT infer or add skills not listed.
 Return JSON only, no markdown.`],
