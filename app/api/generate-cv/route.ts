@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - KORJATTU cvType tallentuu oikein
+// app/api/generate-cv/route.ts - KORJATTU: cvType tallentuu oikein KAIKKIALLE
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -16,7 +16,6 @@ export const maxDuration = 60;
 function convertProfileToApiFormat(profileData: any): any {
   console.log('🔄 [CONVERT] Starting conversion...');
   
-  // Helper: turvallinen array-muunnos
   const toArray = (field: any): any[] => {
     if (field == null) return [];
     if (Array.isArray(field)) return field;
@@ -32,7 +31,6 @@ function convertProfileToApiFormat(profileData: any): any {
     return [];
   };
 
-  // Helper: turvallinen string-muunnos
   const toString = (field: any): string => {
     if (field == null) return '';
     if (typeof field === 'string') return field;
@@ -53,19 +51,13 @@ function convertProfileToApiFormat(profileData: any): any {
       location: profileData?.location || '',
       jobTitle: profileData?.job_title || profileData?.jobTitle || '',
       profileSummary: profileData?.profile_summary || profileData?.profileSummary || '',
-      
-      // ✅ ARRAYS (turvallisesti käsitelty)
       workExperience: toArray(profileData?.work_experience),
       education: toArray(profileData?.education),
       certificates: toArray(profileData?.certificates),
       portfolio_links: toArray(profileData?.portfolio_links),
-      
-      // ✅ STRINGS (turvallisesti käsitelty)
       skills: toString(profileData?.skills),
       languages: toString(profileData?.languages),
       hobbies: toString(profileData?.hobbies),
-      
-      // Personality
       working_style: profileData?.working_style || profileData?.workingStyle || '',
       problem_solving: profileData?.problem_solving || profileData?.problemSolving || '',
       unique_strength: profileData?.unique_strength || profileData?.uniqueStrength || '',
@@ -74,13 +66,9 @@ function convertProfileToApiFormat(profileData: any): any {
       learning_style: profileData?.learning_style || profileData?.learningStyle || '',
       team_role: profileData?.team_role || profileData?.teamRole || '',
       values_example: profileData?.values_example || profileData?.valuesExample || '',
-      
-      // Goals & Stories
       career_goals: profileData?.career_goals || profileData?.careerGoals || '',
       best_project_example: profileData?.best_project_example || profileData?.bestProjectExample || '',
       failure_lesson: profileData?.failure_lesson || profileData?.failureLesson || '',
-      
-      // Images
       profileImage: profileData?.profileImage || profileData?.profile_image || undefined,
       backgroundImage: profileData?.backgroundImage || profileData?.background_image || undefined,
     };
@@ -96,7 +84,6 @@ function convertProfileToApiFormat(profileData: any): any {
     return result;
   } catch (error) {
     console.error('❌ [CONVERT] Conversion failed:', error);
-    // Fallback: palauta raaka data
     return profileData;
   }
 }
@@ -107,8 +94,8 @@ function convertProfileToApiFormat(profileData: any): any {
 
 export async function POST(request: Request) {
   const startTime = Date.now();
-  console.log("🚀 CV Generation API (cvType Fix)");
-  const ROUTE_VERSION = '2025-02-08-CVTYPE-FIX';
+  console.log("🚀 CV Generation API (cvType Fix v2)");
+  const ROUTE_VERSION = '2025-02-08-CVTYPE-FIX-V2';
   console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
   
   try {
@@ -120,7 +107,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       profileData,
-      cvType = "simple", // ✅ Tämä on OIKEA tyyppi (technical/simple/creative)
+      cvType = "simple",
       forceGenerate = false,
       jobPosting,
       enableRAG = false,
@@ -131,9 +118,10 @@ export async function POST(request: Request) {
       skipValidation = false
     } = body;
 
-    // ✅ DEBUG: Näytä mitä saatiin
-    console.log(`📋 Request received:`, {
-      cvType: cvType,                    // ✅ "technical"
+    // ✅ KRIITTINEN DEBUG: Näytä mitä saatiin
+    console.log(`📋 [ROUTE] Request received:`, {
+      cvType: cvType,
+      cvTypeType: typeof cvType,
       hasProfileData: !!profileData,
       hasAnsweredQuestions: !!answeredQuestions,
       skipQuestions: skipQuestions,
@@ -206,7 +194,7 @@ export async function POST(request: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // PREPARE INPUT - ✅ KORJATTU KONVERTOINTI
+    // PREPARE INPUT
     // ════════════════════════════════════════════════════════════════
 
     let input: LangChainCVInput;
@@ -214,13 +202,13 @@ export async function POST(request: Request) {
     if (profileData) {
       console.log("📋 Using profile from request");
       
-      // ✅ KÄYTÄ TURVALLISTA KONVERTOINTIA
       const apiProfile = convertProfileToApiFormat(profileData);
       
       input = {
         userId,
         cvId: `cv_${Date.now()}`,
-        cvType,  // ✅ Käytä OIKEAA tyyppiä (technical/simple/creative)
+        // ✅ KRIITTINEN: cvType SUORAAN requestista, ei muunnosta!
+        cvType: cvType as 'simple' | 'technical' | 'creative',
         language,
         name: apiProfile.name || "",
         email: apiProfile.email || "",
@@ -228,15 +216,12 @@ export async function POST(request: Request) {
         location: apiProfile.location || "",
         title: apiProfile.jobTitle || "",
         introText: apiProfile.profileSummary || "",
-        
-        // ✅ JO STRING-MUODOSSA
         education: typeof apiProfile.education === 'string' 
           ? apiProfile.education 
           : JSON.stringify(apiProfile.education || []),
         workExperience: typeof apiProfile.workExperience === 'string'
           ? apiProfile.workExperience
           : JSON.stringify(apiProfile.workExperience || []),
-        
         skills: apiProfile.skills || "",
         languages: apiProfile.languages || "",
         workingStyle: apiProfile.working_style || "",
@@ -274,21 +259,23 @@ export async function POST(request: Request) {
 
       input = transformDBToLangChain(data, cvType);
       input.userId = userId;
-      input.cvType = cvType;  // ✅ Varmista että cvType on oikein
+      // ✅ KRIITTINEN: Pakota cvType oikein
+      input.cvType = cvType as 'simple' | 'technical' | 'creative';
       input.jobPosting = jobPosting;
       input.enableRAG = enableRAG;
       input.skipQuestions = skipQuestions || false;
       input.answeredQuestions = answeredQuestions || [];
     }
 
-    // ✅ DEBUG: Näytä mitä lähetetään generaattorille
-    console.log(`🎨 Sending to generator:`, {
-      cvType: input.cvType,              // ✅ Pitäisi olla "technical"
+    // ✅ KRIITTINEN DEBUG: Varmista mitä lähetetään generaattorille
+    console.log(`🎨 [ROUTE] Sending to generator:`, {
+      'input.cvType': input.cvType,
+      'cvType from request': cvType,
       hasName: !!input.name,
       hasSkills: !!input.skills,
     });
 
-    // ✅ KÄSITTELE VAHVISTUKSET (sama kuin ennen)
+    // ✅ KÄSITTELE VAHVISTUKSET
     if (confirmedViolations && Array.isArray(confirmedViolations)) {
       console.log(`✅ Processing ${confirmedViolations.length} confirmed violations`);
       
@@ -319,10 +306,10 @@ export async function POST(request: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // GENERATE CV - ✅ cvType välittyy generaattorille
+    // GENERATE CV
     // ════════════════════════════════════════════════════════════════
 
-    console.log(`🤖 Generating CV with type: ${input.cvType}`);
+    console.log(`🤖 [ROUTE] Generating CV with type: ${input.cvType}`);
     const result = await generateCVSafely(input);
 
     // Jos tarvitaan lisäkysymyksiä
@@ -347,11 +334,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // ✅ GUARDIAN (jos ei skipValidation)
+    // ✅ GUARDIAN
     const shouldRunGuardian = !skipValidation && !confirmedViolations?.length;
 
     if (shouldRunGuardian) {
-      console.log('🛡️ Running Master Guardian (oppiva)...');
+      console.log('🛡️ Running Master Guardian...');
       
       const { data: userProfile } = await supabaseAdmin
         .from('user_profiles')
@@ -375,7 +362,7 @@ export async function POST(request: Request) {
       );
 
       if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
-        console.log('🚨 Guardian flagged violations - requesting confirmation');
+        console.log('🚨 Guardian flagged violations');
         
         return NextResponse.json({
           success: false,
@@ -390,24 +377,36 @@ export async function POST(request: Request) {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // ✅ SAVE CV - KORJATTU: cvType tallentuu OIKEIN!
+    // ✅✅✅ SAVE CV - KRIITTINEN: cvType tallentuu KAIKKIALLE!
     // ════════════════════════════════════════════════════════════════
 
-    console.log(`💾 Saving CV with type: ${cvType}`);
+    // ✅ KRIITTINEN: Käytä AINA request body:n cvType, EI generaattorin palauttamaa
+    const finalCvType = cvType || input.cvType || 'simple';
+    
+    console.log(`💾 [ROUTE] Saving CV with type: "${finalCvType}"`);
+    console.log(`   - cvType from request body: "${cvType}"`);
+    console.log(`   - input.cvType: "${input.cvType}"`);
+    console.log(`   - finalCvType: "${finalCvType}"`);
 
     const { data: saved, error: saveError } = await supabaseAdmin
       .from("cvs")
       .insert({
         user_id: userId,
-        title: `${input.name || "My"} CV - ${cvType}`,  // ✅ Käytä OIKEAA tyyppiä titlessa
+        // ✅ Title käyttää oikeaa tyyppiä
+        title: `${input.name || "My"} CV - ${finalCvType}`,
         profile_image: input.profileImage || null,
         background_image: result.background_image || null,
         content: {
-          cv_data: input,
+          cv_data: {
+            ...input,
+            // ✅ KRIITTINEN: Pakota cvType cv_data:an
+            cvType: finalCvType,
+          },
           ai_data: {
             html: result.html,
             personal_description: result.personal_description,
-            cvType: cvType,  // ✅ KRIITTINEN: Tallenna OIKEA tyyppi!
+            // ✅ KRIITTINEN: Pakota cvType ai_data:an
+            cvType: finalCvType,
             profile_image: result.profile_image || input.profileImage || null,
             background_image: result.background_image || null,
             profile_initials: result.profile_initials,
@@ -419,7 +418,8 @@ export async function POST(request: Request) {
         is_ats_optimized: action === "cv_ats_addon" || action === "cv_rag_addon",
         job_posting: (action === "cv_ats_addon" || action === "cv_rag_addon") ? jobPosting : null,
         metadata: {
-          cv_type: cvType,  // ✅ KRIITTINEN: Tallenna OIKEA tyyppi!
+          // ✅ KRIITTINEN: Pakota cvType metadataan
+          cv_type: finalCvType,
           action: action,
           tier: tier,
           generation_time: Date.now() - startTime,
@@ -436,11 +436,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // ✅ DEBUG: Varmista että tallentui oikein
-    console.log(`✅ CV saved with ID: ${saved.id}`);
-    console.log(`   - Title: ${input.name || "My"} CV - ${cvType}`);
-    console.log(`   - metadata.cv_type: ${cvType}`);
-    console.log(`   - ai_data.cvType: ${cvType}`);
+    // ✅ VARMISTUS DEBUG
+    console.log(`✅ [ROUTE] CV saved with ID: ${saved.id}`);
+    console.log(`   - Title: "${input.name || "My"} CV - ${finalCvType}"`);
+    console.log(`   - metadata.cv_type: "${finalCvType}"`);
+    console.log(`   - content.ai_data.cvType: "${finalCvType}"`);
+    console.log(`   - content.cv_data.cvType: "${finalCvType}"`);
 
     // ════════════════════════════════════════════════════════════════
     // CONSUME TOKENS
@@ -448,11 +449,9 @@ export async function POST(request: Request) {
 
     if (tier === "free") {
       const consumed = await consumeFreeUsage(userId, 'cv');
-      
       if (!consumed) {
-        console.error('⚠️ Failed to mark free CV as used, but CV was created');
+        console.error('⚠️ Failed to mark free CV as used');
       }
-
       console.log('✅ Free CV consumed');
     } else if (isActive && required > 0) {
       await supabaseAdmin
@@ -462,11 +461,10 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
-
       console.log(`✅ Consumed ${required} tokens`);
     }
     
-    console.log(`🎉 CV generated successfully (${Date.now() - startTime}ms)`);
+    console.log(`🎉 CV generated successfully (${Date.now() - startTime}ms) - Type: ${finalCvType}`);
 
     return NextResponse.json({
       success: true,
