@@ -1,4 +1,4 @@
-// app/create-cv/page.tsx - TÄYSIN TÄYDELLINEN VERSIO (700+ riviä)
+// app/create-cv/page.tsx - KORJATTU: cvType säilyy kysymysten yli
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -18,7 +18,7 @@ import CVQuestionsModal from '@/components/CVQuestionsModal';
 import { useTokens } from "@/hooks/useTokens";
 import { useLanguage } from '@/context/LanguageContext';
 
-type CVTemplate = "simple" | "technical" | "creative"; // ✅ Technical palautettu - käyttää samaa dataa!
+type CVTemplate = "simple" | "technical" | "creative";
 type CVLanguage = "finnish" | "english";
 
 export default function CreateCVPage() {
@@ -26,7 +26,12 @@ export default function CreateCVPage() {
   const { user, isLoaded: userLoaded } = useUser();
   const { language } = useLanguage();
   
+  // ✅ TEMPLATE STATE
   const [selectedTemplate, setSelectedTemplate] = useState<CVTemplate>("simple");
+  
+  // ✅ KRIITTINEN: Tallenna valittu template kun generointi alkaa
+  const [confirmedTemplate, setConfirmedTemplate] = useState<CVTemplate>("simple");
+  
   const [selectedLanguage, setSelectedLanguage] = useState<CVLanguage>("finnish");
   const [useATS, setUseATS] = useState(false);
   const [jobPosting, setJobPosting] = useState("");
@@ -148,12 +153,12 @@ export default function CreateCVPage() {
         failGeneration('Generointi kesti yli 3 minuuttia');
         toast.error('Generointi kesti yli 3 minuuttia. Yritä uudelleen.');
       }
-    }, 180000); // 3 minuuttia (180000ms)
+    }, 180000);
     
     return () => clearTimeout(timeoutId);
   }, [isGenerating, cvState.stage]);
 
-  // ✅ LOAD PROFILE - EI PAKKO-OHJAUSTA
+  // ✅ LOAD PROFILE
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) return;
@@ -212,7 +217,6 @@ export default function CreateCVPage() {
   };
 
   // ✅ SUBMIT QUESTIONS
-  // ✅ SUBMIT QUESTIONS - Uusi modaali palauttaa monipuolisemman datan
   const handleSubmitQuestions = async (questionAnswers: Array<{
     id: string;
     question: string;
@@ -222,8 +226,9 @@ export default function CreateCVPage() {
     category: string;
   }>) => {
     console.log('📝 CV: Submitting answers:', questionAnswers);
+    console.log('   - Using confirmed template:', confirmedTemplate); // ✅ DEBUG
 
-    // ✅ TALLENNA VASTAUKSET jotka merkitty tallennettavaksi
+    // ✅ TALLENNA VASTAUKSET
     for (const qa of questionAnswers) {
       if (qa.shouldSave && qa.answer) {
         await saveResponse(qa.question, qa.answer, qa.category);
@@ -241,16 +246,16 @@ export default function CreateCVPage() {
       }
     });
     
-    // ✅ Jatka generointia vastauksilla
+    // ✅ Jatka generointia vastauksilla (käyttää confirmedTemplate)
     setTimeout(() => handleGenerateCV(simpleAnswers), 300);
   };
 
-  // ✅ MAIN GENERATION
+  // ✅ MAIN GENERATION - KORJATTU
   const handleGenerateCV = async (
     finalAnswers?: Record<string, string>,
-    skipQuestionsExplicitly = false // ✅ UUSI: Käyttäjä ohitti kysymykset
+    skipQuestionsExplicitly = false
   ) => {
-    // ✅ VALIDOI PROFIILI - EI OHJAA, VAIN ESTÄÄ
+    // ✅ VALIDOI PROFIILI
     if (!profileValidation?.isValid) {
       toast.error(t.noProfile);
       return;
@@ -263,14 +268,20 @@ export default function CreateCVPage() {
 
     try {
       const savedResponses = await fetchSavedResponses();
-      const currentAnswers = finalAnswers || {}; // ✅ Tyhjä objekti jos ei finalAnswers
+      const currentAnswers = finalAnswers || {};
       const hasAnswers = Object.keys(currentAnswers).length > 0;
 
-      if (!hasAnswers) {
+      // ✅ KRIITTINEN: Tallenna template ENSIMMÄISELLÄ kutsulla
+      if (!hasAnswers && !skipQuestionsExplicitly) {
+        console.log('🎨 [CREATE-CV] Saving template choice:', selectedTemplate);
+        setConfirmedTemplate(selectedTemplate);
+        
         startGeneration('cv', {
           templateType: selectedTemplate,
           language: selectedLanguage
         });
+      } else {
+        console.log('🎨 [CREATE-CV] Using confirmed template:', confirmedTemplate);
       }
 
       const formatEducationForApi = (education: any): string => {
@@ -303,28 +314,30 @@ export default function CreateCVPage() {
           .join("\n\n");
       };
 
-      // ✅ HELPER: Muunna skills/languages ARRAY-muotoon API:lle
       const formatSkillsForApi = (skills: any): string[] => {
         if (!skills) return [];
         if (Array.isArray(skills)) {
-          // Jos array objekteja: [{name: "Python"}, ...]
           if (skills.length > 0 && typeof skills[0] === 'object' && skills[0].name) {
             return skills.map((s: any) => s.name).filter(Boolean);
           }
-          // Jos array stringejä: ["Python", "JavaScript"]
           return skills.filter(Boolean);
         }
         if (typeof skills === 'string') {
-          // Jos comma-separated string: "Python, JavaScript"
           return skills.split(',').map(s => s.trim()).filter(Boolean);
         }
         return [];
       };
 
-      // ✅ TECHNICAL TEMPLATE WORKAROUND:
-      // Backend ei tue "technical" tyyppiä, joten muunnetaan se "simple":ksi.
-      // TechnicalCVTemplate käyttää samaa dataa kuin SimpleCVTemplate.
-      // originalCvType säilyttää käyttäjän valinnan edit-cv sivua varten.
+      // ✅ KÄYTÄ confirmedTemplate TAI selectedTemplate
+      const cvTypeToUse = hasAnswers || skipQuestionsExplicitly 
+        ? confirmedTemplate  // ✅ Käytä tallennettua
+        : selectedTemplate;  // ✅ Ensimmäisellä kerralla
+
+      console.log('📤 [CREATE-CV] Sending to API:', {
+        cvType: cvTypeToUse,
+        hasAnswers,
+        skipQuestions: hasAnswers || skipQuestionsExplicitly
+      });
       
       const requestBody = {
         profileData: {
@@ -335,8 +348,8 @@ export default function CreateCVPage() {
           jobTitle: profileData?.job_title || profileData?.jobTitle,
           education: formatEducationForApi(profileData?.education),
           workExperience: formatWorkExperienceForApi(profileData?.work_experience),
-          skills: formatSkillsForApi(profileData?.skills), // ✅ ARRAY
-          languages: formatSkillsForApi(profileData?.languages), // ✅ ARRAY
+          skills: formatSkillsForApi(profileData?.skills),
+          languages: formatSkillsForApi(profileData?.languages),
           hobbies: profileData?.hobbies || '',
           workingStyle: profileData?.working_style || '',
           problemSolving: profileData?.problem_solving || '',
@@ -352,7 +365,7 @@ export default function CreateCVPage() {
           profileImage: profileData?.profile_image || profileData?.profileImage,
           backgroundImage: profileData?.background_image || profileData?.backgroundImage,
         },
-        cvType: selectedTemplate, // ✅ Lähetä oikea tyyppi backendille (simple | technical | creative)
+        cvType: cvTypeToUse, // ✅ OIKEA TYYPPI
         language: selectedLanguage === 'english' ? 'english' : 'finnish',
         jobPosting: useATS ? jobPosting : undefined,
         enableRAG: false,
@@ -363,11 +376,10 @@ export default function CreateCVPage() {
               answer
             }))
           : [],
-        skipQuestions: hasAnswers || skipQuestionsExplicitly, // ✅ Ohita jos vastauksia TAI käyttäjä ohitti
+        skipQuestions: hasAnswers || skipQuestionsExplicitly,
         skipConfirmation,
       };
 
-      // ✅ setStage VAIN jos vastaukset on annettu (muuten ei active type)
       if (hasAnswers) {
         setStage('analyzing', 20);
       }
@@ -391,8 +403,8 @@ export default function CreateCVPage() {
       // ✅ HANDLE QUESTIONS
       if (result.needsMoreInfo && result.questions?.length > 0) {
         console.log('❓ AI kysyy lisäkysymyksiä:', result.questions.length);
+        console.log('   - Confirmed template:', confirmedTemplate); // ✅ Tallennettiin jo!
         
-        // ✅ PERUUTA generointi jos ei vielä aloitettu
         if (!hasAnswers) {
           cancelGeneration();
         }
@@ -409,7 +421,6 @@ export default function CreateCVPage() {
         });
         
         setLocalQuestions(result.questions);
-        // ✅ setLocalAnswers ei enää tarvita - modaali hoitaa vastaukset
         setPreFilled(preFilledFlags);
         setQuestions(result.questions);
         setShowQuestionsModal(true);
@@ -531,7 +542,10 @@ export default function CreateCVPage() {
                 ].map((template) => (
                   <button
                     key={template.id}
-                    onClick={() => setSelectedTemplate(template.id as CVTemplate)}
+                    onClick={() => {
+                      setSelectedTemplate(template.id as CVTemplate);
+                      console.log('📋 [CREATE-CV] Template selected:', template.id);
+                    }}
                     className={`relative p-6 rounded-3xl border text-left transition-all ${
                       selectedTemplate === template.id 
                         ? 'border-orange-500/50 bg-orange-500/5' 
@@ -700,17 +714,17 @@ export default function CreateCVPage() {
         </div>
       </div>
 
-      {/* ✅ KYSYMYSMODAALI - UUSI PARANNETTU */}
+      {/* ✅ KYSYMYSMODAALI */}
       {showQuestionsModal && localQuestions.length > 0 && (
         <CVQuestionsModal
           questions={localQuestions}
           preFilled={preFilled}
           onSubmit={handleSubmitQuestions}
           onCancel={() => {
-            // ✅ Sulje modaali JA jatka generointia ilman vastauksia
             setShowQuestionsModal(false);
-            console.log('⏭️ CV: Käyttäjä ohitti kysymykset - generoidaan ilman vastauksia');
-            setTimeout(() => handleGenerateCV({}, true), 300); // ✅ skipQuestionsExplicitly = true
+            console.log('⏭️ CV: Käyttäjä ohitti kysymykset');
+            console.log('   - Using confirmed template:', confirmedTemplate);
+            setTimeout(() => handleGenerateCV({}, true), 300);
           }}
         />
       )}
