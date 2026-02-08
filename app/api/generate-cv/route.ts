@@ -1,4 +1,4 @@
-// app/api/generate-cv/route.ts - KORJATTU: cvType tallentuu oikein KAIKKIALLE
+// app/api/generate-cv/route.ts - KORJATTU: cvType tallentuu oikein + Guardian ei blokkaa
 
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
@@ -94,8 +94,8 @@ function convertProfileToApiFormat(profileData: any): any {
 
 export async function POST(request: Request) {
   const startTime = Date.now();
-  console.log("🚀 CV Generation API (cvType Fix v2)");
-  const ROUTE_VERSION = '2025-02-08-CVTYPE-FIX-V2';
+  console.log("🚀 CV Generation API (Guardian Safe v3)");
+  const ROUTE_VERSION = '2025-02-08-GUARDIAN-SAFE-V3';
   console.log(`🔍 ROUTE VERSION: ${ROUTE_VERSION}`);
   
   try {
@@ -334,46 +334,56 @@ export async function POST(request: Request) {
       );
     }
 
-    // ✅ GUARDIAN
+    // ════════════════════════════════════════════════════════════════
+    // ✅ GUARDIAN - TURVALLINEN: Ei blokkaa CV:n tallennusta
+    // ════════════════════════════════════════════════════════════════
+
     const shouldRunGuardian = !skipValidation && !confirmedViolations?.length;
+    let guardianResult: { riskLevel: string; violations: any } | null = null;
 
     if (shouldRunGuardian) {
       console.log('🛡️ Running Master Guardian...');
       
-      const { data: userProfile } = await supabaseAdmin
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+      try {
+        const { data: userProfile } = await supabaseAdmin
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
 
-      const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
-      
-      const fullCVText = `
-        ${result.personal_description || ''}
-        ${result.html?.skills_section || ''}
-        ${result.html?.experience_section || ''}
-        ${result.html?.education_section || ''}
-      `.trim();
-      
-      const guardianCheck = await masterGuardianValidatorV2(
-        fullCVText,
-        groundTruth,
-        'generation'
-      );
-
-      if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
-        console.log('🚨 Guardian flagged violations');
+        const groundTruth = await extractGroundTruthAI(userProfile || {}, userId);
         
-        return NextResponse.json({
-          success: false,
-          needsConfirmation: true,
-          violations: guardianCheck.violations,
-          recommendation: guardianCheck.recommendation,
-          message: 'CV sisältää tietoja joita ei löydy profiilista. Vahvista käyttö.'
-        }, { status: 400 });
-      }
+        const fullCVText = `
+          ${result.personal_description || ''}
+          ${result.html?.skills_section || ''}
+          ${result.html?.experience_section || ''}
+          ${result.html?.education_section || ''}
+        `.trim();
+        
+        const guardianCheck = await masterGuardianValidatorV2(
+          fullCVText,
+          groundTruth,
+          'generation'
+        );
 
-      console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
+        // ✅ MUUTOS: Logita mutta ÄLÄ blokkaa CV:n tallennusta
+        if (guardianCheck.riskLevel === 'danger' && !guardianCheck.approved) {
+          console.warn('⚠️ Guardian flagged violations (not blocking):');
+          console.warn('   Violations:', JSON.stringify(guardianCheck.violations));
+          console.warn('   Recommendation:', guardianCheck.recommendation);
+          
+          // Tallenna tulos metadataan, mutta anna CV:n tallentua
+          guardianResult = {
+            riskLevel: guardianCheck.riskLevel,
+            violations: guardianCheck.violations,
+          };
+        }
+
+        console.log(`✅ Guardian: ${guardianCheck.riskLevel}`);
+      } catch (guardianError) {
+        console.error('⚠️ Guardian check failed, continuing without validation:', guardianError);
+        // ✅ Guardian-virhe EI estä CV:n tallennusta
+      }
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -411,7 +421,9 @@ export async function POST(request: Request) {
             background_image: result.background_image || null,
             profile_initials: result.profile_initials,
             fullTextContent: result.fullTextContent,
-          }
+          },
+          // ✅ Tallenna guardian-tulos metadataan jos löytyi ongelmia
+          ...(guardianResult ? { guardian_check: guardianResult } : {}),
         },
         profile_initials: result.profile_initials,
         is_public: false,
@@ -423,6 +435,8 @@ export async function POST(request: Request) {
           action: action,
           tier: tier,
           generation_time: Date.now() - startTime,
+          // ✅ Guardian-tulos metadataan
+          ...(guardianResult ? { guardian_risk: guardianResult.riskLevel } : {}),
         }
       })
       .select("id")
@@ -473,6 +487,11 @@ export async function POST(request: Request) {
       message: "CV generated successfully",
       tokensUsed: required,
       tokensRemaining: tier !== "free" ? currentTokens - required : 0,
+      // ✅ Kerro frontendille jos guardian löysi jotain
+      ...(guardianResult ? { 
+        guardianWarning: true,
+        guardianRisk: guardianResult.riskLevel,
+      } : {}),
     });
 
   } catch (error) {
