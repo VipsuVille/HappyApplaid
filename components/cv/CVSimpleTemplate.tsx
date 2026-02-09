@@ -27,11 +27,18 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
 }) => {
   const [skillsTop, setSkillsTop] = useState(0);
 
-  // ✅ SUORA MUOKKAUS - ei blurria, päivitä heti
+  // ✅ SUORA MUOKKAUS - päivitä heti
   const handleInput = (path: string, e: React.FormEvent<HTMLElement>) => {
     if (!isEditing || !onUpdate) return;
     const newValue = e.currentTarget.innerText;
     onUpdate(path, newValue);
+  };
+
+  // ✅ LISTAN ITEMIN MUOKKAUS (skills, bullets, etc)
+  const handleListItemInput = (path: string, index: number, e: React.FormEvent<HTMLElement>) => {
+    if (!isEditing || !onUpdate) return;
+    const newValue = e.currentTarget.innerText;
+    onUpdate(`${path}.${index}`, newValue);
   };
 
   /* ============================================================
@@ -107,10 +114,15 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     PARSE SKILLS
+     PARSE SKILLS - MUOKATTAVISSA
   ============================================================ */
 
   const parseSkills = (): { category: string; items: string[] }[] => {
+    // Jos data.cv_data.skills on olemassa ja muokattu, käytä sitä
+    if (data?.skills && Array.isArray(data.skills)) {
+      return data.skills;
+    }
+    
     const skillsHTML = getAIContent("skills_section");
     
     if (!skillsHTML) {
@@ -155,7 +167,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     PARSE WORK EXPERIENCE - WITH JSON FALLBACK
+     PARSE WORK EXPERIENCE - MUOKATTAVISSA
   ============================================================ */
 
   const parseWorkExperience = (): Array<{
@@ -164,6 +176,16 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     period: string;
     achievements: string[];
   }> => {
+    // Jos data.cv_data.experience on olemassa ja muokattu, käytä sitä
+    if (data?.experience && Array.isArray(data.experience)) {
+      return data.experience.map((exp: any) => ({
+        title: exp.position || exp.title || 'Position',
+        company: exp.company || 'Company',
+        period: exp.period || exp.duration || '',
+        achievements: exp.bullets || exp.achievements || [exp.description].filter(Boolean)
+      }));
+    }
+    
     const expHTML = getAIContent("experience_section");
     
     if (!expHTML) {
@@ -263,7 +285,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     PARSE EDUCATION - WITH JSON FALLBACK
+     PARSE EDUCATION - MUOKATTAVISSA
   ============================================================ */
 
   const parseEducation = (): Array<{
@@ -272,6 +294,16 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     year: string;
     details: string[];
   }> => {
+    // Jos data.cv_data.education on olemassa ja muokattu, käytä sitä
+    if (data?.education && Array.isArray(data.education)) {
+      return data.education.map((edu: any) => ({
+        degree: edu.degree || 'Degree',
+        institution: edu.school || edu.institution || 'Institution',
+        year: edu.year || edu.period || '',
+        details: edu.details || [edu.description].filter(Boolean)
+      }));
+    }
+    
     const eduHTML = getAIContent("education_section");
     
     if (!eduHTML) {
@@ -383,6 +415,16 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   const name = data?.name || "Name";
   const title = data?.title || "Professional Title";
 
+  // ✅ APUFUNKTIOT MUOKKAUSTYYLIEN MÄÄRITTÄMISEEN
+  const getEditableStyles = (isActive: boolean = true) => ({
+    outline: isEditing && isActive ? '2px dashed rgba(249, 115, 22, 0.5)' : 'none',
+    padding: isEditing && isActive ? '2px 4px' : '0',
+    borderRadius: '4px',
+    cursor: isEditing ? 'text' : 'default',
+    minWidth: '20px',
+    display: 'inline-block',
+  });
+
   /* ============================================================
      RENDER
   ============================================================ */
@@ -459,8 +501,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           )}
         </div>
 
-        {/* SKILLS */}
-        {skillCategories.length > 0 && (
+        {/* ✅ SKILLS - MUOKATTAVISSA */}
+        {(skillCategories.length > 0 || isEditing) && (
           <div
             style={{
               padding: "7mm 8mm",
@@ -469,6 +511,9 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
             }}
           >
             <h2
+              contentEditable={isEditing}
+              onInput={(e) => handleInput("skillsTitle", e)}
+              suppressContentEditableWarning
               style={{
                 fontSize: "13pt",
                 fontWeight: 600,
@@ -478,15 +523,19 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                 paddingBottom: "3.5mm",
                 marginBottom: "5mm",
                 fontFamily: "'Inter', sans-serif",
+                ...getEditableStyles(),
               }}
             >
-              Skills
+              {skillCategories[0]?.category || "Skills"}
             </h2>
 
-            {skillCategories.map((category, idx) => (
-              <div key={idx} style={{ marginBottom: "4.5mm" }}>
+            {skillCategories.map((category, catIdx) => (
+              <div key={catIdx} style={{ marginBottom: "4.5mm" }}>
                 {skillCategories.length > 1 && (
                   <h3
+                    contentEditable={isEditing}
+                    onInput={(e) => handleInput(`skills.${catIdx}.category`, e)}
+                    suppressContentEditableWarning
                     style={{
                       fontSize: "9.5pt",
                       fontWeight: 600,
@@ -494,6 +543,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                       color: "#f0c674",
                       fontFamily: "'Inter', sans-serif",
                       letterSpacing: "0.03em",
+                      ...getEditableStyles(),
                     }}
                   >
                     {category.category}
@@ -514,11 +564,15 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   {category.items.map((skill, skillIdx) => (
                     <li
                       key={skillIdx}
+                      contentEditable={isEditing}
+                      onInput={(e) => handleListItemInput(`skills.${catIdx}.items`, skillIdx, e)}
+                      suppressContentEditableWarning
                       style={{
                         marginBottom: "2mm",
                         paddingLeft: "4mm",
                         position: "relative",
                         color: "rgba(255,255,255,0.92)",
+                        ...getEditableStyles(),
                       }}
                     >
                       <span
@@ -534,6 +588,26 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                       {skill}
                     </li>
                   ))}
+                  {/* Lisää uusi skill -nappi */}
+                  {isEditing && (
+                    <li
+                      onClick={() => {
+                        const newItem = "Uusi taito";
+                        onUpdate?.(`skills.${catIdx}.items.${category.items.length}`, newItem);
+                      }}
+                      style={{
+                        marginBottom: "2mm",
+                        paddingLeft: "4mm",
+                        color: "#f0c674",
+                        cursor: "pointer",
+                        fontStyle: "italic",
+                        opacity: 0.7,
+                      }}
+                    >
+                      <span style={{ position: "absolute", left: 0 }}>+</span>
+                      Lisää taito...
+                    </li>
+                  )}
                 </ul>
               </div>
             ))}
@@ -583,7 +657,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
               padding: "10mm",
             }}
           >
-            {/* ✅ NIMI - contentEditable */}
+            {/* NIMI */}
             <h1
               contentEditable={isEditing}
               onInput={(e) => handleInput("name", e)}
@@ -595,17 +669,13 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                 fontFamily: "'Playfair Display', serif",
                 letterSpacing: "0.02em",
                 textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
-                outline: isEditing ? '2px dashed rgba(255,255,255,0.5)' : 'none',
-                padding: isEditing ? '4px' : '0',
-                borderRadius: '4px',
-                cursor: isEditing ? 'text' : 'default',
-                minWidth: '50px',
+                ...getEditableStyles(),
               }}
             >
               {name}
             </h1>
             
-            {/* ✅ TITLE - contentEditable */}
+            {/* TITLE */}
             <p
               contentEditable={isEditing}
               onInput={(e) => handleInput("title", e)}
@@ -619,11 +689,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
                 opacity: 0.95,
-                outline: isEditing ? '2px dashed rgba(255,255,255,0.5)' : 'none',
-                padding: isEditing ? '4px' : '0',
-                borderRadius: '4px',
-                cursor: isEditing ? 'text' : 'default',
-                minWidth: '50px',
+                ...getEditableStyles(),
               }}
             >
               {title}
@@ -642,7 +708,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                 fontWeight: 300,
               }}
             >
-              {/* ✅ EMAIL - contentEditable */}
+              {/* EMAIL */}
               {(data?.email || isEditing) && (
                 <span 
                   contentEditable={isEditing}
@@ -652,11 +718,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                     display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
-                    outline: isEditing ? '2px dashed rgba(255,255,255,0.5)' : 'none',
-                    padding: isEditing ? '4px' : '0',
-                    borderRadius: '4px',
-                    cursor: isEditing ? 'text' : 'default',
-                    minWidth: '50px',
+                    ...getEditableStyles(),
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
@@ -664,7 +726,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                 </span>
               )}
               
-              {/* ✅ PHONE - contentEditable */}
+              {/* PHONE */}
               {(data?.phone || isEditing) && (
                 <span 
                   contentEditable={isEditing}
@@ -674,11 +736,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                     display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
-                    outline: isEditing ? '2px dashed rgba(255,255,255,0.5)' : 'none',
-                    padding: isEditing ? '4px' : '0',
-                    borderRadius: '4px',
-                    cursor: isEditing ? 'text' : 'default',
-                    minWidth: '50px',
+                    ...getEditableStyles(),
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -686,7 +744,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                 </span>
               )}
               
-              {/* ✅ LOCATION - contentEditable */}
+              {/* LOCATION */}
               {(data?.location || isEditing) && (
                 <span 
                   contentEditable={isEditing}
@@ -696,11 +754,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                     display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
-                    outline: isEditing ? '2px dashed rgba(255,255,255,0.5)' : 'none',
-                    padding: isEditing ? '4px' : '0',
-                    borderRadius: '4px',
-                    cursor: isEditing ? 'text' : 'default',
-                    minWidth: '50px',
+                    ...getEditableStyles(),
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -720,10 +774,13 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
           fontWeight: 300,
         }}>
           
-          {/* WORK EXPERIENCE */}
-          {workExperience.length > 0 && (
+          {/* ✅ WORK EXPERIENCE - MUOKATTAVISSA */}
+          {(workExperience.length > 0 || isEditing) && (
             <section style={{ marginBottom: "7mm" }}>
               <h2
+                contentEditable={isEditing}
+                onInput={(e) => handleInput("experienceTitle", e)}
+                suppressContentEditableWarning
                 style={{
                   fontSize: "11.5pt",
                   fontWeight: 600,
@@ -734,6 +791,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   letterSpacing: "0.12em",
                   fontFamily: "'Inter', sans-serif",
                   color: "#1a1a1a",
+                  ...getEditableStyles(),
                 }}
               >
                 Work Experience
@@ -741,6 +799,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
               
               {workExperience.map((job, idx) => (
                 <div key={idx} style={{ marginBottom: "5.5mm", pageBreakInside: "avoid" }}>
+                  {/* Position + Company */}
                   <h4
                     style={{
                       fontSize: "10.5pt",
@@ -750,22 +809,46 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                       fontFamily: "'Inter', sans-serif",
                     }}
                   >
-                    {job.title} <span style={{ fontWeight: 400, color: "#555" }}>—</span> {job.company}
+                    <span
+                      contentEditable={isEditing}
+                      onInput={(e) => handleInput(`experience.${idx}.title`, e)}
+                      suppressContentEditableWarning
+                      style={getEditableStyles()}
+                    >
+                      {job.title}
+                    </span>
+                    <span style={{ fontWeight: 400, color: "#555" }}> — </span>
+                    <span
+                      contentEditable={isEditing}
+                      onInput={(e) => handleInput(`experience.${idx}.company`, e)}
+                      suppressContentEditableWarning
+                      style={getEditableStyles()}
+                    >
+                      {job.company}
+                    </span>
                   </h4>
-                  {job.period && (
+                  
+                  {/* Period */}
+                  {(job.period || isEditing) && (
                     <p
+                      contentEditable={isEditing}
+                      onInput={(e) => handleInput(`experience.${idx}.period`, e)}
+                      suppressContentEditableWarning
                       style={{
                         fontSize: "8.5pt",
                         color: "#666",
                         fontStyle: "italic",
                         marginBottom: "2mm",
                         fontWeight: 300,
+                        ...getEditableStyles(),
                       }}
                     >
-                      {job.period}
+                      {job.period || (isEditing ? 'Ajanjakso' : '')}
                     </p>
                   )}
-                  {job.achievements.length > 0 && (
+                  
+                  {/* Achievements/Bullets */}
+                  {(job.achievements.length > 0 || isEditing) && (
                     <ul
                       style={{
                         marginTop: "2mm",
@@ -776,21 +859,79 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                       }}
                     >
                       {job.achievements.map((achievement, achIdx) => (
-                        <li key={achIdx} style={{ marginBottom: "1.5mm", color: "#333" }}>
+                        <li 
+                          key={achIdx} 
+                          contentEditable={isEditing}
+                          onInput={(e) => handleListItemInput(`experience.${idx}.bullets`, achIdx, e)}
+                          suppressContentEditableWarning
+                          style={{ 
+                            marginBottom: "1.5mm", 
+                            color: "#333",
+                            ...getEditableStyles(),
+                          }}
+                        >
                           {achievement}
                         </li>
                       ))}
+                      {/* Lisää uusi bullet */}
+                      {isEditing && (
+                        <li
+                          onClick={() => {
+                            const newBullet = "Uusi kuvaus";
+                            onUpdate?.(`experience.${idx}.bullets.${job.achievements.length}`, newBullet);
+                          }}
+                          style={{
+                            marginBottom: "1.5mm",
+                            color: "#f97316",
+                            cursor: "pointer",
+                            fontStyle: "italic",
+                            opacity: 0.7,
+                          }}
+                        >
+                          + Lisää kohta...
+                        </li>
+                      )}
                     </ul>
                   )}
                 </div>
               ))}
+              
+              {/* Lisää uusi työpaikka */}
+              {isEditing && (
+                <div
+                  onClick={() => {
+                    const newJob = {
+                      title: "Uusi tehtävä",
+                      company: "Yritys",
+                      period: "2024 - Nykyinen",
+                      bullets: ["Kuvaus tehtävästä"]
+                    };
+                    onUpdate?.(`experience.${workExperience.length}`, newJob);
+                  }}
+                  style={{
+                    padding: "3mm",
+                    border: "2px dashed #f97316",
+                    borderRadius: "4px",
+                    textAlign: "center",
+                    color: "#f97316",
+                    cursor: "pointer",
+                    fontSize: "9pt",
+                    marginTop: "3mm",
+                  }}
+                >
+                  + Lisää työkokemus
+                </div>
+              )}
             </section>
           )}
 
-          {/* EDUCATION */}
-          {education.length > 0 && (
+          {/* ✅ EDUCATION - MUOKATTAVISSA */}
+          {(education.length > 0 || isEditing) && (
             <section style={{ marginBottom: "7mm" }}>
               <h2
+                contentEditable={isEditing}
+                onInput={(e) => handleInput("educationTitle", e)}
+                suppressContentEditableWarning
                 style={{
                   fontSize: "11.5pt",
                   fontWeight: 600,
@@ -801,6 +942,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   letterSpacing: "0.12em",
                   fontFamily: "'Inter', sans-serif",
                   color: "#1a1a1a",
+                  ...getEditableStyles(),
                 }}
               >
                 Education
@@ -808,43 +950,62 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
               
               {education.map((edu, idx) => (
                 <div key={idx} style={{ marginBottom: "5mm", pageBreakInside: "avoid" }}>
+                  {/* Degree */}
                   <h4
+                    contentEditable={isEditing}
+                    onInput={(e) => handleInput(`education.${idx}.degree`, e)}
+                    suppressContentEditableWarning
                     style={{
                       fontSize: "10pt",
                       fontWeight: 600,
                       marginBottom: "1mm",
                       fontFamily: "'Inter', sans-serif",
                       color: "#1a1a1a",
+                      ...getEditableStyles(),
                     }}
                   >
                     {edu.degree}
                   </h4>
-                  {edu.institution && (
+                  
+                  {/* Institution */}
+                  {(edu.institution || isEditing) && (
                     <p
+                      contentEditable={isEditing}
+                      onInput={(e) => handleInput(`education.${idx}.institution`, e)}
+                      suppressContentEditableWarning
                       style={{
                         fontSize: "9pt",
                         margin: "1mm 0",
                         fontWeight: 400,
                         color: "#444",
+                        ...getEditableStyles(),
                       }}
                     >
-                      {edu.institution}
+                      {edu.institution || (isEditing ? 'Oppilaitos' : '')}
                     </p>
                   )}
-                  {edu.year && (
+                  
+                  {/* Year */}
+                  {(edu.year || isEditing) && (
                     <p
+                      contentEditable={isEditing}
+                      onInput={(e) => handleInput(`education.${idx}.year`, e)}
+                      suppressContentEditableWarning
                       style={{
                         fontSize: "8.5pt",
                         color: "#666",
                         fontStyle: "italic",
                         margin: "1mm 0",
                         fontWeight: 300,
+                        ...getEditableStyles(),
                       }}
                     >
-                      {edu.year}
+                      {edu.year || (isEditing ? '2020 - 2024' : '')}
                     </p>
                   )}
-                  {edu.details.length > 0 && (
+                  
+                  {/* Details */}
+                  {(edu.details.length > 0 || isEditing) && (
                     <ul
                       style={{
                         marginTop: "2mm",
@@ -855,12 +1016,67 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                       }}
                     >
                       {edu.details.map((detail, detIdx) => (
-                        <li key={detIdx} style={{ color: "#333" }}>{detail}</li>
+                        <li 
+                          key={detIdx}
+                          contentEditable={isEditing}
+                          onInput={(e) => handleListItemInput(`education.${idx}.details`, detIdx, e)}
+                          suppressContentEditableWarning
+                          style={{ 
+                            color: "#333",
+                            ...getEditableStyles(),
+                          }}
+                        >
+                          {detail}
+                        </li>
                       ))}
+                      {/* Lisää uusi detail */}
+                      {isEditing && (
+                        <li
+                          onClick={() => {
+                            const newDetail = "Uusi lisätieto";
+                            onUpdate?.(`education.${idx}.details.${edu.details.length}`, newDetail);
+                          }}
+                          style={{
+                            color: "#f97316",
+                            cursor: "pointer",
+                            fontStyle: "italic",
+                            opacity: 0.7,
+                          }}
+                        >
+                          + Lisää lisätieto...
+                        </li>
+                      )}
                     </ul>
                   )}
                 </div>
               ))}
+              
+              {/* Lisää uusi koulutus */}
+              {isEditing && (
+                <div
+                  onClick={() => {
+                    const newEdu = {
+                      degree: "Uusi tutkinto",
+                      institution: "Oppilaitos",
+                      year: "2020 - 2024",
+                      details: ["Kuvaus"]
+                    };
+                    onUpdate?.(`education.${education.length}`, newEdu);
+                  }}
+                  style={{
+                    padding: "3mm",
+                    border: "2px dashed #f97316",
+                    borderRadius: "4px",
+                    textAlign: "center",
+                    color: "#f97316",
+                    cursor: "pointer",
+                    fontSize: "9pt",
+                    marginTop: "3mm",
+                  }}
+                >
+                  + Lisää koulutus
+                </div>
+              )}
             </section>
           )}
 
