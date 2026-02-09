@@ -6,14 +6,11 @@ import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Upload, User, Image as ImageIconLucide, Sparkles, 
-  Eye, Edit3, ChevronLeft, ChevronRight, FileText, X
+  Eye, Edit3, ChevronLeft, ChevronRight, FileText, X, Camera
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
-import { BaseCV, CVTemplateProps } from '@/types';
-import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
-import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
-import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
+import { BaseCV } from '@/types';
 import { toast } from 'sonner';
 
 export default function EditCVPage() {
@@ -30,16 +27,16 @@ export default function EditCVPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Inline editing states
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [tempValue, setTempValue] = useState<string>('');
+  // Modal states
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showBgModal, setShowBgModal] = useState(false);
   
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[];
     backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
 
-  // Carousel states for mobile image selection
+  // Carousel states
   const [profileCarouselIndex, setProfileCarouselIndex] = useState(0);
   const [bgCarouselIndex, setBgCarouselIndex] = useState(0);
 
@@ -130,10 +127,7 @@ export default function EditCVPage() {
   }, [id, userId, getToken]);
 
   // --- HANDLERS ---
-  const handleContentChange = useCallback(<K extends keyof any>(
-    key: K, 
-    value: any
-  ) => {
+  const handleContentChange = useCallback((field: string, value: any) => {
     setCvData(prev => {
       if (!prev) return prev;
       return {
@@ -142,31 +136,12 @@ export default function EditCVPage() {
           ...prev.content,
           cv_data: {
             ...prev.content.cv_data,
-            [key]: value,
+            [field]: value,
           },
         },
       };
     });
   }, []);
-
-  // Inline editing handlers
-  const startEditing = (field: string, currentValue: string) => {
-    setEditingField(field);
-    setTempValue(currentValue || '');
-    setIsEditing(true);
-  };
-
-  const cancelEditing = () => {
-    setEditingField(null);
-    setTempValue('');
-  };
-
-  const saveField = (field: string) => {
-    handleContentChange(field, tempValue);
-    setEditingField(null);
-    setTempValue('');
-    toast.success(`${field} päivitetty!`);
-  };
 
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
@@ -184,27 +159,18 @@ export default function EditCVPage() {
     reader.onloadend = async () => {
       const base64data = reader.result as string;
       
-      console.log('📤 Uploading image:', { type, size: file.size });
-      
-      // ✅ PÄIVITÄ KAIKKI POLUT
       setCvData(prev => {
         if (!prev) return prev;
         
         const updated: any = {
           ...prev,
-          // Päivitä top-level
           [type]: base64data,
-          
           content: {
             ...prev.content,
-            
-            // Päivitä cv_data
             cv_data: {
               ...prev.content.cv_data,
               [type]: base64data,
             },
-            
-            // Päivitä ai_data
             ai_data: {
               ...prev.content.ai_data,
               [type === 'profileImage' ? 'profile_image' : 'background_image']: base64data,
@@ -212,10 +178,11 @@ export default function EditCVPage() {
           },
         };
         
-        console.log('✅ Image uploaded to state');
         return updated;
       });
       
+      setShowProfileModal(false);
+      setShowBgModal(false);
       toast.success('Kuva ladattu!');
     };
     reader.readAsDataURL(file);
@@ -224,27 +191,18 @@ export default function EditCVPage() {
   const handleSelectImage = (image: UserImage, type: 'profileImage' | 'backgroundImage') => {
     const imageUrl = image.signedUrl || '';
     
-    console.log('🖼️ Selecting image:', { type, imageUrl });
-    
-    // ✅ PÄIVITÄ KAIKKI MAHDOLLISET POLUT
     setCvData(prev => {
       if (!prev) return prev;
       
       const updated: any = {
         ...prev,
-        // Päivitä top-level kentät
         [type]: imageUrl,
-        
         content: {
           ...prev.content,
-          
-          // Päivitä cv_data
           cv_data: {
             ...prev.content.cv_data,
             [type]: imageUrl,
           },
-          
-          // Päivitä ai_data
           ai_data: {
             ...prev.content.ai_data,
             [type === 'profileImage' ? 'profile_image' : 'background_image']: imageUrl,
@@ -252,15 +210,11 @@ export default function EditCVPage() {
         },
       };
       
-      console.log('✅ CV data updated:', {
-        topLevel: updated[type],
-        cvData: updated.content.cv_data[type],
-        aiData: type === 'profileImage' ? updated.content.ai_data.profile_image : updated.content.ai_data.background_image
-      });
-      
       return updated;
     });
     
+    setShowProfileModal(false);
+    setShowBgModal(false);
     toast.success('Kuva valittu!');
   };
 
@@ -275,7 +229,6 @@ export default function EditCVPage() {
       
       toast.success('✅ CV tallennettu!');
       setIsEditing(false);
-      setEditingField(null);
     } catch (error) {
       console.error('Save error:', error);
       toast.error('Tallennus epäonnistui');
@@ -285,23 +238,16 @@ export default function EditCVPage() {
   };
 
   const handleDownloadPDF = async () => {
+    if (!cvData || !userId) return;
+    
     setIsDownloading(true);
     try {
-      const token = await getToken({ template: 'supabase' });
-      if (!token) throw new Error('No authentication token');
-
-      const response = await fetch('/api/generate-cv-pdf', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ cvId: id }),
+      // Use the same approach as my-cvs page - direct API call without auth header
+      const response = await fetch(`/api/cvs/${id}/pdf`, {
+        method: 'GET',
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('PDF generation error:', errorText);
         throw new Error('PDF generation failed');
       }
       
@@ -309,15 +255,15 @@ export default function EditCVPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `CV_${cvData?.title || 'dokumentti'}.pdf`;
+      a.download = `CV_${cvData.title || 'dokumentti'}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       a.remove();
-      toast.success('PDF ladattu!');
+      toast.success('✅ PDF ladattu!');
     } catch (error) {
       console.error('PDF error:', error);
-      toast.error('PDF:n luonti epäonnistui. Yritä uudelleen hetken kuluttua.');
+      toast.error('PDF:n luonti epäonnistui');
     } finally {
       setIsDownloading(false);
     }
@@ -337,7 +283,7 @@ export default function EditCVPage() {
     }
   };
 
-  // --- CAROUSEL NAVIGATION ---
+  // Carousel navigation
   const nextProfileImage = () => {
     setProfileCarouselIndex((prev) => 
       prev === availableImages.profileImages.length - 1 ? 0 : prev + 1
@@ -362,68 +308,6 @@ export default function EditCVPage() {
     );
   };
 
-  // --- RENDER TEMPLATE FUNCTION ---
-  const renderTemplate = () => {
-    if (!cvData) return null;
-
-    const commonProps: CVTemplateProps = {
-      data: {
-        name: cvData.content?.cv_data?.name || cvData.title?.split(' - ')[0] || '',
-        email: cvData.content?.cv_data?.email || '',
-        phone: cvData.content?.cv_data?.phone || '',
-        location: cvData.content?.cv_data?.location || '',
-        language: cvData.content?.cv_data?.language || 'finnish',
-        
-        education: cvData.content?.cv_data?.education || '',
-        workExperience: cvData.content?.cv_data?.workExperience || '',
-        skills: cvData.content?.cv_data?.skills || '',
-        languages: cvData.content?.cv_data?.languages || '',
-        
-        userId: cvData.user_id,
-        cvId: cvData.id,
-        
-        title: cvData.content?.cv_data?.title || '',
-        introText: cvData.content?.cv_data?.introText || '',
-        backgroundImage: cvData.content?.cv_data?.backgroundImage || cvData.content?.ai_data?.background_image || '',
-        profileImage: cvData.content?.cv_data?.profileImage || cvData.content?.ai_data?.profile_image || '',
-        
-        workingStyle: cvData.content?.cv_data?.workingStyle || '',
-        problemSolving: cvData.content?.cv_data?.problemSolving || '',
-        energySources: cvData.content?.cv_data?.energySources || '',
-        uniqueStrength: cvData.content?.cv_data?.uniqueStrength || '',
-        learningStyle: cvData.content?.cv_data?.learningStyle || '',
-        teamRole: cvData.content?.cv_data?.teamRole || '',
-        valuesExample: cvData.content?.cv_data?.valuesExample || '',
-        superpower: cvData.content?.cv_data?.superpower || '',
-        
-        careerGoals: cvData.content?.cv_data?.careerGoals || '',
-        bestProjectExample: cvData.content?.cv_data?.bestProjectExample || '',
-        failureLesson: cvData.content?.cv_data?.failureLesson || '',
-        
-        cvType: (cvData.content?.cv_data?.cvType || 
-                  cvData.metadata?.cv_type || 
-                  'simple') as 'technical' | 'creative' | 'simple',
-      },
-      aiData: cvData.content?.ai_data || {},
-      isEditing: isEditing,
-      showEditControls: isEditing,
-      editMode: 'content',
-      onContentChange: handleContentChange
-    };
-
-    const cvType = commonProps.data.cvType;
-
-    switch (cvType) {
-      case 'technical':
-        return <TechnicalCVTemplate {...commonProps} />;
-      case 'creative':
-        return <CreativeCVTemplate {...commonProps} />;
-      case 'simple':
-      default:
-        return <SimpleCVTemplate {...commonProps} />;
-    }
-  };
-
   // --- LOADING STATE ---
   if (isLoading || !cvData) {
     return (
@@ -434,16 +318,110 @@ export default function EditCVPage() {
     );
   }
 
-  // --- EXTRACT CURRENT IMAGES ---
   const currentBg = cvData.content?.cv_data?.backgroundImage || cvData.content?.ai_data?.background_image || '';
   const currentProfile = cvData.content?.cv_data?.profileImage || cvData.content?.ai_data?.profile_image || '';
 
-  // Get editable fields
+  // Get all content
   const name = cvData.content?.cv_data?.name || '';
   const email = cvData.content?.cv_data?.email || '';
   const phone = cvData.content?.cv_data?.phone || '';
   const location = cvData.content?.cv_data?.location || '';
   const title = cvData.content?.cv_data?.title || '';
+
+  // --- EDITABLE TEXT COMPONENT ---
+  const EditableText = ({ 
+    field, 
+    value, 
+    placeholder = 'Klikkaa muokataksesi',
+    multiline = false,
+    className = '',
+    style = {}
+  }: { 
+    field: string; 
+    value: string; 
+    placeholder?: string;
+    multiline?: boolean;
+    className?: string;
+    style?: React.CSSProperties;
+  }) => {
+    const [isLocalEditing, setIsLocalEditing] = useState(false);
+    const [tempValue, setTempValue] = useState(value);
+
+    useEffect(() => {
+      setTempValue(value);
+    }, [value]);
+
+    const handleSave = () => {
+      handleContentChange(field, tempValue);
+      setIsLocalEditing(false);
+      toast.success('Päivitetty!');
+    };
+
+    const handleCancel = () => {
+      setTempValue(value);
+      setIsLocalEditing(false);
+    };
+
+    if (isEditing && isLocalEditing) {
+      return (
+        <div className="relative inline-block w-full">
+          {multiline ? (
+            <textarea
+              value={tempValue}
+              onChange={(e) => setTempValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') handleCancel();
+                if (e.key === 'Enter' && e.ctrlKey) handleSave();
+              }}
+              className="w-full px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-orange-400 rounded outline-none"
+              style={style}
+              autoFocus
+              rows={4}
+            />
+          ) : (
+            <input
+              type="text"
+              value={tempValue}
+              onChange={(e) => setTempValue(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') handleCancel();
+                if (e.key === 'Enter') handleSave();
+              }}
+              className="w-full px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-orange-400 rounded outline-none"
+              style={style}
+              autoFocus
+            />
+          )}
+          <div className="absolute -top-6 right-0 flex gap-1 text-xs">
+            <button
+              onClick={handleSave}
+              className="px-2 py-0.5 bg-green-500 text-white rounded"
+            >
+              ✓
+            </button>
+            <button
+              onClick={handleCancel}
+              className="px-2 py-0.5 bg-gray-500 text-white rounded"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        onClick={() => isEditing && setIsLocalEditing(true)}
+        className={`${className} ${isEditing ? 'cursor-pointer hover:bg-orange-50/30 dark:hover:bg-orange-900/10 transition-colors rounded px-1' : ''}`}
+        style={style}
+      >
+        {value || placeholder}
+      </div>
+    );
+  };
 
   // --- MAIN RENDER ---
   return (
@@ -460,7 +438,6 @@ export default function EditCVPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             
-            {/* LEFT: Back + Title */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <button 
                 onClick={() => router.push('/my-cvs')}
@@ -479,7 +456,6 @@ export default function EditCVPage() {
               </div>
             </div>
             
-            {/* RIGHT: Action Buttons */}
             <div className="flex items-center gap-2 flex-shrink-0">
               {!isEditing ? (
                 <button 
@@ -492,10 +468,7 @@ export default function EditCVPage() {
               ) : (
                 <>
                   <button 
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditingField(null);
-                    }}
+                    onClick={() => setIsEditing(false)}
                     className="px-3 h-9 sm:h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-xs sm:text-sm font-semibold flex items-center gap-1"
                   >
                     <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -531,406 +504,454 @@ export default function EditCVPage() {
         </div>
       </div>
 
-      {/* MAIN CONTENT GRID */}
+      {/* MAIN CONTENT */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
-          
-          {/* LEFT SIDEBAR - Image Controls + Text Editing */}
-          <div className="lg:col-span-3 space-y-4">
-            
-            {/* EDITABLE FIELDS CARD */}
-            {isEditing && (
-              <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded-xl">
-                    <Edit3 className="w-4 h-4 text-blue-500" />
-                  </div>
-                  <h3 className="text-sm font-black uppercase tracking-wider">Muokkaa tietoja</h3>
+        
+        {/* Info Banner */}
+        {isEditing && (
+          <div className="mb-6 p-4 sm:p-6 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 border-2 border-orange-200 dark:border-orange-800 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm sm:text-lg font-bold text-orange-600 dark:text-orange-400 mb-2">
+                  💡 Muokkaa CV:tä klikkaamalla
+                </h4>
+                <ul className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                  <li>• <strong>Klikkaa mitä tahansa tekstiä</strong> muokataksesi sitä</li>
+                  <li>• <strong>Klikkaa kuvia</strong> vaihtaaksesi profiilikuvan tai taustakuvan</li>
+                  <li>• Tallenna <kbd className="px-1 py-0.5 bg-white dark:bg-gray-800 rounded border">Enter</kbd>, peruuta <kbd className="px-1 py-0.5 bg-white dark:bg-gray-800 rounded border">Esc</kbd></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CV PREVIEW */}
+        <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-6 overflow-hidden">
+          <div className="overflow-x-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800">
+            <div 
+              className="origin-top transition-transform duration-300 bg-white shadow-2xl my-4"
+              style={{
+                width: '210mm',
+                minHeight: '297mm',
+                transform: isMobile ? 'scale(0.35)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.75)',
+                transformOrigin: 'top center',
+                fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
+              }}
+            >
+              {/* Google Fonts */}
+              <link
+                href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+                rel="stylesheet"
+              />
+
+              {/* LEFT COLUMN - DARK */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: "70mm",
+                  height: "297mm",
+                  background: "linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%)",
+                  color: "white",
+                }}
+              >
+                {/* PROFILE IMAGE - Clickable */}
+                <div 
+                  style={{ width: "100%", height: "85mm", overflow: "hidden", position: "relative" }}
+                  className={isEditing ? "group cursor-pointer" : ""}
+                  onClick={() => isEditing && setShowProfileModal(true)}
+                >
+                  {currentProfile ? (
+                    <>
+                      <img
+                        src={currentProfile}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        style={{ filter: "contrast(1.05) brightness(0.95)" }}
+                      />
+                      {isEditing && (
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Camera className="w-12 h-12 text-white" />
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div 
+                      className={`w-full h-full flex items-center justify-center ${isEditing ? 'hover:bg-gray-700' : ''}`}
+                      style={{
+                        fontSize: "48pt",
+                        fontWeight: 300,
+                        background: "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)",
+                        fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "0.05em"
+                      }}
+                    >
+                      {name.substring(0, 2).toUpperCase() || "??"}
+                      {isEditing && (
+                        <Camera className="absolute w-12 h-12 text-white/50" />
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-3">
-                  {/* Name */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Nimi</label>
-                    {editingField === 'name' ? (
-                      <div className="flex gap-1">
-                        <input
-                          type="text"
-                          value={tempValue}
-                          onChange={(e) => setTempValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveField('name');
-                            if (e.key === 'Escape') cancelEditing();
-                          }}
-                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
-                          autoFocus
-                        />
-                        <button onClick={() => saveField('name')} className="px-2 bg-green-500 text-white rounded-lg">
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => startEditing('name', name)}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
-                      >
-                        {name || 'Klikkaa muokataksesi'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Email */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Sähköposti</label>
-                    {editingField === 'email' ? (
-                      <div className="flex gap-1">
-                        <input
-                          type="email"
-                          value={tempValue}
-                          onChange={(e) => setTempValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveField('email');
-                            if (e.key === 'Escape') cancelEditing();
-                          }}
-                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
-                          autoFocus
-                        />
-                        <button onClick={() => saveField('email')} className="px-2 bg-green-500 text-white rounded-lg">
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => startEditing('email', email)}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
-                      >
-                        {email || 'Klikkaa muokataksesi'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Phone */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Puhelin</label>
-                    {editingField === 'phone' ? (
-                      <div className="flex gap-1">
-                        <input
-                          type="tel"
-                          value={tempValue}
-                          onChange={(e) => setTempValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveField('phone');
-                            if (e.key === 'Escape') cancelEditing();
-                          }}
-                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
-                          autoFocus
-                        />
-                        <button onClick={() => saveField('phone')} className="px-2 bg-green-500 text-white rounded-lg">
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => startEditing('phone', phone)}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
-                      >
-                        {phone || 'Klikkaa muokataksesi'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Location */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Sijainti</label>
-                    {editingField === 'location' ? (
-                      <div className="flex gap-1">
-                        <input
-                          type="text"
-                          value={tempValue}
-                          onChange={(e) => setTempValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveField('location');
-                            if (e.key === 'Escape') cancelEditing();
-                          }}
-                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
-                          autoFocus
-                        />
-                        <button onClick={() => saveField('location')} className="px-2 bg-green-500 text-white rounded-lg">
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => startEditing('location', location)}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
-                      >
-                        {location || 'Klikkaa muokataksesi'}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Title */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-1 block">Ammattinimike</label>
-                    {editingField === 'title' ? (
-                      <div className="flex gap-1">
-                        <input
-                          type="text"
-                          value={tempValue}
-                          onChange={(e) => setTempValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') saveField('title');
-                            if (e.key === 'Escape') cancelEditing();
-                          }}
-                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border-2 border-orange-300 rounded-lg text-sm"
-                          autoFocus
-                        />
-                        <button onClick={() => saveField('title')} className="px-2 bg-green-500 text-white rounded-lg">
-                          <Save className="w-4 h-4" />
-                        </button>
-                        <button onClick={cancelEditing} className="px-2 bg-gray-500 text-white rounded-lg">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => startEditing('title', title)}
-                        className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-left transition-colors"
-                      >
-                        {title || 'Klikkaa muokataksesi'}
-                      </button>
-                    )}
-                  </div>
+                {/* SKILLS SECTION */}
+                <div style={{ padding: "7mm 8mm" }}>
+                  <h2
+                    style={{
+                      fontSize: "13pt",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.18em",
+                      borderBottom: "1.5px solid rgba(255,255,255,0.25)",
+                      paddingBottom: "3.5mm",
+                      marginBottom: "5mm",
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    Taidot
+                  </h2>
+                  
+                  <EditableText
+                    field="skills"
+                    value={cvData.content?.cv_data?.skills || ''}
+                    placeholder="Klikkaa lisätäksesi taitoja"
+                    multiline
+                    style={{
+                      fontSize: "8.5pt",
+                      lineHeight: 1.65,
+                      fontWeight: 300,
+                      fontFamily: "'Inter', sans-serif",
+                      color: "rgba(255,255,255,0.92)",
+                    }}
+                  />
                 </div>
               </div>
-            )}
-            
-            {/* Profile Picture Card */}
-            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="bg-orange-500/10 border border-orange-500/20 p-2 rounded-xl">
-                  <User className="w-4 h-4 text-orange-500" />
-                </div>
-                <h3 className="text-sm font-black uppercase tracking-wider">Profiilikuva</h3>
-              </div>
-              
-              {/* Current Profile Image */}
-              <div className="relative w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-orange-500/20 shadow-lg bg-gray-100 dark:bg-gray-800">
-                {currentProfile ? (
-                  <img src={currentProfile} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-12 h-12 text-gray-400 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" />
-                )}
-              </div>
 
-              {/* Upload Button */}
-              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors mb-4">
-                <Upload className="w-4 h-4" />
-                Lataa uusi
+              {/* RIGHT COLUMN - LIGHT */}
+              <div
+                style={{
+                  marginLeft: "70mm",
+                  width: "140mm",
+                  height: "297mm",
+                }}
+              >
+                {/* HEADER WITH BACKGROUND - Clickable */}
+                <div
+                  style={{
+                    height: "85mm",
+                    position: "relative",
+                    backgroundImage: currentBg
+                      ? `url(${currentBg})`
+                      : "linear-gradient(135deg, #2c3e50 0%, #34495e 100%)",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    color: "white",
+                  }}
+                  className={isEditing ? "group cursor-pointer" : ""}
+                  onClick={() => isEditing && setShowBgModal(true)}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)",
+                    }}
+                  />
+                  
+                  {isEditing && (
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Camera className="w-16 h-16 text-white" />
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      position: "relative",
+                      zIndex: 10,
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      textAlign: "center",
+                      padding: "10mm",
+                    }}
+                  >
+                    <EditableText
+                      field="name"
+                      value={name}
+                      placeholder="Nimesi"
+                      style={{
+                        fontSize: "30pt",
+                        fontWeight: 700,
+                        marginBottom: "2mm",
+                        fontFamily: "'Playfair Display', serif",
+                        letterSpacing: "0.02em",
+                        textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
+                      }}
+                    />
+                    
+                    <EditableText
+                      field="title"
+                      value={title}
+                      placeholder="Ammattinimike"
+                      style={{
+                        fontSize: "13pt",
+                        marginTop: "2mm",
+                        marginBottom: "4mm",
+                        fontWeight: 400,
+                        fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        opacity: 0.95,
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        marginTop: "4mm",
+                        fontSize: "8.5pt",
+                        opacity: 0.92,
+                        display: "flex",
+                        gap: "7mm",
+                        flexWrap: "wrap",
+                        justifyContent: "center",
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 300,
+                      }}
+                    >
+                      <EditableText
+                        field="email"
+                        value={email ? `✉ ${email}` : ''}
+                        placeholder="✉ sähköposti"
+                      />
+                      <EditableText
+                        field="phone"
+                        value={phone ? `☎ ${phone}` : ''}
+                        placeholder="☎ puhelin"
+                      />
+                      <EditableText
+                        field="location"
+                        value={location ? `⚲ ${location}` : ''}
+                        placeholder="⚲ sijainti"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* CONTENT AREA */}
+                <div style={{ 
+                  padding: "9mm 10mm", 
+                  fontSize: "9.5pt", 
+                  lineHeight: 1.55,
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 300,
+                }}>
+                  
+                  {/* WORK EXPERIENCE */}
+                  <section style={{ marginBottom: "7mm" }}>
+                    <h2
+                      style={{
+                        fontSize: "11.5pt",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        borderBottom: "2px solid #1a1a1a",
+                        paddingBottom: "2mm",
+                        marginBottom: "4mm",
+                        letterSpacing: "0.12em",
+                        fontFamily: "'Inter', sans-serif",
+                        color: "#1a1a1a",
+                      }}
+                    >
+                      Työkokemus
+                    </h2>
+                    
+                    <EditableText
+                      field="workExperience"
+                      value={cvData.content?.cv_data?.workExperience || ''}
+                      placeholder="Klikkaa lisätäksesi työkokemusta"
+                      multiline
+                      style={{
+                        fontSize: "9pt",
+                        lineHeight: 1.6,
+                        fontWeight: 300,
+                      }}
+                    />
+                  </section>
+
+                  {/* EDUCATION */}
+                  <section style={{ marginBottom: "7mm" }}>
+                    <h2
+                      style={{
+                        fontSize: "11.5pt",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        borderBottom: "2px solid #1a1a1a",
+                        paddingBottom: "2mm",
+                        marginBottom: "4mm",
+                        letterSpacing: "0.12em",
+                        fontFamily: "'Inter', sans-serif",
+                        color: "#1a1a1a",
+                      }}
+                    >
+                      Koulutus
+                    </h2>
+                    
+                    <EditableText
+                      field="education"
+                      value={cvData.content?.cv_data?.education || ''}
+                      placeholder="Klikkaa lisätäksesi koulutusta"
+                      multiline
+                      style={{
+                        fontSize: "8.5pt",
+                        lineHeight: 1.6,
+                        fontWeight: 300,
+                      }}
+                    />
+                  </section>
+
+                  {/* LANGUAGES */}
+                  <section>
+                    <h2
+                      style={{
+                        fontSize: "11.5pt",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        borderBottom: "2px solid #1a1a1a",
+                        paddingBottom: "2mm",
+                        marginBottom: "4mm",
+                        letterSpacing: "0.12em",
+                        fontFamily: "'Inter', sans-serif",
+                        color: "#1a1a1a",
+                      }}
+                    >
+                      Kielet
+                    </h2>
+                    
+                    <EditableText
+                      field="languages"
+                      value={cvData.content?.cv_data?.languages || ''}
+                      placeholder="Klikkaa lisätäksesi kieliä"
+                      multiline
+                      style={{
+                        fontSize: "9.5pt",
+                        lineHeight: 1.6,
+                        color: "#333",
+                        fontWeight: 300,
+                      }}
+                    />
+                  </section>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* PROFILE IMAGE MODAL */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <User className="w-6 h-6 text-orange-500" />
+                Valitse profiilikuva
+              </h3>
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {/* Upload */}
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-orange-500/10 hover:bg-orange-500/20 border-2 border-dashed border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors mb-6">
+                <Upload className="w-5 h-5" />
+                Lataa uusi kuva
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
               </label>
 
-              {/* Available Images - Mobile Carousel / Desktop Grid */}
-              {availableImages.profileImages.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 font-bold uppercase tracking-wider">Valitse kuva:</p>
-                  
-                  {isMobile && availableImages.profileImages.length > 4 ? (
-                    // MOBILE CAROUSEL
-                    <div className="relative">
-                      <div className="overflow-hidden rounded-xl">
-                        <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${profileCarouselIndex * 100}%)` }}>
-                          {availableImages.profileImages.map((img) => (
-                            <button 
-                              key={img.id}
-                              onClick={() => handleSelectImage(img, 'profileImage')}
-                              className={`w-full flex-shrink-0 aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                                currentProfile === img.signedUrl 
-                                  ? 'border-orange-500 ring-4 ring-orange-500/30' 
-                                  : 'border-gray-200 dark:border-gray-700'
-                              }`}
-                            >
-                              <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
-                              {img.is_ai_generated && (
-                                <div className="absolute top-2 right-2 bg-purple-500 rounded-lg p-1">
-                                  <Sparkles className="w-3 h-3 text-white" />
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
+              {/* Grid */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                {availableImages.profileImages.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => handleSelectImage(img, 'profileImage')}
+                    className={`aspect-square rounded-xl overflow-hidden border-2 transition-all relative ${
+                      currentProfile === img.signedUrl 
+                        ? 'border-orange-500 ring-4 ring-orange-500/30 scale-95' 
+                        : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 hover:scale-105'
+                    }`}
+                  >
+                    <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                    {img.is_ai_generated && (
+                      <div className="absolute bottom-1 right-1 bg-purple-500 rounded-lg p-1">
+                        <Sparkles className="w-3 h-3 text-white" />
                       </div>
-                      <div className="flex justify-center items-center gap-3 mt-3">
-                        <button onClick={prevProfileImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="text-xs font-bold">{profileCarouselIndex + 1} / {availableImages.profileImages.length}</span>
-                        <button onClick={nextProfileImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    // DESKTOP GRID
-                    <div className="grid grid-cols-4 gap-2">
-                      {availableImages.profileImages.slice(0, 8).map((img) => (
-                        <button 
-                          key={img.id}
-                          onClick={() => handleSelectImage(img, 'profileImage')}
-                          className={`aspect-square rounded-xl overflow-hidden border-2 transition-all relative ${
-                            currentProfile === img.signedUrl 
-                              ? 'border-orange-500 ring-2 ring-orange-500/30 scale-105' 
-                              : 'border-gray-200 dark:border-gray-700 hover:border-orange-300'
-                          }`}
-                        >
-                          <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
-                          {img.is_ai_generated && (
-                            <div className="absolute bottom-0 right-0 bg-purple-500 rounded-tl-lg p-0.5">
-                              <Sparkles className="w-2 h-2 text-white" />
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BACKGROUND IMAGE MODAL */}
+      {showBgModal && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <ImageIconLucide className="w-6 h-6 text-amber-500" />
+                Valitse taustakuva
+              </h3>
+              <button
+                onClick={() => setShowBgModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Background Image Card */}
-            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl">
-                  <ImageIconLucide className="w-4 h-4 text-amber-500" />
-                </div>
-                <h3 className="text-sm font-black uppercase tracking-wider">Taustakuva</h3>
-              </div>
-
-              {/* Upload Button */}
-              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold transition-colors mb-4">
-                <Upload className="w-4 h-4" />
-                Lataa taustakuva
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {/* Upload */}
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold transition-colors mb-6">
+                <Upload className="w-5 h-5" />
+                Lataa uusi taustakuva
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'backgroundImage')} />
               </label>
 
-              {/* Available Background Images */}
-              {availableImages.backgroundImages.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Valitse tausta:</p>
-                    <span className="text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-bold border border-amber-500/30">
-                      {availableImages.backgroundImages.length}
-                    </span>
-                  </div>
-                  
-                  {isMobile && availableImages.backgroundImages.length > 2 ? (
-                    // MOBILE CAROUSEL
-                    <div className="relative">
-                      <div className="overflow-hidden rounded-xl">
-                        <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${bgCarouselIndex * 100}%)` }}>
-                          {availableImages.backgroundImages.map((img) => (
-                            <button
-                              key={img.id}
-                              onClick={() => handleSelectImage(img, 'backgroundImage')}
-                              className={`w-full flex-shrink-0 aspect-video rounded-xl overflow-hidden border-2 relative transition-all ${
-                                currentBg === img.signedUrl 
-                                  ? 'border-amber-500 ring-4 ring-amber-500/30' 
-                                  : 'border-gray-200 dark:border-gray-700'
-                              }`}
-                            >
-                              <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
-                              {img.is_ai_generated && (
-                                <div className="absolute top-2 right-2 bg-purple-500 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  <Sparkles className="w-2.5 h-2.5" />
-                                  AI
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
+              {/* Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {availableImages.backgroundImages.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => handleSelectImage(img, 'backgroundImage')}
+                    className={`aspect-video rounded-xl overflow-hidden border-2 transition-all relative ${
+                      currentBg === img.signedUrl 
+                        ? 'border-amber-500 ring-4 ring-amber-500/30 scale-95' 
+                        : 'border-gray-200 dark:border-gray-700 hover:border-amber-300 hover:scale-105'
+                    }`}
+                  >
+                    <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                    {img.is_ai_generated && (
+                      <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        AI
                       </div>
-                      <div className="flex justify-center items-center gap-3 mt-3">
-                        <button onClick={prevBgImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-                          <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="text-xs font-bold">{bgCarouselIndex + 1} / {availableImages.backgroundImages.length}</span>
-                        <button onClick={nextBgImage} className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-                          <ChevronRight className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    // DESKTOP GRID
-                    <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto custom-scrollbar">
-                      {availableImages.backgroundImages.map((img) => (
-                        <button
-                          key={img.id}
-                          onClick={() => handleSelectImage(img, 'backgroundImage')}
-                          className={`aspect-video rounded-xl overflow-hidden border-2 relative group transition-all ${
-                            currentBg === img.signedUrl 
-                              ? 'border-amber-500 ring-2 ring-amber-500/30 scale-105' 
-                              : 'border-gray-200 dark:border-gray-700 hover:border-amber-300'
-                          }`}
-                        >
-                          <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
-                          {img.is_ai_generated && (
-                            <div className="absolute top-1.5 right-1.5 bg-purple-500 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/20">
-                              <Sparkles className="w-2.5 h-2.5" />
-                              AI
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* CENTER: CV PREVIEW */}
-          <div className="lg:col-span-9">
-            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-6 overflow-hidden">
-              <div className="overflow-x-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800">
-                <div 
-                  className="origin-top transition-transform duration-300 bg-white shadow-2xl my-4"
-                  style={{
-                    width: '210mm',
-                    minHeight: '297mm',
-                    transform: isMobile ? 'scale(0.35)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.75)',
-                    transformOrigin: 'top center'
-                  }}
-                >
-                  {renderTemplate()}
-                </div>
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
-
-            {/* Info */}
-            {isEditing && (
-              <div className="mt-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                <p className="text-sm font-bold text-blue-900 dark:text-blue-100 flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  Klikkaa tekstikenttiä vasemmalla muokataksesi niitä!
-                </p>
-              </div>
-            )}
           </div>
-
         </div>
-      </div>
+      )}
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
