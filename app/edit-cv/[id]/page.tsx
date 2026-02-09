@@ -1,6 +1,7 @@
-// app/edit-cv/[id]/page.tsx - PÄIVITETTY VERSIO
+// app/edit-cv/[id]/page.tsx - TÄYSI VERSIO 900+ RIVIÄ
 // ✅ Sama inline-muokkaus kuin cover letterissä
 // ✅ Tallennuslogiikka korjattu
+// ✅ EditableOverlay sisältyy
 
 'use client';
 
@@ -345,10 +346,6 @@ export default function EditCVPage() {
 
   const [inlineEdits, setInlineEdits] = useState<Record<string, string>>({});
 
-  // Inline editing states
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [tempValue, setTempValue] = useState<string>('');
-
   // ── DETECT MOBILE ──
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -640,7 +637,10 @@ export default function EditCVPage() {
         <TemplateComponent 
           data={cvDataProps} 
           aiData={aiDataProps} 
-          isEditing={false}
+          isEditing={isEditing}
+          onUpdate={handleInlineEdit}
+          showEditControls={false}
+          editMode={null}
         />
       </CVContainer>
     );
