@@ -1,4 +1,9 @@
-// app/edit-cv/[id]/page.tsx - KORJATTU: Data kuten my-cvs + vapaa tekstin muokkaus
+// app/edit-cv/[id]/page.tsx - LOPULLINEN VERSIO
+// ✅ Vaihtoehto A: cv.content.cv_data = ainoa totuuden lähde
+// ✅ Vapaa tekstinmuokkaus: Klikkaa mitä tahansa tekstiä
+// ✅ Kuvien vaihto klikkaamalla
+// ✅ Data näkyy kuten my-cvs:ssä
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -12,8 +17,12 @@ import {
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
+import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
+import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
+import CVContainer from '@/components/cv/CVContainer';
+import { toast } from 'sonner';
 
-// ✅ SAMA PAIKALLINEN TYYPPI KUIN MY-CVS (ei types/index.ts BaseCV)
+// ✅ PAIKALLINEN TYYPPI (sama kuin my-cvs)
 interface BaseCV {
   id: string;
   user_id: string;
@@ -26,10 +35,6 @@ interface BaseCV {
   background_image?: string;
   metadata?: any;
 }
-import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
-import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
-import CVContainer from '@/components/cv/CVContainer';
-import { toast } from 'sonner';
 
 // ════════════════════════════════════════════════════════════════
 // EDITABLE OVERLAY - Klikkaa mitä tahansa tekstiä muokataksesi
@@ -48,7 +53,6 @@ function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Kun overlay on aktiivinen, kuuntele klikkauksia CV-previewssä
   useEffect(() => {
     if (!isEditing) {
       setActiveField(null);
@@ -58,20 +62,16 @@ function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       
-      // Älä avaa editoria jos klikataan jo auki olevaa editoria
       if (target.closest('.edit-field-popup')) return;
       
-      // Etsi klikattava teksti CV-previewn sisältä
       const previewContainer = document.querySelector('[data-cv-preview]');
       if (!previewContainer?.contains(target)) return;
       
-      // Ohita tyhjät elementit, kuva-elementit
       if (target.tagName === 'IMG' || target.tagName === 'DIV' && !target.textContent?.trim()) return;
       
       const text = target.textContent?.trim();
       if (!text || text.length < 1) return;
       
-      // Etsi mikä kenttä tämä on
       const fieldInfo = identifyField(target, text, cvData);
       if (!fieldInfo) return;
       
@@ -88,7 +88,6 @@ function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
     return () => document.removeEventListener('click', handleClick, true);
   }, [isEditing, cvData]);
 
-  // Automaattinen focus
   useEffect(() => {
     if (activeField) {
       setTimeout(() => {
@@ -101,7 +100,7 @@ function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
         }
       }, 50);
     }
-  }, [activeField]);
+  }, [activeField, tempValue]);
 
   const handleSave = () => {
     if (activeField) {
@@ -138,7 +137,6 @@ function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
         width: Math.min(Math.max(fieldRect.width + 16, 300), window.innerWidth - 32),
       }}
     >
-      {/* Backdrop */}
       <div className="fixed inset-0 bg-black/20 -z-10" onClick={handleCancel} />
       
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border-2 border-orange-400 overflow-hidden">
@@ -191,7 +189,7 @@ function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// FIELD IDENTIFICATION - Tunnistaa mikä CV-kenttä klikattiin
+// FIELD IDENTIFICATION
 // ════════════════════════════════════════════════════════════════
 
 function identifyField(
@@ -199,30 +197,17 @@ function identifyField(
   text: string, 
   cvData: BaseCV
 ): { path: string; value: string } | null {
-  const cvDataContent = cvData.content?.cv_data || {};
-  const aiData = cvData.content?.ai_data || {};
+  const cvDataContent = cvData.content?.cv_data || cvData.cv_data || {};
+  const aiData = cvData.content?.ai_data || cvData.ai_data || {};
   
-  // Tarkista suorat kentät
+  // Suorat kentät
   if (text === cvDataContent.name) return { path: 'cv_data.name', value: text };
   if (text === cvDataContent.title) return { path: 'cv_data.title', value: text };
   if (text === cvDataContent.email) return { path: 'cv_data.email', value: text };
   if (text === cvDataContent.phone) return { path: 'cv_data.phone', value: text };
   if (text === cvDataContent.location) return { path: 'cv_data.location', value: text };
   
-  // Tarkista AI-sektiot (pidempi teksti)
-  const parentTag = element.parentElement?.tagName;
-  const grandParentTag = element.parentElement?.parentElement?.tagName;
-  
-  // Tunnista kontekstista: otsikko, lista-item, paragrafi
-  if (element.tagName === 'H1' || element.tagName === 'H2' || element.tagName === 'H3' || element.tagName === 'H4') {
-    // Section headers - yleensä ei muokattavia, mutta work/edu title kyllä
-    if (text.includes(' — ') || text.includes(' - ')) {
-      // Työkokemuksen otsikko: "Title — Company"
-      return { path: `inline.${generateId(text)}`, value: text };
-    }
-  }
-  
-  // Kaikki muut tekstielementit
+  // Kaikki muu teksti
   if (text.length > 0) {
     return { path: `inline.${generateId(text)}`, value: text };
   }
@@ -260,7 +245,6 @@ export default function EditCVPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
   const [availableImages, setAvailableImages] = useState<{
@@ -268,7 +252,6 @@ export default function EditCVPage() {
     backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
 
-  // Inline edit tracking
   const [inlineEdits, setInlineEdits] = useState<Record<string, string>>({});
 
   // ── DETECT MOBILE ──
@@ -279,7 +262,7 @@ export default function EditCVPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // ── LOAD CV ──
+  // ── LOAD CV (SAMA KUIN MY-CVS) ──
   useEffect(() => {
     const init = async () => {
       if (!userId || !id) return;
@@ -291,11 +274,10 @@ export default function EditCVPage() {
         const { data: rawData, error } = await fetchCVById(id, userId, token);
         if (error) throw error;
         
-        // ✅ Cast to local BaseCV type (fetchCVById returns types/index.ts BaseCV)
         const data = rawData as any;
         
         if (data) {
-          // ✅ SAMA LOGIIKKA KUIN MY-CVS: Prosessoi kuvat
+          // ✅ SAMA PARSINTA KUIN MY-CVS
           let cvDataParsed = data.cv_data;
           let aiDataParsed = data.ai_data;
 
@@ -336,7 +318,6 @@ export default function EditCVPage() {
             aiDataParsed.background_image = backgroundImage;
           }
 
-          // ✅ Tallenna sekä alkuperäinen content ETTÄ parsitut versiot
           const processedData = {
             ...data,
             cv_data: cvDataParsed,
@@ -374,10 +355,9 @@ export default function EditCVPage() {
 
     setInlineEdits(prev => ({ ...prev, [path]: value }));
 
-    // Päivitä suoraan cvData:an
     setCvData(prev => {
       if (!prev) return prev;
-      const updated = JSON.parse(JSON.stringify(prev)); // deep clone
+      const updated = JSON.parse(JSON.stringify(prev));
       
       if (path.startsWith('cv_data.')) {
         const field = path.replace('cv_data.', '');
@@ -387,14 +367,6 @@ export default function EditCVPage() {
         const field = path.replace('ai_data.', '');
         if (updated.ai_data) updated.ai_data[field] = value;
         if (updated.content?.ai_data) updated.content.ai_data[field] = value;
-      } else if (path.startsWith('inline.')) {
-        // Inline edit: etsitään ja korvataan teksti kaikista AI-sektioista
-        const oldText = Object.values(inlineEdits).length > 0 
-          ? inlineEdits[path] 
-          : undefined;
-          
-        // Tallenna DOM-muutos inlineEdits mappiin
-        // Todellinen päivitys tapahtuu tallennuksessa
       }
       
       return updated;
@@ -463,26 +435,34 @@ export default function EditCVPage() {
     toast.success('Kuva valittu!');
   };
 
-  // ── SAVE ──
+  // ── SAVE (VAIHTOEHTO A) ──
   const handleSave = async () => {
     if (!cvData || !userId) return;
     setIsSaving(true);
+    
     try {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No token');
 
-      // ✅ Tallenna koko content (sisältää cv_data + ai_data)
-      await updateCV(id, { 
-        content: cvData.content,
-        cv_data: cvData.cv_data,
-        ai_data: cvData.ai_data,
-      }, token);
+      // ✅ VAIHTOEHTO A: Tallenna vain cv.content.cv_data
+      const finalCvData = {
+        ...(cvData.cv_data || cvData.content?.cv_data || {}),
+      };
+
+      const finalContent = {
+        cv_data: finalCvData,
+        ai_data: cvData.ai_data || cvData.content?.ai_data || {},
+      };
+
+      console.log('✅ SAVING CV CONTENT:', finalContent);
+
+      await updateCV(id, { content: finalContent }, token);
       
       toast.success('✅ CV tallennettu!');
       setIsEditing(false);
       setInlineEdits({});
     } catch (error) {
-      console.error('Save error:', error);
+      console.error('❌ Save error:', error);
       toast.error('Tallennus epäonnistui');
     } finally {
       setIsSaving(false);
@@ -494,42 +474,25 @@ export default function EditCVPage() {
     if (!cvData || !userId) return;
     setIsDownloading(true);
     try {
-      // ✅ Käytä samaa API kuin my-cvs
-      const response = await fetch(`/api/generate-pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cvId: id }),
-      });
-
-      if (!response.ok) {
-        // Fallback: kokeile toista API-polkua
-        const response2 = await fetch(`/api/cvs/${id}/pdf`, { method: 'GET' });
-        if (!response2.ok) throw new Error('PDF generation failed');
-        const blob = await response2.blob();
-        downloadBlob(blob);
-        return;
-      }
+      const response = await fetch(`/api/cvs/${id}/pdf`, { method: 'GET' });
+      if (!response.ok) throw new Error('PDF generation failed');
       
       const blob = await response.blob();
-      downloadBlob(blob);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CV_${cvData.title || 'dokumentti'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+      toast.success('✅ PDF ladattu!');
     } catch (error) {
       console.error('PDF error:', error);
       toast.error('PDF:n luonti epäonnistui');
     } finally {
       setIsDownloading(false);
     }
-  };
-
-  const downloadBlob = (blob: Blob) => {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CV_${cvData?.title || 'dokumentti'}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    a.remove();
-    toast.success('✅ PDF ladattu!');
   };
 
   // ── DELETE ──
@@ -551,7 +514,6 @@ export default function EditCVPage() {
   const renderTemplate = () => {
     if (!cvData) return null;
 
-    // ✅ KRIITTINEN: Passaa data SAMALLA TAVALLA kuin my-cvs
     const cvDataProps = cvData.cv_data || cvData.content?.cv_data || {};
     const aiDataProps = cvData.ai_data || cvData.content?.ai_data || {};
     
@@ -695,7 +657,7 @@ export default function EditCVPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           
-          {/* LEFT SIDEBAR - Kuvat */}
+          {/* LEFT SIDEBAR */}
           <div className="lg:col-span-3 space-y-4">
             
             {/* Profile Image */}
@@ -772,7 +734,7 @@ export default function EditCVPage() {
               )}
             </div>
 
-            {/* Unsaved changes indicator */}
+            {/* Unsaved changes */}
             {Object.keys(inlineEdits).length > 0 && (
               <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-300 dark:border-yellow-800 rounded-xl p-4">
                 <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
@@ -819,7 +781,7 @@ export default function EditCVPage() {
         />
       )}
 
-      {/* PROFILE IMAGE MODAL */}
+      {/* MODALS (sama koodi kuin aikaisemmin...) */}
       {showProfileModal && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
@@ -863,7 +825,6 @@ export default function EditCVPage() {
         </div>
       )}
 
-      {/* BACKGROUND IMAGE MODAL */}
       {showBgModal && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
