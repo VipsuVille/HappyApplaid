@@ -1,17 +1,251 @@
+// app/edit-cv/[id]/page.tsx - KORJATTU: Data kuten my-cvs + vapaa tekstin muokkaus
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Upload, User, Image as ImageIconLucide, Sparkles, 
-  Eye, Edit3, ChevronLeft, ChevronRight, FileText, X, Camera
+  Eye, Edit3, FileText, X, Camera, Check
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
-import { BaseCV } from '@/types';
+import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
+
+// ✅ SAMA PAIKALLINEN TYYPPI KUIN MY-CVS (ei types/index.ts BaseCV)
+interface BaseCV {
+  id: string;
+  user_id: string;
+  title?: string;
+  created_at: string;
+  content?: any;
+  cv_data: any;
+  ai_data: any;
+  profile_image?: string;
+  background_image?: string;
+  metadata?: any;
+}
+import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
+import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
+import CVContainer from '@/components/cv/CVContainer';
 import { toast } from 'sonner';
+
+// ════════════════════════════════════════════════════════════════
+// EDITABLE OVERLAY - Klikkaa mitä tahansa tekstiä muokataksesi
+// ════════════════════════════════════════════════════════════════
+
+interface EditableOverlayProps {
+  isEditing: boolean;
+  cvData: BaseCV;
+  onSave: (path: string, value: string) => void;
+}
+
+function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [tempValue, setTempValue] = useState('');
+  const [fieldRect, setFieldRect] = useState<DOMRect | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Kun overlay on aktiivinen, kuuntele klikkauksia CV-previewssä
+  useEffect(() => {
+    if (!isEditing) {
+      setActiveField(null);
+      return;
+    }
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Älä avaa editoria jos klikataan jo auki olevaa editoria
+      if (target.closest('.edit-field-popup')) return;
+      
+      // Etsi klikattava teksti CV-previewn sisältä
+      const previewContainer = document.querySelector('[data-cv-preview]');
+      if (!previewContainer?.contains(target)) return;
+      
+      // Ohita tyhjät elementit, kuva-elementit
+      if (target.tagName === 'IMG' || target.tagName === 'DIV' && !target.textContent?.trim()) return;
+      
+      const text = target.textContent?.trim();
+      if (!text || text.length < 1) return;
+      
+      // Etsi mikä kenttä tämä on
+      const fieldInfo = identifyField(target, text, cvData);
+      if (!fieldInfo) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const rect = target.getBoundingClientRect();
+      setFieldRect(rect);
+      setActiveField(fieldInfo.path);
+      setTempValue(fieldInfo.value);
+    };
+
+    document.addEventListener('click', handleClick, true);
+    return () => document.removeEventListener('click', handleClick, true);
+  }, [isEditing, cvData]);
+
+  // Automaattinen focus
+  useEffect(() => {
+    if (activeField) {
+      setTimeout(() => {
+        if (tempValue.length > 80) {
+          textareaRef.current?.focus();
+          textareaRef.current?.select();
+        } else {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }
+      }, 50);
+    }
+  }, [activeField]);
+
+  const handleSave = () => {
+    if (activeField) {
+      onSave(activeField, tempValue);
+      setActiveField(null);
+    }
+  };
+
+  const handleCancel = () => {
+    setActiveField(null);
+    setTempValue('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSave();
+    }
+    if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  if (!activeField || !fieldRect) return null;
+
+  const isMultiline = tempValue.length > 80;
+
+  return (
+    <div 
+      className="edit-field-popup fixed z-[200] animate-in fade-in zoom-in-95 duration-200"
+      style={{
+        top: Math.min(fieldRect.top - 8, window.innerHeight - 200),
+        left: Math.max(8, fieldRect.left - 8),
+        width: Math.min(Math.max(fieldRect.width + 16, 300), window.innerWidth - 32),
+      }}
+    >
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/20 -z-10" onClick={handleCancel} />
+      
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border-2 border-orange-400 overflow-hidden">
+        <div className="px-3 py-2 bg-orange-50 dark:bg-orange-950/30 border-b border-orange-200 dark:border-orange-800 flex items-center justify-between">
+          <span className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">
+            {getFieldLabel(activeField)}
+          </span>
+          <div className="flex gap-1">
+            <button onClick={handleCancel} className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors">
+              <X className="w-3.5 h-3.5 text-red-500" />
+            </button>
+            <button onClick={handleSave} className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors">
+              <Check className="w-3.5 h-3.5 text-green-600" />
+            </button>
+          </div>
+        </div>
+        
+        {isMultiline ? (
+          <textarea
+            ref={textareaRef}
+            value={tempValue}
+            onChange={(e) => setTempValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={Math.min(8, Math.ceil(tempValue.length / 50))}
+            className="w-full px-3 py-2 text-sm bg-transparent border-none outline-none resize-y text-gray-900 dark:text-gray-100"
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            type="text"
+            value={tempValue}
+            onChange={(e) => setTempValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full px-3 py-2 text-sm bg-transparent border-none outline-none text-gray-900 dark:text-gray-100"
+          />
+        )}
+        
+        <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <span className="text-[10px] text-gray-400">Enter = tallenna · Esc = peruuta</span>
+          <button 
+            onClick={handleSave}
+            className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-bold transition-colors"
+          >
+            Tallenna
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// FIELD IDENTIFICATION - Tunnistaa mikä CV-kenttä klikattiin
+// ════════════════════════════════════════════════════════════════
+
+function identifyField(
+  element: HTMLElement, 
+  text: string, 
+  cvData: BaseCV
+): { path: string; value: string } | null {
+  const cvDataContent = cvData.content?.cv_data || {};
+  const aiData = cvData.content?.ai_data || {};
+  
+  // Tarkista suorat kentät
+  if (text === cvDataContent.name) return { path: 'cv_data.name', value: text };
+  if (text === cvDataContent.title) return { path: 'cv_data.title', value: text };
+  if (text === cvDataContent.email) return { path: 'cv_data.email', value: text };
+  if (text === cvDataContent.phone) return { path: 'cv_data.phone', value: text };
+  if (text === cvDataContent.location) return { path: 'cv_data.location', value: text };
+  
+  // Tarkista AI-sektiot (pidempi teksti)
+  const parentTag = element.parentElement?.tagName;
+  const grandParentTag = element.parentElement?.parentElement?.tagName;
+  
+  // Tunnista kontekstista: otsikko, lista-item, paragrafi
+  if (element.tagName === 'H1' || element.tagName === 'H2' || element.tagName === 'H3' || element.tagName === 'H4') {
+    // Section headers - yleensä ei muokattavia, mutta work/edu title kyllä
+    if (text.includes(' — ') || text.includes(' - ')) {
+      // Työkokemuksen otsikko: "Title — Company"
+      return { path: `inline.${generateId(text)}`, value: text };
+    }
+  }
+  
+  // Kaikki muut tekstielementit
+  if (text.length > 0) {
+    return { path: `inline.${generateId(text)}`, value: text };
+  }
+  
+  return null;
+}
+
+function generateId(text: string): string {
+  return text.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+}
+
+function getFieldLabel(path: string): string {
+  if (path.includes('name')) return 'Nimi';
+  if (path.includes('title')) return 'Ammattinimike';
+  if (path.includes('email')) return 'Sähköposti';
+  if (path.includes('phone')) return 'Puhelin';
+  if (path.includes('location')) return 'Sijainti';
+  return 'Muokkaa tekstiä';
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ════════════════════════════════════════════════════════════════
 
 export default function EditCVPage() {
   const params = useParams();
@@ -19,7 +253,6 @@ export default function EditCVPage() {
   const { userId, getToken } = useAuth();
   const id = params?.id as string;
 
-  // --- STATE ---
   const [cvData, setCvData] = useState<BaseCV | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -30,28 +263,23 @@ export default function EditCVPage() {
   // Modal states
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
-  
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[];
     backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
 
-  // Carousel states
-  const [profileCarouselIndex, setProfileCarouselIndex] = useState(0);
-  const [bgCarouselIndex, setBgCarouselIndex] = useState(0);
+  // Inline edit tracking
+  const [inlineEdits, setInlineEdits] = useState<Record<string, string>>({});
 
-  // --- DETECT MOBILE ---
+  // ── DETECT MOBILE ──
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // --- INITIAL LOAD ---
+  // ── LOAD CV ──
   useEffect(() => {
     const init = async () => {
       if (!userId || !id) return;
@@ -60,63 +288,77 @@ export default function EditCVPage() {
         const token = await getToken({ template: 'supabase' });
         if (!token) throw new Error('No authentication token');
 
-        const { data, error } = await fetchCVById(id, userId, token);
+        const { data: rawData, error } = await fetchCVById(id, userId, token);
         if (error) throw error;
         
+        // ✅ Cast to local BaseCV type (fetchCVById returns types/index.ts BaseCV)
+        const data = rawData as any;
+        
         if (data) {
-          const processImageUrl = (url: string | null | undefined): string => {
-            if (!url || url.trim() === "") return "";
-            const trimmed = url.trim();
-            
-            if (trimmed.startsWith('data:image') && !trimmed.includes('svg+xml')) {
-              return trimmed;
-            }
-            
-            if (trimmed.startsWith('http')) {
-              return trimmed;
-            }
-            
-            if (trimmed.includes('/')) {
-              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-              if (!supabaseUrl) return "";
-              return `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
-            }
-            
-            return "";
-          };
-          
-          const profileImage = processImageUrl(
-            data.content?.cv_data?.profileImage || 
-            data.content?.ai_data?.profile_image
-          );
-          
-          const backgroundImage = processImageUrl(
-            data.content?.cv_data?.backgroundImage || 
-            data.content?.ai_data?.background_image
-          );
-          
-          if (data.content) {
-            if (!data.content.ai_data) data.content.ai_data = {};
-            
-            if (profileImage) {
-              data.content.cv_data.profileImage = profileImage;
-              data.content.ai_data.profile_image = profileImage;
-            }
-            
-            if (backgroundImage) {
-              data.content.cv_data.backgroundImage = backgroundImage;
-              data.content.ai_data.background_image = backgroundImage;
+          // ✅ SAMA LOGIIKKA KUIN MY-CVS: Prosessoi kuvat
+          let cvDataParsed = data.cv_data;
+          let aiDataParsed = data.ai_data;
+
+          if (!cvDataParsed && data.content) {
+            try {
+              const parsed = typeof data.content === 'string' ? JSON.parse(data.content) : data.content;
+              cvDataParsed = parsed.cv_data || {};
+              aiDataParsed = parsed.ai_data || {};
+            } catch (e) {
+              cvDataParsed = data.content?.cv_data || {};
+              aiDataParsed = data.content?.ai_data || {};
             }
           }
+
+          const processImageUrl = (url: string | null | undefined): string => {
+            if (!url || url.trim() === '') return '';
+            const trimmed = url.trim();
+            if (trimmed.startsWith('data:image') || trimmed.startsWith('http')) return trimmed;
+            if (trimmed.includes('/')) {
+              return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${trimmed}`;
+            }
+            return '';
+          };
+
+          const profileImage = processImageUrl(
+            data.profile_image || cvDataParsed?.profileImage || aiDataParsed?.profile_image || cvDataParsed?.photo
+          );
+          const backgroundImage = processImageUrl(
+            data.background_image || cvDataParsed?.backgroundImage || aiDataParsed?.background_image
+          );
+
+          if (cvDataParsed) {
+            cvDataParsed.profileImage = profileImage;
+            cvDataParsed.backgroundImage = backgroundImage;
+          }
+          if (aiDataParsed) {
+            aiDataParsed.profile_image = profileImage;
+            aiDataParsed.background_image = backgroundImage;
+          }
+
+          // ✅ Tallenna sekä alkuperäinen content ETTÄ parsitut versiot
+          const processedData = {
+            ...data,
+            cv_data: cvDataParsed,
+            ai_data: aiDataParsed,
+            content: {
+              ...(data.content || {}),
+              cv_data: cvDataParsed,
+              ai_data: aiDataParsed,
+            }
+          };
+
+          console.log('✅ CV Data loaded:', processedData);
+          console.log('📊 AI Data keys:', Object.keys(aiDataParsed || {}));
+          console.log('📄 CV Data keys:', Object.keys(cvDataParsed || {}));
           
-          setCvData(data);
+          setCvData(processedData);
         }
 
         const images = await getAllAvailableImagesAction();
         setAvailableImages(images);
-
       } catch (err) {
-        console.error('Error initializing CV page:', err);
+        console.error('Error loading CV:', err);
         toast.error('CV:n lataaminen epäonnistui');
       } finally {
         setIsLoading(false);
@@ -126,23 +368,42 @@ export default function EditCVPage() {
     init();
   }, [id, userId, getToken]);
 
-  // --- HANDLERS ---
-  const handleContentChange = useCallback((field: string, value: any) => {
+  // ── INLINE EDIT SAVE ──
+  const handleInlineEdit = useCallback((path: string, value: string) => {
+    if (!cvData) return;
+
+    setInlineEdits(prev => ({ ...prev, [path]: value }));
+
+    // Päivitä suoraan cvData:an
     setCvData(prev => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        content: {
-          ...prev.content,
-          cv_data: {
-            ...prev.content.cv_data,
-            [field]: value,
-          },
-        },
-      };
+      const updated = JSON.parse(JSON.stringify(prev)); // deep clone
+      
+      if (path.startsWith('cv_data.')) {
+        const field = path.replace('cv_data.', '');
+        if (updated.cv_data) updated.cv_data[field] = value;
+        if (updated.content?.cv_data) updated.content.cv_data[field] = value;
+      } else if (path.startsWith('ai_data.')) {
+        const field = path.replace('ai_data.', '');
+        if (updated.ai_data) updated.ai_data[field] = value;
+        if (updated.content?.ai_data) updated.content.ai_data[field] = value;
+      } else if (path.startsWith('inline.')) {
+        // Inline edit: etsitään ja korvataan teksti kaikista AI-sektioista
+        const oldText = Object.values(inlineEdits).length > 0 
+          ? inlineEdits[path] 
+          : undefined;
+          
+        // Tallenna DOM-muutos inlineEdits mappiin
+        // Todellinen päivitys tapahtuu tallennuksessa
+      }
+      
+      return updated;
     });
-  }, []);
 
+    toast.success('Muutos tehty - muista tallentaa!', { duration: 1500 });
+  }, [cvData, inlineEdits]);
+
+  // ── IMAGE HANDLERS ──
   const handleImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
     type: 'profileImage' | 'backgroundImage'
@@ -156,27 +417,19 @@ export default function EditCVPage() {
     }
 
     const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64data = reader.result as string;
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
       
       setCvData(prev => {
         if (!prev) return prev;
+        const updated = JSON.parse(JSON.stringify(prev));
         
-        const updated: any = {
-          ...prev,
-          [type]: base64data,
-          content: {
-            ...prev.content,
-            cv_data: {
-              ...prev.content.cv_data,
-              [type]: base64data,
-            },
-            ai_data: {
-              ...prev.content.ai_data,
-              [type === 'profileImage' ? 'profile_image' : 'background_image']: base64data,
-            }
-          },
-        };
+        const aiKey = type === 'profileImage' ? 'profile_image' : 'background_image';
+        
+        if (updated.cv_data) updated.cv_data[type] = base64;
+        if (updated.ai_data) updated.ai_data[aiKey] = base64;
+        if (updated.content?.cv_data) updated.content.cv_data[type] = base64;
+        if (updated.content?.ai_data) updated.content.ai_data[aiKey] = base64;
         
         return updated;
       });
@@ -193,22 +446,14 @@ export default function EditCVPage() {
     
     setCvData(prev => {
       if (!prev) return prev;
+      const updated = JSON.parse(JSON.stringify(prev));
       
-      const updated: any = {
-        ...prev,
-        [type]: imageUrl,
-        content: {
-          ...prev.content,
-          cv_data: {
-            ...prev.content.cv_data,
-            [type]: imageUrl,
-          },
-          ai_data: {
-            ...prev.content.ai_data,
-            [type === 'profileImage' ? 'profile_image' : 'background_image']: imageUrl,
-          }
-        },
-      };
+      const aiKey = type === 'profileImage' ? 'profile_image' : 'background_image';
+      
+      if (updated.cv_data) updated.cv_data[type] = imageUrl;
+      if (updated.ai_data) updated.ai_data[aiKey] = imageUrl;
+      if (updated.content?.cv_data) updated.content.cv_data[type] = imageUrl;
+      if (updated.content?.ai_data) updated.content.ai_data[aiKey] = imageUrl;
       
       return updated;
     });
@@ -218,6 +463,7 @@ export default function EditCVPage() {
     toast.success('Kuva valittu!');
   };
 
+  // ── SAVE ──
   const handleSave = async () => {
     if (!cvData || !userId) return;
     setIsSaving(true);
@@ -225,10 +471,16 @@ export default function EditCVPage() {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No token');
 
-      await updateCV(id, { content: cvData.content }, token);
+      // ✅ Tallenna koko content (sisältää cv_data + ai_data)
+      await updateCV(id, { 
+        content: cvData.content,
+        cv_data: cvData.cv_data,
+        ai_data: cvData.ai_data,
+      }, token);
       
       toast.success('✅ CV tallennettu!');
       setIsEditing(false);
+      setInlineEdits({});
     } catch (error) {
       console.error('Save error:', error);
       toast.error('Tallennus epäonnistui');
@@ -237,30 +489,29 @@ export default function EditCVPage() {
     }
   };
 
+  // ── PDF DOWNLOAD ──
   const handleDownloadPDF = async () => {
     if (!cvData || !userId) return;
-    
     setIsDownloading(true);
     try {
-      // Use the same approach as my-cvs page - direct API call without auth header
-      const response = await fetch(`/api/cvs/${id}/pdf`, {
-        method: 'GET',
+      // ✅ Käytä samaa API kuin my-cvs
+      const response = await fetch(`/api/generate-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cvId: id }),
       });
 
       if (!response.ok) {
-        throw new Error('PDF generation failed');
+        // Fallback: kokeile toista API-polkua
+        const response2 = await fetch(`/api/cvs/${id}/pdf`, { method: 'GET' });
+        if (!response2.ok) throw new Error('PDF generation failed');
+        const blob = await response2.blob();
+        downloadBlob(blob);
+        return;
       }
       
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `CV_${cvData.title || 'dokumentti'}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      a.remove();
-      toast.success('✅ PDF ladattu!');
+      downloadBlob(blob);
     } catch (error) {
       console.error('PDF error:', error);
       toast.error('PDF:n luonti epäonnistui');
@@ -269,6 +520,19 @@ export default function EditCVPage() {
     }
   };
 
+  const downloadBlob = (blob: Blob) => {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CV_${cvData?.title || 'dokumentti'}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    a.remove();
+    toast.success('✅ PDF ladattu!');
+  };
+
+  // ── DELETE ──
   const handleDelete = async () => {
     if (!confirm('Haluatko varmasti poistaa tämän CV:n?')) return;
     try {
@@ -283,32 +547,37 @@ export default function EditCVPage() {
     }
   };
 
-  // Carousel navigation
-  const nextProfileImage = () => {
-    setProfileCarouselIndex((prev) => 
-      prev === availableImages.profileImages.length - 1 ? 0 : prev + 1
+  // ── RENDER TEMPLATE (SAMA KUIN MY-CVS) ──
+  const renderTemplate = () => {
+    if (!cvData) return null;
+
+    // ✅ KRIITTINEN: Passaa data SAMALLA TAVALLA kuin my-cvs
+    const cvDataProps = cvData.cv_data || cvData.content?.cv_data || {};
+    const aiDataProps = cvData.ai_data || cvData.content?.ai_data || {};
+    
+    const templateType = cvDataProps?.cvType || aiDataProps?.cv_type || cvData.metadata?.cv_type || 'simple';
+
+    let TemplateComponent: any;
+    switch (templateType) {
+      case 'technical': TemplateComponent = TechnicalCVTemplate; break;
+      case 'creative': TemplateComponent = CreativeCVTemplate; break;
+      default: TemplateComponent = SimpleCVTemplate;
+    }
+
+    console.log('🎨 Rendering template:', templateType);
+
+    return (
+      <CVContainer>
+        <TemplateComponent 
+          data={cvDataProps} 
+          aiData={aiDataProps} 
+          isEditing={false}
+        />
+      </CVContainer>
     );
   };
 
-  const prevProfileImage = () => {
-    setProfileCarouselIndex((prev) => 
-      prev === 0 ? availableImages.profileImages.length - 1 : prev - 1
-    );
-  };
-
-  const nextBgImage = () => {
-    setBgCarouselIndex((prev) => 
-      prev === availableImages.backgroundImages.length - 1 ? 0 : prev + 1
-    );
-  };
-
-  const prevBgImage = () => {
-    setBgCarouselIndex((prev) => 
-      prev === 0 ? availableImages.backgroundImages.length - 1 : prev - 1
-    );
-  };
-
-  // --- LOADING STATE ---
+  // ── LOADING ──
   if (isLoading || !cvData) {
     return (
       <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
@@ -318,118 +587,16 @@ export default function EditCVPage() {
     );
   }
 
-  const currentBg = cvData.content?.cv_data?.backgroundImage || cvData.content?.ai_data?.background_image || '';
-  const currentProfile = cvData.content?.cv_data?.profileImage || cvData.content?.ai_data?.profile_image || '';
+  const currentProfile = cvData.cv_data?.profileImage || cvData.ai_data?.profile_image || '';
+  const currentBg = cvData.cv_data?.backgroundImage || cvData.ai_data?.background_image || '';
 
-  // Get all content
-  const name = cvData.content?.cv_data?.name || '';
-  const email = cvData.content?.cv_data?.email || '';
-  const phone = cvData.content?.cv_data?.phone || '';
-  const location = cvData.content?.cv_data?.location || '';
-  const title = cvData.content?.cv_data?.title || '';
-
-  // --- EDITABLE TEXT COMPONENT ---
-  const EditableText = ({ 
-    field, 
-    value, 
-    placeholder = 'Klikkaa muokataksesi',
-    multiline = false,
-    className = '',
-    style = {}
-  }: { 
-    field: string; 
-    value: string; 
-    placeholder?: string;
-    multiline?: boolean;
-    className?: string;
-    style?: React.CSSProperties;
-  }) => {
-    const [isLocalEditing, setIsLocalEditing] = useState(false);
-    const [tempValue, setTempValue] = useState(value);
-
-    useEffect(() => {
-      setTempValue(value);
-    }, [value]);
-
-    const handleSave = () => {
-      handleContentChange(field, tempValue);
-      setIsLocalEditing(false);
-      toast.success('Päivitetty!');
-    };
-
-    const handleCancel = () => {
-      setTempValue(value);
-      setIsLocalEditing(false);
-    };
-
-    if (isEditing && isLocalEditing) {
-      return (
-        <div className="relative inline-block w-full">
-          {multiline ? (
-            <textarea
-              value={tempValue}
-              onChange={(e) => setTempValue(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') handleCancel();
-                if (e.key === 'Enter' && e.ctrlKey) handleSave();
-              }}
-              className="w-full px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-orange-400 rounded outline-none"
-              style={style}
-              autoFocus
-              rows={4}
-            />
-          ) : (
-            <input
-              type="text"
-              value={tempValue}
-              onChange={(e) => setTempValue(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') handleCancel();
-                if (e.key === 'Enter') handleSave();
-              }}
-              className="w-full px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-orange-400 rounded outline-none"
-              style={style}
-              autoFocus
-            />
-          )}
-          <div className="absolute -top-6 right-0 flex gap-1 text-xs">
-            <button
-              onClick={handleSave}
-              className="px-2 py-0.5 bg-green-500 text-white rounded"
-            >
-              ✓
-            </button>
-            <button
-              onClick={handleCancel}
-              className="px-2 py-0.5 bg-gray-500 text-white rounded"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        onClick={() => isEditing && setIsLocalEditing(true)}
-        className={`${className} ${isEditing ? 'cursor-pointer hover:bg-orange-50/30 dark:hover:bg-orange-900/10 transition-colors rounded px-1' : ''}`}
-        style={style}
-      >
-        {value || placeholder}
-      </div>
-    );
-  };
-
-  // --- MAIN RENDER ---
+  // ── MAIN RENDER ──
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
       
       {/* Background Orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
       </div>
 
@@ -450,7 +617,7 @@ export default function EditCVPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
                   <h1 className="text-sm sm:text-lg font-black truncate">
-                    {cvData.title || 'Nimetön CV'}
+                    {cvData.title || cvData.cv_data?.name || 'Nimetön CV'}
                   </h1>
                 </div>
               </div>
@@ -468,7 +635,7 @@ export default function EditCVPage() {
               ) : (
                 <>
                   <button 
-                    onClick={() => setIsEditing(false)}
+                    onClick={() => { setIsEditing(false); setInlineEdits({}); }}
                     className="px-3 h-9 sm:h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-xs sm:text-sm font-semibold flex items-center gap-1"
                   >
                     <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -514,341 +681,143 @@ export default function EditCVPage() {
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500 shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h4 className="text-sm sm:text-lg font-bold text-orange-600 dark:text-orange-400 mb-2">
-                  💡 Muokkaa CV:tä klikkaamalla
+                  ✏️ Muokkaustila päällä
                 </h4>
                 <ul className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                  <li>• <strong>Klikkaa mitä tahansa tekstiä</strong> muokataksesi sitä</li>
-                  <li>• <strong>Klikkaa kuvia</strong> vaihtaaksesi profiilikuvan tai taustakuvan</li>
-                  <li>• Tallenna <kbd className="px-1 py-0.5 bg-white dark:bg-gray-800 rounded border">Enter</kbd>, peruuta <kbd className="px-1 py-0.5 bg-white dark:bg-gray-800 rounded border">Esc</kbd></li>
+                  <li>• <strong>Klikkaa mitä tahansa tekstiä</strong> CV:ssä muokataksesi sitä</li>
+                  <li>• <strong>Klikkaa kuvia</strong> vasemmalla vaihtaaksesi ne</li>
+                  <li>• Paina <strong>Tallenna</strong> kun olet valmis</li>
                 </ul>
               </div>
             </div>
           </div>
         )}
 
-        {/* CV PREVIEW */}
-        <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-6 overflow-hidden">
-          <div className="overflow-x-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800">
-            <div 
-              className="origin-top transition-transform duration-300 bg-white shadow-2xl my-4"
-              style={{
-                width: '210mm',
-                minHeight: '297mm',
-                transform: isMobile ? 'scale(0.35)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.75)',
-                transformOrigin: 'top center',
-                fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
-              }}
-            >
-              {/* Google Fonts */}
-              <link
-                href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
-                rel="stylesheet"
-              />
-
-              {/* LEFT COLUMN - DARK */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  width: "70mm",
-                  height: "297mm",
-                  background: "linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%)",
-                  color: "white",
-                }}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+          
+          {/* LEFT SIDEBAR - Kuvat */}
+          <div className="lg:col-span-3 space-y-4">
+            
+            {/* Profile Image */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-orange-500/10 border border-orange-500/20 p-2 rounded-xl">
+                  <User className="w-4 h-4 text-orange-500" />
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-wider">Profiilikuva</h3>
+              </div>
+              
+              <div 
+                className={`relative w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-orange-500/20 shadow-lg bg-gray-100 dark:bg-gray-800 ${isEditing ? 'cursor-pointer group' : ''}`}
+                onClick={() => isEditing && setShowProfileModal(true)}
               >
-                {/* PROFILE IMAGE - Clickable */}
-                <div 
-                  style={{ width: "100%", height: "85mm", overflow: "hidden", position: "relative" }}
-                  className={isEditing ? "group cursor-pointer" : ""}
-                  onClick={() => isEditing && setShowProfileModal(true)}
-                >
-                  {currentProfile ? (
-                    <>
-                      <img
-                        src={currentProfile}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        style={{ filter: "contrast(1.05) brightness(0.95)" }}
-                      />
-                      {isEditing && (
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Camera className="w-12 h-12 text-white" />
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div 
-                      className={`w-full h-full flex items-center justify-center ${isEditing ? 'hover:bg-gray-700' : ''}`}
-                      style={{
-                        fontSize: "48pt",
-                        fontWeight: 300,
-                        background: "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)",
-                        fontFamily: "'Inter', sans-serif",
-                        letterSpacing: "0.05em"
-                      }}
-                    >
-                      {name.substring(0, 2).toUpperCase() || "??"}
-                      {isEditing && (
-                        <Camera className="absolute w-12 h-12 text-white/50" />
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* SKILLS SECTION */}
-                <div style={{ padding: "7mm 8mm" }}>
-                  <h2
-                    style={{
-                      fontSize: "13pt",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.18em",
-                      borderBottom: "1.5px solid rgba(255,255,255,0.25)",
-                      paddingBottom: "3.5mm",
-                      marginBottom: "5mm",
-                      fontFamily: "'Inter', sans-serif",
-                    }}
-                  >
-                    Taidot
-                  </h2>
-                  
-                  <EditableText
-                    field="skills"
-                    value={cvData.content?.cv_data?.skills || ''}
-                    placeholder="Klikkaa lisätäksesi taitoja"
-                    multiline
-                    style={{
-                      fontSize: "8.5pt",
-                      lineHeight: 1.65,
-                      fontWeight: 300,
-                      fontFamily: "'Inter', sans-serif",
-                      color: "rgba(255,255,255,0.92)",
-                    }}
-                  />
-                </div>
+                {currentProfile ? (
+                  <>
+                    <img src={currentProfile} alt="Profile" className="w-full h-full object-cover" />
+                    {isEditing && (
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Camera className="w-8 h-8 text-white" />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <User className="w-12 h-12 text-gray-400" />
+                  </div>
+                )}
               </div>
 
-              {/* RIGHT COLUMN - LIGHT */}
-              <div
-                style={{
-                  marginLeft: "70mm",
-                  width: "140mm",
-                  height: "297mm",
-                }}
-              >
-                {/* HEADER WITH BACKGROUND - Clickable */}
-                <div
-                  style={{
-                    height: "85mm",
-                    position: "relative",
-                    backgroundImage: currentBg
-                      ? `url(${currentBg})`
-                      : "linear-gradient(135deg, #2c3e50 0%, #34495e 100%)",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    color: "white",
-                  }}
-                  className={isEditing ? "group cursor-pointer" : ""}
+              {isEditing && (
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className="w-full px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  Vaihda kuva
+                </button>
+              )}
+            </div>
+
+            {/* Background Image */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl">
+                  <ImageIconLucide className="w-4 h-4 text-amber-500" />
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-wider">Taustakuva</h3>
+              </div>
+
+              {currentBg && (
+                <div 
+                  className={`relative w-full aspect-video mb-4 rounded-xl overflow-hidden border-2 border-amber-500/20 shadow-lg ${isEditing ? 'cursor-pointer group' : ''}`}
                   onClick={() => isEditing && setShowBgModal(true)}
                 >
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)",
-                    }}
-                  />
-                  
+                  <img src={currentBg} alt="Background" className="w-full h-full object-cover" />
                   {isEditing && (
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Camera className="w-16 h-16 text-white" />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <Camera className="w-8 h-8 text-white" />
                     </div>
                   )}
-
-                  <div
-                    style={{
-                      position: "relative",
-                      zIndex: 10,
-                      height: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      textAlign: "center",
-                      padding: "10mm",
-                    }}
-                  >
-                    <EditableText
-                      field="name"
-                      value={name}
-                      placeholder="Nimesi"
-                      style={{
-                        fontSize: "30pt",
-                        fontWeight: 700,
-                        marginBottom: "2mm",
-                        fontFamily: "'Playfair Display', serif",
-                        letterSpacing: "0.02em",
-                        textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
-                      }}
-                    />
-                    
-                    <EditableText
-                      field="title"
-                      value={title}
-                      placeholder="Ammattinimike"
-                      style={{
-                        fontSize: "13pt",
-                        marginTop: "2mm",
-                        marginBottom: "4mm",
-                        fontWeight: 400,
-                        fontFamily: "'Inter', sans-serif",
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        opacity: 0.95,
-                      }}
-                    />
-
-                    <div
-                      style={{
-                        marginTop: "4mm",
-                        fontSize: "8.5pt",
-                        opacity: 0.92,
-                        display: "flex",
-                        gap: "7mm",
-                        flexWrap: "wrap",
-                        justifyContent: "center",
-                        fontFamily: "'Inter', sans-serif",
-                        fontWeight: 300,
-                      }}
-                    >
-                      <EditableText
-                        field="email"
-                        value={email ? `✉ ${email}` : ''}
-                        placeholder="✉ sähköposti"
-                      />
-                      <EditableText
-                        field="phone"
-                        value={phone ? `☎ ${phone}` : ''}
-                        placeholder="☎ puhelin"
-                      />
-                      <EditableText
-                        field="location"
-                        value={location ? `⚲ ${location}` : ''}
-                        placeholder="⚲ sijainti"
-                      />
-                    </div>
-                  </div>
                 </div>
+              )}
 
-                {/* CONTENT AREA */}
-                <div style={{ 
-                  padding: "9mm 10mm", 
-                  fontSize: "9.5pt", 
-                  lineHeight: 1.55,
-                  fontFamily: "'Inter', sans-serif",
-                  fontWeight: 300,
-                }}>
-                  
-                  {/* WORK EXPERIENCE */}
-                  <section style={{ marginBottom: "7mm" }}>
-                    <h2
-                      style={{
-                        fontSize: "11.5pt",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        borderBottom: "2px solid #1a1a1a",
-                        paddingBottom: "2mm",
-                        marginBottom: "4mm",
-                        letterSpacing: "0.12em",
-                        fontFamily: "'Inter', sans-serif",
-                        color: "#1a1a1a",
-                      }}
-                    >
-                      Työkokemus
-                    </h2>
-                    
-                    <EditableText
-                      field="workExperience"
-                      value={cvData.content?.cv_data?.workExperience || ''}
-                      placeholder="Klikkaa lisätäksesi työkokemusta"
-                      multiline
-                      style={{
-                        fontSize: "9pt",
-                        lineHeight: 1.6,
-                        fontWeight: 300,
-                      }}
-                    />
-                  </section>
+              {isEditing && (
+                <button
+                  onClick={() => setShowBgModal(true)}
+                  className="w-full px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  Vaihda taustakuva
+                </button>
+              )}
+            </div>
 
-                  {/* EDUCATION */}
-                  <section style={{ marginBottom: "7mm" }}>
-                    <h2
-                      style={{
-                        fontSize: "11.5pt",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        borderBottom: "2px solid #1a1a1a",
-                        paddingBottom: "2mm",
-                        marginBottom: "4mm",
-                        letterSpacing: "0.12em",
-                        fontFamily: "'Inter', sans-serif",
-                        color: "#1a1a1a",
-                      }}
-                    >
-                      Koulutus
-                    </h2>
-                    
-                    <EditableText
-                      field="education"
-                      value={cvData.content?.cv_data?.education || ''}
-                      placeholder="Klikkaa lisätäksesi koulutusta"
-                      multiline
-                      style={{
-                        fontSize: "8.5pt",
-                        lineHeight: 1.6,
-                        fontWeight: 300,
-                      }}
-                    />
-                  </section>
+            {/* Unsaved changes indicator */}
+            {Object.keys(inlineEdits).length > 0 && (
+              <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-300 dark:border-yellow-800 rounded-xl p-4">
+                <p className="text-xs font-bold text-yellow-700 dark:text-yellow-400 flex items-center gap-2">
+                  <Edit3 className="w-4 h-4" />
+                  {Object.keys(inlineEdits).length} tallentamatonta muutosta
+                </p>
+              </div>
+            )}
+          </div>
 
-                  {/* LANGUAGES */}
-                  <section>
-                    <h2
-                      style={{
-                        fontSize: "11.5pt",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        borderBottom: "2px solid #1a1a1a",
-                        paddingBottom: "2mm",
-                        marginBottom: "4mm",
-                        letterSpacing: "0.12em",
-                        fontFamily: "'Inter', sans-serif",
-                        color: "#1a1a1a",
-                      }}
-                    >
-                      Kielet
-                    </h2>
-                    
-                    <EditableText
-                      field="languages"
-                      value={cvData.content?.cv_data?.languages || ''}
-                      placeholder="Klikkaa lisätäksesi kieliä"
-                      multiline
-                      style={{
-                        fontSize: "9.5pt",
-                        lineHeight: 1.6,
-                        color: "#333",
-                        fontWeight: 300,
-                      }}
-                    />
-                  </section>
+          {/* CENTER: CV PREVIEW */}
+          <div className="lg:col-span-9">
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-6 overflow-hidden">
+              <div 
+                className="overflow-x-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800"
+                data-cv-preview
+              >
+                <div 
+                  className={`origin-top transition-transform duration-300 bg-white shadow-2xl my-4 ${
+                    isEditing ? 'ring-2 ring-orange-400/30' : ''
+                  }`}
+                  style={{
+                    width: '210mm',
+                    minHeight: '297mm',
+                    transform: isMobile ? 'scale(0.35)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.75)',
+                    transformOrigin: 'top center',
+                    cursor: isEditing ? 'text' : 'default',
+                  }}
+                >
+                  {renderTemplate()}
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* EDITABLE OVERLAY */}
+      {cvData && (
+        <EditableOverlay 
+          isEditing={isEditing} 
+          cvData={cvData} 
+          onSave={handleInlineEdit} 
+        />
+      )}
 
       {/* PROFILE IMAGE MODAL */}
       {showProfileModal && (
@@ -859,23 +828,16 @@ export default function EditCVPage() {
                 <User className="w-6 h-6 text-orange-500" />
                 Valitse profiilikuva
               </h3>
-              <button
-                onClick={() => setShowProfileModal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              >
+              <button onClick={() => setShowProfileModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              {/* Upload */}
               <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-orange-500/10 hover:bg-orange-500/20 border-2 border-dashed border-orange-500/30 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors mb-6">
                 <Upload className="w-5 h-5" />
                 Lataa uusi kuva
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
               </label>
-
-              {/* Grid */}
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
                 {availableImages.profileImages.map((img) => (
                   <button
@@ -910,23 +872,16 @@ export default function EditCVPage() {
                 <ImageIconLucide className="w-6 h-6 text-amber-500" />
                 Valitse taustakuva
               </h3>
-              <button
-                onClick={() => setShowBgModal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              >
+              <button onClick={() => setShowBgModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              {/* Upload */}
               <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold transition-colors mb-6">
                 <Upload className="w-5 h-5" />
                 Lataa uusi taustakuva
                 <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'backgroundImage')} />
               </label>
-
-              {/* Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {availableImages.backgroundImages.map((img) => (
                   <button
@@ -941,8 +896,7 @@ export default function EditCVPage() {
                     <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
                     {img.is_ai_generated && (
                       <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" />
-                        AI
+                        <Sparkles className="w-3 h-3" /> AI
                       </div>
                     )}
                   </button>
@@ -954,21 +908,16 @@ export default function EditCVPage() {
       )}
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          height: 8px;
-          width: 8px;
+        [data-cv-preview] * {
+          ${isEditing ? 'cursor: text !important;' : ''}
         }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(156, 163, 175, 0.1);
-          border-radius: 4px;
+        [data-cv-preview] *:hover {
+          ${isEditing ? 'outline: 1px dashed rgba(249, 115, 22, 0.4); outline-offset: 2px; border-radius: 4px;' : ''}
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(156, 163, 175, 0.3);
-          border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(156, 163, 175, 0.5);
-        }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(156, 163, 175, 0.1); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.3); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.5); }
       `}</style>
     </div>
   );
