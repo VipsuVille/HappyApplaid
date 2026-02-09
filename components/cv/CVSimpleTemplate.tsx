@@ -715,7 +715,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   onInput={(e) => handleInput("email", e)}
                   suppressContentEditableWarning
                   style={{ 
-                    display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
                     ...getEditableStyles(),
@@ -733,7 +732,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   onInput={(e) => handleInput("phone", e)}
                   suppressContentEditableWarning
                   style={{ 
-                    display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
                     ...getEditableStyles(),
@@ -751,7 +749,6 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   onInput={(e) => handleInput("location", e)}
                   suppressContentEditableWarning
                   style={{ 
-                    display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
                     ...getEditableStyles(),
