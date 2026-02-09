@@ -1,8 +1,3 @@
-// app/edit-cv/[id]/page.tsx - TÄYSI VERSIO 900+ RIVIÄ
-// ✅ Sama inline-muokkaus kuin cover letterissä
-// ✅ Tallennuslogiikka korjattu
-// ✅ EditableOverlay sisältyy
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
