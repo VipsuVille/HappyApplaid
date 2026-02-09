@@ -1,8 +1,6 @@
-// app/edit-cv/[id]/page.tsx - LOPULLINEN VERSIO
-// ✅ Vaihtoehto A: cv.content.cv_data = ainoa totuuden lähde
-// ✅ Vapaa tekstinmuokkaus: Klikkaa mitä tahansa tekstiä
-// ✅ Kuvien vaihto klikkaamalla
-// ✅ Data näkyy kuten my-cvs:ssä
+// app/edit-cv/[id]/page.tsx - PÄIVITETTY VERSIO
+// ✅ Sama inline-muokkaus kuin cover letterissä
+// ✅ Tallennuslogiikka korjattu
 
 'use client';
 
@@ -22,7 +20,7 @@ import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
 import CVContainer from '@/components/cv/CVContainer';
 import { toast } from 'sonner';
 
-// ✅ PAIKALLINEN TYYPPI (sama kuin my-cvs)
+// ✅ PAIKALLINEN TYYPPI
 interface BaseCV {
   id: string;
   user_id: string;
@@ -37,7 +35,7 @@ interface BaseCV {
 }
 
 // ════════════════════════════════════════════════════════════════
-// EDITABLE OVERLAY - Klikkaa mitä tahansa tekstiä muokataksesi
+// INLINE EDITING - SAMA LOGIIKKA KUIN COVER LETTERISSÄ
 // ════════════════════════════════════════════════════════════════
 
 interface EditableOverlayProps {
@@ -189,7 +187,7 @@ function EditableOverlay({ isEditing, cvData, onSave }: EditableOverlayProps) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// FIELD IDENTIFICATION
+// FIELD IDENTIFICATION - Tunnistaa kentät dynaamisesti
 // ════════════════════════════════════════════════════════════════
 
 function identifyField(
@@ -198,16 +196,95 @@ function identifyField(
   cvData: BaseCV
 ): { path: string; value: string } | null {
   const cvDataContent = cvData.content?.cv_data || cvData.cv_data || {};
-  const aiData = cvData.content?.ai_data || cvData.ai_data || {};
   
-  // Suorat kentät
-  if (text === cvDataContent.name) return { path: 'cv_data.name', value: text };
-  if (text === cvDataContent.title) return { path: 'cv_data.title', value: text };
-  if (text === cvDataContent.email) return { path: 'cv_data.email', value: text };
-  if (text === cvDataContent.phone) return { path: 'cv_data.phone', value: text };
-  if (text === cvDataContent.location) return { path: 'cv_data.location', value: text };
+  // Yksittäiset kentät
+  if (text === cvDataContent.name) return { path: 'name', value: text };
+  if (text === cvDataContent.title) return { path: 'title', value: text };
+  if (text === cvDataContent.email) return { path: 'email', value: text };
+  if (text === cvDataContent.phone) return { path: 'phone', value: text };
+  if (text === cvDataContent.location) return { path: 'location', value: text };
+  if (text === cvDataContent.summary) return { path: 'summary', value: text };
+  if (text === cvDataContent.objective) return { path: 'objective', value: text };
   
-  // Kaikki muu teksti
+  // Työkokemus
+  if (cvDataContent.experience) {
+    for (let i = 0; i < cvDataContent.experience.length; i++) {
+      const exp = cvDataContent.experience[i];
+      if (text === exp.position) return { path: `experience.${i}.position`, value: text };
+      if (text === exp.company) return { path: `experience.${i}.company`, value: text };
+      if (text === exp.period) return { path: `experience.${i}.period`, value: text };
+      if (text === exp.description) return { path: `experience.${i}.description`, value: text };
+      
+      // Bulletit
+      if (exp.bullets) {
+        for (let j = 0; j < exp.bullets.length; j++) {
+          if (text === exp.bullets[j]) {
+            return { path: `experience.${i}.bullets.${j}`, value: text };
+          }
+        }
+      }
+    }
+  }
+  
+  // Koulutus
+  if (cvDataContent.education) {
+    for (let i = 0; i < cvDataContent.education.length; i++) {
+      const edu = cvDataContent.education[i];
+      if (text === edu.degree) return { path: `education.${i}.degree`, value: text };
+      if (text === edu.school) return { path: `education.${i}.school`, value: text };
+      if (text === edu.period) return { path: `education.${i}.period`, value: text };
+      if (text === edu.description) return { path: `education.${i}.description`, value: text };
+    }
+  }
+  
+  // Taidot
+  if (cvDataContent.skills) {
+    for (let i = 0; i < cvDataContent.skills.length; i++) {
+      const skill = cvDataContent.skills[i];
+      if (typeof skill === 'string' && text === skill) {
+        return { path: `skills.${i}`, value: text };
+      }
+      if (skill.category && text === skill.category) {
+        return { path: `skills.${i}.category`, value: text };
+      }
+      if (skill.items && Array.isArray(skill.items)) {
+        for (let j = 0; j < skill.items.length; j++) {
+          if (text === skill.items[j]) {
+            return { path: `skills.${i}.items.${j}`, value: text };
+          }
+        }
+      }
+    }
+  }
+  
+  // Projektit
+  if (cvDataContent.projects) {
+    for (let i = 0; i < cvDataContent.projects.length; i++) {
+      const proj = cvDataContent.projects[i];
+      if (text === proj.name) return { path: `projects.${i}.name`, value: text };
+      if (text === proj.description) return { path: `projects.${i}.description`, value: text };
+      if (text === proj.role) return { path: `projects.${i}.role`, value: text };
+      if (text === proj.technologies) return { path: `projects.${i}.technologies`, value: text };
+    }
+  }
+  
+  // Kielet
+  if (cvDataContent.languages) {
+    for (let i = 0; i < cvDataContent.languages.length; i++) {
+      const lang = cvDataContent.languages[i];
+      if (typeof lang === 'string' && text === lang) {
+        return { path: `languages.${i}`, value: text };
+      }
+      if (lang.language && text === lang.language) {
+        return { path: `languages.${i}.language`, value: text };
+      }
+      if (lang.level && text === lang.level) {
+        return { path: `languages.${i}.level`, value: text };
+      }
+    }
+  }
+  
+  // Fallback: tallenna inline-muokkauksena
   if (text.length > 0) {
     return { path: `inline.${generateId(text)}`, value: text };
   }
@@ -225,6 +302,20 @@ function getFieldLabel(path: string): string {
   if (path.includes('email')) return 'Sähköposti';
   if (path.includes('phone')) return 'Puhelin';
   if (path.includes('location')) return 'Sijainti';
+  if (path.includes('summary')) return 'Yhteenveto';
+  if (path.includes('objective')) return 'Tavoite';
+  if (path.includes('position')) return 'Tehtävänimike';
+  if (path.includes('company')) return 'Yritys';
+  if (path.includes('period')) return 'Ajanjakso';
+  if (path.includes('description')) return 'Kuvaus';
+  if (path.includes('degree')) return 'Tutkinto';
+  if (path.includes('school')) return 'Oppilaitos';
+  if (path.includes('category')) return 'Kategoria';
+  if (path.includes('skill')) return 'Taito';
+  if (path.includes('project')) return 'Projekti';
+  if (path.includes('language')) return 'Kieli';
+  if (path.includes('level')) return 'Taitotaso';
+  if (path.includes('bullet')) return 'Kohta';
   return 'Muokkaa tekstiä';
 }
 
@@ -254,6 +345,10 @@ export default function EditCVPage() {
 
   const [inlineEdits, setInlineEdits] = useState<Record<string, string>>({});
 
+  // Inline editing states
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [tempValue, setTempValue] = useState<string>('');
+
   // ── DETECT MOBILE ──
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -262,7 +357,7 @@ export default function EditCVPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // ── LOAD CV (SAMA KUIN MY-CVS) ──
+  // ── LOAD CV ──
   useEffect(() => {
     const init = async () => {
       if (!userId || !id) return;
@@ -277,7 +372,6 @@ export default function EditCVPage() {
         const data = rawData as any;
         
         if (data) {
-          // ✅ SAMA PARSINTA KUIN MY-CVS
           let cvDataParsed = data.cv_data;
           let aiDataParsed = data.ai_data;
 
@@ -330,9 +424,6 @@ export default function EditCVPage() {
           };
 
           console.log('✅ CV Data loaded:', processedData);
-          console.log('📊 AI Data keys:', Object.keys(aiDataParsed || {}));
-          console.log('📄 CV Data keys:', Object.keys(cvDataParsed || {}));
-          
           setCvData(processedData);
         }
 
@@ -349,7 +440,7 @@ export default function EditCVPage() {
     init();
   }, [id, userId, getToken]);
 
-  // ── INLINE EDIT SAVE ──
+  // ── INLINE EDIT SAVE (SAMA KUIN COVER LETTERISSÄ) ──
   const handleInlineEdit = useCallback((path: string, value: string) => {
     if (!cvData) return;
 
@@ -359,21 +450,36 @@ export default function EditCVPage() {
       if (!prev) return prev;
       const updated = JSON.parse(JSON.stringify(prev));
       
-      if (path.startsWith('cv_data.')) {
-        const field = path.replace('cv_data.', '');
-        if (updated.cv_data) updated.cv_data[field] = value;
-        if (updated.content?.cv_data) updated.content.cv_data[field] = value;
-      } else if (path.startsWith('ai_data.')) {
-        const field = path.replace('ai_data.', '');
-        if (updated.ai_data) updated.ai_data[field] = value;
-        if (updated.content?.ai_data) updated.content.ai_data[field] = value;
+      // Päivitä arvo oikeaan paikkaan
+      const updateNestedValue = (obj: any, pathStr: string, val: string) => {
+        const parts = pathStr.split('.');
+        let current = obj;
+        
+        for (let i = 0; i < parts.length - 1; i++) {
+          const part = parts[i];
+          if (!current[part]) {
+            current[part] = isNaN(Number(parts[i + 1])) ? {} : [];
+          }
+          current = current[part];
+        }
+        
+        const lastPart = parts[parts.length - 1];
+        current[lastPart] = val;
+      };
+      
+      // Päivitä sekä cv_data että content.cv_data
+      if (updated.cv_data) {
+        updateNestedValue(updated.cv_data, path, value);
+      }
+      if (updated.content?.cv_data) {
+        updateNestedValue(updated.content.cv_data, path, value);
       }
       
       return updated;
     });
 
     toast.success('Muutos tehty - muista tallentaa!', { duration: 1500 });
-  }, [cvData, inlineEdits]);
+  }, [cvData]);
 
   // ── IMAGE HANDLERS ──
   const handleImageUpload = async (
@@ -435,7 +541,7 @@ export default function EditCVPage() {
     toast.success('Kuva valittu!');
   };
 
-  // ── SAVE (VAIHTOEHTO A) ──
+  // ── SAVE (KORJATTU VERSIO) ──
   const handleSave = async () => {
     if (!cvData || !userId) return;
     setIsSaving(true);
@@ -444,10 +550,8 @@ export default function EditCVPage() {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No token');
 
-      // ✅ VAIHTOEHTO A: Tallenna vain cv.content.cv_data
-      const finalCvData = {
-        ...(cvData.cv_data || cvData.content?.cv_data || {}),
-      };
+      // ✅ Tallenna kaikki muutokset cv_data:an
+      const finalCvData = cvData.cv_data || cvData.content?.cv_data || {};
 
       const finalContent = {
         cv_data: finalCvData,
@@ -456,7 +560,12 @@ export default function EditCVPage() {
 
       console.log('✅ SAVING CV CONTENT:', finalContent);
 
-      await updateCV(id, { content: finalContent }, token);
+      // ✅ Tallenna myös kuvat erikseen
+      await updateCV(id, { 
+        content: finalContent,
+        profile_image: finalCvData.profileImage || '',
+        background_image: finalCvData.backgroundImage || '',
+      }, token);
       
       toast.success('✅ CV tallennettu!');
       setIsEditing(false);
@@ -510,7 +619,7 @@ export default function EditCVPage() {
     }
   };
 
-  // ── RENDER TEMPLATE (SAMA KUIN MY-CVS) ──
+  // ── RENDER TEMPLATE ──
   const renderTemplate = () => {
     if (!cvData) return null;
 
@@ -525,8 +634,6 @@ export default function EditCVPage() {
       case 'creative': TemplateComponent = CreativeCVTemplate; break;
       default: TemplateComponent = SimpleCVTemplate;
     }
-
-    console.log('🎨 Rendering template:', templateType);
 
     return (
       <CVContainer>
@@ -781,7 +888,7 @@ export default function EditCVPage() {
         />
       )}
 
-      {/* MODALS (sama koodi kuin aikaisemmin...) */}
+      {/* MODALS - Profile Image */}
       {showProfileModal && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
@@ -825,6 +932,7 @@ export default function EditCVPage() {
         </div>
       )}
 
+      {/* MODALS - Background Image */}
       {showBgModal && (
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
