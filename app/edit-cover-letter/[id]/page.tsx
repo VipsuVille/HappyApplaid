@@ -1,5 +1,5 @@
 'use client';
-
+//edit-cover-letter/[id]/page.tsx
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 
 import IterativeFeedback from '@/components/IterativeFeedback';
+import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
+import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import { useTokens } from '@/hooks/useTokens';
 
 interface CoverLetter {
@@ -353,6 +355,24 @@ export default function EditCoverLetterPage() {
     );
   }
 
+  // ✅ KORJATTU: Rakenna template data AINA live state:sta
+  const templateData = {
+    name,
+    email,
+    phone,
+    location,
+    content,
+    jobTitle: letterData.content?.job_title || letterData.ai_data?.job_title || '',
+    companyName: letterData.content?.company_name || letterData.ai_data?.company_name || '',
+    title: letterData.title,
+    keyHighlights: letterData.ai_data?.key_highlights || [],
+    language: letterData.content?.language || 'finnish',
+    style: (letterData.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
+    headerColor: styleSettings.headerColor,
+    headerLayout: styleSettings.headerLayout,
+    sidebarContent: styleSettings.sidebarContent,
+  };
+
   const paragraphs = content?.split('\n\n').filter(p => p.trim()) || [];
   const today = new Date().toLocaleDateString('fi-FI', { 
     year: 'numeric', 
@@ -611,82 +631,69 @@ export default function EditCoverLetterPage() {
           {/* PREVIEW & EDIT */}
           <div className="flex-1 space-y-4 sm:space-y-6">
             
-            {/* PREVIEW */}
+            {/* ✅ KORJATTU PREVIEW - Käyttää CoverLetterTemplate-komponenttia ja live state dataa */}
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-800">
               <div className="flex items-center justify-center p-4 sm:p-6 bg-gray-50 dark:bg-black/20">
                 <div
-                  className="bg-white shadow-2xl"
                   style={{
-                    width: '210mm',
-                    minHeight: '297mm',
-                    fontFamily: "'Merriweather', serif",
                     transform: isMobile ? 'scale(0.35)' : 'scale(0.65)',
                     transformOrigin: isMobile ? 'top center' : 'center',
                   }}
                 >
-                  <div 
-                    className="p-12"
-                    style={{
-                      paddingTop: `${styleSettings.margins.top}px`,
-                      paddingRight: `${styleSettings.margins.right}px`,
-                      paddingBottom: `${styleSettings.margins.bottom}px`,
-                      paddingLeft: `${styleSettings.margins.left}px`,
-                    }}
-                  >
-                    {/* Header */}
-                    <div className="mb-8">
-                      <h1 
-                        className="text-3xl font-bold mb-2"
-                        style={{ color: styleSettings.headerColor }}
-                      >
-                        {name}
-                      </h1>
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <p>{email}</p>
-                        <p>{phone}</p>
-                        <p>{location}</p>
-                      </div>
-                    </div>
-
-                    <p className="text-gray-600 mb-8 text-sm">{today}</p>
-                    
-                    {/* Content */}
-                    {editingField === 'content' ? (
-                      <textarea
-                        value={tempValue}
-                        onChange={(e) => setTempValue(e.target.value)}
-                        onBlur={() => saveField('content')}
-                        rows={20}
-                        className="w-full px-4 py-3 bg-gray-50 border-2 border-orange-300 rounded-xl text-sm"
-                        autoFocus
-                      />
-                    ) : (
-                      <div
-                        onClick={() => startEditing('content', content)}
-                        className="cursor-pointer hover:bg-gray-50 p-4 rounded-xl transition-colors"
-                        style={{
-                          lineHeight: styleSettings.lineHeight,
-                          fontSize: `${styleSettings.fontSize}pt`,
-                          letterSpacing: `${styleSettings.letterSpacing}px`,
-                          textAlign: styleSettings.textAlign,
-                        }}
-                      >
-                        {paragraphs.map((p, i) => (
-                          <p 
-                            key={i} 
-                            style={{ 
-                              marginBottom: i < paragraphs.length - 1 ? `${styleSettings.paragraphSpacing}px` : 0 
-                            }}
-                          >
-                            {p}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <CoverLetterContainer>
+                    <CoverLetterTemplate
+                      data={templateData}
+                      isEditing={false}
+                      isPdfPreview={false}
+                    />
+                  </CoverLetterContainer>
                 </div>
               </div>
+              
+              {/* ✅ MUOKKAUSNAPPI PREVIEWIN ALLA */}
+              <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/60">
+                <button
+                  onClick={() => startEditing('content', content)}
+                  className="w-full px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Klikkaa muokataksesi tekstiä
+                </button>
+              </div>
             </div>
+
+            {/* ✅ MUOKKAUS TEKSTIKENTTÄ (näkyy kun muokataan) */}
+            {editingField === 'content' && (
+              <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border-2 border-orange-400 dark:border-orange-600 p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    Muokkaa hakukirjeen tekstiä
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={cancelEditing}
+                      className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700"
+                    >
+                      Peruuta
+                    </button>
+                    <button
+                      onClick={() => saveField('content')}
+                      className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-bold hover:bg-green-600"
+                    >
+                      ✓ Valmis
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={tempValue}
+                  onChange={(e) => setTempValue(e.target.value)}
+                  rows={20}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-black/20 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-orange-400 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+            )}
 
             {/* ITERATIVE FEEDBACK */}
             <IterativeFeedback
@@ -745,7 +752,7 @@ export default function EditCoverLetterPage() {
             <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
               <p className="text-sm font-bold text-orange-900 dark:text-orange-100 flex items-center gap-2">
                 <Eye className="w-4 h-4" />
-                Klikkaa tekstiä muokataksesi sitä suoraan tai käytä AI-muokkausta!
+                Klikkaa "Muokkaa tekstiä" -nappia tai käytä AI-muokkausta!
               </p>
             </div>
           </div>

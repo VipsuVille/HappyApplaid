@@ -76,18 +76,39 @@ export default function MyCVsPage() {
       if (fetchError) throw fetchError;
       
       const processedData = (data || []).map((cv: any) => {
+        // ✅ KORJATTU: Lue cv_data ja ai_data, mutta priorisoi content.cv_data (muokattu data)
         let cvData = cv.cv_data;
         let aiData = cv.ai_data;
 
-        if (!cvData && cv.content) {
+        if (cv.content) {
           try {
             const parsed = typeof cv.content === 'string' ? JSON.parse(cv.content) : cv.content;
-            cvData = parsed.cv_data || {};
-            aiData = parsed.ai_data || {};
+            
+            // ✅ KRIITTINEN: content.cv_data sisältää muokatut tiedot
+            // Mergea content.cv_data cv_data:n päälle
+            const contentCvData = parsed.cv_data || {};
+            const contentAiData = parsed.ai_data || {};
+            
+            // Jos content.cv_data on olemassa, käytä sitä (se on tuoreempi)
+            if (Object.keys(contentCvData).length > 0) {
+              cvData = { ...(cvData || {}), ...contentCvData };
+            } else if (!cvData) {
+              cvData = {};
+            }
+            
+            if (Object.keys(contentAiData).length > 0) {
+              aiData = { ...(aiData || {}), ...contentAiData };
+            } else if (!aiData) {
+              aiData = {};
+            }
           } catch (e) {
-            cvData = {}; aiData = {};
+            if (!cvData) cvData = {};
+            if (!aiData) aiData = {};
           }
         }
+
+        if (!cvData) cvData = {};
+        if (!aiData) aiData = {};
         
         const processImageUrl = (url: string | null | undefined): string => {
           if (!url || url.trim() === "") return "";
@@ -171,8 +192,6 @@ export default function MyCVsPage() {
       case "creative": TemplateComponent = CreativeCVTemplate; break;
       default: TemplateComponent = CVTemplate;
     }
-
-    const previewScale = isCarousel ? 0.35 : 0.42;
 
     return (
       <div className="group bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-[2rem] overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:border-orange-500/30">

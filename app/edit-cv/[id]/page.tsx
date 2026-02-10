@@ -60,6 +60,170 @@ export default function EditCVPage() {
   }, []);
 
   // ════════════════════════════════════════════════════════════════
+  // ✅ HELPER: Parse AI HTML sections into structured data
+  // This ensures the template reads from cv_data (editable) not AI HTML
+  // ════════════════════════════════════════════════════════════════
+  const parseAISkillsToStructured = (aiData: any): any[] | null => {
+    const skillsHTML = aiData?.skills_section || aiData?.html?.skills_section;
+    if (!skillsHTML || typeof skillsHTML !== 'string') return null;
+
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(skillsHTML, 'text/html');
+      const categories: { category: string; items: string[] }[] = [];
+      
+      const sections = doc.querySelectorAll('h3, h4, strong');
+      sections.forEach((heading) => {
+        const category = heading.textContent?.trim() || 'Skills';
+        const items: string[] = [];
+        
+        let nextElement = heading.nextElementSibling;
+        while (nextElement && nextElement.tagName === 'UL') {
+          nextElement.querySelectorAll('li').forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) items.push(text);
+          });
+          nextElement = nextElement.nextElementSibling;
+        }
+        
+        if (items.length > 0) {
+          categories.push({ category, items });
+        }
+      });
+
+      if (categories.length === 0) {
+        const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').filter((l: string) => l.trim());
+        if (lines.length > 0) {
+          categories.push({ category: 'Skills', items: lines });
+        }
+      }
+
+      return categories.length > 0 ? categories : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const parseAIExperienceToStructured = (aiData: any): any[] | null => {
+    const expHTML = aiData?.experience_section || aiData?.html?.experience_section;
+    if (!expHTML || typeof expHTML !== 'string') return null;
+
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(expHTML, 'text/html');
+      const jobs: any[] = [];
+
+      const jobDivs = doc.querySelectorAll('.job, .work-item, .experience-item');
+      
+      if (jobDivs.length > 0) {
+        jobDivs.forEach(jobDiv => {
+          const h4 = jobDiv.querySelector('h4');
+          const titleText = h4?.textContent?.trim() || '';
+          const [title, company] = titleText.split(' - ').map(s => s.trim());
+          const dateP = jobDiv.querySelector('.date, p[class*="date"]');
+          const period = dateP?.textContent?.trim() || '';
+          const achievements: string[] = [];
+          jobDiv.querySelectorAll('ul li').forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) achievements.push(text);
+          });
+          if (title || company) {
+            jobs.push({ title: title || 'Position', company: company || 'Company', period, achievements });
+          }
+        });
+      } else {
+        const allH4 = doc.querySelectorAll('h4');
+        allH4.forEach(h4 => {
+          const titleText = h4.textContent?.trim() || '';
+          const [title, company] = titleText.split(' - ').map(s => s.trim());
+          let period = '';
+          let nextElement = h4.nextElementSibling;
+          if (nextElement?.classList.contains('date') || nextElement?.tagName === 'P') {
+            period = nextElement.textContent?.trim() || '';
+            nextElement = nextElement.nextElementSibling;
+          }
+          const achievements: string[] = [];
+          if (nextElement?.tagName === 'UL') {
+            nextElement.querySelectorAll('li').forEach(li => {
+              const text = li.textContent?.trim();
+              if (text) achievements.push(text);
+            });
+          }
+          if (title || company) {
+            jobs.push({ title: title || 'Position', company: company || 'Company', period, achievements });
+          }
+        });
+      }
+
+      return jobs.length > 0 ? jobs : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const parseAIEducationToStructured = (aiData: any): any[] | null => {
+    const eduHTML = aiData?.education_section || aiData?.html?.education_section;
+    if (!eduHTML || typeof eduHTML !== 'string') return null;
+
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(eduHTML, 'text/html');
+      const eduList: any[] = [];
+
+      const eduDivs = doc.querySelectorAll('.education, .education-item');
+      
+      if (eduDivs.length > 0) {
+        eduDivs.forEach(eduDiv => {
+          const h4 = eduDiv.querySelector('h4');
+          const degree = h4?.textContent?.trim() || '';
+          const paragraphs = eduDiv.querySelectorAll('p');
+          let institution = '';
+          let year = '';
+          paragraphs.forEach((p, idx) => {
+            const text = p.textContent?.trim() || '';
+            if (idx === 0) institution = text;
+            if (p.classList.contains('date') || text.match(/\d{4}/)) year = text;
+          });
+          const details: string[] = [];
+          eduDiv.querySelectorAll('ul li').forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) details.push(text);
+          });
+          if (degree) eduList.push({ degree, institution, year, details });
+        });
+      } else {
+        const allH4 = doc.querySelectorAll('h4');
+        allH4.forEach(h4 => {
+          const degree = h4.textContent?.trim() || '';
+          let institution = '';
+          let year = '';
+          const details: string[] = [];
+          let nextElement = h4.nextElementSibling;
+          if (nextElement?.tagName === 'P') {
+            institution = nextElement.textContent?.trim() || '';
+            nextElement = nextElement.nextElementSibling;
+          }
+          if (nextElement?.tagName === 'P') {
+            const text = nextElement.textContent?.trim() || '';
+            if (text.match(/\d{4}/)) { year = text; nextElement = nextElement.nextElementSibling; }
+          }
+          if (nextElement?.tagName === 'UL') {
+            nextElement.querySelectorAll('li').forEach(li => {
+              const text = li.textContent?.trim();
+              if (text) details.push(text);
+            });
+          }
+          if (degree) eduList.push({ degree, institution, year, details });
+        });
+      }
+
+      return eduList.length > 0 ? eduList : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════
   // LOAD CV
   // ════════════════════════════════════════════════════════════════
   useEffect(() => {
@@ -90,7 +254,10 @@ export default function EditCVPage() {
             }
           }
 
-          // ✅ VARMISTA ETTÄ SKILLS ON ARRAY EIKÄ STRING
+          if (!cvDataParsed) cvDataParsed = {};
+          if (!aiDataParsed) aiDataParsed = {};
+
+          // ✅ VARMISTA ETTÄ SKILLS ON ARRAY
           if (typeof cvDataParsed?.skills === 'string') {
             try {
               cvDataParsed.skills = JSON.parse(cvDataParsed.skills);
@@ -98,34 +265,47 @@ export default function EditCVPage() {
               cvDataParsed.skills = cvDataParsed.skills.split(',').map((s: string) => s.trim()).filter(Boolean);
             }
           }
-          if (!Array.isArray(cvDataParsed?.skills)) {
-            cvDataParsed.skills = [];
+          
+          // ✅ KRIITTINEN: Jos skills ei ole structured array, parse AI HTML → structured data
+          if (!Array.isArray(cvDataParsed.skills) || cvDataParsed.skills.length === 0) {
+            const parsedSkills = parseAISkillsToStructured(aiDataParsed);
+            if (parsedSkills) {
+              cvDataParsed.skills = parsedSkills;
+              console.log('✅ Parsed AI skills into structured data:', parsedSkills.length, 'categories');
+            } else {
+              cvDataParsed.skills = [];
+            }
           }
 
-          // ✅ VARMISTA ETTÄ EXPERIENCE ON ARRAY
+          // ✅ KRIITTINEN: Jos experience ei ole array, parse AI HTML
           if (typeof cvDataParsed?.experience === 'string') {
-            try {
-              cvDataParsed.experience = JSON.parse(cvDataParsed.experience);
-            } catch {
+            try { cvDataParsed.experience = JSON.parse(cvDataParsed.experience); } catch { cvDataParsed.experience = []; }
+          }
+          if (!Array.isArray(cvDataParsed.experience) || cvDataParsed.experience.length === 0) {
+            const parsedExp = parseAIExperienceToStructured(aiDataParsed);
+            if (parsedExp) {
+              cvDataParsed.experience = parsedExp;
+              console.log('✅ Parsed AI experience into structured data:', parsedExp.length, 'jobs');
+            } else {
               cvDataParsed.experience = [];
             }
           }
-          if (!Array.isArray(cvDataParsed?.experience)) {
-            cvDataParsed.experience = [];
-          }
 
-          // ✅ VARMISTA ETTÄ EDUCATION ON ARRAY
+          // ✅ KRIITTINEN: Jos education ei ole array, parse AI HTML
           if (typeof cvDataParsed?.education === 'string') {
-            try {
-              cvDataParsed.education = JSON.parse(cvDataParsed.education);
-            } catch {
+            try { cvDataParsed.education = JSON.parse(cvDataParsed.education); } catch { cvDataParsed.education = []; }
+          }
+          if (!Array.isArray(cvDataParsed.education) || cvDataParsed.education.length === 0) {
+            const parsedEdu = parseAIEducationToStructured(aiDataParsed);
+            if (parsedEdu) {
+              cvDataParsed.education = parsedEdu;
+              console.log('✅ Parsed AI education into structured data:', parsedEdu.length, 'entries');
+            } else {
               cvDataParsed.education = [];
             }
           }
-          if (!Array.isArray(cvDataParsed?.education)) {
-            cvDataParsed.education = [];
-          }
 
+          // IMAGE PROCESSING
           const processImageUrl = (url: string | null | undefined): string => {
             if (!url || url.trim() === '') return '';
             const trimmed = url.trim();
@@ -143,10 +323,9 @@ export default function EditCVPage() {
             data.background_image || cvDataParsed?.backgroundImage || aiDataParsed?.background_image
           );
 
-          if (cvDataParsed) {
-            cvDataParsed.profileImage = profileImage;
-            cvDataParsed.backgroundImage = backgroundImage;
-          }
+          cvDataParsed.profileImage = profileImage;
+          cvDataParsed.backgroundImage = backgroundImage;
+          
           if (aiDataParsed) {
             aiDataParsed.profile_image = profileImage;
             aiDataParsed.background_image = backgroundImage;
@@ -163,7 +342,11 @@ export default function EditCVPage() {
             }
           };
 
-          console.log('✅ CV Data loaded:', processedData);
+          console.log('✅ CV Data loaded with structured data:', {
+            skills: cvDataParsed.skills?.length,
+            experience: cvDataParsed.experience?.length,
+            education: cvDataParsed.education?.length,
+          });
           setCvData(processedData);
         }
 
@@ -181,10 +364,10 @@ export default function EditCVPage() {
   }, [id, userId, getToken]);
 
   // ════════════════════════════════════════════════════════════════
-  // INLINE EDIT - KORJATTU VERSIO
+  // ✅ INLINE EDIT - KORJATTU: Toimii kaikille kenttätyypeille
   // ════════════════════════════════════════════════════════════════
   const handleUpdate = useCallback((field: string, value: any) => {
-    console.log('📝 Inline edit:', field, '→', value);
+    console.log('📝 Inline edit:', field, '→', typeof value === 'string' ? value.substring(0, 50) : value);
     
     setCvData(prev => {
       if (!prev) return prev;
@@ -192,82 +375,56 @@ export default function EditCVPage() {
       // Deep clone
       const updated = JSON.parse(JSON.stringify(prev));
       
-      // Varmista että cv_data on olemassa
       if (!updated.cv_data) updated.cv_data = {};
       if (!updated.content) updated.content = {};
       if (!updated.content.cv_data) updated.content.cv_data = {};
       
-      // Parsi polku (esim. "skills.0.items.3" tai "name")
       const parts = field.split('.');
       
-      // APUFUNKTIOTA: Luo nested path jos ei ole olemassa
-      const ensurePath = (obj: any, pathParts: string[]) => {
+      // ✅ Helper to set nested value
+      const setNestedValue = (obj: any, pathParts: string[], val: any) => {
         let current = obj;
+        
         for (let i = 0; i < pathParts.length - 1; i++) {
           const part = pathParts[i];
           const nextPart = pathParts[i + 1];
-          const isNextArrayIndex = !isNaN(Number(nextPart));
+          const isNextIndex = !isNaN(Number(nextPart));
           
-          if (!(part in current)) {
-            current[part] = isNextArrayIndex ? [] : {};
+          if (current[part] === undefined || current[part] === null) {
+            current[part] = isNextIndex ? [] : {};
           } else if (typeof current[part] === 'string') {
-            // Jos on string (esim. JSON), parsi se
             try {
-              const parsed = JSON.parse(current[part]);
-              if (Array.isArray(parsed) || typeof parsed === 'object') {
-                current[part] = parsed;
-              } else {
-                current[part] = isNextArrayIndex ? [] : {};
-              }
+              current[part] = JSON.parse(current[part]);
             } catch {
-              current[part] = isNextArrayIndex ? [] : {};
+              current[part] = isNextIndex ? [] : {};
             }
           }
           
-          // Varmista että on oikea tyyppi
-          if (isNextArrayIndex && !Array.isArray(current[part])) {
+          // Ensure correct type
+          if (isNextIndex && !Array.isArray(current[part])) {
             current[part] = [];
-          } else if (!isNextArrayIndex && typeof current[part] !== 'object') {
-            current[part] = {};
           }
           
           current = current[part];
         }
-        return current;
+        
+        const lastPart = pathParts[pathParts.length - 1];
+        const lastIndex = Number(lastPart);
+        
+        if (!isNaN(lastIndex) && Array.isArray(current)) {
+          if (lastIndex < current.length) {
+            current[lastIndex] = val;
+          } else {
+            current.push(val);
+          }
+        } else {
+          current[lastPart] = val;
+        }
       };
       
-      // Päivitä cv_data
-      const target = ensurePath(updated.cv_data, parts);
-      const lastPart = parts[parts.length - 1];
-      
-      // Jos yritetään päivittää array itemia
-      if (!isNaN(Number(lastPart))) {
-        const index = Number(lastPart);
-        if (Array.isArray(target)) {
-          if (index < target.length) {
-            target[index] = value;
-          } else {
-            target.push(value);
-          }
-        }
-      } else {
-        target[lastPart] = value;
-      }
-      
-      // Päivitä myös content.cv_data
-      const contentTarget = ensurePath(updated.content.cv_data, parts);
-      if (!isNaN(Number(lastPart))) {
-        const index = Number(lastPart);
-        if (Array.isArray(contentTarget)) {
-          if (index < contentTarget.length) {
-            contentTarget[index] = value;
-          } else {
-            contentTarget.push(value);
-          }
-        }
-      } else {
-        contentTarget[lastPart] = value;
-      }
+      // Update both cv_data and content.cv_data
+      setNestedValue(updated.cv_data, parts, value);
+      setNestedValue(updated.content.cv_data, parts, value);
       
       return updated;
     });
@@ -307,7 +464,7 @@ export default function EditCVPage() {
   };
 
   // ════════════════════════════════════════════════════════════════
-  // SAVE
+  // ✅ SAVE - KORJATTU: Tallentaa cv_data JA ai_data erikseen
   // ════════════════════════════════════════════════════════════════
   const handleSave = async () => {
     if (!cvData || !userId) return;
@@ -318,16 +475,24 @@ export default function EditCVPage() {
       if (!token) throw new Error('No token');
 
       const finalCvData = cvData.cv_data || cvData.content?.cv_data || {};
+      const finalAiData = cvData.ai_data || cvData.content?.ai_data || {};
 
       const finalContent = {
         cv_data: finalCvData,
-        ai_data: cvData.ai_data || cvData.content?.ai_data || {},
+        ai_data: finalAiData,
       };
 
-      console.log('✅ SAVING:', finalContent);
+      console.log('✅ SAVING:', {
+        skills: finalCvData.skills?.length,
+        experience: finalCvData.experience?.length,
+        education: finalCvData.education?.length,
+      });
 
+      // ✅ KRIITTINEN: Tallenna content, cv_data JA ai_data
       await updateCV(id, { 
         content: finalContent,
+        cv_data: finalCvData,
+        ai_data: finalAiData,
         profile_image: finalCvData.profileImage || '',
         background_image: finalCvData.backgroundImage || '',
       }, token);
