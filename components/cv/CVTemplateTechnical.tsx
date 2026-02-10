@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { UserFormData, AIData, EditMode } from "@/types";
 
 interface TechnicalCVTemplateProps {
@@ -26,19 +26,41 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   backgroundImage
 }) => {
   const [skillsTop, setSkillsTop] = useState(0);
+  
+  // ✅ REFS JOKAISELLE EDITABLE-KENTÄLLE - estää cursorin hyppimisen
+  const contentRefs = useRef<Map<string, string>>(new Map());
 
-  // ✅ SUORA MUOKKAUS - päivitä heti
+  // ✅ KORJATTU: handleInput ei päivitä statea jos value ei ole muuttunut
   const handleInput = (path: string, e: React.FormEvent<HTMLElement>) => {
     if (!isEditing || !onUpdate) return;
+    
     const newValue = e.currentTarget.innerText;
+    const currentValue = contentRefs.current.get(path);
+    
+    // Vältä turhia päivityksiä ja cursorin hyppimistä
+    if (newValue === currentValue) return;
+    
+    contentRefs.current.set(path, newValue);
     onUpdate(path, newValue);
   };
 
-  // ✅ LISTAN ITEMIN MUOKKAUS (skills, bullets, etc)
+  // ✅ ALUSTA REFS KUN DATA MUUTTUU
+  useEffect(() => {
+    contentRefs.current.clear();
+  }, [data, aiData]);
+
+  // ✅ LISTAN ITEMIN MUOKKAUS
   const handleListItemInput = (path: string, index: number, e: React.FormEvent<HTMLElement>) => {
     if (!isEditing || !onUpdate) return;
+    
     const newValue = e.currentTarget.innerText;
-    onUpdate(`${path}.${index}`, newValue);
+    const fullPath = `${path}.${index}`;
+    const currentValue = contentRefs.current.get(fullPath);
+    
+    if (newValue === currentValue) return;
+    
+    contentRefs.current.set(fullPath, newValue);
+    onUpdate(fullPath, newValue);
   };
 
   /* ============================================================
@@ -114,20 +136,25 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     PARSE SKILLS - MUOKATTAVISSA
+     PARSE SKILLS - KORJATTU DATA-HAULLE
   ============================================================ */
 
   const parseSkills = (): { category: string; items: string[] }[] => {
-    // Jos data.cv_data.skills on olemassa ja muokattu, käytä sitä
-    if (data?.skills && Array.isArray(data.skills)) {
-      return data.skills;
+    // ✅ KÄYTÄ ENSISIJAISESTI data.skills (joka on jo parsittu array)
+    if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
+      // Jos skills on array of strings
+      if (typeof data.skills[0] === 'string') {
+        return [{ category: "Skills", items: data.skills as string[] }];
+      }
+      // Jos skills on array of objects
+      return data.skills as { category: string; items: string[] }[];
     }
     
     const skillsHTML = getAIContent("skills_section");
     
     if (!skillsHTML) {
       const skillsText = data?.skills || "";
-      if (!skillsText) return [];
+      if (!skillsText || typeof skillsText !== 'string') return [];
       
       const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
       return [{ category: "Skills", items: skills }];
@@ -167,7 +194,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     PARSE WORK EXPERIENCE - MUOKATTAVISSA
+     PARSE WORK EXPERIENCE
   ============================================================ */
 
   const parseWorkExperience = (): Array<{
@@ -176,13 +203,15 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     period: string;
     achievements: string[];
   }> => {
-    // Jos data.cv_data.experience on olemassa ja muokattu, käytä sitä
-    if (data?.experience && Array.isArray(data.experience)) {
+    // ✅ KÄYTÄ ENSISIJAISESTI data.experience
+    if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0) {
       return data.experience.map((exp: any) => ({
-        title: exp.position || exp.title || 'Position',
+        title: exp.title || exp.position || 'Position',
         company: exp.company || 'Company',
         period: exp.period || exp.duration || '',
-        achievements: exp.bullets || exp.achievements || [exp.description].filter(Boolean)
+        achievements: Array.isArray(exp.bullets) ? exp.bullets : 
+                     Array.isArray(exp.achievements) ? exp.achievements : 
+                     [exp.description].filter(Boolean)
       }));
     }
     
@@ -285,7 +314,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   };
 
   /* ============================================================
-     PARSE EDUCATION - MUOKATTAVISSA
+     PARSE EDUCATION
   ============================================================ */
 
   const parseEducation = (): Array<{
@@ -294,13 +323,13 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     year: string;
     details: string[];
   }> => {
-    // Jos data.cv_data.education on olemassa ja muokattu, käytä sitä
-    if (data?.education && Array.isArray(data.education)) {
+    // ✅ KÄYTÄ ENSISIJAISESTI data.education
+    if (data?.education && Array.isArray(data.education) && data.education.length > 0) {
       return data.education.map((edu: any) => ({
         degree: edu.degree || 'Degree',
-        institution: edu.school || edu.institution || 'Institution',
+        institution: edu.institution || edu.school || 'Institution',
         year: edu.year || edu.period || '',
-        details: edu.details || [edu.description].filter(Boolean)
+        details: Array.isArray(edu.details) ? edu.details : [edu.description].filter(Boolean)
       }));
     }
     
@@ -415,14 +444,13 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   const name = data?.name || "Name";
   const title = data?.title || "Professional Title";
 
-  // ✅ APUFUNKTIOT MUOKKAUSTYYLIEN MÄÄRITTÄMISEEN
-  const getEditableStyles = (isActive: boolean = true) => ({
+  // ✅ APUFUNKTIOT - EI display-ominaisuutta
+  const getEditableStyles = (isActive: boolean = true): React.CSSProperties => ({
     outline: isEditing && isActive ? '2px dashed rgba(249, 115, 22, 0.5)' : 'none',
     padding: isEditing && isActive ? '2px 4px' : '0',
     borderRadius: '4px',
     cursor: isEditing ? 'text' : 'default',
     minWidth: '20px',
-    display: 'inline-block',
   });
 
   /* ============================================================
@@ -715,9 +743,10 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   onInput={(e) => handleInput("email", e)}
                   suppressContentEditableWarning
                   style={{ 
+                    display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
-                    ...getEditableStyles(),
+                    ...(getEditableStyles() as React.CSSProperties),
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
@@ -732,9 +761,10 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   onInput={(e) => handleInput("phone", e)}
                   suppressContentEditableWarning
                   style={{ 
+                    display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
-                    ...getEditableStyles(),
+                    ...(getEditableStyles() as React.CSSProperties),
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -749,9 +779,10 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
                   onInput={(e) => handleInput("location", e)}
                   suppressContentEditableWarning
                   style={{ 
+                    display: 'inline-flex', 
                     alignItems: 'center', 
                     gap: '2mm',
-                    ...getEditableStyles(),
+                    ...(getEditableStyles() as React.CSSProperties),
                   }}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>

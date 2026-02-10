@@ -6,7 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Upload, User, Image as ImageIconLucide, Sparkles, 
-  Eye, Edit3, FileText, X, Camera, Check
+  Eye, Edit3, FileText, X, Camera
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
@@ -90,6 +90,42 @@ export default function EditCVPage() {
             }
           }
 
+          // ✅ VARMISTA ETTÄ SKILLS ON ARRAY EIKÄ STRING
+          if (typeof cvDataParsed?.skills === 'string') {
+            try {
+              cvDataParsed.skills = JSON.parse(cvDataParsed.skills);
+            } catch {
+              cvDataParsed.skills = cvDataParsed.skills.split(',').map((s: string) => s.trim()).filter(Boolean);
+            }
+          }
+          if (!Array.isArray(cvDataParsed?.skills)) {
+            cvDataParsed.skills = [];
+          }
+
+          // ✅ VARMISTA ETTÄ EXPERIENCE ON ARRAY
+          if (typeof cvDataParsed?.experience === 'string') {
+            try {
+              cvDataParsed.experience = JSON.parse(cvDataParsed.experience);
+            } catch {
+              cvDataParsed.experience = [];
+            }
+          }
+          if (!Array.isArray(cvDataParsed?.experience)) {
+            cvDataParsed.experience = [];
+          }
+
+          // ✅ VARMISTA ETTÄ EDUCATION ON ARRAY
+          if (typeof cvDataParsed?.education === 'string') {
+            try {
+              cvDataParsed.education = JSON.parse(cvDataParsed.education);
+            } catch {
+              cvDataParsed.education = [];
+            }
+          }
+          if (!Array.isArray(cvDataParsed?.education)) {
+            cvDataParsed.education = [];
+          }
+
           const processImageUrl = (url: string | null | undefined): string => {
             if (!url || url.trim() === '') return '';
             const trimmed = url.trim();
@@ -145,7 +181,7 @@ export default function EditCVPage() {
   }, [id, userId, getToken]);
 
   // ════════════════════════════════════════════════════════════════
-  // INLINE EDIT - SAMA LOGIIKKA KUIN COVER LETTERISSÄ
+  // INLINE EDIT - KORJATTU VERSIO
   // ════════════════════════════════════════════════════════════════
   const handleUpdate = useCallback((field: string, value: any) => {
     console.log('📝 Inline edit:', field, '→', value);
@@ -156,27 +192,82 @@ export default function EditCVPage() {
       // Deep clone
       const updated = JSON.parse(JSON.stringify(prev));
       
-      // Päivitä cv_data
+      // Varmista että cv_data on olemassa
       if (!updated.cv_data) updated.cv_data = {};
       if (!updated.content) updated.content = {};
       if (!updated.content.cv_data) updated.content.cv_data = {};
       
-      // Parsi polku (esim. "name" tai "experience.0.position")
+      // Parsi polku (esim. "skills.0.items.3" tai "name")
       const parts = field.split('.');
-      let current = updated.cv_data;
-      let contentCurrent = updated.content.cv_data;
       
-      for (let i = 0; i < parts.length - 1; i++) {
-        const part = parts[i];
-        if (!current[part]) current[part] = isNaN(Number(parts[i+1])) ? {} : [];
-        if (!contentCurrent[part]) contentCurrent[part] = isNaN(Number(parts[i+1])) ? {} : [];
-        current = current[part];
-        contentCurrent = contentCurrent[part];
+      // APUFUNKTIOTA: Luo nested path jos ei ole olemassa
+      const ensurePath = (obj: any, pathParts: string[]) => {
+        let current = obj;
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          const part = pathParts[i];
+          const nextPart = pathParts[i + 1];
+          const isNextArrayIndex = !isNaN(Number(nextPart));
+          
+          if (!(part in current)) {
+            current[part] = isNextArrayIndex ? [] : {};
+          } else if (typeof current[part] === 'string') {
+            // Jos on string (esim. JSON), parsi se
+            try {
+              const parsed = JSON.parse(current[part]);
+              if (Array.isArray(parsed) || typeof parsed === 'object') {
+                current[part] = parsed;
+              } else {
+                current[part] = isNextArrayIndex ? [] : {};
+              }
+            } catch {
+              current[part] = isNextArrayIndex ? [] : {};
+            }
+          }
+          
+          // Varmista että on oikea tyyppi
+          if (isNextArrayIndex && !Array.isArray(current[part])) {
+            current[part] = [];
+          } else if (!isNextArrayIndex && typeof current[part] !== 'object') {
+            current[part] = {};
+          }
+          
+          current = current[part];
+        }
+        return current;
+      };
+      
+      // Päivitä cv_data
+      const target = ensurePath(updated.cv_data, parts);
+      const lastPart = parts[parts.length - 1];
+      
+      // Jos yritetään päivittää array itemia
+      if (!isNaN(Number(lastPart))) {
+        const index = Number(lastPart);
+        if (Array.isArray(target)) {
+          if (index < target.length) {
+            target[index] = value;
+          } else {
+            target.push(value);
+          }
+        }
+      } else {
+        target[lastPart] = value;
       }
       
-      const lastPart = parts[parts.length - 1];
-      current[lastPart] = value;
-      contentCurrent[lastPart] = value;
+      // Päivitä myös content.cv_data
+      const contentTarget = ensurePath(updated.content.cv_data, parts);
+      if (!isNaN(Number(lastPart))) {
+        const index = Number(lastPart);
+        if (Array.isArray(contentTarget)) {
+          if (index < contentTarget.length) {
+            contentTarget[index] = value;
+          } else {
+            contentTarget.push(value);
+          }
+        }
+      } else {
+        contentTarget[lastPart] = value;
+      }
       
       return updated;
     });
