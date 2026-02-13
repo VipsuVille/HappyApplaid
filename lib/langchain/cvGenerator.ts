@@ -1,4 +1,4 @@
-// lib/langchain/cvGenerator.ts - TRUTH-ABSOLUTE + SAVED RESPONSES
+// lib/langchain/cvGenerator.ts - TRUTH-ABSOLUTE + SAVED RESPONSES + V2-STYLE PROMPTS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -25,7 +25,6 @@ import { buildAIContext } from "@/lib/knowledge";
 import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 import { FALLBACK_IMAGE } from "../utils";
 
-// ✅ responseHelper — for category-based merging logic
 import {
   convertToAnswerFormat,
   mergeResponsesIntoProfile,
@@ -33,10 +32,14 @@ import {
 } from "@/lib/langchain/responseHelper";
 
 // ════════════════════════════════════════════════════════════════
-// CONSTANTS & TYPES
+// CONSTANTS
 // ════════════════════════════════════════════════════════════════
 
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+
+// ════════════════════════════════════════════════════════════════
+// TYPES
+// ════════════════════════════════════════════════════════════════
 
 type PersonalityExtraction = {
   workingStyle?: { extracted: string; confidence: number; keywords: string[]; businessValue: string };
@@ -52,16 +55,41 @@ type PersonalityExtraction = {
 };
 
 interface CVGeneratorInput {
-  userId?: string; cvId?: string; name: string; email?: string; phone?: string;
-  location?: string; cvType?: 'simple' | 'technical' | 'creative'; language?: string;
-  title?: string; introText?: string; education?: string; workExperience?: string;
-  skills?: string; languages?: string; workingStyle?: string; problemSolving?: string;
-  energySources?: string; uniqueStrength?: string; learningStyle?: string;
-  teamRole?: string; valuesExample?: string; superpower?: string; careerGoals?: string;
-  bestProjectExample?: string; failureLesson?: string; profileImage?: string;
-  backgroundImage?: string; hobbies?: string; personalityTraits?: string;
-  profile?: string; bio?: string; jobPosting?: string; authToken?: string;
-  enableRAG?: boolean; skipQuestions?: boolean;
+  userId?: string;
+  cvId?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  cvType?: 'simple' | 'technical' | 'creative';
+  language?: string;
+  title?: string;
+  introText?: string;
+  education?: string;
+  workExperience?: string;
+  skills?: string;
+  languages?: string;
+  workingStyle?: string;
+  problemSolving?: string;
+  energySources?: string;
+  uniqueStrength?: string;
+  learningStyle?: string;
+  teamRole?: string;
+  valuesExample?: string;
+  superpower?: string;
+  careerGoals?: string;
+  bestProjectExample?: string;
+  failureLesson?: string;
+  profileImage?: string;
+  backgroundImage?: string;
+  hobbies?: string;
+  personalityTraits?: string;
+  profile?: string;
+  bio?: string;
+  jobPosting?: string;
+  authToken?: string;
+  enableRAG?: boolean;
+  skipQuestions?: boolean;
   answeredQuestions?: Array<{ id: string; question: string; answer: string }>;
 }
 
@@ -84,23 +112,32 @@ type CVOutputType = z.infer<typeof cvOutputSchema>;
 const outputParser = StructuredOutputParser.fromZodSchema(cvOutputSchema);
 
 interface JobAnalysis {
-  required_skills: string[]; preferred_skills: string[]; soft_skills: string[];
-  company_values: string[]; key_responsibilities: string[];
-  experience_level: string; industry_keywords: string[];
+  required_skills: string[];
+  preferred_skills: string[];
+  soft_skills: string[];
+  company_values: string[];
+  key_responsibilities: string[];
+  experience_level: string;
+  industry_keywords: string[];
 }
 
 interface CVGenerationResult {
-  personal_description: string; html: CVOutputType['cv_content'];
-  background_image: string; profile_image: string; profile_initials: string;
-  fullTextContent: string; ats_data: CVOutputType['ats_optimization'] | null;
+  personal_description: string;
+  html: CVOutputType['cv_content'];
+  background_image: string;
+  profile_image: string;
+  profile_initials: string;
+  fullTextContent: string;
+  ats_data: CVOutputType['ats_optimization'] | null;
   job_analysis: JobAnalysis;
   ground_truth_check?: { approved: boolean; riskLevel: string; violations: any };
-  questions?: any[]; needsMoreInfo?: boolean;
+  questions?: any[];
+  needsMoreInfo?: boolean;
   images: { background_prompt: string; visual_elements: string[] };
 }
 
 // ════════════════════════════════════════════════════════════════
-// HELPERS
+// UTILITY HELPERS
 // ════════════════════════════════════════════════════════════════
 
 function toLangChainInput(input: CVGeneratorInput): LangChainCVInput {
@@ -126,12 +163,28 @@ class PerformanceTimer {
   private startTime = Date.now();
   private currentStage: string | null = null;
   private stageStart = 0;
-  start(s: string) { if (this.currentStage) this.end(); this.currentStage = s; this.stageStart = Date.now(); console.time(`⏱️  ${s}`); }
-  end() { if (!this.currentStage) return; this.stages[this.currentStage] = Date.now() - this.stageStart; console.timeEnd(`⏱️  ${this.currentStage}`); this.currentStage = null; }
-  getResults() { if (this.currentStage) this.end(); const t = Date.now() - this.startTime; console.log(`\n🎯 TOTAL: ${t}ms`); return { totalTime: t, stages: this.stages }; }
-}
 
-function ensureString(v: unknown): string { return typeof v === "string" ? v : ""; }
+  start(s: string) {
+    if (this.currentStage) this.end();
+    this.currentStage = s;
+    this.stageStart = Date.now();
+    console.time(`⏱️  ${s}`);
+  }
+
+  end() {
+    if (!this.currentStage) return;
+    this.stages[this.currentStage] = Date.now() - this.stageStart;
+    console.timeEnd(`⏱️  ${this.currentStage}`);
+    this.currentStage = null;
+  }
+
+  getResults() {
+    if (this.currentStage) this.end();
+    const t = Date.now() - this.startTime;
+    console.log(`\n🎯 TOTAL: ${t}ms`);
+    return { totalTime: t, stages: this.stages };
+  }
+}
 
 function getMessageContent(message: unknown): string {
   if (typeof message === "string") return message;
@@ -140,20 +193,24 @@ function getMessageContent(message: unknown): string {
   const content = (message as { content: unknown }).content;
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content.map((item: unknown) => {
-      if (typeof item === "string") return item;
-      if (typeof item === "object" && item !== null && "text" in item) {
-        const t = item as { text: unknown }; if (typeof t.text === "string") return t.text;
-      }
-      return "";
-    }).filter(t => t.length > 0).join(" ");
+    return content
+      .map((item: unknown) => {
+        if (typeof item === "string") return item;
+        if (typeof item === "object" && item !== null && "text" in item) {
+          const t = item as { text: unknown };
+          if (typeof t.text === "string") return t.text;
+        }
+        return "";
+      })
+      .filter((t) => t.length > 0)
+      .join(" ");
   }
   return "";
 }
 
 function generateInitials(name: string): string {
   if (!name) return "";
-  return name.split(" ").map(n => n.charAt(0).toUpperCase()).join("");
+  return name.split(" ").map((n) => n.charAt(0).toUpperCase()).join("");
 }
 
 function mergeCVAnswers(
@@ -162,25 +219,35 @@ function mergeCVAnswers(
 ): Partial<LangChainCVInput> {
   const merged: Partial<LangChainCVInput> = {};
   answers.forEach((item) => {
-    const q = item.question.toLowerCase(); const a = item.answer;
+    const q = item.question.toLowerCase();
+    const a = item.answer;
     if (q.includes('työkokemus') || q.includes('work experience') || q.includes('projektit') || q.includes('projects')) {
       merged.workExperience = (merged.workExperience || userData.workExperience || '') + '\n\n' + a;
     } else if (q.includes('koulutus') || q.includes('education') || q.includes('opiskelu')) {
       merged.education = (merged.education || userData.education || '') + '\n\n' + a;
     } else if (q.includes('osaaminen') || q.includes('taidot') || q.includes('skills')) {
       merged.skills = (merged.skills || userData.skills || '') + ', ' + a;
-    } else if (q.includes('työskentelytyyli') || q.includes('working style')) { merged.workingStyle = a;
-    } else if (q.includes('ongelmanratkaisu') || q.includes('problem solving')) { merged.problemSolving = a;
-    } else if (q.includes('vahvuus') || q.includes('strength')) { merged.uniqueStrength = a;
-    } else if (q.includes('tavoite') || q.includes('goal')) { merged.careerGoals = a;
-    } else if (q.includes('projekti') || q.includes('project')) { merged.bestProjectExample = a;
-    } else { if (a.length > 50) merged.workExperience = (merged.workExperience || userData.workExperience || '') + '\n\n' + a; }
+    } else if (q.includes('työskentelytyyli') || q.includes('working style')) {
+      merged.workingStyle = a;
+    } else if (q.includes('ongelmanratkaisu') || q.includes('problem solving')) {
+      merged.problemSolving = a;
+    } else if (q.includes('vahvuus') || q.includes('strength')) {
+      merged.uniqueStrength = a;
+    } else if (q.includes('tavoite') || q.includes('goal')) {
+      merged.careerGoals = a;
+    } else if (q.includes('projekti') || q.includes('project')) {
+      merged.bestProjectExample = a;
+    } else {
+      if (a.length > 50) {
+        merged.workExperience = (merged.workExperience || userData.workExperience || '') + '\n\n' + a;
+      }
+    }
   });
   return merged;
 }
 
 // ════════════════════════════════════════════════════════════════
-// ✅ SAVED RESPONSES — Direct DB fetch (no HTTP round-trip)
+// SAVED RESPONSES — Direct DB, merge via responseHelper
 // ════════════════════════════════════════════════════════════════
 
 async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]> {
@@ -192,12 +259,17 @@ async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]>
       .order('updated_at', { ascending: false })
       .limit(500);
 
-    if (error) { console.error('❌ DB fetch saved responses failed:', error); return []; }
-    if (!data || data.length === 0) { console.log('ℹ️ No saved responses in DB'); return []; }
+    if (error) {
+      console.error('❌ DB fetch saved responses failed:', error);
+      return [];
+    }
+    if (!data || data.length === 0) {
+      console.log('ℹ️ [CV GEN] No saved responses in DB');
+      return [];
+    }
 
     console.log(`📚 [CV GEN] Fetched ${data.length} saved responses from DB`);
-
-    return data.map(r => ({
+    return data.map((r) => ({
       id: r.id,
       question: r.question_text,
       answer: r.answer,
@@ -209,13 +281,17 @@ async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]>
   }
 }
 
-async function enrichWithSavedResponses(userData: CVGeneratorInput): Promise<CVGeneratorInput> {
-  if (!userData.userId) { console.log('⚠️ No userId — skipping saved response fetch'); return userData; }
+async function enrichWithSavedResponses(
+  userData: CVGeneratorInput
+): Promise<CVGeneratorInput> {
+  if (!userData.userId) {
+    console.log('⚠️ No userId — skipping saved response fetch');
+    return userData;
+  }
 
   const answerEntries = await fetchSavedResponsesFromDB(userData.userId);
   if (answerEntries.length === 0) return userData;
 
-  // Build profile object → merge via responseHelper (category-based, language-agnostic)
   const profileObj: Record<string, any> = {
     workExperience: userData.workExperience || '',
     education: userData.education || '',
@@ -250,81 +326,87 @@ async function enrichWithSavedResponses(userData: CVGeneratorInput): Promise<CVG
 }
 
 // ════════════════════════════════════════════════════════════════
-// TRUTH RULES (shared across all prompt styles)
+// PROMPTS — V2-STYLE: Truth-absolute, ask-don't-guess
 // ════════════════════════════════════════════════════════════════
 
+// Shared truth rules (same philosophy as V2 cover letter)
 const TRUTH_RULES = `
-**ABSOLUTE TRUTH RULES — VIOLATION = FAILURE:**
+# ════════════════════════════════════════════════════════════════
+# ABSOLUTE TRUTH RULES — VIOLATION = FAILURE
+# ════════════════════════════════════════════════════════════════
 
-You are a CV writer, not a fiction writer. Present the user's ACTUAL background in the best possible light.
+You write CVs, not fiction. Present the person's ACTUAL background.
 
-1. You may ONLY write facts that appear in the input data.
+Read the profile data. Write naturally and professionally. Stay truthful.
+
+1. ONLY write facts that appear in the input data.
 2. NEVER invent, guess, or assume:
-   - Technologies, languages, tools, or frameworks not listed
-   - Numbers, percentages, metrics, or KPIs (e.g. "improved X by 30%")
+   - Technologies, tools, or frameworks not listed by the user
+   - Numbers, percentages, metrics (e.g. "improved X by 30%")
    - Job titles, company names, or durations not provided
    - Certifications, degrees, or courses not listed
-   - Achievements, results, or impacts not described
    - Team sizes, budgets, or project scales
-3. If the user says "I built a CV generator" — say that.
-   Do NOT add what language it was built in, how many users it had,
-   or what impact it achieved — unless the user explicitly stated those.
-4. If information is missing:
-   a) OMIT that detail entirely, OR
+   - Achievements or results the user did not describe
+3. If user says "I built a CV generator":
+   ✅ Say "Developed a CV and cover letter generator application"
+   ❌ Do NOT add: "using Python and React" (not stated)
+   ❌ Do NOT add: "improving engagement by 30%" (not stated)
+   ❌ Do NOT add: "for 500 users" (not stated)
+4. Missing info? Two options:
+   a) OMIT the detail entirely
    b) Use honest phrases: "Developing skills in...", "Interested in..."
-      — but NEVER claim actual experience
-5. A shorter, honest CV is ALWAYS better than a longer, fabricated one.
+   NEVER claim experience that doesn't exist.
+5. Shorter + honest is ALWAYS better than longer + fabricated.
 6. You may rephrase and improve WORDING. You may NOT add NEW FACTS.
 
-**FORBIDDEN (examples):**
-❌ "Built a CV generator using Python and React that improved engagement by 30%" — Python, React, 30% are invented
-❌ "Managed a team of 15 nurses across 3 departments" — team size invented
-❌ "Expert in React, TypeScript, Node.js, Docker, AWS" — added tools not in input
-❌ "Reduced processing time by 40%" — metric invented
-❌ Any number or metric the user did not provide
+# ════════════════════════════════════════════════════════════════
+# PRIVACY: NO PERSONAL INFO IN PROMPT
+# ════════════════════════════════════════════════════════════════
 
-**ALLOWED (examples):**
-✅ "Developed a CV and cover letter generator application" — user said this
-✅ "Seven years of professional nursing experience" — user said this
-✅ "Skilled in React and TypeScript" — user listed these
-✅ "Eager to expand into cloud technologies" — honest about learning
-✅ Rephrasing "I did project" → "Led the development of a project"
+❌ The template handles: name, email, phone, address
+✅ Focus on: skills, experience, personality, goals
 `;
-
-// ════════════════════════════════════════════════════════════════
-// PROMPTS
-// ════════════════════════════════════════════════════════════════
 
 const simplePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You create a PERSONAL, FRIENDLY CV in first person.
 
 {knowledgeContext}
 
-**STYLE:** Warm, descriptive, narrative. Show WHO the person is. Story > lists.
-
-**STRUCTURE:**
-- Personal Description: 150–250 words
-- Skills: Text-based in context
-- Experience: Story-driven
+**STYLE:** Warm, narrative, descriptive. Tell who this person IS.
+- Personal description: 150–250 words, engaging
+- Skills: Text-based, in context (not just a list)
+- Experience: Story-driven — what they did, what they learned
 - Education: Brief
 - Languages: Freeform
 
-**LENGTH:** 300–400 words. Shorter if data limited.
+**LENGTH:** 300–400 words total. Shorter if data is limited.
 
 ${TRUTH_RULES}
 
 {atsInstructions}
-{format_instructions}`],
-  ["human", `Create a friendly CV based ONLY on this data:
 
-Name: {name} | Skills: {skills} | Experience: {workExperience} | Education: {education}
-Working Style: {workingStyle} | Problem Solving: {problemSolving}
-Unique Strength: {uniqueStrength} | Superpower: {superpower}
-Career Goals: {careerGoals} | Best Project: {bestProjectExample}
+{format_instructions}`],
+  ["human", `Create a friendly, personal CV based ONLY on this data:
+
+**PROFILE (ANONYMIZED):**
+Skills: {skills}
+Experience: {workExperience}
+Education: {education}
+
+**PERSONALITY:**
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Unique Strength: {uniqueStrength}
+Superpower: {superpower}
+
+**CONTEXT:**
+Career Goals: {careerGoals}
+Best Project: {bestProjectExample}
 
 {jobContext}
 
-Write in {language}. Every fact must come from data above. Do NOT add anything.`]
+Write in {language}. Be warm and personal.
+Every single fact must come from the data above. Do NOT invent anything.`]
 ]);
 
 const technicalPrompt = ChatPromptTemplate.fromMessages([
@@ -332,7 +414,7 @@ const technicalPrompt = ChatPromptTemplate.fromMessages([
 
 {knowledgeContext}
 
-**STYLE:** List-based, key points. ONLY user-provided technologies. Clear hierarchy.
+**STYLE:** List-based, key points. ONLY user-provided technologies/tools.
 
 **FORMATTING:**
 1. Skills: <h3>Category</h3><ul><li>Skill</li></ul> — ONLY listed skills
@@ -346,16 +428,27 @@ const technicalPrompt = ChatPromptTemplate.fromMessages([
 ${TRUTH_RULES}
 
 {atsInstructions}
-{format_instructions}`],
-  ["human", `Create a technical CV based ONLY on this data:
 
-Name: {name} | Skills: {skills} | Experience: {workExperience} | Education: {education}
-Working Style: {workingStyle} | Problem Solving: {problemSolving} | Unique Strength: {uniqueStrength}
-Career Goals: {careerGoals} | Best Project: {bestProjectExample}
+{format_instructions}`],
+  ["human", `Create a professional, technical CV based ONLY on this data:
+
+**PROFILE (ANONYMIZED):**
+Skills: {skills}
+Experience: {workExperience}
+Education: {education}
+
+**COMPETENCIES:**
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Unique Strength: {uniqueStrength}
+
+**CONTEXT:**
+Career Goals: {careerGoals}
+Best Project: {bestProjectExample}
 
 {jobContext}
 
-RULES: Only skills from input. Only jobs from input. Numbers only if user provided them. Never add tools not in input.
+RULES: Only skills from input. Only jobs from input. Numbers only if user provided.
 Write in {language}.`]
 ]);
 
@@ -364,8 +457,8 @@ const creativePrompt = ChatPromptTemplate.fromMessages([
 
 {knowledgeContext}
 
-**STYLE:** Short text + key points. Stands out. Personality shines. Visual hierarchy.
-**Creative ≠ Fictional.** Creative PRESENTATION is fine. Invented FACTS are not.
+**STYLE:** Short text + key points. Stands out. Personality shines.
+Creative PRESENTATION is fine. Invented FACTS are not.
 
 **STRUCTURE:**
 - Personal Description: 120–180 words (energetic)
@@ -379,17 +472,29 @@ const creativePrompt = ChatPromptTemplate.fromMessages([
 ${TRUTH_RULES}
 
 {atsInstructions}
+
 {format_instructions}`],
   ["human", `Create a creative CV based ONLY on this data:
 
-Name: {name} | Skills: {skills} | Experience: {workExperience} | Education: {education}
-Working Style: {workingStyle} | Problem Solving: {problemSolving}
-Unique Strength: {uniqueStrength} | Superpower: {superpower}
-Career Goals: {careerGoals} | Best Project: {bestProjectExample}
+**PROFILE (ANONYMIZED):**
+Skills: {skills}
+Experience: {workExperience}
+Education: {education}
+
+**PERSONALITY:**
+Working Style: {workingStyle}
+Problem Solving: {problemSolving}
+Unique Strength: {uniqueStrength}
+Superpower: {superpower}
+
+**CONTEXT:**
+Career Goals: {careerGoals}
+Best Project: {bestProjectExample}
 
 {jobContext}
 
-Write in {language}. Creative presentation, factual content. Every fact from data above.`]
+Write in {language}. Creative presentation, factual content.
+Every fact from data above. Creative ≠ fictional.`]
 ]);
 
 // ════════════════════════════════════════════════════════════════
@@ -402,8 +507,9 @@ function buildATSInstructions(jobPosting?: string): string {
 **🎯 ATS OPTIMIZATION:**
 1. Use exact keywords from job posting — ONLY for skills the user actually has
 2. If job requires "Docker" but user never mentioned it → do NOT add it
-3. You may write "Interested in expanding into X" — NEVER "Experienced with X"
-4. NEVER inflate experience levels or years to match job requirements
+   You may write "Interested in expanding into containerization"
+   NEVER write "Experienced with Docker"
+3. NEVER inflate experience levels to match job requirements
 `;
 }
 
@@ -417,16 +523,19 @@ function buildJobContext(jobPosting?: string): string {
 // ════════════════════════════════════════════════════════════════
 
 export async function analyzeJobPosting(jobPostingText: string): Promise<JobAnalysis> {
-  const model = new ChatOpenAI({ openAIApiKey: process.env.OPENAI_API_KEY!, modelName: "gpt-4o-mini", temperature: 0.1 });
+  const model = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY!,
+    modelName: "gpt-4o-mini",
+    temperature: 0.1,
+  });
   const prompt = ChatPromptTemplate.fromMessages([
     ["system", "Extract key requirements from job posting. Return JSON."],
-    ["human", `Job Posting: ${jobPostingText}\n\nReturn JSON with: required_skills, preferred_skills, soft_skills, company_values, key_responsibilities, experience_level, industry_keywords`]
+    ["human", `Job Posting: ${jobPostingText}\n\nReturn JSON with: required_skills, preferred_skills, soft_skills, company_values, key_responsibilities, experience_level, industry_keywords`],
   ]);
   try {
     const result = await model.invoke(await prompt.formatMessages({}));
     return JSON.parse(getMessageContent(result)) as JobAnalysis;
-  } catch (error) {
-    console.error("Job analysis failed:", error);
+  } catch {
     return { required_skills: [], preferred_skills: [], soft_skills: [], company_values: [], key_responsibilities: [], experience_level: "mid", industry_keywords: [] };
   }
 }
@@ -442,20 +551,28 @@ function sanitizeAIResponse(rawResponse: string): string {
       }
     }
     return JSON.stringify(aiData);
-  } catch (error) { console.error("Sanitization failed:", error); throw error; }
+  } catch (error) {
+    console.error("Sanitization failed:", error);
+    throw error;
+  }
 }
 
 function cleanImageUrl(url?: string): string | null {
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
   if (trimmed.startsWith("data:image/svg+xml") || trimmed === "" || trimmed.includes("cv_files/default")) return null;
-  if (trimmed.startsWith("data:image/")) { const parts = trimmed.split(','); if (parts.length === 2 && parts[1].length > 100) return trimmed; return null; }
+  if (trimmed.startsWith("data:image/")) {
+    const parts = trimmed.split(',');
+    if (parts.length === 2 && parts[1].length > 100) return trimmed;
+    return null;
+  }
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     if (trimmed.includes('.jpg') || trimmed.includes('.jpeg') || trimmed.includes('.png') || trimmed.includes('.webp') || trimmed.includes('supabase.co/storage')) return trimmed;
     return null;
   }
   if (trimmed.includes('/') && !trimmed.startsWith('http') && !trimmed.startsWith('data:')) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL; if (!supabaseUrl) return null;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!supabaseUrl) return null;
     return `${supabaseUrl}/storage/v1/object/public/cv_files/${trimmed}`;
   }
   return null;
@@ -466,39 +583,89 @@ function extractDataManually(rawResponse: string, userData: LangChainCVInput): C
   return {
     personal_description: userData.introText || `${userData.name} - professional`,
     cv_content: {
-      skills_section: `<strong>Skills:</strong><br>${userData.skills || "Developing"}`,
-      experience_section: `<strong>Experience:</strong><br>${userData.workExperience || "Building"}`,
-      education_section: `<strong>Education:</strong><br>${userData.education || "Learning"}`,
-      languages_section: `<strong>Languages:</strong><br>${userData.languages || "Multilingual"}`,
+      skills_section: `<strong>Skills:</strong><br>${userData.skills || "Not specified"}`,
+      experience_section: `<strong>Experience:</strong><br>${userData.workExperience || "Not specified"}`,
+      education_section: `<strong>Education:</strong><br>${userData.education || "Not specified"}`,
+      languages_section: `<strong>Languages:</strong><br>${userData.languages || "Not specified"}`,
     },
   };
 }
 
-export async function generateEnhancedBackgroundImage(userData: LangChainCVInput, authToken?: string): Promise<string> {
+export async function generateEnhancedBackgroundImage(
+  userData: LangChainCVInput,
+  authToken?: string
+): Promise<string> {
   try {
     const optimizedPrompt = `Abstract minimal professional background, soft gradient, clean design, no text`;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-    const response = await fetch(`${BASE_URL}/api/generate-image`, { method: "POST", headers, body: JSON.stringify({ prompt: optimizedPrompt }) });
+
+    const response = await fetch(`${BASE_URL}/api/generate-image`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ prompt: optimizedPrompt }),
+    });
+
     if (!response.ok) return "";
-    const data = await response.json() as { url?: string };
+
+    const data = (await response.json()) as { url?: string };
     if (!data.url) return "";
+
     let imageBlob: Blob;
+
     if (data.url.startsWith("data:")) {
-      const base64Data = data.url.split(",")[1]; if (!base64Data) return "";
-      try { const bin = atob(base64Data); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); imageBlob = new Blob([arr], { type: "image/png" }); }
-      catch { return ""; }
-    } else { const imgRes = await fetch(data.url); if (!imgRes.ok) return ""; imageBlob = await imgRes.blob(); }
-    const userId = userData.userId || "anonymous"; const cvId = userData.cvId || `cv_${Date.now()}`;
+      const base64Data = data.url.split(",")[1];
+      if (!base64Data) return "";
+      try {
+        const bin = atob(base64Data);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        imageBlob = new Blob([arr], { type: "image/png" });
+      } catch {
+        return "";
+      }
+    } else {
+      const imgRes = await fetch(data.url);
+      if (!imgRes.ok) return "";
+      imageBlob = await imgRes.blob();
+    }
+
+    const userId = userData.userId || "anonymous";
+    const cvId = userData.cvId || `cv_${Date.now()}`;
     const filePath = `backgrounds/${userId}/bg-${cvId}-${Date.now()}.png`;
-    const { error: uploadError } = await supabase.storage.from("cv_files").upload(filePath, imageBlob, { cacheControl: "3600", upsert: true, contentType: "image/png" });
+
+    const { error: uploadError } = await supabase.storage
+      .from("cv_files")
+      .upload(filePath, imageBlob, {
+        cacheControl: "3600",
+        upsert: true,
+        contentType: "image/png",
+      });
+
     if (uploadError) return "";
+
     const { data: publicUrlData } = supabase.storage.from("cv_files").getPublicUrl(filePath);
     if (!publicUrlData?.publicUrl) return "";
-    try { await supabase.from('default_images').insert({ user_id: userId, image_type: 'background', file_path: filePath, name: `AI Taustakuva ${new Date().toLocaleDateString('fi-FI')}`, is_active: true, is_ai_generated: true, generation_prompt: optimizedPrompt, cv_id: cvId }); } catch {}
+
+    try {
+      await supabase.from("default_images").insert({
+        user_id: userId,
+        image_type: "background",
+        file_path: filePath,
+        name: `AI Taustakuva ${new Date().toLocaleDateString("fi-FI")}`,
+        is_active: true,
+        is_ai_generated: true,
+        generation_prompt: optimizedPrompt,
+        cv_id: cvId,
+      });
+    } catch {}
+
     return publicUrlData.publicUrl;
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
+
 // ════════════════════════════════════════════════════════════════
 // ✅ MAIN FUNCTION
 // ════════════════════════════════════════════════════════════════
@@ -519,8 +686,9 @@ export async function generateCVWithPersonalityExtraction(
   const MAX_EXECUTION_TIME = 55000;
   const startTime = Date.now();
   const checkTimeout = () => {
-    if (Date.now() - startTime > MAX_EXECUTION_TIME)
+    if (Date.now() - startTime > MAX_EXECUTION_TIME) {
       throw new Error(`CV_GENERATION_TIMEOUT: Exceeded ${MAX_EXECUTION_TIME}ms`);
+    }
   };
 
   const { authToken, jobPosting, userId, skipQuestions, answeredQuestions, enableRAG } = userData;
@@ -530,9 +698,14 @@ export async function generateCVWithPersonalityExtraction(
     checkTimeout();
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 1: FETCH & MERGE SAVED RESPONSES (ALWAYS)
-    // Direct DB query via supabaseAdmin — no HTTP round-trip
-    // Merge via responseHelper (category-based, language-agnostic)
+    // STEP 1: FETCH & MERGE SAVED RESPONSES (ALWAYS runs first)
+    //
+    // Direct DB query via supabaseAdmin — no HTTP round-trip.
+    // Merge via responseHelper.ts (category-based, language-agnostic).
+    //
+    // This means: if user answered "Tell me about your work experience"
+    // last time → that answer is now in enrichedUserData.workExperience
+    // → the question will NOT be asked again.
     // ════════════════════════════════════════════════════════════════
 
     console.log('📚 [CV GEN] STEP 1: Enriching with saved responses...');
@@ -549,13 +722,21 @@ export async function generateCVWithPersonalityExtraction(
     timer.end();
 
     // ════════════════════════════════════════════════════════════════
-    // STEP 1.5: QUESTION LOGIC (checks ENRICHED data)
+    // STEP 1.5: QUESTION LOGIC
+    //
+    // Checks run against ENRICHED data (includes saved responses).
+    // If user already answered → field is populated → no question.
     // ════════════════════════════════════════════════════════════════
 
     const hasAnswers = answeredQuestions && answeredQuestions.length > 0;
     const shouldSkipQuestions = skipQuestions || hasAnswers;
 
-    console.log('🔍 [CV GEN] Question logic:', { skipQuestions, hasAnswers, shouldSkipQuestions, answerCount: answeredQuestions?.length || 0 });
+    console.log('🔍 [CV GEN] Question logic:', {
+      skipQuestions,
+      hasAnswers,
+      shouldSkipQuestions,
+      answerCount: answeredQuestions?.length || 0,
+    });
 
     if (!shouldSkipQuestions) {
       console.log('🔍 [CV GEN] Checking completeness (AFTER saved response merge)...');
@@ -566,55 +747,77 @@ export async function generateCVWithPersonalityExtraction(
       if (!enrichedUserData.workExperience || enrichedUserData.workExperience.length < 50) {
         forcedQuestions.push({
           id: 'work_experience_detail',
-          question: isFinnish ? 'Kerro tarkemmin työkokemuksestasi tai projekteistasi. Mitä olet tehnyt?' : 'Tell me more about your work experience or projects. What have you done?',
-          why: isFinnish ? 'Lisätiedot tekevät CV:stä vakuuttavamman' : 'More details make your CV more convincing',
+          question: isFinnish
+            ? 'Kerro tarkemmin työkokemuksestasi tai projekteistasi. Mitä olet tehnyt?'
+            : 'Tell me more about your work experience or projects. What have you done?',
+          why: isFinnish
+            ? 'Lisätiedot tekevät CV:stä vakuuttavamman'
+            : 'More details make your CV more convincing',
           jobRequirement: 'Work experience details',
           currentUserData: enrichedUserData.workExperience || 'Not specified',
-          priority: 'critical' as const
+          priority: 'critical' as const,
         });
       }
 
       if (!enrichedUserData.skills || enrichedUserData.skills.split(',').length < 3) {
         forcedQuestions.push({
           id: 'skills_detail',
-          question: isFinnish ? 'Listaa tärkeimmät taitosi ja osaamisalueesi' : 'List your main skills and areas of expertise',
-          why: isFinnish ? 'Taidot ovat työnantajalle tärkeitä' : 'Skills are important to employers',
+          question: isFinnish
+            ? 'Listaa tärkeimmät taitosi ja osaamisalueesi'
+            : 'List your main skills and areas of expertise',
+          why: isFinnish
+            ? 'Taidot ovat työnantajalle tärkeitä'
+            : 'Skills are important to employers',
           jobRequirement: 'Skills',
           currentUserData: enrichedUserData.skills || 'Not specified',
-          priority: 'critical' as const
+          priority: 'critical' as const,
         });
       }
 
       if (!enrichedUserData.education || enrichedUserData.education.length < 20) {
         forcedQuestions.push({
           id: 'education_detail',
-          question: isFinnish ? 'Kerro koulutuksestasi tai kursseistasi' : 'Tell me about your education or courses',
-          why: isFinnish ? 'Koulutus on olennainen osa CV:tä' : 'Education is an essential part of your CV',
+          question: isFinnish
+            ? 'Kerro koulutuksestasi tai kursseistasi'
+            : 'Tell me about your education or courses',
+          why: isFinnish
+            ? 'Koulutus on olennainen osa CV:tä'
+            : 'Education is an essential part of your CV',
           jobRequirement: 'Education background',
           currentUserData: enrichedUserData.education || 'Not specified',
-          priority: 'critical' as const
+          priority: 'critical' as const,
         });
       }
 
       if (!enrichedUserData.bestProjectExample || enrichedUserData.bestProjectExample.length < 30) {
         forcedQuestions.push({
           id: 'best_project',
-          question: isFinnish ? 'Mikä on paras projektisi tai saavutuksesi?' : 'What is your best project or achievement?',
-          why: isFinnish ? 'Konkreettiset esimerkit vahvistavat osaamista' : 'Concrete examples validate your expertise',
+          question: isFinnish
+            ? 'Mikä on paras projektisi tai saavutuksesi?'
+            : 'What is your best project or achievement?',
+          why: isFinnish
+            ? 'Konkreettiset esimerkit vahvistavat osaamista'
+            : 'Concrete examples validate your expertise',
           jobRequirement: 'Project examples',
           currentUserData: enrichedUserData.bestProjectExample || 'Not specified',
-          priority: 'important' as const
+          priority: 'important' as const,
         });
       }
 
       if (forcedQuestions.length > 0) {
         console.log(`❓ [CV GEN] Profile still incomplete! Returning ${forcedQuestions.length} questions`);
         return {
-          personal_description: "", html: { skills_section: "", experience_section: "", education_section: "", languages_section: "" },
-          background_image: "", profile_image: "", profile_initials: "", fullTextContent: "", ats_data: null,
-          job_analysis: { required_skills: [], preferred_skills: [], soft_skills: [], company_values: [], key_responsibilities: [], experience_level: "mid", industry_keywords: [] },
-          images: { background_prompt: "", visual_elements: [] },
-          needsMoreInfo: true, questions: forcedQuestions,
+          personal_description: '',
+          html: { skills_section: '', experience_section: '', education_section: '', languages_section: '' },
+          background_image: '',
+          profile_image: '',
+          profile_initials: '',
+          fullTextContent: '',
+          ats_data: null,
+          job_analysis: { required_skills: [], preferred_skills: [], soft_skills: [], company_values: [], key_responsibilities: [], experience_level: 'mid', industry_keywords: [] },
+          images: { background_prompt: '', visual_elements: [] },
+          needsMoreInfo: true,
+          questions: forcedQuestions,
         };
       }
 
@@ -633,6 +836,7 @@ export async function generateCVWithPersonalityExtraction(
     if (answeredQuestions && answeredQuestions.length > 0) {
       timer.start("Merge Answers");
       console.log(`   → Merging ${answeredQuestions.length} current-session answers...`);
+
       const merged = mergeCVAnswers(toLangChainInput(enrichedUserData), answeredQuestions);
       enhancedUserData = {
         ...enrichedUserData,
@@ -645,6 +849,7 @@ export async function generateCVWithPersonalityExtraction(
         careerGoals: merged.careerGoals || enrichedUserData.careerGoals,
         bestProjectExample: merged.bestProjectExample || enrichedUserData.bestProjectExample,
       };
+
       console.log('   ✅ Merged');
       timer.end();
     }
@@ -654,7 +859,15 @@ export async function generateCVWithPersonalityExtraction(
     // ════════════════════════════════════════════════════════════════
 
     timer.start("Extractions");
-    const jobAnalysis: JobAnalysis = { required_skills: [], preferred_skills: [], soft_skills: [], company_values: [], key_responsibilities: [], experience_level: "mid", industry_keywords: [] };
+    const jobAnalysis: JobAnalysis = {
+      required_skills: [],
+      preferred_skills: [],
+      soft_skills: [],
+      company_values: [],
+      key_responsibilities: [],
+      experience_level: 'mid',
+      industry_keywords: [],
+    };
     timer.end();
 
     const finalUserData = { ...enhancedUserData };
@@ -669,10 +882,17 @@ export async function generateCVWithPersonalityExtraction(
 
     let promptTemplate: ChatPromptTemplate;
     switch (finalUserData.cvType) {
-      case 'simple': promptTemplate = simplePrompt; break;
-      case 'technical': promptTemplate = technicalPrompt; break;
-      case 'creative': promptTemplate = creativePrompt; break;
-      default: promptTemplate = simplePrompt;
+      case 'simple':
+        promptTemplate = simplePrompt;
+        break;
+      case 'technical':
+        promptTemplate = technicalPrompt;
+        break;
+      case 'creative':
+        promptTemplate = creativePrompt;
+        break;
+      default:
+        promptTemplate = simplePrompt;
     }
 
     const atsInstructions = buildATSInstructions(jobPosting);
@@ -683,10 +903,18 @@ export async function generateCVWithPersonalityExtraction(
       try {
         knowledgeContext = await buildAIContext({
           jobDescription: jobPosting || 'General CV creation',
-          userProfile: { name: finalUserData.name, skills: finalUserData.skills, workExperience: finalUserData.workExperience, education: finalUserData.education },
-          enableRAG: true, contentType: 'cv'
+          userProfile: {
+            name: finalUserData.name,
+            skills: finalUserData.skills,
+            workExperience: finalUserData.workExperience,
+            education: finalUserData.education,
+          },
+          enableRAG: true,
+          contentType: 'cv',
         });
-      } catch { knowledgeContext = ''; }
+      } catch {
+        knowledgeContext = '';
+      }
     }
 
     timer.end();
@@ -721,12 +949,12 @@ export async function generateCVWithPersonalityExtraction(
       superpower: finalUserData.superpower || 'Not specified',
       careerGoals: finalUserData.careerGoals || '',
       bestProjectExample: finalUserData.bestProjectExample || '',
-      format_instructions: outputParser.getFormatInstructions()
+      format_instructions: outputParser.getFormatInstructions(),
     });
 
     const result = await Promise.race([
       model.invoke(formatted),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 20000))
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('AI timeout')), 20000)),
     ]);
 
     const rawContentString = getMessageContent(result);
@@ -744,8 +972,11 @@ export async function generateCVWithPersonalityExtraction(
     try {
       parsedOutput = await outputParser.parse(sanitizeAIResponse(rawContentString));
     } catch {
-      try { parsedOutput = await outputParser.parse(rawContentString); }
-      catch { parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData)); }
+      try {
+        parsedOutput = await outputParser.parse(rawContentString);
+      } catch {
+        parsedOutput = extractDataManually(rawContentString, toLangChainInput(finalUserData));
+      }
     }
 
     timer.end();
@@ -758,16 +989,19 @@ export async function generateCVWithPersonalityExtraction(
     console.log('🏁 [CV GEN] STEP 7: Finalization');
     timer.start("Background");
 
-    let backgroundImage = "";
+    let backgroundImage = '';
     if (finalUserData.backgroundImage) {
       backgroundImage = finalUserData.backgroundImage;
     } else {
       try {
-        const generatedUrl = await generateEnhancedBackgroundImage(toLangChainInput(finalUserData), authToken);
-        if (generatedUrl && generatedUrl.startsWith("http")) {
+        const generatedUrl = await generateEnhancedBackgroundImage(
+          toLangChainInput(finalUserData),
+          authToken
+        );
+        if (generatedUrl && generatedUrl.startsWith('http')) {
           const pathMatch = generatedUrl.match(/\/cv_files\/(.+)$/);
           backgroundImage = pathMatch ? pathMatch[1] : generatedUrl;
-        } else if (generatedUrl && generatedUrl.startsWith("data:")) {
+        } else if (generatedUrl && generatedUrl.startsWith('data:')) {
           backgroundImage = generatedUrl;
         }
       } catch {}
@@ -777,6 +1011,7 @@ export async function generateCVWithPersonalityExtraction(
 
     const finalBackgroundImage = cleanImageUrl(backgroundImage || undefined);
     const profileImageClean = cleanImageUrl(finalUserData.profileImage);
+
     const fullTextContent = `${parsedOutput.personal_description}\n${parsedOutput.cv_content.skills_section}\n${parsedOutput.cv_content.experience_section}`.trim();
 
     timer.getResults();
@@ -785,15 +1020,14 @@ export async function generateCVWithPersonalityExtraction(
     return {
       personal_description: parsedOutput.personal_description,
       html: parsedOutput.cv_content,
-      background_image: finalBackgroundImage || "",
-      profile_image: profileImageClean || "",
-      profile_initials: userData.profileImage ? "" : generateInitials(userData.name),
+      background_image: finalBackgroundImage || '',
+      profile_image: profileImageClean || '',
+      profile_initials: userData.profileImage ? '' : generateInitials(userData.name),
       fullTextContent,
       ats_data: parsedOutput.ats_optimization || null,
       job_analysis: jobAnalysis,
-      images: { background_prompt: "", visual_elements: [] },
+      images: { background_prompt: '', visual_elements: [] },
     };
-
   } catch (error) {
     console.error('❌ [CV GEN] FATAL ERROR:', error);
     console.error('Stack:', error instanceof Error ? error.stack : 'No stack');
@@ -801,11 +1035,18 @@ export async function generateCVWithPersonalityExtraction(
   }
 }
 
-export async function generateCVSafely(userData: CVGeneratorInput): Promise<CVGenerationResult> {
+export async function generateCVSafely(
+  userData: CVGeneratorInput
+): Promise<CVGenerationResult> {
   try {
     return await Promise.race([
       generateCVWithPersonalityExtraction(userData),
-      new Promise<CVGenerationResult>((_, reject) => setTimeout(() => reject(new Error('CV generation timeout (55s)')), 55000))
+      new Promise<CVGenerationResult>((_, reject) =>
+        setTimeout(() => reject(new Error('CV generation timeout (55s)')), 55000)
+      ),
     ]);
-  } catch (error) { console.error('CV generation failed:', error); throw error; }
+  } catch (error) {
+    console.error('CV generation failed:', error);
+    throw error;
+  }
 }
