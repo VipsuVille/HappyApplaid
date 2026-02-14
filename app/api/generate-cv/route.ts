@@ -318,9 +318,10 @@ export async function POST(request: Request) {
         success: true,
         needsMoreInfo: true,
         questions: result.questions,
+        // ✅ DEBUG: Shows what cvGenerator sees. Remove after fixing!
+        _debug: (result as any)._debug || null,
       });
     }
-
     // Validation
     const hasContent = 
       (result.html?.skills_section && result.html.skills_section.length > 20) ||

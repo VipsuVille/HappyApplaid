@@ -794,13 +794,24 @@ export async function generateCVWithPersonalityExtraction(
     // ════════════════════════════════════════════════════════════════
 
     console.log('📚 [CV GEN] STEP 1: Enriching with saved responses...');
+    console.log(`   userId for fetch: "${userData.userId || 'MISSING'}"`);
     timer.start("Fetch & Merge Saved Responses");
 
     let enrichedUserData: CVGeneratorInput;
+    let savedResponseCount = 0;
     try {
       enrichedUserData = await enrichWithSavedResponses(userData);
+      // Check if anything actually changed
+      const changed = enrichedUserData.workExperience !== userData.workExperience ||
+                      enrichedUserData.skills !== userData.skills ||
+                      enrichedUserData.education !== userData.education;
+      console.log(`✅ [CV GEN] Enrichment result: ${changed ? 'DATA MERGED' : 'NO CHANGE (responses may be empty or already in profile)'}`);
+      console.log(`   workExperience: ${userData.workExperience?.length || 0} → ${enrichedUserData.workExperience?.length || 0} chars`);
+      console.log(`   skills: "${userData.skills?.substring(0, 50)}" → "${enrichedUserData.skills?.substring(0, 50)}"`);
+      console.log(`   education: ${userData.education?.length || 0} → ${enrichedUserData.education?.length || 0} chars`);
     } catch (fetchError) {
-      console.error('⚠️ Saved response fetch failed, continuing without:', fetchError);
+      console.error('⚠️ Saved response fetch FAILED:', fetchError);
+      console.error('   Continuing without saved responses');
       enrichedUserData = { ...userData };
     }
 
@@ -935,6 +946,7 @@ export async function generateCVWithPersonalityExtraction(
 
       if (forcedQuestions.length > 0) {
         console.log(`❓ [CV GEN] Profile still incomplete! Returning ${forcedQuestions.length} questions`);
+        console.log(`   Questions: ${forcedQuestions.map(q => q.id).join(', ')}`);
         return {
           personal_description: '',
           html: { skills_section: '', experience_section: '', education_section: '', languages_section: '' },
@@ -947,6 +959,21 @@ export async function generateCVWithPersonalityExtraction(
           images: { background_prompt: '', visual_elements: [] },
           needsMoreInfo: true,
           questions: forcedQuestions,
+          // ✅ DEBUG: Remove this block after fixing
+          _debug: {
+            enrichedFields: {
+              workExperience: enrichedUserData.workExperience?.substring(0, 100) || 'EMPTY',
+              workExpLength: enrichedUserData.workExperience?.length || 0,
+              skills: enrichedUserData.skills?.substring(0, 100) || 'EMPTY',
+              skillsLength: enrichedUserData.skills?.length || 0,
+              education: enrichedUserData.education?.substring(0, 100) || 'EMPTY',
+              educationLength: enrichedUserData.education?.length || 0,
+              bestProject: enrichedUserData.bestProjectExample?.substring(0, 100) || 'EMPTY',
+              bestProjectLength: enrichedUserData.bestProjectExample?.length || 0,
+            },
+            userId: enrichedUserData.userId || 'NO_USER_ID',
+            savedResponsesMerged: enrichedUserData !== userData,
+          },
         };
       }
 
