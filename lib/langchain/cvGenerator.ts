@@ -377,36 +377,51 @@ async function enrichWithSavedResponses(
   const answerEntries = await fetchSavedResponsesFromDB(userData.userId);
   if (answerEntries.length === 0) return userData;
 
+  /** Treat null, '', '[]', '{}', '[{}]' as empty */
+  const clean = (val: string | undefined | null): string => {
+    if (!val) return '';
+    const t = val.trim();
+    if (t === '[]' || t === '{}' || t === '[{}]' || t === 'null' || t === 'undefined') return '';
+    return t;
+  };
+
   const profileObj: Record<string, any> = {
-    workExperience: userData.workExperience || '',
-    education: userData.education || '',
-    skills: userData.skills || '',
-    uniqueStrength: userData.uniqueStrength || '',
-    bestProjectExample: userData.bestProjectExample || '',
-    workingStyle: userData.workingStyle || '',
-    problemSolving: userData.problemSolving || '',
-    careerGoals: userData.careerGoals || '',
-    failureLesson: userData.failureLesson || '',
-    hobbies: userData.hobbies || '',
-    languages: userData.languages || '',
+    workExperience: clean(userData.workExperience),
+    education: clean(userData.education),
+    skills: clean(userData.skills),
+    uniqueStrength: clean(userData.uniqueStrength),
+    bestProjectExample: clean(userData.bestProjectExample),
+    workingStyle: clean(userData.workingStyle),
+    problemSolving: clean(userData.problemSolving),
+    careerGoals: clean(userData.careerGoals),
+    failureLesson: clean(userData.failureLesson),
+    hobbies: clean(userData.hobbies),
+    languages: clean(userData.languages),
     additionalContext: '',
   };
 
   const merged = mergeResponsesIntoProfile(profileObj, answerEntries);
 
+  // Use merged value if it has content, otherwise fall back to cleaned profile value
+  const pick = (mergedVal: string, profileVal: string): string => {
+    const m = clean(mergedVal);
+    const p = clean(profileVal);
+    return m || p || '';
+  };
+
   return {
     ...userData,
-    workExperience: merged.workExperience || userData.workExperience,
-    education: merged.education || userData.education,
-    skills: merged.skills || userData.skills,
-    uniqueStrength: merged.uniqueStrength || userData.uniqueStrength,
-    bestProjectExample: merged.bestProjectExample || userData.bestProjectExample,
-    workingStyle: merged.workingStyle || userData.workingStyle,
-    problemSolving: merged.problemSolving || userData.problemSolving,
-    careerGoals: merged.careerGoals || userData.careerGoals,
-    failureLesson: merged.failureLesson || userData.failureLesson,
-    hobbies: merged.hobbies || userData.hobbies,
-    languages: merged.languages || userData.languages,
+    workExperience: pick(merged.workExperience, userData.workExperience || ''),
+    education: pick(merged.education, userData.education || ''),
+    skills: pick(merged.skills, userData.skills || ''),
+    uniqueStrength: pick(merged.uniqueStrength, userData.uniqueStrength || ''),
+    bestProjectExample: pick(merged.bestProjectExample, userData.bestProjectExample || ''),
+    workingStyle: pick(merged.workingStyle, userData.workingStyle || ''),
+    problemSolving: pick(merged.problemSolving, userData.problemSolving || ''),
+    careerGoals: pick(merged.careerGoals, userData.careerGoals || ''),
+    failureLesson: pick(merged.failureLesson, userData.failureLesson || ''),
+    hobbies: pick(merged.hobbies, userData.hobbies || ''),
+    languages: pick(merged.languages, userData.languages || ''),
   };
 }
 
@@ -536,15 +551,67 @@ function humanizeLanguages(raw: string | undefined): string {
 /**
  * Convert all profile fields from JSON format to human-readable text.
  * Called just before sending data to AI.
+ *
+ * Also: if skills field is empty but work experience has toolsUsed,
+ * extract those as skills automatically.
  */
 function humanizeProfileForAI(data: CVGeneratorInput): CVGeneratorInput {
-  return {
+  const humanized = {
     ...data,
     workExperience: humanizeWorkExperience(data.workExperience),
     education: humanizeEducation(data.education),
     skills: humanizeSkills(data.skills),
     languages: humanizeLanguages(data.languages),
   };
+
+  // ✅ If skills is still empty, try to extract from work experience toolsUsed
+  if (!humanized.skills || humanized.skills.trim() === '') {
+    const extractedSkills = extractSkillsFromWorkExperience(data.workExperience);
+    if (extractedSkills) {
+      console.log(`🔧 [HUMANIZE] Skills empty — extracted from work experience: "${extractedSkills.substring(0, 80)}..."`);
+      humanized.skills = extractedSkills;
+    }
+  }
+
+  return humanized;
+}
+
+/**
+ * Extract skills/tools from work experience JSON when the skills field is empty.
+ * Looks at toolsUsed, technologies, tools fields in each job entry.
+ */
+function extractSkillsFromWorkExperience(raw: string | undefined): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith('[')) return '';
+
+  try {
+    const items = JSON.parse(trimmed);
+    if (!Array.isArray(items)) return '';
+
+    const allTools = new Set<string>();
+
+    items.forEach((job: any) => {
+      // Collect from various field names
+      const toolFields = [
+        job.toolsUsed, job.tools, job.technologies,
+        job.tech_stack, job.techStack, job.skills,
+      ];
+
+      toolFields.forEach((field: any) => {
+        if (typeof field === 'string' && field.trim()) {
+          field.split(/[,;]/).forEach((t: string) => {
+            const clean = t.trim();
+            if (clean && clean.length > 1) allTools.add(clean);
+          });
+        }
+      });
+    });
+
+    return Array.from(allTools).join(', ');
+  } catch {
+    return '';
+  }
 }
 
 // Shared truth rules (same philosophy as V2 cover letter)
