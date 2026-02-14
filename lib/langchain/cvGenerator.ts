@@ -837,111 +837,123 @@ export async function generateCVWithPersonalityExtraction(
     if (!shouldSkipQuestions) {
       console.log('🔍 [CV GEN] Checking completeness (AFTER saved response merge)...');
 
+      // ════════════════════════════════════════════════════════════════
+      // DYNAMIC PROFILE COMPLETENESS CHECK
+      //
+      // NOT hardcoded to any profession, age, or background.
+      // Works for: nurse, programmer, student, retiree, career changer.
+      //
+      // Logic: We score how much REAL content the profile has.
+      // If total content is too thin → ask targeted questions.
+      // If enough content exists → proceed to generation.
+      // ════════════════════════════════════════════════════════════════
+
       const forcedQuestions: any[] = [];
       const isFinnish = enrichedUserData.language === 'finnish';
 
-      // Helper: check if a field has real content
-      // Handles: null, undefined, '', '[]', '{}', '[{}]', and JSON-stringified empty arrays
-      const hasContent = (field: string | undefined, minLength: number): boolean => {
+      /** Check if a field has real, non-empty content */
+      const hasContent = (field: string | undefined | null): boolean => {
         if (!field) return false;
         const trimmed = field.trim();
-        if (trimmed === '' || trimmed === '[]' || trimmed === '{}' || trimmed === '[{}]') return false;
-        // If it's a JSON array, check if it has meaningful content inside
+        if (trimmed === '' || trimmed === '[]' || trimmed === '{}' || trimmed === '[{}]' || trimmed === 'null' || trimmed === 'undefined') return false;
+        // JSON arrays: check if they have actual items
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           try {
             const parsed = JSON.parse(trimmed);
             if (Array.isArray(parsed) && parsed.length === 0) return false;
-            // Array has items → it has content
             if (Array.isArray(parsed) && parsed.length > 0) return true;
           } catch {
-            // Not valid JSON, treat as plain text
+            // Not valid JSON — treat as plain text
           }
         }
-        return trimmed.length >= minLength;
+        // Plain text: at least 10 chars of real content
+        return trimmed.length >= 10;
       };
 
-      const hasSkillsContent = (field: string | undefined): boolean => {
-        if (!field) return false;
-        const trimmed = field.trim();
-        if (trimmed === '' || trimmed === '[]' || trimmed === '{}') return false;
-        // Try parsing as JSON array
-        if (trimmed.startsWith('[')) {
-          try {
-            const parsed = JSON.parse(trimmed);
-            if (Array.isArray(parsed) && parsed.length === 0) return false;
-            if (Array.isArray(parsed) && parsed.length >= 3) return true;
-          } catch {}
+      // Collect all content fields (not just hardcoded 4 fields)
+      const contentFields: { name: string; value: string | undefined; weight: number }[] = [
+        { name: 'workExperience', value: enrichedUserData.workExperience, weight: 3 },
+        { name: 'skills', value: enrichedUserData.skills, weight: 3 },
+        { name: 'education', value: enrichedUserData.education, weight: 2 },
+        { name: 'bestProjectExample', value: enrichedUserData.bestProjectExample, weight: 1 },
+        { name: 'workingStyle', value: enrichedUserData.workingStyle, weight: 1 },
+        { name: 'problemSolving', value: enrichedUserData.problemSolving, weight: 1 },
+        { name: 'uniqueStrength', value: enrichedUserData.uniqueStrength, weight: 1 },
+        { name: 'careerGoals', value: enrichedUserData.careerGoals, weight: 1 },
+        { name: 'superpower', value: enrichedUserData.superpower, weight: 1 },
+        { name: 'hobbies', value: enrichedUserData.hobbies, weight: 0.5 },
+        { name: 'failureLesson', value: enrichedUserData.failureLesson, weight: 0.5 },
+      ];
+
+      const filledFields = contentFields.filter(f => hasContent(f.value));
+      const totalWeight = contentFields.reduce((sum, f) => sum + f.weight, 0);
+      const filledWeight = filledFields.reduce((sum, f) => sum + f.weight, 0);
+      const completenessScore = filledWeight / totalWeight;
+
+      console.log('📊 [CV GEN] Profile completeness check:');
+      console.log(`   Filled: ${filledFields.length}/${contentFields.length} fields`);
+      console.log(`   Score: ${(completenessScore * 100).toFixed(0)}% (weighted)`);
+      contentFields.forEach(f => {
+        const has = hasContent(f.value);
+        const preview = f.value ? f.value.substring(0, 60).replace(/\n/g, ' ') : 'EMPTY';
+        console.log(`   ${has ? '✅' : '❌'} ${f.name} (w:${f.weight}): "${preview}${(f.value?.length || 0) > 60 ? '...' : ''}"`);
+      });
+
+      // ═══════════════════════════════════════════════════
+      // QUESTION LOGIC:
+      // - If score >= 40% → enough to generate a CV (even if basic)
+      // - If score < 40% → ask about the MOST IMPORTANT missing fields
+      // - NEVER ask more than 2 questions at a time
+      // - NEVER ask about something the user already provided
+      // ═══════════════════════════════════════════════════
+
+      const MIN_COMPLETENESS = 0.40; // 40% weighted = enough for a basic CV
+
+      if (completenessScore < MIN_COMPLETENESS) {
+        console.log(`⚠️ [CV GEN] Score ${(completenessScore * 100).toFixed(0)}% < ${MIN_COMPLETENESS * 100}% threshold`);
+
+        // Find the most important MISSING fields (sorted by weight descending)
+        const missingFields = contentFields
+          .filter(f => !hasContent(f.value) && f.weight >= 2) // Only ask about important fields
+          .sort((a, b) => b.weight - a.weight);
+
+        // Generate questions for top 2 missing fields (max)
+        const questionMap: Record<string, { fi: string; en: string; why_fi: string; why_en: string }> = {
+          workExperience: {
+            fi: 'Kerro työkokemuksestasi, työharjoitteluistasi tai projekteistasi — mitä tahansa olet tehnyt.',
+            en: 'Tell me about your work experience, internships, or projects — anything you have done.',
+            why_fi: 'Kokemus on CV:n tärkein osa',
+            why_en: 'Experience is the most important part of a CV',
+          },
+          skills: {
+            fi: 'Mitkä ovat vahvuutesi ja taitosi? (esim. teknologiat, kielet, sertifikaatit, kädentaidot, ihmissuhdetaidot — mitä tahansa)',
+            en: 'What are your strengths and skills? (e.g. technologies, languages, certifications, crafts, people skills — anything)',
+            why_fi: 'Taidot kertovat työnantajalle mitä osaat',
+            why_en: 'Skills tell employers what you can do',
+          },
+          education: {
+            fi: 'Kerro koulutuksestasi — tutkinnot, kurssit, tai muu opiskelu',
+            en: 'Tell me about your education — degrees, courses, or other studies',
+            why_fi: 'Koulutus on olennainen osa CV:tä',
+            why_en: 'Education is an essential part of a CV',
+          },
+        };
+
+        for (const field of missingFields.slice(0, 2)) {
+          const qData = questionMap[field.name];
+          if (qData) {
+            forcedQuestions.push({
+              id: `${field.name}_detail`,
+              question: isFinnish ? qData.fi : qData.en,
+              why: isFinnish ? qData.why_fi : qData.why_en,
+              jobRequirement: field.name,
+              currentUserData: field.value || 'Not specified',
+              priority: field.weight >= 3 ? 'critical' as const : 'important' as const,
+            });
+          }
         }
-        // Plain text: check comma-separated count
-        const parts = trimmed.split(',').filter(s => s.trim().length > 0);
-        return parts.length >= 3;
-      };
-
-      // DEBUG: Log what we're checking
-      console.log('📊 [CV GEN] Field check (after enrichment):');
-      console.log(`   workExperience: ${enrichedUserData.workExperience?.length || 0} chars, hasContent: ${hasContent(enrichedUserData.workExperience, 50)}`);
-      console.log(`   skills: "${enrichedUserData.skills?.substring(0, 80)}", hasSkills: ${hasSkillsContent(enrichedUserData.skills)}`);
-      console.log(`   education: ${enrichedUserData.education?.length || 0} chars, hasContent: ${hasContent(enrichedUserData.education, 20)}`);
-      console.log(`   bestProject: ${enrichedUserData.bestProjectExample?.length || 0} chars, hasContent: ${hasContent(enrichedUserData.bestProjectExample, 30)}`);
-
-      if (!hasContent(enrichedUserData.workExperience, 50)) {
-        forcedQuestions.push({
-          id: 'work_experience_detail',
-          question: isFinnish
-            ? 'Kerro tarkemmin työkokemuksestasi tai projekteistasi. Mitä olet tehnyt?'
-            : 'Tell me more about your work experience or projects. What have you done?',
-          why: isFinnish
-            ? 'Lisätiedot tekevät CV:stä vakuuttavamman'
-            : 'More details make your CV more convincing',
-          jobRequirement: 'Work experience details',
-          currentUserData: enrichedUserData.workExperience || 'Not specified',
-          priority: 'critical' as const,
-        });
-      }
-
-      if (!hasSkillsContent(enrichedUserData.skills)) {
-        forcedQuestions.push({
-          id: 'skills_detail',
-          question: isFinnish
-            ? 'Listaa tärkeimmät taitosi ja osaamisalueesi'
-            : 'List your main skills and areas of expertise',
-          why: isFinnish
-            ? 'Taidot ovat työnantajalle tärkeitä'
-            : 'Skills are important to employers',
-          jobRequirement: 'Skills',
-          currentUserData: enrichedUserData.skills || 'Not specified',
-          priority: 'critical' as const,
-        });
-      }
-
-      if (!hasContent(enrichedUserData.education, 20)) {
-        forcedQuestions.push({
-          id: 'education_detail',
-          question: isFinnish
-            ? 'Kerro koulutuksestasi tai kursseistasi'
-            : 'Tell me about your education or courses',
-          why: isFinnish
-            ? 'Koulutus on olennainen osa CV:tä'
-            : 'Education is an essential part of your CV',
-          jobRequirement: 'Education background',
-          currentUserData: enrichedUserData.education || 'Not specified',
-          priority: 'critical' as const,
-        });
-      }
-
-      if (!hasContent(enrichedUserData.bestProjectExample, 30)) {
-        forcedQuestions.push({
-          id: 'best_project',
-          question: isFinnish
-            ? 'Mikä on paras projektisi tai saavutuksesi?'
-            : 'What is your best project or achievement?',
-          why: isFinnish
-            ? 'Konkreettiset esimerkit vahvistavat osaamista'
-            : 'Concrete examples validate your expertise',
-          jobRequirement: 'Project examples',
-          currentUserData: enrichedUserData.bestProjectExample || 'Not specified',
-          priority: 'important' as const,
-        });
+      } else {
+        console.log(`✅ [CV GEN] Score ${(completenessScore * 100).toFixed(0)}% ≥ ${MIN_COMPLETENESS * 100}% — enough to generate`);
       }
 
       if (forcedQuestions.length > 0) {
@@ -959,21 +971,6 @@ export async function generateCVWithPersonalityExtraction(
           images: { background_prompt: '', visual_elements: [] },
           needsMoreInfo: true,
           questions: forcedQuestions,
-          // ✅ DEBUG: Remove this block after fixing
-          _debug: {
-            enrichedFields: {
-              workExperience: enrichedUserData.workExperience?.substring(0, 100) || 'EMPTY',
-              workExpLength: enrichedUserData.workExperience?.length || 0,
-              skills: enrichedUserData.skills?.substring(0, 100) || 'EMPTY',
-              skillsLength: enrichedUserData.skills?.length || 0,
-              education: enrichedUserData.education?.substring(0, 100) || 'EMPTY',
-              educationLength: enrichedUserData.education?.length || 0,
-              bestProject: enrichedUserData.bestProjectExample?.substring(0, 100) || 'EMPTY',
-              bestProjectLength: enrichedUserData.bestProjectExample?.length || 0,
-            },
-            userId: enrichedUserData.userId || 'NO_USER_ID',
-            savedResponsesMerged: enrichedUserData !== userData,
-          },
         };
       }
 
