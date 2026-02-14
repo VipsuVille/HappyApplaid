@@ -411,8 +411,141 @@ async function enrichWithSavedResponses(
 }
 
 // ════════════════════════════════════════════════════════════════
-// PROMPTS — V2-STYLE: Truth-absolute, ask-don't-guess
+// HUMANIZE: Convert JSON arrays to readable text for AI
+//
+// Route.ts sends work_experience/education as JSON-stringified arrays.
+// AI can't reliably extract company names, dates, etc from raw JSON.
+// This converts them to natural text the AI can understand.
+//
+// Works for ALL professions — nurse, programmer, builder, student.
 // ════════════════════════════════════════════════════════════════
+
+function humanizeWorkExperience(raw: string | undefined): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+
+  // Already plain text? Return as-is
+  if (!trimmed.startsWith('[')) return trimmed;
+
+  try {
+    const items = JSON.parse(trimmed);
+    if (!Array.isArray(items) || items.length === 0) return '';
+
+    return items.map((job: any) => {
+      const parts: string[] = [];
+
+      const title = job.position || job.title || job.role || '';
+      const company = job.company || job.employer || job.organization || '';
+      const duration = job.duration || job.period || job.dates || '';
+
+      if (title && company) parts.push(`${title} — ${company}`);
+      else if (title) parts.push(title);
+      else if (company) parts.push(company);
+
+      if (duration) parts.push(`Ajanjakso: ${duration}`);
+
+      if (job.description) parts.push(job.description);
+      if (job.toolsUsed) parts.push(`Työkalut: ${job.toolsUsed}`);
+      if (job.biggestAchievement) parts.push(`Saavutus: ${job.biggestAchievement}`);
+      if (job.whatYouLearned) parts.push(`Opit: ${job.whatYouLearned}`);
+      if (job.howYourStrengthShowed) parts.push(`Vahvuus: ${job.howYourStrengthShowed}`);
+      if (job.metrics) parts.push(`Mittarit: ${job.metrics}`);
+      if (job.teamSize) parts.push(`Tiimin koko: ${job.teamSize}`);
+
+      return parts.filter(p => p.trim()).join('\n');
+    }).join('\n\n');
+  } catch {
+    return trimmed; // Parse failed → return as-is
+  }
+}
+
+function humanizeEducation(raw: string | undefined): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+
+  if (!trimmed.startsWith('[')) return trimmed;
+
+  try {
+    const items = JSON.parse(trimmed);
+    if (!Array.isArray(items) || items.length === 0) return '';
+
+    return items.map((edu: any) => {
+      const parts: string[] = [];
+
+      const degree = edu.degree || edu.title || edu.name || '';
+      const school = edu.school || edu.institution || edu.university || '';
+      const year = edu.year || edu.graduationYear || '';
+
+      if (degree && school) parts.push(`${degree} — ${school}`);
+      else if (degree) parts.push(degree);
+      else if (school) parts.push(school);
+
+      if (year) parts.push(`Vuosi: ${year}`);
+      if (edu.isOngoing) parts.push('(Kesken)');
+      if (edu.specialization) parts.push(`Erikoistuminen: ${edu.specialization}`);
+      if (edu.favoriteSubjects) parts.push(`Vahvat aineet: ${edu.favoriteSubjects}`);
+      if (edu.whyThisField) parts.push(`Motivaatio: ${edu.whyThisField}`);
+      if (edu.proudestMoment) parts.push(`Ylpein hetki: ${edu.proudestMoment}`);
+      if (edu.thesisOrProject) parts.push(`Opinnäytetyö: ${edu.thesisOrProject}`);
+
+      return parts.filter(p => p.trim()).join('\n');
+    }).join('\n\n');
+  } catch {
+    return trimmed;
+  }
+}
+
+function humanizeSkills(raw: string | undefined): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+
+  if (!trimmed.startsWith('[')) return trimmed;
+
+  try {
+    const items = JSON.parse(trimmed);
+    if (!Array.isArray(items) || items.length === 0) return '';
+    // Array of strings → join with comma
+    if (typeof items[0] === 'string') return items.join(', ');
+    // Array of objects → extract name/skill field
+    return items.map((s: any) => s.name || s.skill || s.title || JSON.stringify(s)).join(', ');
+  } catch {
+    return trimmed;
+  }
+}
+
+function humanizeLanguages(raw: string | undefined): string {
+  if (!raw) return '';
+  const trimmed = raw.trim();
+
+  if (!trimmed.startsWith('[')) return trimmed;
+
+  try {
+    const items = JSON.parse(trimmed);
+    if (!Array.isArray(items) || items.length === 0) return '';
+    if (typeof items[0] === 'string') return items.join(', ');
+    return items.map((l: any) => {
+      const name = l.language || l.name || '';
+      const level = l.level || l.proficiency || '';
+      return level ? `${name} (${level})` : name;
+    }).filter(Boolean).join(', ');
+  } catch {
+    return trimmed;
+  }
+}
+
+/**
+ * Convert all profile fields from JSON format to human-readable text.
+ * Called just before sending data to AI.
+ */
+function humanizeProfileForAI(data: CVGeneratorInput): CVGeneratorInput {
+  return {
+    ...data,
+    workExperience: humanizeWorkExperience(data.workExperience),
+    education: humanizeEducation(data.education),
+    skills: humanizeSkills(data.skills),
+    languages: humanizeLanguages(data.languages),
+  };
+}
 
 // Shared truth rules (same philosophy as V2 cover letter)
 const TRUTH_RULES = `
@@ -1024,6 +1157,14 @@ export async function generateCVWithPersonalityExtraction(
     timer.end();
 
     const finalUserData = { ...enhancedUserData };
+
+    // ✅ Convert JSON arrays to readable text for AI
+    const humanizedData = humanizeProfileForAI(finalUserData);
+    console.log('🧹 [CV GEN] Humanized profile for AI:');
+    console.log(`   workExperience: ${humanizedData.workExperience?.substring(0, 100)}...`);
+    console.log(`   education: ${humanizedData.education?.substring(0, 100)}...`);
+    console.log(`   skills: ${humanizedData.skills?.substring(0, 100)}...`);
+
     checkTimeout();
 
     // ════════════════════════════════════════════════════════════════
@@ -1058,9 +1199,9 @@ export async function generateCVWithPersonalityExtraction(
           jobDescription: jobPosting || 'General CV creation',
           userProfile: {
             name: finalUserData.name,
-            skills: finalUserData.skills,
-            workExperience: finalUserData.workExperience,
-            education: finalUserData.education,
+            skills: humanizedData.skills,
+            workExperience: humanizedData.workExperience,
+            education: humanizedData.education,
           },
           enableRAG: true,
           contentType: 'cv',
@@ -1093,15 +1234,16 @@ export async function generateCVWithPersonalityExtraction(
       jobContext: jobContext || '',
       language: finalUserData.language || 'finnish',
       name: finalUserData.name || 'Professional',
-      skills: finalUserData.skills || 'Not specified',
-      workExperience: finalUserData.workExperience || 'Not specified',
-      education: finalUserData.education || 'Not specified',
-      workingStyle: finalUserData.workingStyle || 'Not specified',
-      problemSolving: finalUserData.problemSolving || 'Not specified',
-      uniqueStrength: finalUserData.uniqueStrength || 'Not specified',
-      superpower: finalUserData.superpower || 'Not specified',
-      careerGoals: finalUserData.careerGoals || '',
-      bestProjectExample: finalUserData.bestProjectExample || '',
+      // ✅ Use HUMANIZED data for content fields (readable text, not raw JSON)
+      skills: humanizedData.skills || 'Not specified',
+      workExperience: humanizedData.workExperience || 'Not specified',
+      education: humanizedData.education || 'Not specified',
+      workingStyle: humanizedData.workingStyle || 'Not specified',
+      problemSolving: humanizedData.problemSolving || 'Not specified',
+      uniqueStrength: humanizedData.uniqueStrength || 'Not specified',
+      superpower: humanizedData.superpower || 'Not specified',
+      careerGoals: humanizedData.careerGoals || '',
+      bestProjectExample: humanizedData.bestProjectExample || '',
       format_instructions: outputParser.getFormatInstructions(),
     });
 
