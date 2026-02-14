@@ -250,6 +250,76 @@ function mergeCVAnswers(
 // SAVED RESPONSES — Direct DB, merge via responseHelper
 // ════════════════════════════════════════════════════════════════
 
+/**
+ * Infer a responseHelper-compatible category from the question text.
+ *
+ * The DB's question_category field often contains values like
+ * 'cv_generation', 'work_experience_detail', or '' which don't
+ * match responseHelper's bucket names (experience, education, skill, etc.).
+ *
+ * This function looks at BOTH the stored category AND the question text
+ * to produce a category that responseHelper can route correctly.
+ */
+function inferCategory(dbCategory: string, questionText: string): string {
+  const cat = (dbCategory || '').toLowerCase();
+  const q = (questionText || '').toLowerCase();
+
+  // 1. If DB category already matches responseHelper buckets → use it
+  if (cat.includes('experience') || cat.includes('work')) return 'experience';
+  if (cat.includes('education')) return 'education';
+  if (cat.includes('skill')) return 'skills';
+  if (cat.includes('personality') || cat.includes('strength') || cat.includes('working_style')) return 'personality';
+  if (cat.includes('achievement') || cat.includes('project')) return 'achievements';
+
+  // 2. DB category doesn't match → infer from question text
+  // Work experience
+  if (q.includes('työkokemus') || q.includes('work experience') ||
+      q.includes('projektit') || q.includes('projects') ||
+      q.includes('mitä olet tehnyt') || q.includes('what have you done') ||
+      q.includes('työhistoria') || q.includes('work history') ||
+      q.includes('tehtävä') || q.includes('responsibilities') ||
+      q.includes('työssä') || q.includes('at work')) {
+    return 'experience';
+  }
+
+  // Education
+  if (q.includes('koulutus') || q.includes('education') ||
+      q.includes('tutkinto') || q.includes('degree') ||
+      q.includes('opiskelu') || q.includes('study') ||
+      q.includes('kurssi') || q.includes('course') ||
+      q.includes('oppilaitos') || q.includes('institution')) {
+    return 'education';
+  }
+
+  // Skills
+  if (q.includes('taido') || q.includes('osaamis') || q.includes('skill') ||
+      q.includes('teknolog') || q.includes('technolog') ||
+      q.includes('ohjelmoint') || q.includes('programming') ||
+      q.includes('työkalu') || q.includes('tool') ||
+      q.includes('listaa') || q.includes('list your')) {
+    return 'skills';
+  }
+
+  // Personality / strength
+  if (q.includes('vahvuu') || q.includes('strength') ||
+      q.includes('persoonall') || q.includes('personalit') ||
+      q.includes('työskentelytyyli') || q.includes('working style') ||
+      q.includes('ongelmanratkaisu') || q.includes('problem solving') ||
+      q.includes('supervoima') || q.includes('superpower')) {
+    return 'personality';
+  }
+
+  // Projects / achievements
+  if (q.includes('paras projekti') || q.includes('best project') ||
+      q.includes('saavutus') || q.includes('achievement') ||
+      q.includes('ylpein') || q.includes('proudest')) {
+    return 'achievements';
+  }
+
+  // Fallback: if answer is long enough, treat as experience
+  return 'other';
+}
+
 async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]> {
   try {
     const { data, error } = await supabaseAdmin
@@ -269,12 +339,27 @@ async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]>
     }
 
     console.log(`📚 [CV GEN] Fetched ${data.length} saved responses from DB`);
-    return data.map((r) => ({
-      id: r.id,
-      question: r.question_text,
-      answer: r.answer,
-      category: r.question_category,
-    }));
+
+    // Map DB rows to AnswerEntry with INFERRED categories
+    const entries = data.map((r) => {
+      const inferredCategory = inferCategory(r.question_category, r.question_text);
+      if (inferredCategory !== (r.question_category || '').toLowerCase()) {
+        console.log(`   🔄 Re-categorized: "${r.question_text?.substring(0, 40)}..." → ${inferredCategory} (was: ${r.question_category || 'empty'})`);
+      }
+      return {
+        id: r.id,
+        question: r.question_text,
+        answer: r.answer,
+        category: inferredCategory,
+      };
+    });
+
+    // Log category distribution
+    const catCounts: Record<string, number> = {};
+    entries.forEach(e => { catCounts[e.category] = (catCounts[e.category] || 0) + 1; });
+    console.log('   📊 Category distribution:', catCounts);
+
+    return entries;
   } catch (err) {
     console.error('❌ fetchSavedResponsesFromDB error:', err);
     return [];
