@@ -829,7 +829,51 @@ export async function generateCVWithPersonalityExtraction(
       const forcedQuestions: any[] = [];
       const isFinnish = enrichedUserData.language === 'finnish';
 
-      if (!enrichedUserData.workExperience || enrichedUserData.workExperience.length < 50) {
+      // Helper: check if a field has real content
+      // Handles: null, undefined, '', '[]', '{}', '[{}]', and JSON-stringified empty arrays
+      const hasContent = (field: string | undefined, minLength: number): boolean => {
+        if (!field) return false;
+        const trimmed = field.trim();
+        if (trimmed === '' || trimmed === '[]' || trimmed === '{}' || trimmed === '[{}]') return false;
+        // If it's a JSON array, check if it has meaningful content inside
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed) && parsed.length === 0) return false;
+            // Array has items → it has content
+            if (Array.isArray(parsed) && parsed.length > 0) return true;
+          } catch {
+            // Not valid JSON, treat as plain text
+          }
+        }
+        return trimmed.length >= minLength;
+      };
+
+      const hasSkillsContent = (field: string | undefined): boolean => {
+        if (!field) return false;
+        const trimmed = field.trim();
+        if (trimmed === '' || trimmed === '[]' || trimmed === '{}') return false;
+        // Try parsing as JSON array
+        if (trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed) && parsed.length === 0) return false;
+            if (Array.isArray(parsed) && parsed.length >= 3) return true;
+          } catch {}
+        }
+        // Plain text: check comma-separated count
+        const parts = trimmed.split(',').filter(s => s.trim().length > 0);
+        return parts.length >= 3;
+      };
+
+      // DEBUG: Log what we're checking
+      console.log('📊 [CV GEN] Field check (after enrichment):');
+      console.log(`   workExperience: ${enrichedUserData.workExperience?.length || 0} chars, hasContent: ${hasContent(enrichedUserData.workExperience, 50)}`);
+      console.log(`   skills: "${enrichedUserData.skills?.substring(0, 80)}", hasSkills: ${hasSkillsContent(enrichedUserData.skills)}`);
+      console.log(`   education: ${enrichedUserData.education?.length || 0} chars, hasContent: ${hasContent(enrichedUserData.education, 20)}`);
+      console.log(`   bestProject: ${enrichedUserData.bestProjectExample?.length || 0} chars, hasContent: ${hasContent(enrichedUserData.bestProjectExample, 30)}`);
+
+      if (!hasContent(enrichedUserData.workExperience, 50)) {
         forcedQuestions.push({
           id: 'work_experience_detail',
           question: isFinnish
@@ -844,7 +888,7 @@ export async function generateCVWithPersonalityExtraction(
         });
       }
 
-      if (!enrichedUserData.skills || enrichedUserData.skills.split(',').length < 3) {
+      if (!hasSkillsContent(enrichedUserData.skills)) {
         forcedQuestions.push({
           id: 'skills_detail',
           question: isFinnish
@@ -859,7 +903,7 @@ export async function generateCVWithPersonalityExtraction(
         });
       }
 
-      if (!enrichedUserData.education || enrichedUserData.education.length < 20) {
+      if (!hasContent(enrichedUserData.education, 20)) {
         forcedQuestions.push({
           id: 'education_detail',
           question: isFinnish
@@ -874,7 +918,7 @@ export async function generateCVWithPersonalityExtraction(
         });
       }
 
-      if (!enrichedUserData.bestProjectExample || enrichedUserData.bestProjectExample.length < 30) {
+      if (!hasContent(enrichedUserData.bestProjectExample, 30)) {
         forcedQuestions.push({
           id: 'best_project',
           question: isFinnish
