@@ -21,9 +21,231 @@ interface BaseCV {
   ai_data: any;
   profile_image?: string;
   background_image?: string;
+  metadata?: any;
 }
 
 type MobileView = 'carousel' | 'grid';
+
+// ════════════════════════════════════════════════════════════════
+// ✅ SHARED PARSERS — Same as edit-cv (consistent rendering)
+// ════════════════════════════════════════════════════════════════
+
+function parseAISkillsToStructured(aiData: any): any[] | null {
+  const skillsHTML = aiData?.skills_section || aiData?.html?.skills_section;
+  if (!skillsHTML || typeof skillsHTML !== 'string') return null;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(skillsHTML, 'text/html');
+    const categories: { category: string; items: string[] }[] = [];
+    const sections = doc.querySelectorAll('h3, h4, strong');
+    sections.forEach((heading) => {
+      const category = heading.textContent?.trim() || 'Skills';
+      const items: string[] = [];
+      let nextElement = heading.nextElementSibling;
+      while (nextElement && nextElement.tagName === 'UL') {
+        nextElement.querySelectorAll('li').forEach(li => {
+          const text = li.textContent?.trim();
+          if (text) items.push(text);
+        });
+        nextElement = nextElement.nextElementSibling;
+      }
+      if (items.length > 0) categories.push({ category, items });
+    });
+    if (categories.length === 0) {
+      const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').filter((l: string) => l.trim());
+      if (lines.length > 0) categories.push({ category: 'Skills', items: lines });
+    }
+    return categories.length > 0 ? categories : null;
+  } catch { return null; }
+}
+
+function parseAIExperienceToStructured(aiData: any): any[] | null {
+  const expHTML = aiData?.experience_section || aiData?.html?.experience_section;
+  if (!expHTML || typeof expHTML !== 'string') return null;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(expHTML, 'text/html');
+    const jobs: any[] = [];
+    const jobDivs = doc.querySelectorAll('.job, .work-item, .experience-item');
+    if (jobDivs.length > 0) {
+      jobDivs.forEach(jobDiv => {
+        const h4 = jobDiv.querySelector('h4');
+        const titleText = h4?.textContent?.trim() || '';
+        const [title, company] = titleText.split(' - ').map(s => s.trim());
+        const dateP = jobDiv.querySelector('.date, p[class*="date"]');
+        const period = dateP?.textContent?.trim() || '';
+        const achievements: string[] = [];
+        jobDiv.querySelectorAll('ul li').forEach(li => {
+          const text = li.textContent?.trim();
+          if (text) achievements.push(text);
+        });
+        if (title || company) jobs.push({ title: title || 'Position', company: company || '', period, achievements });
+      });
+    } else {
+      const allH4 = doc.querySelectorAll('h4');
+      allH4.forEach(h4 => {
+        const titleText = h4.textContent?.trim() || '';
+        const [title, company] = titleText.split(' - ').map(s => s.trim());
+        let period = '';
+        let nextElement = h4.nextElementSibling;
+        if (nextElement?.classList.contains('date') || nextElement?.tagName === 'P') {
+          period = nextElement.textContent?.trim() || '';
+          nextElement = nextElement.nextElementSibling;
+        }
+        const achievements: string[] = [];
+        if (nextElement?.tagName === 'UL') {
+          nextElement.querySelectorAll('li').forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) achievements.push(text);
+          });
+        }
+        if (title || company) jobs.push({ title: title || 'Position', company: company || '', period, achievements });
+      });
+    }
+    return jobs.length > 0 ? jobs : null;
+  } catch { return null; }
+}
+
+function parseAIEducationToStructured(aiData: any): any[] | null {
+  const eduHTML = aiData?.education_section || aiData?.html?.education_section;
+  if (!eduHTML || typeof eduHTML !== 'string') return null;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(eduHTML, 'text/html');
+    const eduList: any[] = [];
+    const eduDivs = doc.querySelectorAll('.education, .education-item');
+    if (eduDivs.length > 0) {
+      eduDivs.forEach(eduDiv => {
+        const h4 = eduDiv.querySelector('h4');
+        const degree = h4?.textContent?.trim() || '';
+        const paragraphs = eduDiv.querySelectorAll('p');
+        let institution = '';
+        let year = '';
+        paragraphs.forEach((p, idx) => {
+          const text = p.textContent?.trim() || '';
+          if (idx === 0) institution = text;
+          if (p.classList.contains('date') || text.match(/\d{4}/)) year = text;
+        });
+        const details: string[] = [];
+        eduDiv.querySelectorAll('ul li').forEach(li => {
+          const text = li.textContent?.trim();
+          if (text) details.push(text);
+        });
+        if (degree) eduList.push({ degree, institution, year, details });
+      });
+    } else {
+      const allH4 = doc.querySelectorAll('h4');
+      allH4.forEach(h4 => {
+        const degree = h4.textContent?.trim() || '';
+        let institution = '';
+        let year = '';
+        const details: string[] = [];
+        let nextElement = h4.nextElementSibling;
+        if (nextElement?.tagName === 'P') { institution = nextElement.textContent?.trim() || ''; nextElement = nextElement.nextElementSibling; }
+        if (nextElement?.tagName === 'P') { const text = nextElement.textContent?.trim() || ''; if (text.match(/\d{4}/)) { year = text; nextElement = nextElement.nextElementSibling; } }
+        if (nextElement?.tagName === 'UL') { nextElement.querySelectorAll('li').forEach(li => { const text = li.textContent?.trim(); if (text) details.push(text); }); }
+        if (degree) eduList.push({ degree, institution, year, details });
+      });
+    }
+    return eduList.length > 0 ? eduList : null;
+  } catch { return null; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ✅ PROCESS CV DATA — Same logic as edit-cv
+// Ensures template gets consistent structured data
+// ════════════════════════════════════════════════════════════════
+
+function processCV(cv: any): BaseCV {
+  let cvData = cv.cv_data;
+  let aiData = cv.ai_data;
+
+  // Parse content if needed
+  if (cv.content) {
+    try {
+      const parsed = typeof cv.content === 'string' ? JSON.parse(cv.content) : cv.content;
+      const contentCvData = parsed.cv_data || {};
+      const contentAiData = parsed.ai_data || {};
+
+      if (Object.keys(contentCvData).length > 0) {
+        cvData = { ...(cvData || {}), ...contentCvData };
+      }
+      if (Object.keys(contentAiData).length > 0) {
+        aiData = { ...(aiData || {}), ...contentAiData };
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (!cvData) cvData = {};
+  if (!aiData) aiData = {};
+
+  // ✅ SKILLS → structured array (same as edit-cv)
+  if (typeof cvData.skills === 'string') {
+    try { cvData.skills = JSON.parse(cvData.skills); } catch { cvData.skills = cvData.skills.split(',').map((s: string) => s.trim()).filter(Boolean); }
+  }
+  if (!Array.isArray(cvData.skills) || cvData.skills.length === 0) {
+    const parsed = parseAISkillsToStructured(aiData);
+    if (parsed) cvData.skills = parsed;
+    else cvData.skills = [];
+  }
+
+  // ✅ EXPERIENCE → structured array (same as edit-cv)
+  if (typeof cvData.experience === 'string') {
+    try { cvData.experience = JSON.parse(cvData.experience); } catch { cvData.experience = []; }
+  }
+  if (!Array.isArray(cvData.experience) || cvData.experience.length === 0) {
+    const parsed = parseAIExperienceToStructured(aiData);
+    if (parsed) cvData.experience = parsed;
+    else cvData.experience = [];
+  }
+
+  // ✅ EDUCATION → structured array (same as edit-cv)
+  if (typeof cvData.education === 'string') {
+    try { cvData.education = JSON.parse(cvData.education); } catch { cvData.education = []; }
+  }
+  if (!Array.isArray(cvData.education) || cvData.education.length === 0) {
+    const parsed = parseAIEducationToStructured(aiData);
+    if (parsed) cvData.education = parsed;
+    else cvData.education = [];
+  }
+
+  // ✅ IMAGE PROCESSING
+  const processImageUrl = (url: string | null | undefined): string => {
+    if (!url || url.trim() === "") return "";
+    const trimmed = url.trim();
+    if (trimmed.startsWith('data:image') || trimmed.startsWith('http')) return trimmed;
+    if (trimmed.includes('/')) {
+      return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${trimmed}`;
+    }
+    return "";
+  };
+
+  const profileImage = processImageUrl(
+    cv.profile_image || cvData?.profileImage || aiData?.profile_image || cvData?.photo
+  );
+  const backgroundImage = processImageUrl(
+    cv.background_image || cvData?.backgroundImage || aiData?.background_image
+  );
+
+  cvData.profileImage = profileImage;
+  cvData.backgroundImage = backgroundImage;
+  if (aiData) {
+    aiData.profile_image = profileImage;
+    aiData.background_image = backgroundImage;
+  }
+
+  return {
+    ...cv,
+    cv_data: cvData,
+    ai_data: aiData,
+    profile_image: profileImage,
+    background_image: backgroundImage,
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ════════════════════════════════════════════════════════════════
 
 export default function MyCVsPage() {
   const { userId, getToken } = useAuth();
@@ -36,13 +258,9 @@ export default function MyCVsPage() {
   const [mobileView, setMobileView] = useState<MobileView>('carousel');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-  const cvRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -63,74 +281,17 @@ export default function MyCVsPage() {
   };
 
   const loadCVs = async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
+    if (!userId) { setLoading(false); return; }
     setLoading(true);
     try {
       const token = await getToken({ template: "supabase" });
       if (!token) throw new Error("Autentikaatiotoken puuttuu");
-      
+
       const { data, error: fetchError } = await fetchCVs(userId, token);
       if (fetchError) throw fetchError;
-      
-      const processedData = (data || []).map((cv: any) => {
-        // ✅ KORJATTU: Lue cv_data ja ai_data, mutta priorisoi content.cv_data (muokattu data)
-        let cvData = cv.cv_data;
-        let aiData = cv.ai_data;
 
-        if (cv.content) {
-          try {
-            const parsed = typeof cv.content === 'string' ? JSON.parse(cv.content) : cv.content;
-            
-            // ✅ KRIITTINEN: content.cv_data sisältää muokatut tiedot
-            // Mergea content.cv_data cv_data:n päälle
-            const contentCvData = parsed.cv_data || {};
-            const contentAiData = parsed.ai_data || {};
-            
-            // Jos content.cv_data on olemassa, käytä sitä (se on tuoreempi)
-            if (Object.keys(contentCvData).length > 0) {
-              cvData = { ...(cvData || {}), ...contentCvData };
-            } else if (!cvData) {
-              cvData = {};
-            }
-            
-            if (Object.keys(contentAiData).length > 0) {
-              aiData = { ...(aiData || {}), ...contentAiData };
-            } else if (!aiData) {
-              aiData = {};
-            }
-          } catch (e) {
-            if (!cvData) cvData = {};
-            if (!aiData) aiData = {};
-          }
-        }
-
-        if (!cvData) cvData = {};
-        if (!aiData) aiData = {};
-        
-        const processImageUrl = (url: string | null | undefined): string => {
-          if (!url || url.trim() === "") return "";
-          const trimmed = url.trim();
-          if (trimmed.startsWith('data:image') || trimmed.startsWith('http')) return trimmed;
-          if (trimmed.includes('/')) {
-            return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${trimmed}`;
-          }
-          return "";
-        };
-        
-        const profileImage = processImageUrl(cv.profile_image || cvData?.profileImage || aiData?.profile_image || cvData?.photo);
-        const backgroundImage = processImageUrl(cv.background_image || cvData?.backgroundImage || aiData?.background_image);
-        
-        if (cvData) {
-          cvData.profileImage = profileImage;
-          cvData.backgroundImage = backgroundImage;
-        }
-        
-        return { ...cv, cv_data: cvData, ai_data: aiData };
-      });
-
+      // ✅ Use processCV for consistent data (same as edit-cv)
+      const processedData = (data || []).map((cv: any) => processCV(cv));
       setCvs(processedData);
     } catch (error: any) {
       setError(error.message);
@@ -185,7 +346,7 @@ export default function MyCVsPage() {
   useEffect(() => { loadCVs(); }, [userId]);
 
   const renderCVCard = (cv: BaseCV, isCarousel: boolean = false) => {
-    const templateType = cv.cv_data?.cvType || cv.ai_data?.cv_type || "simple";
+    const templateType = cv.cv_data?.cvType || cv.ai_data?.cvType || cv.ai_data?.cv_type || cv.metadata?.cv_type || "simple";
     let TemplateComponent: any;
     switch (templateType) {
       case "technical": TemplateComponent = TechnicalCVTemplate; break;
@@ -195,19 +356,28 @@ export default function MyCVsPage() {
 
     return (
       <div className="group bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-[2rem] overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:border-orange-500/30">
-        
-        {/* Preview Area */}
-        <div className="relative h-[400px] bg-gray-50 dark:bg-black/40 overflow-hidden border-b border-gray-100 dark:border-gray-800">
-          <div className="absolute inset-0 flex justify-center items-start pt-6">
-            <div className="origin-top shadow-2xl scale-[0.4] sm:scale-[0.45] transition-transform duration-500 group-hover:scale-[0.47]">
-               <CVContainer>
-                  <TemplateComponent data={cv.cv_data} aiData={cv.ai_data} isEditing={false} />
-               </CVContainer>
+
+        {/* ✅ Preview Area — same sizing approach as edit-cv */}
+        <div className="relative h-[420px] bg-gray-50 dark:bg-black/40 overflow-hidden border-b border-gray-100 dark:border-gray-800">
+          <div className="absolute inset-0 flex justify-center items-start overflow-hidden">
+            <div
+              className="bg-white shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]"
+              style={{
+                width: '210mm',
+                minHeight: '297mm',
+                transform: 'scale(0.38)',
+                transformOrigin: 'top center',
+                marginTop: '16px',
+              }}
+            >
+              <CVContainer>
+                <TemplateComponent data={cv.cv_data} aiData={cv.ai_data} isEditing={false} />
+              </CVContainer>
             </div>
           </div>
-          
+
           <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-             <button 
+            <button
               onClick={() => handleDelete(cv.id)}
               className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white backdrop-blur-md rounded-2xl transition-all"
             >
@@ -234,7 +404,7 @@ export default function MyCVsPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Button 
+            <Button
               onClick={() => handleDownloadPDF(cv.id, cv.cv_data?.name || "CV")}
               disabled={isDownloading === cv.id}
               className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12 font-bold"
@@ -265,7 +435,7 @@ export default function MyCVsPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
-      
+
       {/* Background Orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
@@ -273,7 +443,7 @@ export default function MyCVsPage() {
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-20">
-        
+
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <div className="space-y-4">
@@ -329,7 +499,7 @@ export default function MyCVsPage() {
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="flex justify-center items-center gap-6 mt-8">
                   <button onClick={prevSlide} className="p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg"><ChevronLeft/></button>
                   <span className="font-black text-sm">{currentIndex + 1} / {cvs.length}</span>

@@ -578,6 +578,23 @@ Read the profile data. Write naturally and professionally. Stay truthful.
 6. You may rephrase and improve WORDING. You may NOT add NEW FACTS.
 
 # ════════════════════════════════════════════════════════════════
+# DATA COMPLETENESS — USE ALL PROVIDED DATA
+# ════════════════════════════════════════════════════════════════
+
+You must use ALL the data provided. Do not skip or omit:
+- Every job/position with its EXACT company name (e.g. "Elkome Oy", not "Company")
+- Every school with its EXACT name (e.g. "Hämeen ammattikorkeakoulu HAMK")
+- Every skill listed
+- Every education entry (even ongoing studies)
+- Achievements, tools used, what was learned — include these
+- Personal projects and side projects mentioned anywhere in the data
+
+If 2 jobs are provided, write about BOTH jobs.
+If 3 education entries are provided, include ALL 3.
+The company name "Elkome Oy" must appear as "Elkome Oy", not as "Company".
+The school name "HAMK" must appear as "HAMK", not as "Oppilaitos".
+
+# ════════════════════════════════════════════════════════════════
 # PRIVACY: NO PERSONAL INFO IN PROMPT
 # ════════════════════════════════════════════════════════════════
 
@@ -1224,7 +1241,7 @@ export async function generateCVWithPersonalityExtraction(
     const model = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY!,
       modelName: "gpt-4o-mini",
-      temperature: 0.7,
+      temperature: 0.4, // Lower = more faithful to input data
       timeout: 20000,
     });
 
