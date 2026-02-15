@@ -26,7 +26,16 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   backgroundImage
 }) => {
   const [skillsTop, setSkillsTop] = useState(0);
-
+  /** Check if a value is "empty" — handles null, '', '[]', '{}', 'null', 'undefined' */
+  const isEmptyValue = (val: any): boolean => {
+    if (val == null) return true;
+    if (typeof val === 'string') {
+      const t = val.trim();
+      return t === '' || t === '[]' || t === '{}' || t === '[{}]' || t === 'null' || t === 'undefined';
+    }
+    if (Array.isArray(val) && val.length === 0) return true;
+    return false;
+  };
   // ✅ SUORA MUOKKAUS - ei blurria, päivitä heti
   const handleInput = (path: string, e: React.FormEvent<HTMLElement>) => {
     if (!isEditing || !onUpdate) return;
@@ -100,7 +109,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
 
     if (typeof content === "string" && content.trim()) {
       if (content.toLowerCase().includes("error generating")) return "";
-      if (content.trim().length < 20) return "";
+      // ✅ REMOVED: 20-char minimum. Skills HTML like "<ul><li>React</li></ul>" is valid.
+      // Old: if (content.trim().length < 20) return "";
       return content;
     }
     return "";
@@ -110,48 +120,66 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
      PARSE SKILLS
   ============================================================ */
 
+ // ════════════════════════════════════════════
+  // COPY-PASTE THIS OVER the existing parseSkills() function
+  // in the NON-EDITABLE template (used by cv-preview)
+  // ════════════════════════════════════════════
+
   const parseSkills = (): { category: string; items: string[] }[] => {
+    // ✅ PRIORITY 1: AI-generated HTML (best quality)
     const skillsHTML = getAIContent("skills_section");
-    
-    if (!skillsHTML) {
-      const skillsText = data?.skills || "";
-      if (!skillsText) return [];
-      
-      const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
-      return [{ category: "Skills", items: skills }];
+
+    if (skillsHTML) {
+      const categories: { category: string; items: string[] }[] = [];
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(skillsHTML, 'text/html');
+
+      const sections = doc.querySelectorAll('h3, h4, strong');
+      sections.forEach((heading) => {
+        const category = heading.textContent?.trim() || 'Skills';
+        const items: string[] = [];
+        let nextElement = heading.nextElementSibling;
+        while (nextElement && nextElement.tagName === 'UL') {
+          nextElement.querySelectorAll('li').forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) items.push(text);
+          });
+          nextElement = nextElement.nextElementSibling;
+        }
+        if (items.length > 0) categories.push({ category, items });
+      });
+
+      // Fallback: extract all <li> items regardless of structure
+      if (categories.length === 0) {
+        const allLis = doc.querySelectorAll('li');
+        if (allLis.length > 0) {
+          const items: string[] = [];
+          allLis.forEach(li => {
+            const text = li.textContent?.trim();
+            if (text) items.push(text);
+          });
+          if (items.length > 0) categories.push({ category: 'Skills', items });
+        } else {
+          // Last resort: strip HTML tags and split by newlines
+          const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+          if (lines.length > 0) categories.push({ category: 'Skills', items: lines });
+        }
+      }
+
+      if (categories.length > 0) return categories;
     }
 
-    const categories: { category: string; items: string[] }[] = [];
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(skillsHTML, 'text/html');
-    
-    const sections = doc.querySelectorAll('h3, h4, strong');
-    sections.forEach((heading) => {
-      const category = heading.textContent?.trim() || 'Skills';
-      const items: string[] = [];
-      
-      let nextElement = heading.nextElementSibling;
-      while (nextElement && nextElement.tagName === 'UL') {
-        nextElement.querySelectorAll('li').forEach(li => {
-          const text = li.textContent?.trim();
-          if (text) items.push(text);
-        });
-        nextElement = nextElement.nextElementSibling;
-      }
-      
-      if (items.length > 0) {
-        categories.push({ category, items });
-      }
-    });
-
-    if (categories.length === 0) {
-      const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').filter(l => l.trim());
-      if (lines.length > 0) {
-        categories.push({ category: 'Skills', items: lines });
+    // ✅ PRIORITY 2: cv_data.skills (comma-separated string)
+    // BUT skip empty values like "[]", "{}", "", null
+    const skillsText = data?.skills;
+    if (skillsText && !isEmptyValue(skillsText)) {
+      if (typeof skillsText === 'string') {
+        const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
+        if (skills.length > 0) return [{ category: "Skills", items: skills }];
       }
     }
 
-    return categories;
+    return [];
   };
 
   /* ============================================================
@@ -169,7 +197,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     if (!expHTML) {
       try {
         const rawExp = data?.work_experience || (data as any)?.workExperience;
-        if (!rawExp) return [];
+if (!rawExp || isEmptyValue(rawExp)) return [];
         
         const parsed = typeof rawExp === 'string' ? JSON.parse(rawExp) : rawExp;
         if (!Array.isArray(parsed)) return [];
@@ -277,7 +305,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     if (!eduHTML) {
       try {
         const rawEdu = data?.education || (data as any)?.education_history;
-        if (!rawEdu) return [];
+if (!rawEdu || isEmptyValue(rawEdu)) return [];
         
         const parsed = typeof rawEdu === 'string' ? JSON.parse(rawEdu) : rawEdu;
         if (!Array.isArray(parsed)) return [];
