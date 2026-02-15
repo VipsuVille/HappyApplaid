@@ -557,7 +557,7 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                           fontSize: "10pt",
                         }}
                       >
-                        •
+                        
                       </span>
                       {skill}
                     </li>
