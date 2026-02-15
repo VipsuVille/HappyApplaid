@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
@@ -434,41 +434,147 @@ export default function EditCVPage() {
     });
   }, []);
 
+ // ═══════════════════════════════════════════════════════════════
+// REPLACE the handleUpdate block in edit-cv/[id]/page.tsx
+//
+// Since templates now use onBlur (not onInput), we DON'T need
+// debouncing. State only updates when user clicks away from field.
+//
+// FIND THIS:
+//   const handleUpdate = useCallback((field: string, value: any) => {
+//     ...everything until the closing }, []);
+//
+// REPLACE WITH THIS:
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// REPLACE handleUpdate in edit-cv/[id]/page.tsx
+//
+// FIND: const handleUpdate = useCallback((field: string, value: any) => {
+//   ...everything...
+// }, []);
+//
+// REPLACE WITH EVERYTHING BELOW:
+// ═══════════════════════════════════════════════════════════════
+
   const handleUpdate = useCallback((field: string, value: any) => {
-    const isImageChange = field === 'profileImage' || field === 'backgroundImage';
-    const isStructuralChange = typeof value === 'object' && value !== null;
+    console.log('📝 Edit:', field);
     
-    // Images & structural changes: apply IMMEDIATELY (needs re-render)
-    if (isImageChange || isStructuralChange) {
-      if (pendingTextUpdatesRef.current.length > 0) {
-        applyUpdates(pendingTextUpdatesRef.current);
-        pendingTextUpdatesRef.current = [];
+    setCvData(prev => {
+      if (!prev) return prev;
+      const updated = JSON.parse(JSON.stringify(prev));
+      
+      if (!updated.cv_data) updated.cv_data = {};
+      if (!updated.content) updated.content = {};
+      if (!updated.content.cv_data) updated.content.cv_data = {};
+
+      // ═══════════════════════════════════════
+      // DELETE OPERATION: field starts with "__delete__:"
+      // Example: "__delete__:experience.0" → remove experience[0]
+      // Example: "__delete__:skills.0.items.2" → remove skills[0].items[2]
+      // ═══════════════════════════════════════
+      if (field.startsWith('__delete__:')) {
+        const deletePath = field.replace('__delete__:', '');
+        const parts = deletePath.split('.');
+        
+        const deleteFromObj = (obj: any) => {
+          let current = obj;
+          // Navigate to parent
+          for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            const idx = Number(part);
+            if (!isNaN(idx) && Array.isArray(current)) {
+              current = current[idx];
+            } else if (current[part] !== undefined) {
+              current = current[part];
+            } else {
+              return; // Path doesn't exist
+            }
+          }
+          // Delete the last item
+          const lastPart = parts[parts.length - 1];
+          const lastIdx = Number(lastPart);
+          if (!isNaN(lastIdx) && Array.isArray(current)) {
+            current.splice(lastIdx, 1);
+          } else if (current && typeof current === 'object') {
+            delete current[lastPart];
+          }
+        };
+
+        deleteFromObj(updated.cv_data);
+        deleteFromObj(updated.content.cv_data);
+        return updated;
       }
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
+
+      // ═══════════════════════════════════════
+      // NORMAL SET OPERATION
+      // ═══════════════════════════════════════
+      const setNestedValue = (obj: any, pathParts: string[], val: any) => {
+        let current = obj;
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          const part = pathParts[i];
+          const nextPart = pathParts[i + 1];
+          const isNextIndex = !isNaN(Number(nextPart));
+          if (current[part] === undefined || current[part] === null) {
+            current[part] = isNextIndex ? [] : {};
+          } else if (typeof current[part] === 'string') {
+            try { current[part] = JSON.parse(current[part]); } catch { current[part] = isNextIndex ? [] : {}; }
+          }
+          if (isNextIndex && !Array.isArray(current[part])) current[part] = [];
+          current = current[part];
+        }
+        const lastPart = pathParts[pathParts.length - 1];
+        const lastIndex = Number(lastPart);
+        if (!isNaN(lastIndex) && Array.isArray(current)) {
+          if (lastIndex < current.length) current[lastIndex] = val;
+          else current.push(val);
+        } else {
+          current[lastPart] = val;
+        }
+      };
+
+      const parts = field.split('.');
+      setNestedValue(updated.cv_data, parts, value);
+      setNestedValue(updated.content.cv_data, parts, value);
+
+      // ✅ Image changes: update ALL locations
+      if (field === 'profileImage') {
+        updated.profile_image = value;
+        updated.cv_data.profile_image = value;
+        updated.cv_data.profileImage = value;
+        updated.cv_data.photo = value;
+        updated.content.cv_data.profileImage = value;
+        updated.content.cv_data.profile_image = value;
+        if (updated.ai_data) {
+          updated.ai_data.profile_image = value;
+          if (updated.ai_data.html) updated.ai_data.html.profile_image = value;
+        }
+        if (updated.content?.ai_data) {
+          updated.content.ai_data.profile_image = value;
+          if (updated.content.ai_data.html) updated.content.ai_data.html.profile_image = value;
+        }
       }
-      applyUpdates([{ field, value }]);
-      return;
-    }
-    
-    // Text changes: DEBOUNCE 500ms so cursor doesn't jump
-    const existing = pendingTextUpdatesRef.current.findIndex(u => u.field === field);
-    if (existing >= 0) {
-      pendingTextUpdatesRef.current[existing].value = value;
-    } else {
-      pendingTextUpdatesRef.current.push({ field, value });
-    }
-    
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
-      if (pendingTextUpdatesRef.current.length > 0) {
-        applyUpdates(pendingTextUpdatesRef.current);
-        pendingTextUpdatesRef.current = [];
+      if (field === 'backgroundImage') {
+        updated.background_image = value;
+        updated.cv_data.background_image = value;
+        updated.cv_data.backgroundImage = value;
+        updated.content.cv_data.backgroundImage = value;
+        updated.content.cv_data.background_image = value;
+        if (updated.ai_data) {
+          updated.ai_data.background_image = value;
+          updated.ai_data.background_image_url = value;
+          if (updated.ai_data.html) updated.ai_data.html.background_image = value;
+        }
+        if (updated.content?.ai_data) {
+          updated.content.ai_data.background_image = value;
+          updated.content.ai_data.background_image_url = value;
+          if (updated.content.ai_data.html) updated.content.ai_data.html.background_image = value;
+        }
       }
-      debounceTimerRef.current = null;
-    }, 500);
-  }, [applyUpdates]);
+
+      return updated;
+    });
+  }, []);
 
   // Flush when leaving edit mode
   useEffect(() => {

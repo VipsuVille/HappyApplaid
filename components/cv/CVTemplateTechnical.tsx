@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { UserFormData, AIData, EditMode } from "@/types";
 
 interface TechnicalCVTemplateProps {
@@ -23,32 +23,47 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   onContentChange,
   onUpdate,
   profileImage,
-  backgroundImage
+  backgroundImage,
 }) => {
   const [skillsTop, setSkillsTop] = useState(0);
 
-    /** Check if a value is "empty" — handles null, '', '[]', '{}', 'null', 'undefined' */
-  const isEmptyValue = (val: any): boolean => {
-    if (val == null) return true;
-    if (typeof val === 'string') {
-      const t = val.trim();
-      return t === '' || t === '[]' || t === '{}' || t === '[{}]' || t === 'null' || t === 'undefined';
-    }
-    if (Array.isArray(val) && val.length === 0) return true;
-    return false;
-  };
-  // ✅ SUORA MUOKKAUS - päivitä heti
-  const handleInput = (path: string, e: React.FormEvent<HTMLElement>) => {
-    if (!isEditing || !onUpdate) return;
-    const newValue = e.currentTarget.innerText;
-    onUpdate(path, newValue);
+  // ═══════════════════════════════════════════════════════════
+  // CLICK-TO-EDIT STATE (sama kuin cover letterissä)
+  // ═══════════════════════════════════════════════════════════
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [tempValue, setTempValue] = useState<string>("");
+
+  const startEditing = (field: string, currentValue: string) => {
+    if (!isEditing) return;
+    setEditingField(field);
+    setTempValue(currentValue);
   };
 
-  // ✅ LISTAN ITEMIN MUOKKAUS (skills, bullets, etc)
-  const handleListItemInput = (path: string, index: number, e: React.FormEvent<HTMLElement>) => {
-    if (!isEditing || !onUpdate) return;
-    const newValue = e.currentTarget.innerText;
-    onUpdate(`${path}.${index}`, newValue);
+  const cancelEditing = () => {
+    setEditingField(null);
+    setTempValue("");
+  };
+
+  const saveField = (field: string) => {
+    if (onUpdate && tempValue !== undefined) {
+      onUpdate(field, tempValue);
+    }
+    setEditingField(null);
+    setTempValue("");
+  };
+
+  const handleKeyDown = (
+    e: React.KeyboardEvent,
+    field: string,
+    multiline: boolean = false
+  ) => {
+    if (e.key === "Escape") {
+      cancelEditing();
+    }
+    if (e.key === "Enter" && !multiline) {
+      e.preventDefault();
+      saveField(field);
+    }
   };
 
   /* ============================================================
@@ -76,10 +91,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       aiData?.profile_image,
       (aiData?.html as any)?.profile_image,
     ];
-
     for (const src of sources) {
-      if (!isValidImage(src)) continue;
-      return String(src).trim();
+      if (isValidImage(src)) return String(src).trim();
     }
     return null;
   };
@@ -93,10 +106,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       aiData?.background_image_url,
       (aiData?.html as any)?.background_image,
     ];
-
     for (const src of sources) {
-      if (!isValidImage(src)) continue;
-      return String(src).trim();
+      if (isValidImage(src)) return String(src).trim();
     }
     return null;
   };
@@ -110,85 +121,77 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
 
   const getAIContent = (field: keyof AIData): string => {
     let content = aiData?.[field];
-
     if (!content && aiData?.html) {
       content = aiData.html[field as keyof typeof aiData.html];
     }
-
     if (typeof content === "string" && content.trim()) {
       if (content.toLowerCase().includes("error generating")) return "";
-      // ✅ REMOVED: 20-char minimum. Skills HTML like "<ul><li>React</li></ul>" is valid.
-      // Old: if (content.trim().length < 20) return "";
+      if (content.trim().length < 20) return "";
       return content;
     }
     return "";
   };
 
   /* ============================================================
-     PARSE SKILLS - MUOKATTAVISSA
-     ✅ KORJATTU: Tarkistaa cv_data ENSIN, fallback AI HTML:ään
+     PARSE SKILLS
   ============================================================ */
 
   const parseSkills = (): { category: string; items: string[] }[] => {
-    // ✅ PRIORITY 1: AI-generated HTML (best quality)
+    if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
+      if (typeof data.skills[0] === "string") {
+        return [{ category: "Skills", items: data.skills as string[] }];
+      }
+      return data.skills as { category: string; items: string[] }[];
+    }
+
     const skillsHTML = getAIContent("skills_section");
 
-    if (skillsHTML) {
-      const categories: { category: string; items: string[] }[] = [];
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(skillsHTML, 'text/html');
-
-      const sections = doc.querySelectorAll('h3, h4, strong');
-      sections.forEach((heading) => {
-        const category = heading.textContent?.trim() || 'Skills';
-        const items: string[] = [];
-        let nextElement = heading.nextElementSibling;
-        while (nextElement && nextElement.tagName === 'UL') {
-          nextElement.querySelectorAll('li').forEach(li => {
-            const text = li.textContent?.trim();
-            if (text) items.push(text);
-          });
-          nextElement = nextElement.nextElementSibling;
-        }
-        if (items.length > 0) categories.push({ category, items });
-      });
-
-      // Fallback: extract all <li> items regardless of structure
-      if (categories.length === 0) {
-        const allLis = doc.querySelectorAll('li');
-        if (allLis.length > 0) {
-          const items: string[] = [];
-          allLis.forEach(li => {
-            const text = li.textContent?.trim();
-            if (text) items.push(text);
-          });
-          if (items.length > 0) categories.push({ category: 'Skills', items });
-        } else {
-          // Last resort: strip HTML tags and split by newlines
-          const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').map(l => l.trim()).filter(Boolean);
-          if (lines.length > 0) categories.push({ category: 'Skills', items: lines });
-        }
-      }
-
-      if (categories.length > 0) return categories;
+    if (!skillsHTML) {
+      const skillsText = data?.skills || "";
+      if (!skillsText || typeof skillsText !== "string") return [];
+      const skills = skillsText
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return [{ category: "Skills", items: skills }];
     }
 
-    // ✅ PRIORITY 2: cv_data.skills (comma-separated string)
-    // BUT skip empty values like "[]", "{}", "", null
-    const skillsText = data?.skills;
-    if (skillsText && !isEmptyValue(skillsText)) {
-      if (typeof skillsText === 'string') {
-        const skills = skillsText.split(',').map(s => s.trim()).filter(Boolean);
-        if (skills.length > 0) return [{ category: "Skills", items: skills }];
+    const categories: { category: string; items: string[] }[] = [];
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(skillsHTML, "text/html");
+
+    const sections = doc.querySelectorAll("h3, h4, strong");
+    sections.forEach((heading) => {
+      const category = heading.textContent?.trim() || "Skills";
+      const items: string[] = [];
+      let nextElement = heading.nextElementSibling;
+      while (nextElement && nextElement.tagName === "UL") {
+        nextElement.querySelectorAll("li").forEach((li) => {
+          const text = li.textContent?.trim();
+          if (text) items.push(text);
+        });
+        nextElement = nextElement.nextElementSibling;
+      }
+      if (items.length > 0) {
+        categories.push({ category, items });
+      }
+    });
+
+    if (categories.length === 0) {
+      const lines = skillsHTML
+        .replace(/<[^>]+>/g, "")
+        .split("\n")
+        .filter((l) => l.trim());
+      if (lines.length > 0) {
+        categories.push({ category: "Skills", items: lines });
       }
     }
 
-    return [];
+    return categories;
   };
 
   /* ============================================================
-     PARSE WORK EXPERIENCE - MUOKATTAVISSA
-     ✅ KORJATTU: Tarkistaa cv_data ENSIN
+     PARSE WORK EXPERIENCE
   ============================================================ */
 
   const parseWorkExperience = (): Array<{
@@ -197,46 +200,53 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     period: string;
     achievements: string[];
   }> => {
-    // ✅ 1. Jos data.experience on array (muokattu data)
-    if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0) {
+    if (
+      data?.experience &&
+      Array.isArray(data.experience) &&
+      data.experience.length > 0
+    ) {
       return data.experience.map((exp: any) => ({
-        title: exp.position || exp.title || 'Position',
-        company: exp.company || 'Company',
-        period: exp.period || exp.duration || '',
-        achievements: exp.bullets || exp.achievements || [exp.description].filter(Boolean)
+        title: exp.title || exp.position || "Position",
+        company: exp.company || "Company",
+        period: exp.period || exp.duration || "",
+        achievements: Array.isArray(exp.bullets)
+          ? exp.bullets
+          : Array.isArray(exp.achievements)
+          ? exp.achievements
+          : [exp.description].filter(Boolean),
       }));
     }
-    
-    // ✅ 2. Fallback: AI HTML
+
     const expHTML = getAIContent("experience_section");
-    
+
     if (!expHTML) {
       try {
-        const rawExp = data?.work_experience || (data as any)?.workExperience;
-if (!rawExp || isEmptyValue(rawExp)) return [];
-        
-        const parsed = typeof rawExp === 'string' ? JSON.parse(rawExp) : rawExp;
+        const rawExp =
+          data?.work_experience || (data as any)?.workExperience;
+        if (!rawExp) return [];
+        const parsed =
+          typeof rawExp === "string" ? JSON.parse(rawExp) : rawExp;
         if (!Array.isArray(parsed)) return [];
-        
         return parsed.map((job: any) => ({
-          title: job.position || 'Position',
-          company: job.company || 'Company',
-          period: job.duration || '',
+          title: job.position || "Position",
+          company: job.company || "Company",
+          period: job.duration || "",
           achievements: [
             job.description,
             job.biggestAchievement,
             job.whatYouLearned,
-            job.howYourStrengthShowed
-          ].filter(Boolean).map(text => text.trim())
+            job.howYourStrengthShowed,
+          ]
+            .filter(Boolean)
+            .map((text) => text.trim()),
         }));
       } catch (e) {
-        console.error('Failed to parse work_experience:', e);
         return [];
       }
     }
 
     const parser = new DOMParser();
-    const doc = parser.parseFromString(expHTML, 'text/html');
+    const doc = parser.parseFromString(expHTML, "text/html");
     const jobs: Array<{
       title: string;
       company: string;
@@ -244,60 +254,61 @@ if (!rawExp || isEmptyValue(rawExp)) return [];
       achievements: string[];
     }> = [];
 
-    const jobDivs = doc.querySelectorAll('.job, .work-item, .experience-item');
-    
+    const jobDivs = doc.querySelectorAll(
+      ".job, .work-item, .experience-item"
+    );
     if (jobDivs.length > 0) {
-      jobDivs.forEach(jobDiv => {
-        const h4 = jobDiv.querySelector('h4');
-        const titleText = h4?.textContent?.trim() || '';
-        const [title, company] = titleText.split(' - ').map(s => s.trim());
-        
+      jobDivs.forEach((jobDiv) => {
+        const h4 = jobDiv.querySelector("h4");
+        const titleText = h4?.textContent?.trim() || "";
+        const [title, company] = titleText
+          .split(" - ")
+          .map((s) => s.trim());
         const dateP = jobDiv.querySelector('.date, p[class*="date"]');
-        const period = dateP?.textContent?.trim() || '';
-        
+        const period = dateP?.textContent?.trim() || "";
         const achievements: string[] = [];
-        jobDiv.querySelectorAll('ul li').forEach(li => {
+        jobDiv.querySelectorAll("ul li").forEach((li) => {
           const text = li.textContent?.trim();
           if (text) achievements.push(text);
         });
-        
         if (title || company) {
           jobs.push({
-            title: title || 'Position',
-            company: company || 'Company',
+            title: title || "Position",
+            company: company || "Company",
             period,
-            achievements
+            achievements,
           });
         }
       });
     } else {
-      const allH4 = doc.querySelectorAll('h4');
-      allH4.forEach(h4 => {
-        const titleText = h4.textContent?.trim() || '';
-        const [title, company] = titleText.split(' - ').map(s => s.trim());
-        
-        let period = '';
+      const allH4 = doc.querySelectorAll("h4");
+      allH4.forEach((h4) => {
+        const titleText = h4.textContent?.trim() || "";
+        const [title, company] = titleText
+          .split(" - ")
+          .map((s) => s.trim());
+        let period = "";
         let nextElement = h4.nextElementSibling;
-        
-        if (nextElement?.classList.contains('date') || nextElement?.tagName === 'P') {
-          period = nextElement.textContent?.trim() || '';
+        if (
+          nextElement?.classList.contains("date") ||
+          nextElement?.tagName === "P"
+        ) {
+          period = nextElement.textContent?.trim() || "";
           nextElement = nextElement.nextElementSibling;
         }
-        
         const achievements: string[] = [];
-        if (nextElement?.tagName === 'UL') {
-          nextElement.querySelectorAll('li').forEach(li => {
+        if (nextElement?.tagName === "UL") {
+          nextElement.querySelectorAll("li").forEach((li) => {
             const text = li.textContent?.trim();
             if (text) achievements.push(text);
           });
         }
-        
         if (title || company) {
           jobs.push({
-            title: title || 'Position',
-            company: company || 'Company',
+            title: title || "Position",
+            company: company || "Company",
             period,
-            achievements
+            achievements,
           });
         }
       });
@@ -307,8 +318,7 @@ if (!rawExp || isEmptyValue(rawExp)) return [];
   };
 
   /* ============================================================
-     PARSE EDUCATION - MUOKATTAVISSA
-     ✅ KORJATTU: Tarkistaa cv_data ENSIN
+     PARSE EDUCATION
   ============================================================ */
 
   const parseEducation = (): Array<{
@@ -317,46 +327,51 @@ if (!rawExp || isEmptyValue(rawExp)) return [];
     year: string;
     details: string[];
   }> => {
-    // ✅ 1. Jos data.education on array (muokattu data)
-    if (data?.education && Array.isArray(data.education) && data.education.length > 0) {
+    if (
+      data?.education &&
+      Array.isArray(data.education) &&
+      data.education.length > 0
+    ) {
       return data.education.map((edu: any) => ({
-        degree: edu.degree || 'Degree',
-        institution: edu.school || edu.institution || 'Institution',
-        year: edu.year || edu.period || '',
-        details: edu.details || [edu.description].filter(Boolean)
+        degree: edu.degree || "Degree",
+        institution: edu.institution || edu.school || "Institution",
+        year: edu.year || edu.period || "",
+        details: Array.isArray(edu.details)
+          ? edu.details
+          : [edu.description].filter(Boolean),
       }));
     }
-    
-    // ✅ 2. Fallback: AI HTML
+
     const eduHTML = getAIContent("education_section");
-    
+
     if (!eduHTML) {
       try {
-        const rawEdu = data?.education || (data as any)?.education_history;
-if (!rawEdu || isEmptyValue(rawEdu)) return [];
-        
-        const parsed = typeof rawEdu === 'string' ? JSON.parse(rawEdu) : rawEdu;
+        const rawEdu =
+          data?.education || (data as any)?.education_history;
+        if (!rawEdu) return [];
+        const parsed =
+          typeof rawEdu === "string" ? JSON.parse(rawEdu) : rawEdu;
         if (!Array.isArray(parsed)) return [];
-        
         return parsed.map((edu: any) => ({
-          degree: edu.degree || 'Degree',
-          institution: edu.school || edu.institution || 'Institution',
-          year: edu.year || '',
+          degree: edu.degree || "Degree",
+          institution: edu.school || edu.institution || "Institution",
+          year: edu.year || "",
           details: [
             edu.whyThisField,
             edu.specialization,
             edu.proudestMoment,
-            edu.favoriteSubjects
-          ].filter(Boolean).map(text => text.trim())
+            edu.favoriteSubjects,
+          ]
+            .filter(Boolean)
+            .map((text) => text.trim()),
         }));
       } catch (e) {
-        console.error('Failed to parse education:', e);
         return [];
       }
     }
 
     const parser = new DOMParser();
-    const doc = parser.parseFromString(eduHTML, 'text/html');
+    const doc = parser.parseFromString(eduHTML, "text/html");
     const eduList: Array<{
       degree: string;
       institution: string;
@@ -364,65 +379,55 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
       details: string[];
     }> = [];
 
-    const eduDivs = doc.querySelectorAll('.education, .education-item');
-    
+    const eduDivs = doc.querySelectorAll(".education, .education-item");
     if (eduDivs.length > 0) {
-      eduDivs.forEach(eduDiv => {
-        const h4 = eduDiv.querySelector('h4');
-        const degree = h4?.textContent?.trim() || '';
-        
-        const paragraphs = eduDiv.querySelectorAll('p');
-        let institution = '';
-        let year = '';
-        
+      eduDivs.forEach((eduDiv) => {
+        const h4 = eduDiv.querySelector("h4");
+        const degree = h4?.textContent?.trim() || "";
+        const paragraphs = eduDiv.querySelectorAll("p");
+        let institution = "";
+        let year = "";
         paragraphs.forEach((p, idx) => {
-          const text = p.textContent?.trim() || '';
+          const text = p.textContent?.trim() || "";
           if (idx === 0) institution = text;
-          if (p.classList.contains('date') || text.match(/\d{4}/)) {
+          if (p.classList.contains("date") || text.match(/\d{4}/)) {
             year = text;
           }
         });
-        
         const details: string[] = [];
-        eduDiv.querySelectorAll('ul li').forEach(li => {
+        eduDiv.querySelectorAll("ul li").forEach((li) => {
           const text = li.textContent?.trim();
           if (text) details.push(text);
         });
-        
         if (degree) {
           eduList.push({ degree, institution, year, details });
         }
       });
     } else {
-      const allH4 = doc.querySelectorAll('h4');
-      allH4.forEach(h4 => {
-        const degree = h4.textContent?.trim() || '';
-        let institution = '';
-        let year = '';
+      const allH4 = doc.querySelectorAll("h4");
+      allH4.forEach((h4) => {
+        const degree = h4.textContent?.trim() || "";
+        let institution = "";
+        let year = "";
         const details: string[] = [];
-        
         let nextElement = h4.nextElementSibling;
-        
-        if (nextElement?.tagName === 'P') {
-          institution = nextElement.textContent?.trim() || '';
+        if (nextElement?.tagName === "P") {
+          institution = nextElement.textContent?.trim() || "";
           nextElement = nextElement.nextElementSibling;
         }
-        
-        if (nextElement?.tagName === 'P') {
-          const text = nextElement.textContent?.trim() || '';
+        if (nextElement?.tagName === "P") {
+          const text = nextElement.textContent?.trim() || "";
           if (text.match(/\d{4}/)) {
             year = text;
             nextElement = nextElement.nextElementSibling;
           }
         }
-        
-        if (nextElement?.tagName === 'UL') {
-          nextElement.querySelectorAll('li').forEach(li => {
+        if (nextElement?.tagName === "UL") {
+          nextElement.querySelectorAll("li").forEach((li) => {
             const text = li.textContent?.trim();
             if (text) details.push(text);
           });
         }
-        
         if (degree) {
           eduList.push({ degree, institution, year, details });
         }
@@ -439,14 +444,98 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
   const name = data?.name || "Name";
   const title = data?.title || "Professional Title";
 
-  // ✅ APUFUNKTIOT MUOKKAUSTYYLIEN MÄÄRITTÄMISEEN
-  const getEditableStyles = (isActive: boolean = true): React.CSSProperties => ({
-    outline: isEditing && isActive ? '2px dashed rgba(249, 115, 22, 0.5)' : 'none',
-    padding: isEditing && isActive ? '2px 4px' : '0',
-    borderRadius: '4px',
-    cursor: isEditing ? 'text' : 'default',
-    minWidth: '20px',
-  });
+  // ═══════════════════════════════════════════════════════════
+  // EDITABLE FIELD COMPONENT (cover letter -tyylinen)
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * Yksi muokattava kenttä: klikkaa → input näkyviin → blur/enter tallentaa
+   * Ei contentEditable-ongelmia, ei cursor-hyppimistä.
+   */
+  const EditableText = ({
+    field,
+    value,
+    style,
+    className,
+    tag: Tag = "span",
+    multiline = false,
+    placeholder,
+  }: {
+    field: string;
+    value: string;
+    style?: React.CSSProperties;
+    className?: string;
+    tag?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "li" | "div";
+    multiline?: boolean;
+    placeholder?: string;
+  }) => {
+    const isActive = editingField === field;
+    const displayValue = value || placeholder || "";
+
+    // Kun kenttää muokataan → näytä input/textarea
+    if (isEditing && isActive) {
+      const inputStyle: React.CSSProperties = {
+        ...style,
+        width: "100%",
+        background: "rgba(249, 115, 22, 0.08)",
+        border: "2px solid rgba(249, 115, 22, 0.5)",
+        borderRadius: "4px",
+        padding: "2px 4px",
+        outline: "none",
+        boxSizing: "border-box" as const,
+        resize: multiline ? ("vertical" as const) : ("none" as const),
+      };
+
+      if (multiline) {
+        return (
+          <textarea
+            value={tempValue}
+            onChange={(e) => setTempValue(e.target.value)}
+            onBlur={() => saveField(field)}
+            onKeyDown={(e) => handleKeyDown(e, field, true)}
+            style={{ ...inputStyle, minHeight: "60px" }}
+            className={className}
+            autoFocus
+          />
+        );
+      }
+
+      return (
+        <input
+          type="text"
+          value={tempValue}
+          onChange={(e) => setTempValue(e.target.value)}
+          onBlur={() => saveField(field)}
+          onKeyDown={(e) => handleKeyDown(e, field, false)}
+          style={inputStyle}
+          className={className}
+          autoFocus
+        />
+      );
+    }
+
+    // Normaali näkymä (klikkaa muokataksesi)
+    const hoverStyle: React.CSSProperties = isEditing
+      ? {
+          cursor: "pointer",
+          borderRadius: "4px",
+          transition: "background 0.15s, outline 0.15s",
+        }
+      : {};
+
+    return (
+      <Tag
+        onClick={() => startEditing(field, value)}
+        style={{
+          ...style,
+          ...hoverStyle,
+        }}
+        className={`${className || ""} ${isEditing ? "editable-field" : ""}`}
+      >
+        {displayValue || (isEditing ? "(klikkaa muokataksesi)" : "")}
+      </Tag>
+    );
+  };
 
   /* ============================================================
      RENDER
@@ -458,20 +547,27 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
       style={{
         width: "210mm",
         height: "297mm",
-        fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
+        fontFamily:
+          "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
       }}
     >
-      {/* ✅ GOOGLE FONTS */}
+      {/* GOOGLE FONTS */}
       <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
         rel="stylesheet"
       />
 
+      {/* HOVER CSS for editable fields */}
+      <style>{`
+        .editable-field:hover {
+          outline: 2px dashed rgba(249, 115, 22, 0.4) !important;
+          background: rgba(249, 115, 22, 0.04) !important;
+        }
+      `}</style>
+
       {/* EDIT CONTROLS */}
       {isEditing && showEditControls && editMode === "content" && (
-        <div
-          className="fixed right-6 top-1/2 -translate-y-1/2 z-50 bg-white p-3 rounded-xl shadow-lg flex flex-col gap-2"
-        >
+        <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50 bg-white p-3 rounded-xl shadow-lg flex flex-col gap-2">
           <button
             onClick={() => setSkillsTop((v) => Math.max(-20, v - 5))}
             className="px-3 py-1 bg-gray-800 text-white rounded text-xs"
@@ -487,7 +583,9 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
         </div>
       )}
 
-      {/* LEFT COLUMN - DARK */}
+      {/* ══════════════════════════════════════════════════════
+          LEFT COLUMN - DARK
+      ══════════════════════════════════════════════════════ */}
       <div
         style={{
           position: "absolute",
@@ -509,14 +607,15 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
               style={{ filter: "contrast(1.05) brightness(0.95)" }}
             />
           ) : (
-            <div 
+            <div
               className="w-full h-full flex items-center justify-center"
               style={{
                 fontSize: "48pt",
                 fontWeight: 300,
-                background: "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)",
+                background:
+                  "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)",
                 fontFamily: "'Inter', sans-serif",
-                letterSpacing: "0.05em"
+                letterSpacing: "0.05em",
               }}
             >
               {name.substring(0, 2).toUpperCase()}
@@ -524,7 +623,7 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
           )}
         </div>
 
-        {/* ✅ SKILLS - MUOKATTAVISSA */}
+        {/* SKILLS */}
         {(skillCategories.length > 0 || isEditing) && (
           <div
             style={{
@@ -534,9 +633,6 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
             }}
           >
             <h2
-              contentEditable={isEditing}
-              onInput={(e) => handleInput("skillsTitle", e)}
-              suppressContentEditableWarning
               style={{
                 fontSize: "13pt",
                 fontWeight: 600,
@@ -546,7 +642,6 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                 paddingBottom: "3.5mm",
                 marginBottom: "5mm",
                 fontFamily: "'Inter', sans-serif",
-                ...getEditableStyles(),
               }}
             >
               {skillCategories[0]?.category || "Skills"}
@@ -555,10 +650,10 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
             {skillCategories.map((category, catIdx) => (
               <div key={catIdx} style={{ marginBottom: "4.5mm" }}>
                 {skillCategories.length > 1 && (
-                  <h3
-                    contentEditable={isEditing}
-                    onInput={(e) => handleInput(`skills.${catIdx}.category`, e)}
-                    suppressContentEditableWarning
+                  <EditableText
+                    field={`skills.${catIdx}.category`}
+                    value={category.category}
+                    tag="h3"
                     style={{
                       fontSize: "9.5pt",
                       fontWeight: 600,
@@ -566,13 +661,10 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                       color: "#f0c674",
                       fontFamily: "'Inter', sans-serif",
                       letterSpacing: "0.03em",
-                      ...getEditableStyles(),
                     }}
-                  >
-                    {category.category}
-                  </h3>
+                  />
                 )}
-                
+
                 <ul
                   style={{
                     listStyleType: "none",
@@ -587,15 +679,11 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                   {category.items.map((skill, skillIdx) => (
                     <li
                       key={skillIdx}
-                      contentEditable={isEditing}
-                      onInput={(e) => handleListItemInput(`skills.${catIdx}.items`, skillIdx, e)}
-                      suppressContentEditableWarning
                       style={{
                         marginBottom: "2mm",
                         paddingLeft: "4mm",
                         position: "relative",
                         color: "rgba(255,255,255,0.92)",
-                        ...getEditableStyles(),
                       }}
                     >
                       <span
@@ -606,17 +694,28 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                           fontSize: "10pt",
                         }}
                       >
-                        
+                        •
                       </span>
-                      {skill}
+                      <EditableText
+                        field={`skills.${catIdx}.items.${skillIdx}`}
+                        value={skill}
+                        tag="span"
+                        style={{
+                          color: "rgba(255,255,255,0.92)",
+                          fontSize: "8.5pt",
+                        }}
+                      />
                     </li>
                   ))}
-                  {/* Lisää uusi skill -nappi */}
+
+                  {/* Lisää uusi skill */}
                   {isEditing && (
                     <li
                       onClick={() => {
-                        const newItem = "New skill";
-                        onUpdate?.(`skills.${catIdx}.items.${category.items.length}`, newItem);
+                        onUpdate?.(
+                          `skills.${catIdx}.items.${category.items.length}`,
+                          "Uusi taito"
+                        );
                       }}
                       style={{
                         marginBottom: "2mm",
@@ -625,10 +724,13 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                         cursor: "pointer",
                         fontStyle: "italic",
                         opacity: 0.7,
+                        position: "relative",
                       }}
                     >
-                      <span style={{ position: "absolute", left: 0 }}>+</span>
-                      Add skill...
+                      <span style={{ position: "absolute", left: 0 }}>
+                        +
+                      </span>
+                      Lisää taito...
                     </li>
                   )}
                 </ul>
@@ -638,7 +740,9 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
         )}
       </div>
 
-      {/* RIGHT COLUMN - LIGHT */}
+      {/* ══════════════════════════════════════════════════════
+          RIGHT COLUMN - LIGHT
+      ══════════════════════════════════════════════════════ */}
       <div
         style={{
           marginLeft: "70mm",
@@ -663,7 +767,8 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
             style={{
               position: "absolute",
               inset: 0,
-              background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)",
+              background:
+                "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)",
             }}
           />
 
@@ -680,11 +785,11 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
               padding: "10mm",
             }}
           >
-            {/* NIMI */}
-            <h1
-              contentEditable={isEditing}
-              onInput={(e) => handleInput("name", e)}
-              suppressContentEditableWarning
+            {/* NAME */}
+            <EditableText
+              field="name"
+              value={name}
+              tag="h1"
               style={{
                 fontSize: "30pt",
                 fontWeight: 700,
@@ -692,17 +797,15 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                 fontFamily: "'Playfair Display', serif",
                 letterSpacing: "0.02em",
                 textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
-                ...getEditableStyles(),
+                color: "white",
               }}
-            >
-              {name}
-            </h1>
-            
+            />
+
             {/* TITLE */}
-            <p
-              contentEditable={isEditing}
-              onInput={(e) => handleInput("title", e)}
-              suppressContentEditableWarning
+            <EditableText
+              field="title"
+              value={title}
+              tag="p"
               style={{
                 fontSize: "13pt",
                 marginTop: "2mm",
@@ -712,11 +815,9 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
                 opacity: 0.95,
-                ...getEditableStyles(),
+                color: "white",
               }}
-            >
-              {title}
-            </p>
+            />
 
             <div
               style={{
@@ -731,54 +832,89 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                 fontWeight: 300,
               }}
             >
+              {/* EMAIL */}
               {(data?.email || isEditing) && (
-                <span 
-                  contentEditable={isEditing}
-                  onInput={(e) => handleInput("email", e)}
-                  suppressContentEditableWarning
-                  style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: '2mm',
-                    ...(getEditableStyles() as React.CSSProperties),
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "2mm",
                   }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                  {data.email || (isEditing ? 'email@example.com' : '')}
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="2"
+                  >
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <EditableText
+                    field="email"
+                    value={data.email || ""}
+                    placeholder="sähköposti@esimerkki.fi"
+                    style={{ color: "white", fontSize: "8.5pt" }}
+                  />
                 </span>
               )}
-              
+
+              {/* PHONE */}
               {(data?.phone || isEditing) && (
-                <span 
-                  contentEditable={isEditing}
-                  onInput={(e) => handleInput("phone", e)}
-                  suppressContentEditableWarning
-                  style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: '2mm',
-                    ...(getEditableStyles() as React.CSSProperties),
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "2mm",
                   }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                  {data.phone || (isEditing ? '+358 40 123 4567' : '')}
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="2"
+                  >
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  <EditableText
+                    field="phone"
+                    value={data.phone || ""}
+                    placeholder="+358 40 123 4567"
+                    style={{ color: "white", fontSize: "8.5pt" }}
+                  />
                 </span>
               )}
-              
+
+              {/* LOCATION */}
               {(data?.location || isEditing) && (
-                <span 
-                  contentEditable={isEditing}
-                  onInput={(e) => handleInput("location", e)}
-                  suppressContentEditableWarning
-                  style={{ 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: '2mm',
-                    ...(getEditableStyles() as React.CSSProperties),
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "2mm",
                   }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                  {data.location || (isEditing ? 'Helsinki' : '')}
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    strokeWidth="2"
+                  >
+                    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                  <EditableText
+                    field="location"
+                    value={data.location || ""}
+                    placeholder="Helsinki"
+                    style={{ color: "white", fontSize: "8.5pt" }}
+                  />
                 </span>
               )}
             </div>
@@ -786,21 +922,21 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
         </div>
 
         {/* CONTENT AREA */}
-        <div style={{ 
-          padding: "9mm 10mm", 
-          fontSize: "9.5pt", 
-          lineHeight: 1.55,
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 300,
-        }}>
-          
-          {/* ✅ WORK EXPERIENCE - MUOKATTAVISSA */}
+        <div
+          style={{
+            padding: "9mm 10mm",
+            fontSize: "9.5pt",
+            lineHeight: 1.55,
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 300,
+          }}
+        >
+          {/* ══════════════════════════════════════════════════
+              WORK EXPERIENCE
+          ══════════════════════════════════════════════════ */}
           {(workExperience.length > 0 || isEditing) && (
             <section style={{ marginBottom: "7mm" }}>
               <h2
-                contentEditable={isEditing}
-                onInput={(e) => handleInput("experienceTitle", e)}
-                suppressContentEditableWarning
                 style={{
                   fontSize: "11.5pt",
                   fontWeight: 600,
@@ -811,14 +947,20 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                   letterSpacing: "0.12em",
                   fontFamily: "'Inter', sans-serif",
                   color: "#1a1a1a",
-                  ...getEditableStyles(),
                 }}
               >
                 Work Experience
               </h2>
-              
+
               {workExperience.map((job, idx) => (
-                <div key={idx} style={{ marginBottom: "5.5mm", pageBreakInside: "avoid" }}>
+                <div
+                  key={idx}
+                  style={{
+                    marginBottom: "5.5mm",
+                    pageBreakInside: "avoid",
+                  }}
+                >
+                  {/* Position + Company */}
                   <h4
                     style={{
                       fontSize: "10.5pt",
@@ -828,43 +970,48 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                       fontFamily: "'Inter', sans-serif",
                     }}
                   >
-                    <span
-                      contentEditable={isEditing}
-                      onInput={(e) => handleInput(`experience.${idx}.title`, e)}
-                      suppressContentEditableWarning
-                      style={getEditableStyles()}
-                    >
-                      {job.title}
+                    <EditableText
+                      field={`experience.${idx}.title`}
+                      value={job.title}
+                      style={{
+                        fontWeight: 600,
+                        color: "#1a1a1a",
+                        fontSize: "10.5pt",
+                      }}
+                    />
+                    <span style={{ fontWeight: 400, color: "#555" }}>
+                      {" "}
+                      —{" "}
                     </span>
-                    <span style={{ fontWeight: 400, color: "#555" }}> — </span>
-                    <span
-                      contentEditable={isEditing}
-                      onInput={(e) => handleInput(`experience.${idx}.company`, e)}
-                      suppressContentEditableWarning
-                      style={getEditableStyles()}
-                    >
-                      {job.company}
-                    </span>
+                    <EditableText
+                      field={`experience.${idx}.company`}
+                      value={job.company}
+                      style={{
+                        fontWeight: 600,
+                        color: "#1a1a1a",
+                        fontSize: "10.5pt",
+                      }}
+                    />
                   </h4>
-                  
+
+                  {/* Period */}
                   {(job.period || isEditing) && (
-                    <p
-                      contentEditable={isEditing}
-                      onInput={(e) => handleInput(`experience.${idx}.period`, e)}
-                      suppressContentEditableWarning
+                    <EditableText
+                      field={`experience.${idx}.period`}
+                      value={job.period}
+                      tag="p"
+                      placeholder="Ajanjakso"
                       style={{
                         fontSize: "8.5pt",
                         color: "#666",
                         fontStyle: "italic",
                         marginBottom: "2mm",
                         fontWeight: 300,
-                        ...getEditableStyles(),
                       }}
-                    >
-                      {job.period || (isEditing ? 'Period' : '')}
-                    </p>
+                    />
                   )}
-                  
+
+                  {/* Achievements/Bullets */}
                   {(job.achievements.length > 0 || isEditing) && (
                     <ul
                       style={{
@@ -876,24 +1023,32 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                       }}
                     >
                       {job.achievements.map((achievement, achIdx) => (
-                        <li 
-                          key={achIdx} 
-                          contentEditable={isEditing}
-                          onInput={(e) => handleListItemInput(`experience.${idx}.achievements`, achIdx, e)}
-                          suppressContentEditableWarning
-                          style={{ 
-                            marginBottom: "1.5mm", 
+                        <li
+                          key={achIdx}
+                          style={{
+                            marginBottom: "1.5mm",
                             color: "#333",
-                            ...getEditableStyles(),
                           }}
                         >
-                          {achievement}
+                          <EditableText
+                            field={`experience.${idx}.bullets.${achIdx}`}
+                            value={achievement}
+                            multiline
+                            style={{
+                              color: "#333",
+                              fontSize: "9pt",
+                            }}
+                          />
                         </li>
                       ))}
+                      {/* Lisää uusi bullet */}
                       {isEditing && (
                         <li
                           onClick={() => {
-                            onUpdate?.(`experience.${idx}.achievements.${job.achievements.length}`, "New achievement");
+                            onUpdate?.(
+                              `experience.${idx}.bullets.${job.achievements.length}`,
+                              "Uusi kuvaus"
+                            );
                           }}
                           style={{
                             marginBottom: "1.5mm",
@@ -903,24 +1058,24 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                             opacity: 0.7,
                           }}
                         >
-                          + Add item...
+                          + Lisää kohta...
                         </li>
                       )}
                     </ul>
                   )}
                 </div>
               ))}
-              
+
+              {/* Lisää uusi työpaikka */}
               {isEditing && (
                 <div
                   onClick={() => {
-                    const newJob = {
-                      title: "New position",
-                      company: "Company",
-                      period: "2024 - Present",
-                      achievements: ["Description"]
-                    };
-                    onUpdate?.(`experience.${workExperience.length}`, newJob);
+                    onUpdate?.(`experience.${workExperience.length}`, {
+                      title: "Uusi tehtävä",
+                      company: "Yritys",
+                      period: "2024 - Nykyinen",
+                      bullets: ["Kuvaus tehtävästä"],
+                    });
                   }}
                   style={{
                     padding: "3mm",
@@ -933,19 +1088,18 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                     marginTop: "3mm",
                   }}
                 >
-                  + Add work experience
+                  + Lisää työkokemus
                 </div>
               )}
             </section>
           )}
 
-          {/* ✅ EDUCATION - MUOKATTAVISSA */}
+          {/* ══════════════════════════════════════════════════
+              EDUCATION
+          ══════════════════════════════════════════════════ */}
           {(education.length > 0 || isEditing) && (
             <section style={{ marginBottom: "7mm" }}>
               <h2
-                contentEditable={isEditing}
-                onInput={(e) => handleInput("educationTitle", e)}
-                suppressContentEditableWarning
                 style={{
                   fontSize: "11.5pt",
                   fontWeight: 600,
@@ -956,65 +1110,67 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                   letterSpacing: "0.12em",
                   fontFamily: "'Inter', sans-serif",
                   color: "#1a1a1a",
-                  ...getEditableStyles(),
                 }}
               >
                 Education
               </h2>
-              
+
               {education.map((edu, idx) => (
-                <div key={idx} style={{ marginBottom: "5mm", pageBreakInside: "avoid" }}>
-                  <h4
-                    contentEditable={isEditing}
-                    onInput={(e) => handleInput(`education.${idx}.degree`, e)}
-                    suppressContentEditableWarning
+                <div
+                  key={idx}
+                  style={{
+                    marginBottom: "5mm",
+                    pageBreakInside: "avoid",
+                  }}
+                >
+                  {/* Degree */}
+                  <EditableText
+                    field={`education.${idx}.degree`}
+                    value={edu.degree}
+                    tag="h4"
                     style={{
                       fontSize: "10pt",
                       fontWeight: 600,
                       marginBottom: "1mm",
                       fontFamily: "'Inter', sans-serif",
                       color: "#1a1a1a",
-                      ...getEditableStyles(),
                     }}
-                  >
-                    {edu.degree}
-                  </h4>
-                  
+                  />
+
+                  {/* Institution */}
                   {(edu.institution || isEditing) && (
-                    <p
-                      contentEditable={isEditing}
-                      onInput={(e) => handleInput(`education.${idx}.institution`, e)}
-                      suppressContentEditableWarning
+                    <EditableText
+                      field={`education.${idx}.institution`}
+                      value={edu.institution}
+                      tag="p"
+                      placeholder="Oppilaitos"
                       style={{
                         fontSize: "9pt",
                         margin: "1mm 0",
                         fontWeight: 400,
                         color: "#444",
-                        ...getEditableStyles(),
                       }}
-                    >
-                      {edu.institution || (isEditing ? 'Institution' : '')}
-                    </p>
+                    />
                   )}
-                  
+
+                  {/* Year */}
                   {(edu.year || isEditing) && (
-                    <p
-                      contentEditable={isEditing}
-                      onInput={(e) => handleInput(`education.${idx}.year`, e)}
-                      suppressContentEditableWarning
+                    <EditableText
+                      field={`education.${idx}.year`}
+                      value={edu.year}
+                      tag="p"
+                      placeholder="2020 - 2024"
                       style={{
                         fontSize: "8.5pt",
                         color: "#666",
                         fontStyle: "italic",
                         margin: "1mm 0",
                         fontWeight: 300,
-                        ...getEditableStyles(),
                       }}
-                    >
-                      {edu.year || (isEditing ? '2020 - 2024' : '')}
-                    </p>
+                    />
                   )}
-                  
+
+                  {/* Details */}
                   {(edu.details.length > 0 || isEditing) && (
                     <ul
                       style={{
@@ -1026,23 +1182,26 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                       }}
                     >
                       {edu.details.map((detail, detIdx) => (
-                        <li 
-                          key={detIdx}
-                          contentEditable={isEditing}
-                          onInput={(e) => handleListItemInput(`education.${idx}.details`, detIdx, e)}
-                          suppressContentEditableWarning
-                          style={{ 
-                            color: "#333",
-                            ...getEditableStyles(),
-                          }}
-                        >
-                          {detail}
+                        <li key={detIdx} style={{ color: "#333" }}>
+                          <EditableText
+                            field={`education.${idx}.details.${detIdx}`}
+                            value={detail}
+                            multiline
+                            style={{
+                              color: "#333",
+                              fontSize: "8.5pt",
+                            }}
+                          />
                         </li>
                       ))}
+                      {/* Lisää uusi detail */}
                       {isEditing && (
                         <li
                           onClick={() => {
-                            onUpdate?.(`education.${idx}.details.${edu.details.length}`, "New detail");
+                            onUpdate?.(
+                              `education.${idx}.details.${edu.details.length}`,
+                              "Uusi lisätieto"
+                            );
                           }}
                           style={{
                             color: "#f97316",
@@ -1051,24 +1210,24 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                             opacity: 0.7,
                           }}
                         >
-                          + Add detail...
+                          + Lisää lisätieto...
                         </li>
                       )}
                     </ul>
                   )}
                 </div>
               ))}
-              
+
+              {/* Lisää uusi koulutus */}
               {isEditing && (
                 <div
                   onClick={() => {
-                    const newEdu = {
-                      degree: "New degree",
-                      institution: "Institution",
+                    onUpdate?.(`education.${education.length}`, {
+                      degree: "Uusi tutkinto",
+                      institution: "Oppilaitos",
                       year: "2020 - 2024",
-                      details: ["Description"]
-                    };
-                    onUpdate?.(`education.${education.length}`, newEdu);
+                      details: ["Kuvaus"],
+                    });
                   }}
                   style={{
                     padding: "3mm",
@@ -1081,7 +1240,7 @@ if (!rawEdu || isEmptyValue(rawEdu)) return [];
                     marginTop: "3mm",
                   }}
                 >
-                  + Add education
+                  + Lisää koulutus
                 </div>
               )}
             </section>
