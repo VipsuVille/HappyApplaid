@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
@@ -366,68 +366,123 @@ export default function EditCVPage() {
   // ════════════════════════════════════════════════════════════════
   // ✅ INLINE EDIT - KORJATTU: Toimii kaikille kenttätyypeille
   // ════════════════════════════════════════════════════════════════
-  const handleUpdate = useCallback((field: string, value: any) => {
-    console.log('📝 Inline edit:', field, '→', typeof value === 'string' ? value.substring(0, 50) : value);
-    
+  // ════════════════════════════════════════════════════════════════
+  // ✅ REPLACE the existing handleUpdate + useCallback block with ALL of this.
+  // Remove the old handleUpdate entirely.
+  // ════════════════════════════════════════════════════════════════
+  
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const pendingTextUpdatesRef = React.useRef<Array<{ field: string; value: any }>>([]);
+
+  const applyUpdates = useCallback((updates: Array<{ field: string; value: any }>) => {
     setCvData(prev => {
       if (!prev) return prev;
-      
-      // Deep clone
       const updated = JSON.parse(JSON.stringify(prev));
       
       if (!updated.cv_data) updated.cv_data = {};
       if (!updated.content) updated.content = {};
       if (!updated.content.cv_data) updated.content.cv_data = {};
-      
-      const parts = field.split('.');
-      
-      // ✅ Helper to set nested value
+
       const setNestedValue = (obj: any, pathParts: string[], val: any) => {
         let current = obj;
-        
         for (let i = 0; i < pathParts.length - 1; i++) {
           const part = pathParts[i];
           const nextPart = pathParts[i + 1];
           const isNextIndex = !isNaN(Number(nextPart));
-          
           if (current[part] === undefined || current[part] === null) {
             current[part] = isNextIndex ? [] : {};
           } else if (typeof current[part] === 'string') {
-            try {
-              current[part] = JSON.parse(current[part]);
-            } catch {
-              current[part] = isNextIndex ? [] : {};
-            }
+            try { current[part] = JSON.parse(current[part]); } catch { current[part] = isNextIndex ? [] : {}; }
           }
-          
-          // Ensure correct type
-          if (isNextIndex && !Array.isArray(current[part])) {
-            current[part] = [];
-          }
-          
+          if (isNextIndex && !Array.isArray(current[part])) current[part] = [];
           current = current[part];
         }
-        
         const lastPart = pathParts[pathParts.length - 1];
         const lastIndex = Number(lastPart);
-        
         if (!isNaN(lastIndex) && Array.isArray(current)) {
-          if (lastIndex < current.length) {
-            current[lastIndex] = val;
-          } else {
-            current.push(val);
-          }
+          if (lastIndex < current.length) current[lastIndex] = val;
+          else current.push(val);
         } else {
           current[lastPart] = val;
         }
       };
-      
-      // Update both cv_data and content.cv_data
-      setNestedValue(updated.cv_data, parts, value);
-      setNestedValue(updated.content.cv_data, parts, value);
-      
+
+      for (const { field, value } of updates) {
+        const parts = field.split('.');
+        setNestedValue(updated.cv_data, parts, value);
+        setNestedValue(updated.content.cv_data, parts, value);
+
+        if (field === 'profileImage') {
+          updated.profile_image = value;
+          updated.cv_data.profile_image = value;
+          updated.cv_data.profileImage = value;
+          updated.content.cv_data.profileImage = value;
+          if (updated.ai_data) updated.ai_data.profile_image = value;
+          if (updated.content?.ai_data) updated.content.ai_data.profile_image = value;
+        }
+        if (field === 'backgroundImage') {
+          updated.background_image = value;
+          updated.cv_data.background_image = value;
+          updated.cv_data.backgroundImage = value;
+          updated.content.cv_data.backgroundImage = value;
+          if (updated.ai_data) updated.ai_data.background_image = value;
+          if (updated.content?.ai_data) updated.content.ai_data.background_image = value;
+        }
+      }
+
       return updated;
     });
+  }, []);
+
+  const handleUpdate = useCallback((field: string, value: any) => {
+    const isImageChange = field === 'profileImage' || field === 'backgroundImage';
+    const isStructuralChange = typeof value === 'object' && value !== null;
+    
+    // Images & structural changes: apply IMMEDIATELY (needs re-render)
+    if (isImageChange || isStructuralChange) {
+      if (pendingTextUpdatesRef.current.length > 0) {
+        applyUpdates(pendingTextUpdatesRef.current);
+        pendingTextUpdatesRef.current = [];
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      applyUpdates([{ field, value }]);
+      return;
+    }
+    
+    // Text changes: DEBOUNCE 500ms so cursor doesn't jump
+    const existing = pendingTextUpdatesRef.current.findIndex(u => u.field === field);
+    if (existing >= 0) {
+      pendingTextUpdatesRef.current[existing].value = value;
+    } else {
+      pendingTextUpdatesRef.current.push({ field, value });
+    }
+    
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      if (pendingTextUpdatesRef.current.length > 0) {
+        applyUpdates(pendingTextUpdatesRef.current);
+        pendingTextUpdatesRef.current = [];
+      }
+      debounceTimerRef.current = null;
+    }, 500);
+  }, [applyUpdates]);
+
+  // Flush when leaving edit mode
+  useEffect(() => {
+    if (!isEditing && pendingTextUpdatesRef.current.length > 0) {
+      applyUpdates(pendingTextUpdatesRef.current);
+      pendingTextUpdatesRef.current = [];
+    }
+  }, [isEditing, applyUpdates]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
   }, []);
 
   // ════════════════════════════════════════════════════════════════
