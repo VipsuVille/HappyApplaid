@@ -1,5 +1,7 @@
 "use client";
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, {
+  useState, useRef, useCallback, useEffect, useMemo
+} from "react";
 import { UserFormData, AIData, EditMode } from "@/types";
 
 interface TechnicalCVTemplateProps {
@@ -15,690 +17,529 @@ interface TechnicalCVTemplateProps {
   backgroundImage?: string;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// STABLE EDITABLE TEXT — defined OUTSIDE component to prevent re-creation
-// This is the fix for cursor-jumping: the component identity never changes
-// ═══════════════════════════════════════════════════════════════════════
-interface EditableTextProps {
+// ══════════════════════════════════════════════════════════════════════
+//  INLINE EDITOR  — uncontrolled so cursor never jumps
+//
+//  The key insight: a controlled <input value={state}> re-renders every
+//  keystroke → React diffs → cursor position resets.
+//  An uncontrolled <input defaultValue={…}> only reads the initial value
+//  once; afterwards the DOM owns the value and cursor is stable.
+//  We flush to parent state only on blur / Enter.
+// ══════════════════════════════════════════════════════════════════════
+interface InlineEditorProps {
   field: string;
   value: string;
-  style?: React.CSSProperties;
-  className?: string;
-  tag?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "li" | "div";
   multiline?: boolean;
   placeholder?: string;
   isEditing: boolean;
-  editingField: string | null;
-  tempValue: string;
-  onStartEdit: (field: string, value: string) => void;
-  onSave: (field: string) => void;
-  onTempChange: (value: string) => void;
-  onKeyDown: (e: React.KeyboardEvent, field: string, multiline?: boolean) => void;
+  style?: React.CSSProperties;
+  className?: string;
+  tag?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "div";
+  onCommit: (field: string, value: string) => void;
 }
 
-const EditableText: React.FC<EditableTextProps> = ({
-  field,
-  value,
-  style,
-  className,
-  tag: Tag = "span",
-  multiline = false,
-  placeholder,
-  isEditing,
-  editingField,
-  tempValue,
-  onStartEdit,
-  onSave,
-  onTempChange,
-  onKeyDown,
-}) => {
-  const isActive = editingField === field;
-  const displayValue = value || placeholder || "";
+const InlineEditor = React.memo(function InlineEditor({
+  field, value, multiline = false, placeholder,
+  isEditing, style, className, tag: Tag = "span", onCommit,
+}: InlineEditorProps) {
+  const [active, setActive] = useState(false);
+  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const savedValue = useRef(value);
 
-  if (isEditing && isActive) {
-    const inputStyle: React.CSSProperties = {
-      ...style,
-      width: "100%",
-      background: "rgba(249, 115, 22, 0.08)",
-      border: "2px solid rgba(249, 115, 22, 0.5)",
-      borderRadius: "4px",
-      padding: "2px 4px",
-      outline: "none",
-      boxSizing: "border-box" as const,
-      resize: multiline ? ("vertical" as const) : ("none" as const),
-      fontFamily: style?.fontFamily || "inherit",
-      fontSize: style?.fontSize || "inherit",
-      fontWeight: style?.fontWeight || "inherit",
-      color: style?.color || "inherit",
-    };
+  // when value prop changes while NOT active, update our saved ref
+  useEffect(() => {
+    if (!active) savedValue.current = value;
+  }, [value, active]);
 
-    if (multiline) {
-      return (
-        <textarea
-          value={tempValue}
-          onChange={(e) => onTempChange(e.target.value)}
-          onBlur={() => onSave(field)}
-          onKeyDown={(e) => onKeyDown(e, field, true)}
-          style={{ ...inputStyle, minHeight: "60px" }}
-          className={className}
-          autoFocus
-        />
-      );
+  const activate = useCallback(() => {
+    if (!isEditing) return;
+    savedValue.current = value;
+    setActive(true);
+  }, [isEditing, value]);
+
+  const commit = useCallback(() => {
+    const v = inputRef.current?.value ?? savedValue.current;
+    onCommit(field, v);
+    setActive(false);
+  }, [field, onCommit]);
+
+  const cancel = useCallback(() => {
+    if (inputRef.current) inputRef.current.value = savedValue.current;
+    setActive(false);
+  }, []);
+
+  useEffect(() => {
+    if (active && inputRef.current) {
+      inputRef.current.focus();
+      try { inputRef.current.select(); } catch {}
     }
-    return (
-      <input
-        type="text"
-        value={tempValue}
-        onChange={(e) => onTempChange(e.target.value)}
-        onBlur={() => onSave(field)}
-        onKeyDown={(e) => onKeyDown(e, field, false)}
-        style={inputStyle}
-        className={className}
-        autoFocus
-      />
-    );
+  }, [active]);
+
+  const inputStyle: React.CSSProperties = {
+    ...style,
+    display: "block", width: "100%",
+    background: "rgba(249,115,22,0.07)",
+    border: "2px solid rgba(249,115,22,0.55)",
+    borderRadius: "4px", padding: "2px 5px", outline: "none",
+    boxSizing: "border-box",
+    resize: multiline ? "vertical" : "none",
+    minHeight: multiline ? "52px" : undefined,
+    fontFamily: (style?.fontFamily as string) ?? "inherit",
+    fontSize: (style?.fontSize as string) ?? "inherit",
+    fontWeight: (style?.fontWeight as string | number) ?? "inherit",
+    color: (style?.color as string) ?? "inherit",
+    lineHeight: (style?.lineHeight as string | number) ?? "inherit",
+  };
+
+  if (isEditing && active) {
+    const onKey = (e: React.KeyboardEvent) => {
+      if (e.key === "Escape") { e.preventDefault(); cancel(); }
+      if (e.key === "Enter" && !multiline) { e.preventDefault(); commit(); }
+    };
+    return multiline
+      ? <textarea ref={inputRef as any} defaultValue={value} style={inputStyle} onBlur={commit} onKeyDown={onKey} />
+      : <input ref={inputRef as any} type="text" defaultValue={value} style={inputStyle} onBlur={commit} onKeyDown={onKey} />;
   }
 
   return (
     <Tag
-      onClick={() => isEditing && onStartEdit(field, value)}
-      style={{
-        ...style,
-        ...(isEditing
-          ? { cursor: "pointer", borderRadius: "4px", transition: "background 0.15s, outline 0.15s" }
-          : {}),
-      }}
-      className={`${className || ""} ${isEditing ? "editable-field" : ""}`}
+      onClick={activate}
+      style={{ ...style, ...(isEditing ? { cursor: "text", borderRadius: "3px" } : {}) }}
+      className={`${className ?? ""} ${isEditing ? "editable-hover" : ""}`}
     >
-      {displayValue || (isEditing ? "(klikkaa muokataksesi)" : "")}
+      {value || (isEditing ? (placeholder ?? "") : "")}
     </Tag>
   );
-};
+});
 
-// ═══════════════════════════════════════════════════════════════════════
-// DRAGGABLE SECTION WRAPPER
-// ═══════════════════════════════════════════════════════════════════════
-interface DraggableSectionProps {
-  id: string;
-  index: number;
-  isEditing: boolean;
-  onMove: (dragIndex: number, hoverIndex: number) => void;
-  children: React.ReactNode;
-  style?: React.CSSProperties;
+// ══════════════════════════════════════════════════════════════════════
+//  DRAG ITEM  — ▲ ▼ reorder + ✕ delete for any list item
+// ══════════════════════════════════════════════════════════════════════
+interface DragItemProps {
+  index: number; total: number; isEditing: boolean;
+  onMoveUp: () => void; onMoveDown: () => void; onDelete: () => void;
+  children: React.ReactNode; style?: React.CSSProperties;
 }
-
-const DraggableSection: React.FC<DraggableSectionProps> = ({
-  id,
-  index,
-  isEditing,
-  onMove,
-  children,
-  style,
+const DragItem: React.FC<DragItemProps> = ({
+  index, total, isEditing, onMoveUp, onMoveDown, onDelete, children, style,
 }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartY = useRef(0);
-  const dragStartIndex = useRef(0);
-
-  if (!isEditing) {
-    return <div style={style}>{children}</div>;
-  }
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    // Only drag from the handle (drag icon area)
-    const target = e.target as HTMLElement;
-    if (!target.closest("[data-drag-handle]")) return;
-    e.preventDefault();
-    setIsDragging(true);
-    dragStartY.current = e.clientY;
-    dragStartIndex.current = index;
-  };
-
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging || !ref.current) return;
-    const delta = e.clientY - dragStartY.current;
-    const threshold = 40;
-    if (delta > threshold) {
-      onMove(index, index + 1);
-      dragStartY.current = e.clientY;
-    } else if (delta < -threshold) {
-      onMove(index, index - 1);
-      dragStartY.current = e.clientY;
-    }
-  };
-
-  const handleMouseUp = () => setIsDragging(false);
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
-    }
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-  }, [isDragging]);
-
+  if (!isEditing) return <div style={style}>{children}</div>;
   return (
-    <div
-      ref={ref}
-      onMouseDown={handleMouseDown}
-      style={{
-        ...style,
-        position: "relative",
-        opacity: isDragging ? 0.7 : 1,
-        transition: "opacity 0.15s",
-        outline: isEditing ? "1px dashed rgba(249,115,22,0.25)" : "none",
-        borderRadius: "4px",
-        padding: "2px",
-      }}
-    >
-      {/* Drag handle */}
-      <div
-        data-drag-handle
-        style={{
-          position: "absolute",
-          left: "-14px",
-          top: "50%",
-          transform: "translateY(-50%)",
-          cursor: "grab",
-          color: "rgba(249,115,22,0.5)",
-          fontSize: "12px",
-          userSelect: "none",
-          lineHeight: 1,
-          padding: "2px",
-          zIndex: 10,
-        }}
-        title="Vedä siirtääksesi"
-      >
-        ⠿
+    <div style={{ ...style, position: "relative", paddingLeft: "18px", paddingRight: "20px" }}>
+      <div style={{ position: "absolute", left: "0px", top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: "1px", zIndex: 15 }}>
+        <button onClick={onMoveUp} disabled={index === 0} title="Ylös" style={arrowStyle(index === 0)}>▲</button>
+        <button onClick={onMoveDown} disabled={index === total - 1} title="Alas" style={arrowStyle(index === total - 1)}>▼</button>
       </div>
+      <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Poista"
+        style={{ position: "absolute", right: "0px", top: "50%", transform: "translateY(-50%)", background: "#ef4444", color: "white", border: "none", borderRadius: "50%", width: "16px", height: "16px", cursor: "pointer", fontSize: "9px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 15, padding: 0, boxShadow: "0 1px 3px rgba(0,0,0,.3)" }}>
+        ✕
+      </button>
       {children}
     </div>
   );
 };
+const arrowStyle = (disabled: boolean): React.CSSProperties => ({
+  background: disabled ? "rgba(249,115,22,0.15)" : "rgba(249,115,22,0.8)",
+  color: "white", border: "none", borderRadius: "3px",
+  width: "14px", height: "13px", cursor: disabled ? "default" : "pointer",
+  fontSize: "7px", display: "flex", alignItems: "center", justifyContent: "center",
+  padding: 0, opacity: disabled ? 0.35 : 1,
+});
 
-// ═══════════════════════════════════════════════════════════════════════
-// DELETE BUTTON
-// ═══════════════════════════════════════════════════════════════════════
-const DeleteBtn: React.FC<{
-  onClick: () => void;
-  isEditing: boolean;
-  label?: string;
-}> = ({ onClick, isEditing, label = "Poista" }) => {
-  if (!isEditing) return null;
+// ══════════════════════════════════════════════════════════════════════
+//  SECTION WRAP  — ↑ ↓ for whole sections
+// ══════════════════════════════════════════════════════════════════════
+interface SectionWrapProps {
+  label: string; index: number; total: number; isEditing: boolean;
+  onMoveUp: () => void; onMoveDown: () => void; children: React.ReactNode;
+}
+const SectionWrap: React.FC<SectionWrapProps> = ({
+  label, index, total, isEditing, onMoveUp, onMoveDown, children,
+}) => {
+  if (!isEditing) return <>{children}</>;
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      title={label}
-      style={{
-        position: "absolute",
-        top: "-6px",
-        right: "-6px",
-        background: "#ef4444",
-        color: "white",
-        border: "none",
-        borderRadius: "50%",
-        width: "18px",
-        height: "18px",
-        cursor: "pointer",
-        fontSize: "11px",
-        lineHeight: "18px",
-        textAlign: "center",
-        zIndex: 20,
-        padding: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
-      }}
-    >
-      ✕
-    </button>
+    <div style={{ position: "relative", marginBottom: "2px" }}>
+      <div style={{ position: "absolute", top: "0px", right: "0px", display: "flex", alignItems: "center", gap: "3px", zIndex: 20 }}>
+        <span style={{ fontSize: "7.5px", color: "rgba(249,115,22,.65)", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" }}>{label}</span>
+        <button onClick={onMoveUp} disabled={index === 0} title="Siirrä osio ylös" style={sectionArrowStyle(index === 0)}>↑</button>
+        <button onClick={onMoveDown} disabled={index === total - 1} title="Siirrä osio alas" style={sectionArrowStyle(index === total - 1)}>↓</button>
+      </div>
+      <div style={{ outline: "1px dashed rgba(249,115,22,.18)", borderRadius: "4px", padding: "4px 4px 4px 2px" }}>
+        {children}
+      </div>
+    </div>
   );
 };
+const sectionArrowStyle = (disabled: boolean): React.CSSProperties => ({
+  background: disabled ? "rgba(249,115,22,.12)" : "rgba(249,115,22,.75)",
+  color: "white", border: "none", borderRadius: "3px",
+  width: "15px", height: "15px", cursor: disabled ? "default" : "pointer",
+  fontSize: "9px", display: "flex", alignItems: "center", justifyContent: "center",
+  padding: 0, opacity: disabled ? 0.3 : 1,
+});
 
-// ═══════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════
+const sectionH2: React.CSSProperties = {
+  fontSize: "11.5pt", fontWeight: 600, textTransform: "uppercase",
+  borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm",
+  letterSpacing: ".12em", fontFamily: "'Inter',sans-serif", color: "#1a1a1a",
+};
+
+const AddBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
+  <div onClick={onClick}
+    style={{ padding: "3mm", border: "2px dashed #f97316", borderRadius: "4px", textAlign: "center", color: "#f97316", cursor: "pointer", fontSize: "9pt", marginTop: "3mm" }}
+    onMouseEnter={e => (e.currentTarget.style.background = "rgba(249,115,22,.05)")}
+    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+  >{label}</div>
+);
+
+// ══════════════════════════════════════════════════════════════════════
+//  MAIN TEMPLATE
+// ══════════════════════════════════════════════════════════════════════
 const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
-  data,
-  aiData,
-  isEditing,
-  showEditControls,
-  editMode,
-  onContentChange,
-  onUpdate,
-  onDelete,
-  profileImage,
-  backgroundImage,
+  data, aiData, isEditing, showEditControls, editMode,
+  onContentChange, onUpdate, onDelete, profileImage, backgroundImage,
 }) => {
+  const [sectionOrder, setSectionOrder] = useState(["experience", "education", "languages"]);
   const [skillsTop, setSkillsTop] = useState(0);
 
-  // ── Stable editing state ──────────────────────────────────────────
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [tempValue, setTempValue] = useState<string>("");
+  // stable commit — only recreated if onUpdate reference changes
+  const handleCommit = useCallback((field: string, val: string) => {
+    onUpdate?.(field, val);
+  }, [onUpdate]);
 
-  // Section order for drag-to-reorder
-  const [sectionOrder, setSectionOrder] = useState<string[]>(["experience", "education", "languages"]);
-
-  const startEditing = useCallback((field: string, currentValue: string) => {
-    if (!isEditing) return;
-    setEditingField(field);
-    setTempValue(currentValue ?? "");
-  }, [isEditing]);
-
-  const cancelEditing = useCallback(() => {
-    setEditingField(null);
-    setTempValue("");
-  }, []);
-
-  const saveField = useCallback((field: string) => {
-    if (onUpdate && tempValue !== undefined) {
-      onUpdate(field, tempValue);
-    }
-    setEditingField(null);
-    setTempValue("");
-  }, [onUpdate, tempValue]);
-
-  const handleKeyDown = useCallback((
-    e: React.KeyboardEvent,
-    field: string,
-    multiline: boolean = false
-  ) => {
-    if (e.key === "Escape") { cancelEditing(); return; }
-    if (e.key === "Enter" && !multiline) {
-      e.preventDefault();
-      saveField(field);
-    }
-  }, [cancelEditing, saveField]);
-
-  // Shared props for EditableText (avoids re-render issue)
-  const editProps = {
-    isEditing,
-    editingField,
-    tempValue,
-    onStartEdit: startEditing,
-    onSave: saveField,
-    onTempChange: setTempValue,
-    onKeyDown: handleKeyDown,
+  // move helper (pure)
+  const move = <T,>(arr: T[], from: number, to: number): T[] => {
+    if (to < 0 || to >= arr.length) return arr;
+    const n = [...arr]; const [x] = n.splice(from, 1); n.splice(to, 0, x); return n;
   };
 
-  // ── Move section in order ──────────────────────────────────────────
-  const moveSection = useCallback((dragIdx: number, hoverIdx: number) => {
-    if (hoverIdx < 0 || hoverIdx >= sectionOrder.length) return;
-    setSectionOrder(prev => {
-      const next = [...prev];
-      const [moved] = next.splice(dragIdx, 1);
-      next.splice(hoverIdx, 0, moved);
-      return next;
-    });
-  }, [sectionOrder.length]);
+  const moveSec = (i: number, dir: -1 | 1) =>
+    setSectionOrder(prev => move(prev, i, i + dir));
 
-  // ── Move item within array (drag within section) ───────────────────
-  const moveExperienceItem = useCallback((dragIdx: number, hoverIdx: number) => {
-    if (!onUpdate) return;
-    const exp = [...workExperience];
-    if (hoverIdx < 0 || hoverIdx >= exp.length) return;
-    const [moved] = exp.splice(dragIdx, 1);
-    exp.splice(hoverIdx, 0, moved);
-    onUpdate("experience", exp);
-  }, []);
-
-  const moveEducationItem = useCallback((dragIdx: number, hoverIdx: number) => {
-    if (!onUpdate) return;
-    const edu = [...education];
-    if (hoverIdx < 0 || hoverIdx >= edu.length) return;
-    const [moved] = edu.splice(dragIdx, 1);
-    edu.splice(hoverIdx, 0, moved);
-    onUpdate("education", edu);
-  }, []);
-
-  // ── Image helpers ──────────────────────────────────────────────────
-  const isValidImage = (src?: string | null) => {
-    if (!src) return false;
-    const s = String(src).trim();
-    return s !== "" && !s.includes("cv_files/default") &&
-      (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:image"));
+  // ── Image helpers ────────────────────────────────────────────────
+  const isValidImg = (s?: string | null) => {
+    if (!s) return false;
+    const t = s.trim();
+    return t && !t.includes("cv_files/default") && (t.startsWith("http") || t.startsWith("data:image"));
   };
-
-  const getProfileImage = (): string | null => {
-    const sources = [profileImage, (data as any)?.profile_image, data?.profileImage, (data as any)?.photo, aiData?.profile_image];
-    for (const src of sources) { if (isValidImage(src)) return String(src).trim(); }
+  const profileImg = useMemo(() => {
+    for (const s of [profileImage, (data as any)?.profile_image, data?.profileImage, (data as any)?.photo, aiData?.profile_image])
+      if (isValidImg(s)) return s!.trim();
     return null;
-  };
-
-  const getBackgroundImage = (): string | null => {
-    const sources = [backgroundImage, (data as any)?.background_image, data?.backgroundImage, aiData?.background_image, aiData?.background_image_url];
-    for (const src of sources) { if (isValidImage(src)) return String(src).trim(); }
+  }, [profileImage, data, aiData]);
+  const bgImage = useMemo(() => {
+    for (const s of [backgroundImage, (data as any)?.background_image, data?.backgroundImage, aiData?.background_image, aiData?.background_image_url])
+      if (isValidImg(s)) return s!.trim();
     return null;
-  };
+  }, [backgroundImage, data, aiData]);
 
-  const profileImg = getProfileImage();
-  const bgImage = getBackgroundImage();
-
-  // ── AI content helper ──────────────────────────────────────────────
-  const getAIContent = (field: keyof AIData): string => {
-    let content = aiData?.[field];
-    if (!content && aiData?.html) content = aiData.html[field as keyof typeof aiData.html];
-    if (typeof content === "string" && content.trim()) {
-      if (content.toLowerCase().includes("error generating")) return "";
-      if (content.trim().length < 20) return "";
-      return content;
-    }
+  // ── AI content ───────────────────────────────────────────────────
+  const getAI = useCallback((field: keyof AIData): string => {
+    let c: any = aiData?.[field];
+    if (!c && aiData?.html) c = (aiData.html as any)[field];
+    if (typeof c === "string" && c.trim().length > 20 && !c.toLowerCase().includes("error generating")) return c;
     return "";
-  };
+  }, [aiData]);
 
-  // ── Parse helpers ──────────────────────────────────────────────────
-  const parseSkills = (): { category: string; items: string[] }[] => {
+  // ── Parse skills ─────────────────────────────────────────────────
+  const skillCategories = useMemo((): { category: string; items: string[] }[] => {
     if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
       if (typeof data.skills[0] === "string") return [{ category: "Skills", items: data.skills as string[] }];
-      return data.skills as { category: string; items: string[] }[];
+      return data.skills as any;
     }
-    const skillsHTML = getAIContent("skills_section");
-    if (!skillsHTML) {
-      const skillsText = data?.skills || "";
-      if (!skillsText || typeof skillsText !== "string") return [];
-      return [{ category: "Skills", items: skillsText.split(",").map(s => s.trim()).filter(Boolean) }];
+    const html = getAI("skills_section");
+    if (!html) {
+      const t = (data?.skills as any) ?? "";
+      if (typeof t !== "string") return [];
+      return [{ category: "Skills", items: t.split(",").map((s: string) => s.trim()).filter(Boolean) }];
     }
-    const categories: { category: string; items: string[] }[] = [];
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(skillsHTML, "text/html");
-    doc.querySelectorAll("h3, h4, strong").forEach(heading => {
-      const category = heading.textContent?.trim() || "Skills";
-      const items: string[] = [];
-      let next = heading.nextElementSibling;
-      while (next && next.tagName === "UL") {
-        next.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) items.push(t); });
-        next = next.nextElementSibling;
-      }
-      if (items.length > 0) categories.push({ category, items });
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const cats: { category: string; items: string[] }[] = [];
+    doc.querySelectorAll("h3,h4,strong").forEach(h => {
+      const cat = h.textContent?.trim() || "Skills"; const items: string[] = [];
+      let nx = h.nextElementSibling;
+      while (nx?.tagName === "UL") { nx.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) items.push(t); }); nx = nx.nextElementSibling; }
+      if (items.length) cats.push({ category: cat, items });
     });
-    if (categories.length === 0) {
-      const lines = skillsHTML.replace(/<[^>]+>/g, "").split("\n").filter(l => l.trim());
-      if (lines.length > 0) categories.push({ category: "Skills", items: lines });
-    }
-    return categories;
-  };
+    if (!cats.length) { const lines = html.replace(/<[^>]+>/g, "").split("\n").filter(l => l.trim()); if (lines.length) cats.push({ category: "Skills", items: lines }); }
+    return cats;
+  }, [data?.skills, getAI]);
 
-  const parseWorkExperience = () => {
-    if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0) {
-      return data.experience.map((exp: any) => ({
-        title: exp.title || exp.position || "Position",
-        company: exp.company || "Company",
-        period: exp.period || exp.duration || "",
-        achievements: Array.isArray(exp.bullets) ? exp.bullets : Array.isArray(exp.achievements) ? exp.achievements : [exp.description].filter(Boolean),
+  // ── Parse experience ─────────────────────────────────────────────
+  const workExperience = useMemo(() => {
+    if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0)
+      return data.experience.map((e: any) => ({
+        title: e.title || e.position || "Position", company: e.company || "Company", period: e.period || e.duration || "",
+        bullets: Array.isArray(e.bullets) ? e.bullets : Array.isArray(e.achievements) ? e.achievements : [e.description].filter(Boolean),
       }));
-    }
-    const expHTML = getAIContent("experience_section");
-    if (!expHTML) {
+    const html = getAI("experience_section");
+    if (!html) {
       try {
-        const rawExp = data?.work_experience || (data as any)?.workExperience;
-        if (!rawExp) return [];
-        const parsed = typeof rawExp === "string" ? JSON.parse(rawExp) : rawExp;
-        if (!Array.isArray(parsed)) return [];
-        return parsed.map((job: any) => ({
-          title: job.position || "Position", company: job.company || "Company", period: job.duration || "",
-          achievements: [job.description, job.biggestAchievement, job.whatYouLearned, job.howYourStrengthShowed].filter(Boolean).map((t: string) => t.trim()),
-        }));
+        const raw = data?.work_experience || (data as any)?.workExperience;
+        if (!raw) return [];
+        const p = typeof raw === "string" ? JSON.parse(raw) : raw;
+        return Array.isArray(p) ? p.map((j: any) => ({ title: j.position || "Position", company: j.company || "Company", period: j.duration || "", bullets: [j.description, j.biggestAchievement, j.whatYouLearned, j.howYourStrengthShowed].filter(Boolean).map((t: string) => t.trim()) })) : [];
       } catch { return []; }
     }
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(expHTML, "text/html");
+    const doc = new DOMParser().parseFromString(html, "text/html");
     const jobs: any[] = [];
-    const jobDivs = doc.querySelectorAll(".job, .work-item, .experience-item");
-    if (jobDivs.length > 0) {
-      jobDivs.forEach(jobDiv => {
-        const h4 = jobDiv.querySelector("h4");
-        const [title, company] = (h4?.textContent?.trim() || "").split(" - ").map(s => s.trim());
-        const period = jobDiv.querySelector('.date, p[class*="date"]')?.textContent?.trim() || "";
-        const achievements: string[] = [];
-        jobDiv.querySelectorAll("ul li").forEach(li => { const t = li.textContent?.trim(); if (t) achievements.push(t); });
-        if (title || company) jobs.push({ title: title || "Position", company: company || "Company", period, achievements });
-      });
-    } else {
+    doc.querySelectorAll(".job, .work-item, .experience-item").forEach(jobDiv => {
+      const h4 = jobDiv.querySelector("h4");
+      const titleText = h4?.textContent?.trim() || "";
+      const [title, company] = titleText.split(" - ").map((s: string) => s.trim());
+      const dateEl = jobDiv.querySelector('.date, p[class*="date"]');
+      const period = dateEl?.textContent?.trim() || "";
+      const bullets: string[] = [];
+      jobDiv.querySelectorAll("ul li").forEach(li => { const t = li.textContent?.trim(); if (t) bullets.push(t); });
+      if (title || company) jobs.push({ title: title || "Position", company: company || "Company", period, bullets });
+    });
+    if (jobs.length === 0) {
       doc.querySelectorAll("h4").forEach(h4 => {
-        const [title, company] = (h4.textContent?.trim() || "").split(" - ").map(s => s.trim());
-        let period = ""; let next = h4.nextElementSibling;
-        if (next?.classList.contains("date") || next?.tagName === "P") { period = next.textContent?.trim() || ""; next = next.nextElementSibling; }
-        const achievements: string[] = [];
-        if (next?.tagName === "UL") next.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) achievements.push(t); });
-        if (title || company) jobs.push({ title: title || "Position", company: company || "Company", period, achievements });
+        const titleText = h4.textContent?.trim() || "";
+        const [title, company] = titleText.split(" - ").map((s: string) => s.trim());
+        let period = "";
+        let nx: Element | null = h4.nextElementSibling;
+        if (nx !== null && (nx.tagName === "P" || (nx as HTMLElement).classList?.contains("date"))) {
+          period = nx.textContent?.trim() || "";
+          nx = nx.nextElementSibling;
+        }
+        const bullets: string[] = [];
+        if (nx !== null && nx.tagName === "UL") {
+          nx.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) bullets.push(t); });
+        }
+        if (title || company) jobs.push({ title: title || "Position", company: company || "Company", period, bullets });
       });
     }
     return jobs;
-  };
+  }, [data?.experience, (data as any)?.work_experience, getAI]);
 
-  const parseEducation = () => {
-    if (data?.education && Array.isArray(data.education) && data.education.length > 0) {
-      return data.education.map((edu: any) => ({
-        degree: edu.degree || "Degree", institution: edu.institution || edu.school || "Institution",
-        year: edu.year || edu.period || "",
-        details: Array.isArray(edu.details) ? edu.details : [edu.description].filter(Boolean),
+  // ── Parse education ──────────────────────────────────────────────
+  const education = useMemo(() => {
+    if (data?.education && Array.isArray(data.education) && data.education.length > 0)
+      return data.education.map((e: any) => ({
+        degree: e.degree || "Degree", institution: e.institution || e.school || "Institution",
+        year: e.year || e.period || "", details: Array.isArray(e.details) ? e.details : [e.description].filter(Boolean),
       }));
-    }
-    const eduHTML = getAIContent("education_section");
-    if (!eduHTML) {
+    const html = getAI("education_section");
+    if (!html) {
       try {
-        const rawEdu = data?.education || (data as any)?.education_history;
-        if (!rawEdu) return [];
-        const parsed = typeof rawEdu === "string" ? JSON.parse(rawEdu) : rawEdu;
-        if (!Array.isArray(parsed)) return [];
-        return parsed.map((edu: any) => ({
-          degree: edu.degree || "Degree", institution: edu.school || edu.institution || "Institution", year: edu.year || "",
-          details: [edu.whyThisField, edu.specialization, edu.proudestMoment, edu.favoriteSubjects].filter(Boolean).map((t: string) => t.trim()),
-        }));
+        const raw = data?.education || (data as any)?.education_history;
+        if (!raw) return [];
+        const p = typeof raw === "string" ? JSON.parse(raw) : raw;
+        return Array.isArray(p) ? p.map((e: any) => ({ degree: e.degree || "Degree", institution: e.school || e.institution || "Institution", year: e.year || "", details: [e.whyThisField, e.specialization, e.proudestMoment, e.favoriteSubjects].filter(Boolean).map((t: string) => t.trim()) })) : [];
       } catch { return []; }
     }
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(eduHTML, "text/html");
-    const eduList: any[] = [];
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const list: any[] = [];
     const eduDivs = doc.querySelectorAll(".education, .education-item");
     if (eduDivs.length > 0) {
       eduDivs.forEach(eduDiv => {
-        const degree = eduDiv.querySelector("h4")?.textContent?.trim() || "";
-        let institution = ""; let year = "";
-        eduDiv.querySelectorAll("p").forEach((p, idx) => { const t = p.textContent?.trim() || ""; if (idx === 0) institution = t; if (p.classList.contains("date") || t.match(/\d{4}/)) year = t; });
+        const h4 = eduDiv.querySelector("h4");
+        const degree = h4?.textContent?.trim() || "";
+        let institution = "", year = "";
+        eduDiv.querySelectorAll("p").forEach((p, idx) => {
+          const text = p.textContent?.trim() || "";
+          if (idx === 0) institution = text;
+          if (p.classList.contains("date") || text.match(/\d{4}/)) year = text;
+        });
         const details: string[] = [];
         eduDiv.querySelectorAll("ul li").forEach(li => { const t = li.textContent?.trim(); if (t) details.push(t); });
-        if (degree) eduList.push({ degree, institution, year, details });
+        if (degree) list.push({ degree, institution, year, details });
       });
     } else {
       doc.querySelectorAll("h4").forEach(h4 => {
         const degree = h4.textContent?.trim() || "";
-        let institution = ""; let year = ""; const details: string[] = [];
-        let next = h4.nextElementSibling;
-        if (next?.tagName === "P") { institution = next.textContent?.trim() || ""; next = next.nextElementSibling; }
-        if (next?.tagName === "P") { const t = next.textContent?.trim() || ""; if (t.match(/\d{4}/)) { year = t; next = next.nextElementSibling; } }
-        if (next?.tagName === "UL") next.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) details.push(t); });
-        if (degree) eduList.push({ degree, institution, year, details });
+        let institution = "", year = "";
+        const details: string[] = [];
+        let nx: Element | null = h4.nextElementSibling;
+        if (nx !== null && nx.tagName === "P") {
+          institution = nx.textContent?.trim() || "";
+          nx = nx.nextElementSibling;
+        }
+        if (nx !== null && nx.tagName === "P" && nx.textContent?.match(/\d{4}/)) {
+          year = nx.textContent.trim();
+          nx = nx.nextElementSibling;
+        }
+        if (nx !== null && nx.tagName === "UL") {
+          nx.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) details.push(t); });
+        }
+        if (degree) list.push({ degree, institution, year, details });
       });
     }
-    return eduList;
-  };
+    return list;
+  }, [data?.education, getAI]);
 
-  const skillCategories = parseSkills();
-  const workExperience = parseWorkExperience();
-  const education = parseEducation();
   const name = data?.name || "Name";
-  const title = data?.title || "Professional Title";
+  const cvTitle = data?.title || "Professional Title";
 
-  // ── Section renderers ──────────────────────────────────────────────
-  const renderExperienceSection = () => (
+  // ── E shorthand ──────────────────────────────────────────────────
+  // InlineEditor with isEditing + onCommit already bound
+  // Using a render function (not a component) so it doesn't create new
+  // component type on each render → no unmount/remount
+  const E = (props: Omit<InlineEditorProps, "isEditing" | "onCommit">) => (
+    <InlineEditor {...props} isEditing={isEditing} onCommit={handleCommit} />
+  );
+
+  // ══════════════════════════════════════════════════════════════════
+  //  SECTION RENDERERS
+  // ══════════════════════════════════════════════════════════════════
+  const renderExperience = () => (
     <section style={{ marginBottom: "7mm" }}>
-      <h2 style={{ fontSize: "11.5pt", fontWeight: 600, textTransform: "uppercase", borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm", letterSpacing: "0.12em", fontFamily: "'Inter', sans-serif", color: "#1a1a1a" }}>
-        Work Experience
-      </h2>
-      {workExperience.map((job, idx) => (
-        <DraggableSection key={`exp-${idx}`} id={`exp-${idx}`} index={idx} isEditing={isEditing} onMove={moveExperienceItem} style={{ marginBottom: "5.5mm", position: "relative" }}>
-          {/* Delete job button */}
-          <DeleteBtn isEditing={isEditing} onClick={() => onDelete?.("experience", idx)} label="Poista työpaikka" />
-
-          <h4 style={{ fontSize: "10.5pt", fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", fontFamily: "'Inter', sans-serif" }}>
-            <EditableText field={`experience.${idx}.title`} value={job.title} style={{ fontWeight: 600, color: "#1a1a1a", fontSize: "10.5pt" }} {...editProps} />
+      <h2 style={sectionH2}>Work Experience</h2>
+      {workExperience.map((job: any, idx: number) => (
+        <DragItem key={`exp-${idx}`} index={idx} total={workExperience.length} isEditing={isEditing}
+          onMoveUp={() => onUpdate?.("experience", move(workExperience, idx, idx - 1))}
+          onMoveDown={() => onUpdate?.("experience", move(workExperience, idx, idx + 1))}
+          onDelete={() => onDelete?.("experience", idx)}
+          style={{ marginBottom: "5.5mm" }}
+        >
+          <h4 style={{ fontSize: "10.5pt", fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a" }}>
+            {E({ field: `experience.${idx}.title`, value: job.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: "10.5pt" } })}
             <span style={{ fontWeight: 400, color: "#555" }}> — </span>
-            <EditableText field={`experience.${idx}.company`} value={job.company} style={{ fontWeight: 600, color: "#1a1a1a", fontSize: "10.5pt" }} {...editProps} />
+            {E({ field: `experience.${idx}.company`, value: job.company, style: { fontWeight: 600, color: "#1a1a1a", fontSize: "10.5pt" } })}
           </h4>
-
-          {(job.period || isEditing) && (
-            <EditableText field={`experience.${idx}.period`} value={job.period} tag="p" placeholder="Ajanjakso" style={{ fontSize: "8.5pt", color: "#666", fontStyle: "italic", marginBottom: "2mm", fontWeight: 300 }} {...editProps} />
-          )}
-
-          {(job.achievements.length > 0 || isEditing) && (
-            <ul style={{ marginTop: "2mm", paddingLeft: "5mm", fontSize: "9pt", lineHeight: 1.6, fontWeight: 300 }}>
-              {job.achievements.map((achievement: string, achIdx: number) => (
-                <li key={achIdx} style={{ marginBottom: "1.5mm", color: "#333", position: "relative" }}>
-                  <DeleteBtn isEditing={isEditing} onClick={() => onDelete?.(`experience.${idx}.bullets`, achIdx)} label="Poista kohta" />
-                  <EditableText field={`experience.${idx}.bullets.${achIdx}`} value={achievement} multiline style={{ color: "#333", fontSize: "9pt" }} {...editProps} />
+          {(job.period || isEditing) && E({ field: `experience.${idx}.period`, value: job.period, tag: "p", placeholder: "Ajanjakso", style: { fontSize: "8.5pt", color: "#666", fontStyle: "italic", marginBottom: "2mm", fontWeight: 300 } })}
+          <ul style={{ marginTop: "2mm", paddingLeft: "5mm", fontSize: "9pt", lineHeight: 1.6, fontWeight: 300 }}>
+            {job.bullets.map((b: string, bi: number) => (
+              <DragItem key={`exp-${idx}-b-${bi}`} index={bi} total={job.bullets.length} isEditing={isEditing}
+                onMoveUp={() => onUpdate?.(`experience.${idx}.bullets`, move(job.bullets, bi, bi - 1))}
+                onMoveDown={() => onUpdate?.(`experience.${idx}.bullets`, move(job.bullets, bi, bi + 1))}
+                onDelete={() => onDelete?.(`experience.${idx}.bullets`, bi)}
+                style={{ marginBottom: "1.5mm" }}
+              >
+                <li style={{ color: "#333", listStyle: "disc" }}>
+                  {E({ field: `experience.${idx}.bullets.${bi}`, value: b, multiline: true, style: { color: "#333", fontSize: "9pt" } })}
                 </li>
-              ))}
-              {isEditing && (
-                <li onClick={() => onUpdate?.(`experience.${idx}.bullets.${job.achievements.length}`, "Uusi kuvaus")}
-                  style={{ marginBottom: "1.5mm", color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: 0.7 }}>
-                  + Lisää kohta...
-                </li>
-              )}
-            </ul>
-          )}
-        </DraggableSection>
+              </DragItem>
+            ))}
+            {isEditing && (
+              <li style={{ color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: .7, listStyle: "none", marginTop: "2mm" }}
+                onClick={() => onUpdate?.(`experience.${idx}.bullets.${job.bullets.length}`, "Uusi kuvaus")}>
+                + Lisää kohta…
+              </li>
+            )}
+          </ul>
+        </DragItem>
       ))}
-      {isEditing && (
-        <div onClick={() => onUpdate?.(`experience.${workExperience.length}`, { title: "Uusi tehtävä", company: "Yritys", period: "2024 - Nykyinen", bullets: ["Kuvaus tehtävästä"] })}
-          style={{ padding: "3mm", border: "2px dashed #f97316", borderRadius: "4px", textAlign: "center", color: "#f97316", cursor: "pointer", fontSize: "9pt", marginTop: "3mm" }}>
-          + Lisää työkokemus
-        </div>
-      )}
+      {isEditing && <AddBtn label="+ Lisää työkokemus" onClick={() => onUpdate?.(`experience.${workExperience.length}`, { title: "Uusi tehtävä", company: "Yritys", period: "2024 – nyt", bullets: ["Kuvaus"] })} />}
     </section>
   );
 
-  const renderEducationSection = () => (
+  const renderEducation = () => (
     <section style={{ marginBottom: "7mm" }}>
-      <h2 style={{ fontSize: "11.5pt", fontWeight: 600, textTransform: "uppercase", borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm", letterSpacing: "0.12em", fontFamily: "'Inter', sans-serif", color: "#1a1a1a" }}>
-        Education
-      </h2>
+      <h2 style={sectionH2}>Education</h2>
       {education.map((edu: any, idx: number) => (
-        <DraggableSection key={`edu-${idx}`} id={`edu-${idx}`} index={idx} isEditing={isEditing} onMove={moveEducationItem} style={{ marginBottom: "5mm", position: "relative" }}>
-          <DeleteBtn isEditing={isEditing} onClick={() => onDelete?.("education", idx)} label="Poista koulutus" />
-
-          <EditableText field={`education.${idx}.degree`} value={edu.degree} tag="h4" style={{ fontSize: "10pt", fontWeight: 600, marginBottom: "1mm", fontFamily: "'Inter', sans-serif", color: "#1a1a1a" }} {...editProps} />
-          {(edu.institution || isEditing) && (
-            <EditableText field={`education.${idx}.institution`} value={edu.institution} tag="p" placeholder="Oppilaitos" style={{ fontSize: "9pt", margin: "1mm 0", fontWeight: 400, color: "#444" }} {...editProps} />
-          )}
-          {(edu.year || isEditing) && (
-            <EditableText field={`education.${idx}.year`} value={edu.year} tag="p" placeholder="2020 - 2024" style={{ fontSize: "8.5pt", color: "#666", fontStyle: "italic", margin: "1mm 0", fontWeight: 300 }} {...editProps} />
-          )}
-          {(edu.details.length > 0 || isEditing) && (
-            <ul style={{ marginTop: "2mm", paddingLeft: "5mm", fontSize: "8.5pt", lineHeight: 1.6, fontWeight: 300 }}>
-              {edu.details.map((detail: string, detIdx: number) => (
-                <li key={detIdx} style={{ color: "#333", position: "relative" }}>
-                  <DeleteBtn isEditing={isEditing} onClick={() => onDelete?.(`education.${idx}.details`, detIdx)} label="Poista lisätieto" />
-                  <EditableText field={`education.${idx}.details.${detIdx}`} value={detail} multiline style={{ color: "#333", fontSize: "8.5pt" }} {...editProps} />
+        <DragItem key={`edu-${idx}`} index={idx} total={education.length} isEditing={isEditing}
+          onMoveUp={() => onUpdate?.("education", move(education, idx, idx - 1))}
+          onMoveDown={() => onUpdate?.("education", move(education, idx, idx + 1))}
+          onDelete={() => onDelete?.("education", idx)}
+          style={{ marginBottom: "5mm" }}
+        >
+          {E({ field: `education.${idx}.degree`, value: edu.degree, tag: "h4", style: { fontSize: "10pt", fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a" } })}
+          {(edu.institution || isEditing) && E({ field: `education.${idx}.institution`, value: edu.institution, tag: "p", placeholder: "Oppilaitos", style: { fontSize: "9pt", margin: "1mm 0", fontWeight: 400, color: "#444" } })}
+          {(edu.year || isEditing) && E({ field: `education.${idx}.year`, value: edu.year, tag: "p", placeholder: "2020 – 2024", style: { fontSize: "8.5pt", color: "#666", fontStyle: "italic", margin: "1mm 0", fontWeight: 300 } })}
+          <ul style={{ marginTop: "2mm", paddingLeft: "5mm", fontSize: "8.5pt", lineHeight: 1.6, fontWeight: 300 }}>
+            {edu.details.map((d: string, di: number) => (
+              <DragItem key={`edu-${idx}-d-${di}`} index={di} total={edu.details.length} isEditing={isEditing}
+                onMoveUp={() => onUpdate?.(`education.${idx}.details`, move(edu.details, di, di - 1))}
+                onMoveDown={() => onUpdate?.(`education.${idx}.details`, move(edu.details, di, di + 1))}
+                onDelete={() => onDelete?.(`education.${idx}.details`, di)}
+                style={{ marginBottom: "1mm" }}
+              >
+                <li style={{ color: "#333", listStyle: "disc" }}>
+                  {E({ field: `education.${idx}.details.${di}`, value: d, multiline: true, style: { color: "#333", fontSize: "8.5pt" } })}
                 </li>
-              ))}
-              {isEditing && (
-                <li onClick={() => onUpdate?.(`education.${idx}.details.${edu.details.length}`, "Uusi lisätieto")}
-                  style={{ color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: 0.7 }}>
-                  + Lisää lisätieto...
-                </li>
-              )}
-            </ul>
-          )}
-        </DraggableSection>
+              </DragItem>
+            ))}
+            {isEditing && (
+              <li style={{ color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: .7, listStyle: "none", marginTop: "2mm" }}
+                onClick={() => onUpdate?.(`education.${idx}.details.${edu.details.length}`, "Lisätieto")}>
+                + Lisää lisätieto…
+              </li>
+            )}
+          </ul>
+        </DragItem>
       ))}
-      {isEditing && (
-        <div onClick={() => onUpdate?.(`education.${education.length}`, { degree: "Uusi tutkinto", institution: "Oppilaitos", year: "2020 - 2024", details: ["Kuvaus"] })}
-          style={{ padding: "3mm", border: "2px dashed #f97316", borderRadius: "4px", textAlign: "center", color: "#f97316", cursor: "pointer", fontSize: "9pt", marginTop: "3mm" }}>
-          + Lisää koulutus
-        </div>
-      )}
+      {isEditing && <AddBtn label="+ Lisää koulutus" onClick={() => onUpdate?.(`education.${education.length}`, { degree: "Tutkinto", institution: "Oppilaitos", year: "2020 – 2024", details: [] })} />}
     </section>
   );
 
-  const renderLanguagesSection = () => {
-    const content = getAIContent("languages_section");
-    if (!content) return null;
+  const renderLanguages = () => {
+    const html = getAI("languages_section");
+    if (!html) return null;
     return (
-      <section>
-        <h2 style={{ fontSize: "11.5pt", fontWeight: 600, textTransform: "uppercase", borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm", letterSpacing: "0.12em", fontFamily: "'Inter', sans-serif", color: "#1a1a1a" }}>
-          Languages
-        </h2>
-        <div style={{ fontSize: "9.5pt", lineHeight: 1.6, color: "#333", fontWeight: 300 }} dangerouslySetInnerHTML={{ __html: content }} />
+      <section style={{ marginBottom: "7mm" }}>
+        <h2 style={sectionH2}>Languages</h2>
+        <div style={{ fontSize: "9.5pt", lineHeight: 1.6, color: "#333", fontWeight: 300 }} dangerouslySetInnerHTML={{ __html: html }} />
       </section>
     );
   };
 
-  const sectionMap: Record<string, () => React.ReactNode> = {
-    experience: renderExperienceSection,
-    education: renderEducationSection,
-    languages: renderLanguagesSection,
+  const sectionMap: Record<string, () => React.ReactNode | null> = {
+    experience: renderExperience,
+    education: renderEducation,
+    languages: renderLanguages,
   };
 
-  // ── Render ──────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  //  RENDER
+  // ══════════════════════════════════════════════════════════════════
   return (
-    <div
-      className="bg-white mx-auto relative overflow-visible shadow-2xl"
-      style={{ width: "210mm", minHeight: "297mm", fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" }}
-    >
+    <div style={{ width: "210mm", minHeight: "297mm", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", position: "relative", background: "white" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-      <style>{`
-        .editable-field:hover {
-          outline: 2px dashed rgba(249, 115, 22, 0.4) !important;
-          background: rgba(249, 115, 22, 0.04) !important;
-        }
-      `}</style>
+      <style>{`.editable-hover:hover { outline: 2px dashed rgba(249,115,22,.45) !important; background: rgba(249,115,22,.04) !important; border-radius: 3px !important; }`}</style>
 
       {/* LEFT COLUMN */}
-      <div style={{ position: "absolute", left: 0, top: 0, width: "70mm", minHeight: "297mm", background: "linear-gradient(180deg, #1a1a1a 0%, #2d2d2d 100%)", color: "white" }}>
-        {/* Profile image */}
+      <div style={{ position: "absolute", left: 0, top: 0, width: "70mm", minHeight: "297mm", background: "linear-gradient(180deg,#1a1a1a 0%,#2d2d2d 100%)", color: "white" }}>
+        {/* Photo */}
         <div style={{ width: "100%", height: "85mm", overflow: "hidden" }}>
-          {profileImg ? (
-            <img src={profileImg} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "contrast(1.05) brightness(0.95)" }} />
-          ) : (
-            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48pt", fontWeight: 300, background: "linear-gradient(135deg, #4a4a4a 0%, #2a2a2a 100%)", fontFamily: "'Inter', sans-serif", letterSpacing: "0.05em" }}>
+          {profileImg
+            ? <img src={profileImg} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "contrast(1.05) brightness(.95)" }} />
+            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48pt", fontWeight: 300, background: "linear-gradient(135deg,#4a4a4a,#2a2a2a)", letterSpacing: ".05em" }}>
               {name.substring(0, 2).toUpperCase()}
             </div>
-          )}
+          }
         </div>
+
+        {/* Skills position controls (showEditControls mode) */}
+        {isEditing && showEditControls && editMode === "content" && (
+          <div style={{ position: "fixed", right: "1.5rem", top: "50%", transform: "translateY(-50%)", zIndex: 50, background: "white", padding: "8px", borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,.15)", display: "flex", flexDirection: "column", gap: "4px" }}>
+            <button onClick={() => setSkillsTop(v => Math.max(-20, v - 5))} style={{ padding: "4px 8px", background: "#1a1a1a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "11px" }}>↑ Up</button>
+            <button onClick={() => setSkillsTop(v => Math.min(40, v + 5))} style={{ padding: "4px 8px", background: "#1a1a1a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "11px" }}>↓ Down</button>
+          </div>
+        )}
 
         {/* Skills */}
         {(skillCategories.length > 0 || isEditing) && (
           <div style={{ padding: "7mm 8mm", position: "relative", top: `${skillsTop}mm` }}>
-            <h2 style={{ fontSize: "13pt", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.18em", borderBottom: "1.5px solid rgba(255,255,255,0.25)", paddingBottom: "3.5mm", marginBottom: "5mm", fontFamily: "'Inter', sans-serif" }}>
-              {skillCategories[0]?.category || "Skills"}
+            <h2 style={{ fontSize: "13pt", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".18em", borderBottom: "1.5px solid rgba(255,255,255,.25)", paddingBottom: "3.5mm", marginBottom: "5mm" }}>
+              Skills
             </h2>
-            {skillCategories.map((category, catIdx) => (
-              <div key={catIdx} style={{ marginBottom: "4.5mm" }}>
-                {skillCategories.length > 1 && (
-                  <EditableText field={`skills.${catIdx}.category`} value={category.category} tag="h3"
-                    style={{ fontSize: "9.5pt", fontWeight: 600, marginBottom: "2mm", color: "#f0c674", fontFamily: "'Inter', sans-serif", letterSpacing: "0.03em" }}
-                    {...editProps} />
-                )}
-                <ul style={{ listStyleType: "none", padding: 0, margin: 0, fontSize: "8.5pt", lineHeight: 1.65, fontWeight: 300, fontFamily: "'Inter', sans-serif" }}>
-                  {category.items.map((skill, skillIdx) => (
-                    <li key={skillIdx} style={{ marginBottom: "2mm", paddingLeft: "4mm", position: "relative", color: "rgba(255,255,255,0.92)" }}>
-                      <span style={{ position: "absolute", left: 0, color: "#f0c674", fontSize: "10pt" }}>•</span>
-                      {/* Delete skill button */}
-                      {isEditing && (
-                        <button onClick={(e) => { e.stopPropagation(); onDelete?.(`skills.${catIdx}.items`, skillIdx); }}
-                          title="Poista taito"
-                          style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", background: "#ef4444", color: "white", border: "none", borderRadius: "50%", width: "14px", height: "14px", cursor: "pointer", fontSize: "9px", lineHeight: "14px", textAlign: "center", zIndex: 10, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          ✕
-                        </button>
-                      )}
-                      <EditableText field={`skills.${catIdx}.items.${skillIdx}`} value={skill} tag="span"
-                        style={{ color: "rgba(255,255,255,0.92)", fontSize: "8.5pt" }}
-                        {...editProps} />
-                    </li>
+            {skillCategories.map((cat: any, ci: number) => (
+              <div key={ci} style={{ marginBottom: "4.5mm" }}>
+                {skillCategories.length > 1 && E({ field: `skills.${ci}.category`, value: cat.category, tag: "h3", style: { fontSize: "9.5pt", fontWeight: 600, marginBottom: "2mm", color: "#f0c674", letterSpacing: ".03em" } })}
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "8.5pt", lineHeight: 1.65, fontWeight: 300 }}>
+                  {cat.items.map((skill: string, si: number) => (
+                    <DragItem key={`sk-${ci}-${si}`} index={si} total={cat.items.length} isEditing={isEditing}
+                      onMoveUp={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si - 1) } : c); onUpdate?.("skills", newCats); }}
+                      onMoveDown={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si + 1) } : c); onUpdate?.("skills", newCats); }}
+                      onDelete={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: c.items.filter((_: any, j: number) => j !== si) } : c); onUpdate?.("skills", newCats); }}
+                      style={{ marginBottom: "2mm", paddingLeft: "4mm", position: "relative" }}
+                    >
+                      <li style={{ listStyle: "none", color: "rgba(255,255,255,.92)" }}>
+                        <span style={{ position: "absolute", left: 0, color: "#f0c674", fontSize: "10pt" }}>•</span>
+                        {E({ field: `skills.${ci}.items.${si}`, value: skill, style: { color: "rgba(255,255,255,.92)", fontSize: "8.5pt" } })}
+                      </li>
+                    </DragItem>
                   ))}
                   {isEditing && (
-                    <li onClick={() => onUpdate?.(`skills.${catIdx}.items.${category.items.length}`, "Uusi taito")}
-                      style={{ marginBottom: "2mm", paddingLeft: "4mm", color: "#f0c674", cursor: "pointer", fontStyle: "italic", opacity: 0.7, position: "relative" }}>
-                      <span style={{ position: "absolute", left: 0 }}>+</span>
-                      Lisää taito...
+                    <li style={{ paddingLeft: "4mm", color: "#f0c674", cursor: "pointer", fontStyle: "italic", opacity: .7, marginBottom: "2mm", listStyle: "none" }}
+                      onClick={() => {
+                        const newCats = skillCategories.map((c: any, i: number) =>
+                          i === ci ? { ...c, items: [...c.items, "Uusi taito"] } : c);
+                        onUpdate?.("skills", newCats);
+                      }}>
+                      + Lisää taito…
                     </li>
                   )}
                 </ul>
@@ -710,51 +551,47 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
 
       {/* RIGHT COLUMN */}
       <div style={{ marginLeft: "70mm", width: "140mm", minHeight: "297mm" }}>
-        {/* Header */}
-        <div style={{ height: "85mm", position: "relative", backgroundImage: bgImage ? `url(${bgImage})` : "linear-gradient(135deg, #2c3e50 0%, #34495e 100%)", backgroundSize: "cover", backgroundPosition: "center", color: "white" }}>
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.35) 100%)" }} />
+        {/* Banner */}
+        <div style={{ height: "85mm", position: "relative", backgroundImage: bgImage ? `url(${bgImage})` : "linear-gradient(135deg,#2c3e50,#34495e)", backgroundSize: "cover", backgroundPosition: "center", color: "white" }}>
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(0,0,0,.5),rgba(0,0,0,.35))" }} />
           <div style={{ position: "relative", zIndex: 10, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "10mm" }}>
-            <EditableText field="name" value={name} tag="h1"
-              style={{ fontSize: "30pt", fontWeight: 700, marginBottom: "2mm", fontFamily: "'Playfair Display', serif", letterSpacing: "0.02em", textShadow: "2px 2px 4px rgba(0,0,0,0.3)", color: "white" }}
-              {...editProps} />
-            <EditableText field="title" value={title} tag="p"
-              style={{ fontSize: "13pt", marginTop: "2mm", marginBottom: "4mm", fontWeight: 400, fontFamily: "'Inter', sans-serif", letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.95, color: "white" }}
-              {...editProps} />
-            <div style={{ marginTop: "4mm", fontSize: "8.5pt", opacity: 0.92, display: "flex", gap: "7mm", flexWrap: "wrap", justifyContent: "center", fontFamily: "'Inter', sans-serif", fontWeight: 300 }}>
+            {E({ field: "name", value: name, tag: "h1", style: { fontSize: "30pt", fontWeight: 700, marginBottom: "2mm", fontFamily: "'Playfair Display',serif", letterSpacing: ".02em", textShadow: "2px 2px 4px rgba(0,0,0,.3)", color: "white" } })}
+            {E({ field: "title", value: cvTitle, tag: "p", style: { fontSize: "13pt", marginTop: "2mm", marginBottom: "4mm", fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", opacity: .95, color: "white" } })}
+            <div style={{ marginTop: "4mm", fontSize: "8.5pt", opacity: .92, display: "flex", gap: "7mm", flexWrap: "wrap", justifyContent: "center", fontWeight: 300 }}>
               {(data?.email || isEditing) && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "2mm" }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
-                  <EditableText field="email" value={data.email || ""} placeholder="sähköposti@esimerkki.fi" style={{ color: "white", fontSize: "8.5pt" }} {...editProps} />
+                  {E({ field: "email", value: data.email || "", placeholder: "email@example.com", style: { color: "white", fontSize: "8.5pt" } })}
                 </span>
               )}
               {(data?.phone || isEditing) && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "2mm" }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                  <EditableText field="phone" value={data.phone || ""} placeholder="+358 40 123 4567" style={{ color: "white", fontSize: "8.5pt" }} {...editProps} />
+                  {E({ field: "phone", value: data.phone || "", placeholder: "+358 40 123 4567", style: { color: "white", fontSize: "8.5pt" } })}
                 </span>
               )}
               {(data?.location || isEditing) && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "2mm" }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                  <EditableText field="location" value={data.location || ""} placeholder="Helsinki" style={{ color: "white", fontSize: "8.5pt" }} {...editProps} />
+                  {E({ field: "location", value: data.location || "", placeholder: "Helsinki", style: { color: "white", fontSize: "8.5pt" } })}
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Content area — draggable sections */}
-        <div style={{ padding: "9mm 10mm", fontSize: "9.5pt", lineHeight: 1.55, fontFamily: "'Inter', sans-serif", fontWeight: 300 }}>
-          {/* Drag-to-reorder section wrapper for main sections */}
-          {sectionOrder.map((sectionId, sIdx) => {
-            const render = sectionMap[sectionId];
-            if (!render) return null;
-            const rendered = render();
-            if (!rendered) return null;
+        {/* Sections */}
+        <div style={{ padding: "9mm 10mm", fontSize: "9.5pt", lineHeight: 1.55, fontWeight: 300 }}>
+          {sectionOrder.map((id, si) => {
+            const render = sectionMap[id]; if (!render) return null;
+            const node = render(); if (!node) return null;
             return (
-              <DraggableSection key={sectionId} id={sectionId} index={sIdx} isEditing={isEditing} onMove={moveSection} style={{ position: "relative" }}>
-                {rendered}
-              </DraggableSection>
+              <SectionWrap key={id} label={id} index={si} total={sectionOrder.length} isEditing={isEditing}
+                onMoveUp={() => moveSec(si, -1)}
+                onMoveDown={() => moveSec(si, 1)}
+              >
+                {node}
+              </SectionWrap>
             );
           })}
         </div>
