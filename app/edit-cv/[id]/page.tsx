@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
- import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@clerk/nextjs';
 import { 
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Upload, User, Image as ImageIconLucide, Sparkles, 
-  Eye, Edit3, FileText, X, Camera
+  Eye, Edit3, FileText, X, Camera, Undo2
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
@@ -50,6 +50,50 @@ export default function EditCVPage() {
   }>({ profileImages: [], backgroundImages: [] });
 
   // ════════════════════════════════════════════════════════════════
+  // UNDO HISTORY (Ctrl+Z / Cmd+Z)
+  // ════════════════════════════════════════════════════════════════
+  const historyRef = useRef<string[]>([]);
+  const MAX_HISTORY = 50;
+
+  const pushHistory = useCallback((data: BaseCV) => {
+    const snapshot = JSON.stringify(data);
+    const history = historyRef.current;
+    // Älä tallenna duplikaattia
+    if (history.length > 0 && history[history.length - 1] === snapshot) return;
+    history.push(snapshot);
+    if (history.length > MAX_HISTORY) history.shift();
+  }, []);
+
+  const undo = useCallback(() => {
+    const history = historyRef.current;
+    if (history.length === 0) {
+      toast.info('Ei enempää kumottavaa');
+      return;
+    }
+    const previous = history.pop();
+    if (previous) {
+      try {
+        setCvData(JSON.parse(previous));
+        toast.success('Kumottu!');
+      } catch {
+        toast.error('Kumoaminen epäonnistui');
+      }
+    }
+  }, []);
+
+  // Ctrl+Z / Cmd+Z kuuntelija
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && isEditing) {
+        e.preventDefault();
+        undo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, isEditing]);
+
+  // ════════════════════════════════════════════════════════════════
   // MOBILE DETECT
   // ════════════════════════════════════════════════════════════════
   useEffect(() => {
@@ -58,170 +102,6 @@ export default function EditCVPage() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  // ════════════════════════════════════════════════════════════════
-  // ✅ HELPER: Parse AI HTML sections into structured data
-  // This ensures the template reads from cv_data (editable) not AI HTML
-  // ════════════════════════════════════════════════════════════════
-  const parseAISkillsToStructured = (aiData: any): any[] | null => {
-    const skillsHTML = aiData?.skills_section || aiData?.html?.skills_section;
-    if (!skillsHTML || typeof skillsHTML !== 'string') return null;
-
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(skillsHTML, 'text/html');
-      const categories: { category: string; items: string[] }[] = [];
-      
-      const sections = doc.querySelectorAll('h3, h4, strong');
-      sections.forEach((heading) => {
-        const category = heading.textContent?.trim() || 'Skills';
-        const items: string[] = [];
-        
-        let nextElement = heading.nextElementSibling;
-        while (nextElement && nextElement.tagName === 'UL') {
-          nextElement.querySelectorAll('li').forEach(li => {
-            const text = li.textContent?.trim();
-            if (text) items.push(text);
-          });
-          nextElement = nextElement.nextElementSibling;
-        }
-        
-        if (items.length > 0) {
-          categories.push({ category, items });
-        }
-      });
-
-      if (categories.length === 0) {
-        const lines = skillsHTML.replace(/<[^>]+>/g, '').split('\n').filter((l: string) => l.trim());
-        if (lines.length > 0) {
-          categories.push({ category: 'Skills', items: lines });
-        }
-      }
-
-      return categories.length > 0 ? categories : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const parseAIExperienceToStructured = (aiData: any): any[] | null => {
-    const expHTML = aiData?.experience_section || aiData?.html?.experience_section;
-    if (!expHTML || typeof expHTML !== 'string') return null;
-
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(expHTML, 'text/html');
-      const jobs: any[] = [];
-
-      const jobDivs = doc.querySelectorAll('.job, .work-item, .experience-item');
-      
-      if (jobDivs.length > 0) {
-        jobDivs.forEach(jobDiv => {
-          const h4 = jobDiv.querySelector('h4');
-          const titleText = h4?.textContent?.trim() || '';
-          const [title, company] = titleText.split(' - ').map(s => s.trim());
-          const dateP = jobDiv.querySelector('.date, p[class*="date"]');
-          const period = dateP?.textContent?.trim() || '';
-          const achievements: string[] = [];
-          jobDiv.querySelectorAll('ul li').forEach(li => {
-            const text = li.textContent?.trim();
-            if (text) achievements.push(text);
-          });
-          if (title || company) {
-            jobs.push({ title: title || 'Position', company: company || 'Company', period, achievements });
-          }
-        });
-      } else {
-        const allH4 = doc.querySelectorAll('h4');
-        allH4.forEach(h4 => {
-          const titleText = h4.textContent?.trim() || '';
-          const [title, company] = titleText.split(' - ').map(s => s.trim());
-          let period = '';
-          let nextElement = h4.nextElementSibling;
-          if (nextElement?.classList.contains('date') || nextElement?.tagName === 'P') {
-            period = nextElement.textContent?.trim() || '';
-            nextElement = nextElement.nextElementSibling;
-          }
-          const achievements: string[] = [];
-          if (nextElement?.tagName === 'UL') {
-            nextElement.querySelectorAll('li').forEach(li => {
-              const text = li.textContent?.trim();
-              if (text) achievements.push(text);
-            });
-          }
-          if (title || company) {
-            jobs.push({ title: title || 'Position', company: company || 'Company', period, achievements });
-          }
-        });
-      }
-
-      return jobs.length > 0 ? jobs : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const parseAIEducationToStructured = (aiData: any): any[] | null => {
-    const eduHTML = aiData?.education_section || aiData?.html?.education_section;
-    if (!eduHTML || typeof eduHTML !== 'string') return null;
-
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(eduHTML, 'text/html');
-      const eduList: any[] = [];
-
-      const eduDivs = doc.querySelectorAll('.education, .education-item');
-      
-      if (eduDivs.length > 0) {
-        eduDivs.forEach(eduDiv => {
-          const h4 = eduDiv.querySelector('h4');
-          const degree = h4?.textContent?.trim() || '';
-          const paragraphs = eduDiv.querySelectorAll('p');
-          let institution = '';
-          let year = '';
-          paragraphs.forEach((p, idx) => {
-            const text = p.textContent?.trim() || '';
-            if (idx === 0) institution = text;
-            if (p.classList.contains('date') || text.match(/\d{4}/)) year = text;
-          });
-          const details: string[] = [];
-          eduDiv.querySelectorAll('ul li').forEach(li => {
-            const text = li.textContent?.trim();
-            if (text) details.push(text);
-          });
-          if (degree) eduList.push({ degree, institution, year, details });
-        });
-      } else {
-        const allH4 = doc.querySelectorAll('h4');
-        allH4.forEach(h4 => {
-          const degree = h4.textContent?.trim() || '';
-          let institution = '';
-          let year = '';
-          const details: string[] = [];
-          let nextElement = h4.nextElementSibling;
-          if (nextElement?.tagName === 'P') {
-            institution = nextElement.textContent?.trim() || '';
-            nextElement = nextElement.nextElementSibling;
-          }
-          if (nextElement?.tagName === 'P') {
-            const text = nextElement.textContent?.trim() || '';
-            if (text.match(/\d{4}/)) { year = text; nextElement = nextElement.nextElementSibling; }
-          }
-          if (nextElement?.tagName === 'UL') {
-            nextElement.querySelectorAll('li').forEach(li => {
-              const text = li.textContent?.trim();
-              if (text) details.push(text);
-            });
-          }
-          if (degree) eduList.push({ degree, institution, year, details });
-        });
-      }
-
-      return eduList.length > 0 ? eduList : null;
-    } catch {
-      return null;
-    }
-  };
 
   // ════════════════════════════════════════════════════════════════
   // LOAD CV
@@ -254,10 +134,7 @@ export default function EditCVPage() {
             }
           }
 
-          if (!cvDataParsed) cvDataParsed = {};
-          if (!aiDataParsed) aiDataParsed = {};
-
-          // ✅ VARMISTA ETTÄ SKILLS ON ARRAY
+          // ✅ VARMISTA ETTÄ SKILLS ON ARRAY EIKÄ STRING
           if (typeof cvDataParsed?.skills === 'string') {
             try {
               cvDataParsed.skills = JSON.parse(cvDataParsed.skills);
@@ -265,47 +142,34 @@ export default function EditCVPage() {
               cvDataParsed.skills = cvDataParsed.skills.split(',').map((s: string) => s.trim()).filter(Boolean);
             }
           }
-          
-          // ✅ KRIITTINEN: Jos skills ei ole structured array, parse AI HTML → structured data
-          if (!Array.isArray(cvDataParsed.skills) || cvDataParsed.skills.length === 0) {
-            const parsedSkills = parseAISkillsToStructured(aiDataParsed);
-            if (parsedSkills) {
-              cvDataParsed.skills = parsedSkills;
-              console.log('✅ Parsed AI skills into structured data:', parsedSkills.length, 'categories');
-            } else {
-              cvDataParsed.skills = [];
-            }
+          if (!Array.isArray(cvDataParsed?.skills)) {
+            cvDataParsed.skills = [];
           }
 
-          // ✅ KRIITTINEN: Jos experience ei ole array, parse AI HTML
+          // ✅ VARMISTA ETTÄ EXPERIENCE ON ARRAY
           if (typeof cvDataParsed?.experience === 'string') {
-            try { cvDataParsed.experience = JSON.parse(cvDataParsed.experience); } catch { cvDataParsed.experience = []; }
-          }
-          if (!Array.isArray(cvDataParsed.experience) || cvDataParsed.experience.length === 0) {
-            const parsedExp = parseAIExperienceToStructured(aiDataParsed);
-            if (parsedExp) {
-              cvDataParsed.experience = parsedExp;
-              console.log('✅ Parsed AI experience into structured data:', parsedExp.length, 'jobs');
-            } else {
+            try {
+              cvDataParsed.experience = JSON.parse(cvDataParsed.experience);
+            } catch {
               cvDataParsed.experience = [];
             }
           }
-
-          // ✅ KRIITTINEN: Jos education ei ole array, parse AI HTML
-          if (typeof cvDataParsed?.education === 'string') {
-            try { cvDataParsed.education = JSON.parse(cvDataParsed.education); } catch { cvDataParsed.education = []; }
+          if (!Array.isArray(cvDataParsed?.experience)) {
+            cvDataParsed.experience = [];
           }
-          if (!Array.isArray(cvDataParsed.education) || cvDataParsed.education.length === 0) {
-            const parsedEdu = parseAIEducationToStructured(aiDataParsed);
-            if (parsedEdu) {
-              cvDataParsed.education = parsedEdu;
-              console.log('✅ Parsed AI education into structured data:', parsedEdu.length, 'entries');
-            } else {
+
+          // ✅ VARMISTA ETTÄ EDUCATION ON ARRAY
+          if (typeof cvDataParsed?.education === 'string') {
+            try {
+              cvDataParsed.education = JSON.parse(cvDataParsed.education);
+            } catch {
               cvDataParsed.education = [];
             }
           }
+          if (!Array.isArray(cvDataParsed?.education)) {
+            cvDataParsed.education = [];
+          }
 
-          // IMAGE PROCESSING
           const processImageUrl = (url: string | null | undefined): string => {
             if (!url || url.trim() === '') return '';
             const trimmed = url.trim();
@@ -323,9 +187,10 @@ export default function EditCVPage() {
             data.background_image || cvDataParsed?.backgroundImage || aiDataParsed?.background_image
           );
 
-          cvDataParsed.profileImage = profileImage;
-          cvDataParsed.backgroundImage = backgroundImage;
-          
+          if (cvDataParsed) {
+            cvDataParsed.profileImage = profileImage;
+            cvDataParsed.backgroundImage = backgroundImage;
+          }
           if (aiDataParsed) {
             aiDataParsed.profile_image = profileImage;
             aiDataParsed.background_image = backgroundImage;
@@ -342,12 +207,10 @@ export default function EditCVPage() {
             }
           };
 
-          console.log('✅ CV Data loaded with structured data:', {
-            skills: cvDataParsed.skills?.length,
-            experience: cvDataParsed.experience?.length,
-            education: cvDataParsed.education?.length,
-          });
+          console.log('✅ CV Data loaded:', processedData);
           setCvData(processedData);
+          // Tyhjennä historia ladattaessa
+          historyRef.current = [];
         }
 
         const images = await getAllAvailableImagesAction();
@@ -364,232 +227,142 @@ export default function EditCVPage() {
   }, [id, userId, getToken]);
 
   // ════════════════════════════════════════════════════════════════
-  // ✅ INLINE EDIT - KORJATTU: Toimii kaikille kenttätyypeille
+  // INLINE EDIT - KORJATTU VERSIO
   // ════════════════════════════════════════════════════════════════
-  // ════════════════════════════════════════════════════════════════
-  // ✅ REPLACE the existing handleUpdate + useCallback block with ALL of this.
-  // Remove the old handleUpdate entirely.
-  // ════════════════════════════════════════════════════════════════
-  
-  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const pendingTextUpdatesRef = React.useRef<Array<{ field: string; value: any }>>([]);
-
-  const applyUpdates = useCallback((updates: Array<{ field: string; value: any }>) => {
-    setCvData(prev => {
-      if (!prev) return prev;
-      const updated = JSON.parse(JSON.stringify(prev));
-      
-      if (!updated.cv_data) updated.cv_data = {};
-      if (!updated.content) updated.content = {};
-      if (!updated.content.cv_data) updated.content.cv_data = {};
-
-      const setNestedValue = (obj: any, pathParts: string[], val: any) => {
-        let current = obj;
-        for (let i = 0; i < pathParts.length - 1; i++) {
-          const part = pathParts[i];
-          const nextPart = pathParts[i + 1];
-          const isNextIndex = !isNaN(Number(nextPart));
-          if (current[part] === undefined || current[part] === null) {
-            current[part] = isNextIndex ? [] : {};
-          } else if (typeof current[part] === 'string') {
-            try { current[part] = JSON.parse(current[part]); } catch { current[part] = isNextIndex ? [] : {}; }
-          }
-          if (isNextIndex && !Array.isArray(current[part])) current[part] = [];
-          current = current[part];
-        }
-        const lastPart = pathParts[pathParts.length - 1];
-        const lastIndex = Number(lastPart);
-        if (!isNaN(lastIndex) && Array.isArray(current)) {
-          if (lastIndex < current.length) current[lastIndex] = val;
-          else current.push(val);
-        } else {
-          current[lastPart] = val;
-        }
-      };
-
-      for (const { field, value } of updates) {
-        const parts = field.split('.');
-        setNestedValue(updated.cv_data, parts, value);
-        setNestedValue(updated.content.cv_data, parts, value);
-
-        if (field === 'profileImage') {
-          updated.profile_image = value;
-          updated.cv_data.profile_image = value;
-          updated.cv_data.profileImage = value;
-          updated.content.cv_data.profileImage = value;
-          if (updated.ai_data) updated.ai_data.profile_image = value;
-          if (updated.content?.ai_data) updated.content.ai_data.profile_image = value;
-        }
-        if (field === 'backgroundImage') {
-          updated.background_image = value;
-          updated.cv_data.background_image = value;
-          updated.cv_data.backgroundImage = value;
-          updated.content.cv_data.backgroundImage = value;
-          if (updated.ai_data) updated.ai_data.background_image = value;
-          if (updated.content?.ai_data) updated.content.ai_data.background_image = value;
-        }
-      }
-
-      return updated;
-    });
-  }, []);
-
- // ═══════════════════════════════════════════════════════════════
-// REPLACE the handleUpdate block in edit-cv/[id]/page.tsx
-//
-// Since templates now use onBlur (not onInput), we DON'T need
-// debouncing. State only updates when user clicks away from field.
-//
-// FIND THIS:
-//   const handleUpdate = useCallback((field: string, value: any) => {
-//     ...everything until the closing }, []);
-//
-// REPLACE WITH THIS:
-// ═══════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════
-// REPLACE handleUpdate in edit-cv/[id]/page.tsx
-//
-// FIND: const handleUpdate = useCallback((field: string, value: any) => {
-//   ...everything...
-// }, []);
-//
-// REPLACE WITH EVERYTHING BELOW:
-// ═══════════════════════════════════════════════════════════════
-
   const handleUpdate = useCallback((field: string, value: any) => {
-    console.log('📝 Edit:', field);
+    console.log('📝 Inline edit:', field, '→', value);
     
     setCvData(prev => {
       if (!prev) return prev;
+      
+      // Tallenna nykyinen tila undo-historiaan ENNEN muutosta
+      pushHistory(prev);
+      
+      // Deep clone
       const updated = JSON.parse(JSON.stringify(prev));
       
+      // Varmista että cv_data on olemassa
       if (!updated.cv_data) updated.cv_data = {};
       if (!updated.content) updated.content = {};
       if (!updated.content.cv_data) updated.content.cv_data = {};
-
-      // ═══════════════════════════════════════
-      // DELETE OPERATION: field starts with "__delete__:"
-      // Example: "__delete__:experience.0" → remove experience[0]
-      // Example: "__delete__:skills.0.items.2" → remove skills[0].items[2]
-      // ═══════════════════════════════════════
-      if (field.startsWith('__delete__:')) {
-        const deletePath = field.replace('__delete__:', '');
-        const parts = deletePath.split('.');
-        
-        const deleteFromObj = (obj: any) => {
-          let current = obj;
-          // Navigate to parent
-          for (let i = 0; i < parts.length - 1; i++) {
-            const part = parts[i];
-            const idx = Number(part);
-            if (!isNaN(idx) && Array.isArray(current)) {
-              current = current[idx];
-            } else if (current[part] !== undefined) {
-              current = current[part];
-            } else {
-              return; // Path doesn't exist
-            }
-          }
-          // Delete the last item
-          const lastPart = parts[parts.length - 1];
-          const lastIdx = Number(lastPart);
-          if (!isNaN(lastIdx) && Array.isArray(current)) {
-            current.splice(lastIdx, 1);
-          } else if (current && typeof current === 'object') {
-            delete current[lastPart];
-          }
-        };
-
-        deleteFromObj(updated.cv_data);
-        deleteFromObj(updated.content.cv_data);
-        return updated;
-      }
-
-      // ═══════════════════════════════════════
-      // NORMAL SET OPERATION
-      // ═══════════════════════════════════════
-      const setNestedValue = (obj: any, pathParts: string[], val: any) => {
+      
+      // Parsi polku (esim. "skills.0.items.3" tai "name")
+      const parts = field.split('.');
+      
+      // APUFUNKTIOTA: Luo nested path jos ei ole olemassa
+      const ensurePath = (obj: any, pathParts: string[]) => {
         let current = obj;
         for (let i = 0; i < pathParts.length - 1; i++) {
           const part = pathParts[i];
           const nextPart = pathParts[i + 1];
-          const isNextIndex = !isNaN(Number(nextPart));
-          if (current[part] === undefined || current[part] === null) {
-            current[part] = isNextIndex ? [] : {};
+          const isNextArrayIndex = !isNaN(Number(nextPart));
+          
+          if (!(part in current)) {
+            current[part] = isNextArrayIndex ? [] : {};
           } else if (typeof current[part] === 'string') {
-            try { current[part] = JSON.parse(current[part]); } catch { current[part] = isNextIndex ? [] : {}; }
+            // Jos on string (esim. JSON), parsi se
+            try {
+              const parsed = JSON.parse(current[part]);
+              if (Array.isArray(parsed) || typeof parsed === 'object') {
+                current[part] = parsed;
+              } else {
+                current[part] = isNextArrayIndex ? [] : {};
+              }
+            } catch {
+              current[part] = isNextArrayIndex ? [] : {};
+            }
           }
-          if (isNextIndex && !Array.isArray(current[part])) current[part] = [];
+          
+          // Varmista että on oikea tyyppi
+          if (isNextArrayIndex && !Array.isArray(current[part])) {
+            current[part] = [];
+          } else if (!isNextArrayIndex && typeof current[part] !== 'object') {
+            current[part] = {};
+          }
+          
           current = current[part];
         }
-        const lastPart = pathParts[pathParts.length - 1];
-        const lastIndex = Number(lastPart);
-        if (!isNaN(lastIndex) && Array.isArray(current)) {
-          if (lastIndex < current.length) current[lastIndex] = val;
-          else current.push(val);
-        } else {
-          current[lastPart] = val;
+        return current;
+      };
+      
+      // Päivitä cv_data
+      const target = ensurePath(updated.cv_data, parts);
+      const lastPart = parts[parts.length - 1];
+      
+      // Jos yritetään päivittää array itemia
+      if (!isNaN(Number(lastPart))) {
+        const index = Number(lastPart);
+        if (Array.isArray(target)) {
+          if (index < target.length) {
+            target[index] = value;
+          } else {
+            target.push(value);
+          }
+        }
+      } else {
+        target[lastPart] = value;
+      }
+      
+      // Päivitä myös content.cv_data
+      const contentTarget = ensurePath(updated.content.cv_data, parts);
+      if (!isNaN(Number(lastPart))) {
+        const index = Number(lastPart);
+        if (Array.isArray(contentTarget)) {
+          if (index < contentTarget.length) {
+            contentTarget[index] = value;
+          } else {
+            contentTarget.push(value);
+          }
+        }
+      } else {
+        contentTarget[lastPart] = value;
+      }
+      
+      return updated;
+    });
+  }, [pushHistory]);
+
+  // ════════════════════════════════════════════════════════════════
+  // DELETE HANDLER (poistaa itemin arraystä)
+  // ════════════════════════════════════════════════════════════════
+  const handleDelete = useCallback((field: string, index: number) => {
+    console.log('🗑️ Delete:', field, 'index:', index);
+    
+    setCvData(prev => {
+      if (!prev) return prev;
+      
+      // Tallenna nykyinen tila undo-historiaan
+      pushHistory(prev);
+      
+      const updated = JSON.parse(JSON.stringify(prev));
+      if (!updated.cv_data) updated.cv_data = {};
+      if (!updated.content) updated.content = {};
+      if (!updated.content.cv_data) updated.content.cv_data = {};
+
+      // Poista arraystä annetun polun perusteella
+      const spliceFromPath = (root: any) => {
+        const parts = field.split('.');
+        let current = root;
+        for (const part of parts) {
+          if (current && typeof current === 'object' && part in current) {
+            current = current[part];
+          } else {
+            return; // polkua ei löytynyt
+          }
+        }
+        if (Array.isArray(current) && index >= 0 && index < current.length) {
+          current.splice(index, 1);
         }
       };
 
-      const parts = field.split('.');
-      setNestedValue(updated.cv_data, parts, value);
-      setNestedValue(updated.content.cv_data, parts, value);
-
-      // ✅ Image changes: update ALL locations
-      if (field === 'profileImage') {
-        updated.profile_image = value;
-        updated.cv_data.profile_image = value;
-        updated.cv_data.profileImage = value;
-        updated.cv_data.photo = value;
-        updated.content.cv_data.profileImage = value;
-        updated.content.cv_data.profile_image = value;
-        if (updated.ai_data) {
-          updated.ai_data.profile_image = value;
-          if (updated.ai_data.html) updated.ai_data.html.profile_image = value;
-        }
-        if (updated.content?.ai_data) {
-          updated.content.ai_data.profile_image = value;
-          if (updated.content.ai_data.html) updated.content.ai_data.html.profile_image = value;
-        }
-      }
-      if (field === 'backgroundImage') {
-        updated.background_image = value;
-        updated.cv_data.background_image = value;
-        updated.cv_data.backgroundImage = value;
-        updated.content.cv_data.backgroundImage = value;
-        updated.content.cv_data.background_image = value;
-        if (updated.ai_data) {
-          updated.ai_data.background_image = value;
-          updated.ai_data.background_image_url = value;
-          if (updated.ai_data.html) updated.ai_data.html.background_image = value;
-        }
-        if (updated.content?.ai_data) {
-          updated.content.ai_data.background_image = value;
-          updated.content.ai_data.background_image_url = value;
-          if (updated.content.ai_data.html) updated.content.ai_data.html.background_image = value;
-        }
-      }
-
+      spliceFromPath(updated.cv_data);
+      spliceFromPath(updated.content.cv_data);
+      
       return updated;
     });
-  }, []);
-
-  // Flush when leaving edit mode
-  useEffect(() => {
-    if (!isEditing && pendingTextUpdatesRef.current.length > 0) {
-      applyUpdates(pendingTextUpdatesRef.current);
-      pendingTextUpdatesRef.current = [];
-    }
-  }, [isEditing, applyUpdates]);
-
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, []);
+    
+    toast.success('Poistettu!');
+  }, [pushHistory]);
 
   // ════════════════════════════════════════════════════════════════
   // IMAGE HANDLERS
@@ -625,7 +398,7 @@ export default function EditCVPage() {
   };
 
   // ════════════════════════════════════════════════════════════════
-  // ✅ SAVE - KORJATTU: Tallentaa cv_data JA ai_data erikseen
+  // SAVE
   // ════════════════════════════════════════════════════════════════
   const handleSave = async () => {
     if (!cvData || !userId) return;
@@ -636,24 +409,16 @@ export default function EditCVPage() {
       if (!token) throw new Error('No token');
 
       const finalCvData = cvData.cv_data || cvData.content?.cv_data || {};
-      const finalAiData = cvData.ai_data || cvData.content?.ai_data || {};
 
       const finalContent = {
         cv_data: finalCvData,
-        ai_data: finalAiData,
+        ai_data: cvData.ai_data || cvData.content?.ai_data || {},
       };
 
-      console.log('✅ SAVING:', {
-        skills: finalCvData.skills?.length,
-        experience: finalCvData.experience?.length,
-        education: finalCvData.education?.length,
-      });
+      console.log('✅ SAVING:', finalContent);
 
-      // ✅ KRIITTINEN: Tallenna content, cv_data JA ai_data
       await updateCV(id, { 
         content: finalContent,
-        cv_data: finalCvData,
-        ai_data: finalAiData,
         profile_image: finalCvData.profileImage || '',
         background_image: finalCvData.backgroundImage || '',
       }, token);
@@ -699,7 +464,7 @@ export default function EditCVPage() {
   // ════════════════════════════════════════════════════════════════
   // DELETE
   // ════════════════════════════════════════════════════════════════
-  const handleDelete = async () => {
+  const handleDeleteCV = async () => {
     if (!confirm('Haluatko varmasti poistaa tämän CV:n?')) return;
     try {
       const token = await getToken({ template: 'supabase' });
@@ -738,6 +503,7 @@ export default function EditCVPage() {
           aiData={aiDataProps} 
           isEditing={isEditing}
           onUpdate={handleUpdate}
+          onDelete={handleDelete}
           showEditControls={false}
           editMode={null}
         />
@@ -759,6 +525,7 @@ export default function EditCVPage() {
 
   const currentProfile = cvData.cv_data?.profileImage || cvData.ai_data?.profile_image || '';
   const currentBg = cvData.cv_data?.backgroundImage || cvData.ai_data?.background_image || '';
+  const scale = isMobile ? 0.35 : (typeof window !== 'undefined' && window.innerWidth < 1024) ? 0.6 : 0.75;
 
   // ════════════════════════════════════════════════════════════════
   // MAIN RENDER
@@ -796,6 +563,17 @@ export default function EditCVPage() {
             </div>
             
             <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Undo-nappi (vain muokkaustilassa) */}
+              {isEditing && (
+                <button
+                  onClick={undo}
+                  title="Kumoa (Ctrl+Z)"
+                  className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm flex items-center justify-center"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
+              )}
+
               {!isEditing ? (
                 <button 
                   onClick={() => setIsEditing(true)}
@@ -833,7 +611,7 @@ export default function EditCVPage() {
               </button>
               
               <button 
-                onClick={handleDelete} 
+                onClick={handleDeleteCV} 
                 className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-all shadow-sm flex items-center justify-center"
               >
                 <Trash2 className="w-4 h-4 text-red-500" />
@@ -856,8 +634,10 @@ export default function EditCVPage() {
                   ✏️ Muokkaustila päällä
                 </h4>
                 <ul className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                  <li>• <strong>Klikkaa tekstiä</strong> suoraan ja muokkaa</li>
-                  <li>• <strong>Klikkaa kuvia</strong> vasemmalla vaihtaaksesi ne</li>
+                  <li>• <strong>Klikkaa tekstiä</strong> muokataksesi sitä</li>
+                  <li>• <strong>✕-nappi</strong> poistaa kohdan</li>
+                  <li>• <strong>Ctrl+Z</strong> kumoaa viimeisen muutoksen</li>
+                  <li>• Klikkaa kuvia vasemmalla vaihtaaksesi ne</li>
                   <li>• Paina <strong>Tallenna</strong> kun olet valmis</li>
                 </ul>
               </div>
@@ -949,21 +729,59 @@ export default function EditCVPage() {
           <div className="lg:col-span-9">
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-6 overflow-hidden">
               <div 
-                className="overflow-x-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800"
+                className="overflow-auto custom-scrollbar flex justify-center bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800"
+                style={{ maxHeight: '80vh' }}
                 data-cv-preview
               >
                 <div 
-                  className={`origin-top transition-transform duration-300 bg-white shadow-2xl my-4 ${
-                    isEditing ? 'ring-2 ring-orange-400/30' : ''
-                  }`}
+                  className="relative"
                   style={{
-                    width: '210mm',
-                    minHeight: '297mm',
-                    transform: isMobile ? 'scale(0.35)' : window.innerWidth < 1024 ? 'scale(0.6)' : 'scale(0.75)',
+                    transform: `scale(${scale})`,
                     transformOrigin: 'top center',
+                    marginBottom: `-${(1 - scale) * 100}%`,
                   }}
                 >
-                  {renderTemplate()}
+                  {/* ✅ PAGE BOUNDARY INDICATOR - punainen viiva 297mm kohdalla */}
+                  <div style={{
+                    position: 'absolute',
+                    top: '297mm',
+                    left: '-10px',
+                    right: '-10px',
+                    zIndex: 20,
+                    pointerEvents: 'none',
+                  }}>
+                    <div style={{
+                      borderTop: '2px dashed #ef4444',
+                      position: 'relative',
+                    }}>
+                      <span style={{
+                        position: 'absolute',
+                        top: '-10px',
+                        right: '0',
+                        background: '#ef4444',
+                        color: 'white',
+                        fontSize: '10px',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontWeight: 'bold',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        ↓ Sivu 2 alkaa tästä
+                      </span>
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`bg-white shadow-2xl my-4 ${
+                      isEditing ? 'ring-2 ring-orange-400/30' : ''
+                    }`}
+                    style={{
+                      width: '210mm',
+                      minHeight: '297mm',
+                    }}
+                  >
+                    {renderTemplate()}
+                  </div>
                 </div>
               </div>
             </div>
