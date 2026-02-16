@@ -15,6 +15,8 @@ interface TechnicalCVTemplateProps {
   onDelete?: (field: string, index: number) => void;
   profileImage?: string;
   backgroundImage?: string;
+  fontScale?: number;
+  lineScale?: number;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -178,11 +180,6 @@ const sectionArrowStyle = (disabled: boolean): React.CSSProperties => ({
   padding: 0, opacity: disabled ? 0.3 : 1,
 });
 
-const sectionH2: React.CSSProperties = {
-  fontSize: "11.5pt", fontWeight: 600, textTransform: "uppercase",
-  borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm",
-  letterSpacing: ".12em", fontFamily: "'Inter',sans-serif", color: "#1a1a1a",
-};
 
 const AddBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <div onClick={onClick}
@@ -198,9 +195,23 @@ const AddBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onCli
 const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   data, aiData, isEditing, showEditControls, editMode,
   onContentChange, onUpdate, onDelete, profileImage, backgroundImage,
+  fontScale: fontScaleProp, lineScale: lineScaleProp,
 }) => {
   const [sectionOrder, setSectionOrder] = useState(["experience", "education", "languages"]);
   const [skillsTop, setSkillsTop] = useState(0);
+
+  // Use prop values when provided (controlled from parent), otherwise internal defaults
+  const fontScale = fontScaleProp ?? 1.0;
+  const lineScale = lineScaleProp ?? 1.0;
+
+  // Scale a pt/mm value by fontScale
+  const fs = (base: string): string => {
+    const match = base.match(/^([\d.]+)(pt|mm|px|em|rem)$/);
+    if (!match) return base;
+    return `${(parseFloat(match[1]) * fontScale).toFixed(2)}${match[2]}`;
+  };
+  // Scale a unitless line-height number
+  const lh = (base: number): number => parseFloat((base * lineScale).toFixed(3));
 
   // stable commit — only recreated if onUpdate reference changes
   const handleCommit = useCallback((field: string, val: string) => {
@@ -380,35 +391,42 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     <InlineEditor {...props} isEditing={isEditing} onCommit={handleCommit} />
   );
 
+  // ── Section heading style (uses fs() for scaling) ───────────────
+  const sH2: React.CSSProperties = {
+    fontSize: fs("11.5pt"), fontWeight: 600, textTransform: "uppercase",
+    borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm",
+    letterSpacing: ".12em", fontFamily: "'Inter',sans-serif", color: "#1a1a1a",
+  };
+
   // ══════════════════════════════════════════════════════════════════
   //  SECTION RENDERERS
   // ══════════════════════════════════════════════════════════════════
   const renderExperience = () => (
-    <section style={{ marginBottom: "7mm" }}>
-      <h2 style={sectionH2}>Work Experience</h2>
+    <section style={{ marginBottom: fs("7mm") }}>
+      <h2 style={sH2}>Work Experience</h2>
       {workExperience.map((job: any, idx: number) => (
         <DragItem key={`exp-${idx}`} index={idx} total={workExperience.length} isEditing={isEditing}
           onMoveUp={() => onUpdate?.("experience", move(workExperience, idx, idx - 1))}
           onMoveDown={() => onUpdate?.("experience", move(workExperience, idx, idx + 1))}
           onDelete={() => onDelete?.("experience", idx)}
-          style={{ marginBottom: "5.5mm" }}
+          style={{ marginBottom: fs("5.5mm") }}
         >
-          <h4 style={{ fontSize: "10.5pt", fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a" }}>
-            {E({ field: `experience.${idx}.title`, value: job.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: "10.5pt" } })}
+          <h4 style={{ fontSize: fs("10.5pt"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
+            {E({ field: `experience.${idx}.title`, value: job.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fs("10.5pt") } })}
             <span style={{ fontWeight: 400, color: "#555" }}> — </span>
-            {E({ field: `experience.${idx}.company`, value: job.company, style: { fontWeight: 600, color: "#1a1a1a", fontSize: "10.5pt" } })}
+            {E({ field: `experience.${idx}.company`, value: job.company, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fs("10.5pt") } })}
           </h4>
-          {(job.period || isEditing) && E({ field: `experience.${idx}.period`, value: job.period, tag: "p", placeholder: "Ajanjakso", style: { fontSize: "8.5pt", color: "#666", fontStyle: "italic", marginBottom: "2mm", fontWeight: 300 } })}
-          <ul style={{ marginTop: "2mm", paddingLeft: "5mm", fontSize: "9pt", lineHeight: 1.6, fontWeight: 300 }}>
+          {(job.period || isEditing) && E({ field: `experience.${idx}.period`, value: job.period, tag: "p", placeholder: "Ajanjakso", style: { fontSize: fs("8.5pt"), color: "#666", fontStyle: "italic", marginBottom: fs("2mm"), fontWeight: 300, lineHeight: lh(1.4) } })}
+          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fs("9pt"), lineHeight: lh(1.6), fontWeight: 300 }}>
             {job.bullets.map((b: string, bi: number) => (
               <DragItem key={`exp-${idx}-b-${bi}`} index={bi} total={job.bullets.length} isEditing={isEditing}
                 onMoveUp={() => onUpdate?.(`experience.${idx}.bullets`, move(job.bullets, bi, bi - 1))}
                 onMoveDown={() => onUpdate?.(`experience.${idx}.bullets`, move(job.bullets, bi, bi + 1))}
                 onDelete={() => onDelete?.(`experience.${idx}.bullets`, bi)}
-                style={{ marginBottom: "1.5mm" }}
+                style={{ marginBottom: fs("1.5mm") }}
               >
                 <li style={{ color: "#333", listStyle: "disc" }}>
-                  {E({ field: `experience.${idx}.bullets.${bi}`, value: b, multiline: true, style: { color: "#333", fontSize: "9pt" } })}
+                  {E({ field: `experience.${idx}.bullets.${bi}`, value: b, multiline: true, style: { color: "#333", fontSize: fs("9pt"), lineHeight: lh(1.6) } })}
                 </li>
               </DragItem>
             ))}
@@ -426,28 +444,28 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   );
 
   const renderEducation = () => (
-    <section style={{ marginBottom: "7mm" }}>
-      <h2 style={sectionH2}>Education</h2>
+    <section style={{ marginBottom: fs("7mm") }}>
+      <h2 style={sH2}>Education</h2>
       {education.map((edu: any, idx: number) => (
         <DragItem key={`edu-${idx}`} index={idx} total={education.length} isEditing={isEditing}
           onMoveUp={() => onUpdate?.("education", move(education, idx, idx - 1))}
           onMoveDown={() => onUpdate?.("education", move(education, idx, idx + 1))}
           onDelete={() => onDelete?.("education", idx)}
-          style={{ marginBottom: "5mm" }}
+          style={{ marginBottom: fs("5mm") }}
         >
-          {E({ field: `education.${idx}.degree`, value: edu.degree, tag: "h4", style: { fontSize: "10pt", fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a" } })}
-          {(edu.institution || isEditing) && E({ field: `education.${idx}.institution`, value: edu.institution, tag: "p", placeholder: "Oppilaitos", style: { fontSize: "9pt", margin: "1mm 0", fontWeight: 400, color: "#444" } })}
-          {(edu.year || isEditing) && E({ field: `education.${idx}.year`, value: edu.year, tag: "p", placeholder: "2020 – 2024", style: { fontSize: "8.5pt", color: "#666", fontStyle: "italic", margin: "1mm 0", fontWeight: 300 } })}
-          <ul style={{ marginTop: "2mm", paddingLeft: "5mm", fontSize: "8.5pt", lineHeight: 1.6, fontWeight: 300 }}>
+          {E({ field: `education.${idx}.degree`, value: edu.degree, tag: "h4", style: { fontSize: fs("10pt"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) } })}
+          {(edu.institution || isEditing) && E({ field: `education.${idx}.institution`, value: edu.institution, tag: "p", placeholder: "Oppilaitos", style: { fontSize: fs("9pt"), margin: "1mm 0", fontWeight: 400, color: "#444", lineHeight: lh(1.4) } })}
+          {(edu.year || isEditing) && E({ field: `education.${idx}.year`, value: edu.year, tag: "p", placeholder: "2020 – 2024", style: { fontSize: fs("8.5pt"), color: "#666", fontStyle: "italic", margin: "1mm 0", fontWeight: 300, lineHeight: lh(1.3) } })}
+          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fs("8.5pt"), lineHeight: lh(1.6), fontWeight: 300 }}>
             {edu.details.map((d: string, di: number) => (
               <DragItem key={`edu-${idx}-d-${di}`} index={di} total={edu.details.length} isEditing={isEditing}
                 onMoveUp={() => onUpdate?.(`education.${idx}.details`, move(edu.details, di, di - 1))}
                 onMoveDown={() => onUpdate?.(`education.${idx}.details`, move(edu.details, di, di + 1))}
                 onDelete={() => onDelete?.(`education.${idx}.details`, di)}
-                style={{ marginBottom: "1mm" }}
+                style={{ marginBottom: fs("1mm") }}
               >
                 <li style={{ color: "#333", listStyle: "disc" }}>
-                  {E({ field: `education.${idx}.details.${di}`, value: d, multiline: true, style: { color: "#333", fontSize: "8.5pt" } })}
+                  {E({ field: `education.${idx}.details.${di}`, value: d, multiline: true, style: { color: "#333", fontSize: fs("8.5pt"), lineHeight: lh(1.5) } })}
                 </li>
               </DragItem>
             ))}
@@ -468,9 +486,9 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     const html = getAI("languages_section");
     if (!html) return null;
     return (
-      <section style={{ marginBottom: "7mm" }}>
-        <h2 style={sectionH2}>Languages</h2>
-        <div style={{ fontSize: "9.5pt", lineHeight: 1.6, color: "#333", fontWeight: 300 }} dangerouslySetInnerHTML={{ __html: html }} />
+      <section style={{ marginBottom: fs("7mm") }}>
+        <h2 style={sH2}>Languages</h2>
+        <div style={{ fontSize: fs("9.5pt"), lineHeight: lh(1.6), color: "#333", fontWeight: 300 }} dangerouslySetInnerHTML={{ __html: html }} />
       </section>
     );
   };
@@ -512,23 +530,23 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         {/* Skills */}
         {(skillCategories.length > 0 || isEditing) && (
           <div style={{ padding: "7mm 8mm", position: "relative", top: `${skillsTop}mm` }}>
-            <h2 style={{ fontSize: "13pt", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".18em", borderBottom: "1.5px solid rgba(255,255,255,.25)", paddingBottom: "3.5mm", marginBottom: "5mm" }}>
+            <h2 style={{ fontSize: fs("13pt"), fontWeight: 600, textTransform: "uppercase", letterSpacing: ".18em", borderBottom: "1.5px solid rgba(255,255,255,.25)", paddingBottom: "3.5mm", marginBottom: "5mm" }}>
               Skills
             </h2>
             {skillCategories.map((cat: any, ci: number) => (
-              <div key={ci} style={{ marginBottom: "4.5mm" }}>
-                {skillCategories.length > 1 && E({ field: `skills.${ci}.category`, value: cat.category, tag: "h3", style: { fontSize: "9.5pt", fontWeight: 600, marginBottom: "2mm", color: "#f0c674", letterSpacing: ".03em" } })}
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "8.5pt", lineHeight: 1.65, fontWeight: 300 }}>
+              <div key={ci} style={{ marginBottom: fs("4.5mm") }}>
+                {skillCategories.length > 1 && E({ field: `skills.${ci}.category`, value: cat.category, tag: "h3", style: { fontSize: fs("9.5pt"), fontWeight: 600, marginBottom: "2mm", color: "#f0c674", letterSpacing: ".03em" } })}
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: fs("8.5pt"), lineHeight: lh(1.65), fontWeight: 300 }}>
                   {cat.items.map((skill: string, si: number) => (
                     <DragItem key={`sk-${ci}-${si}`} index={si} total={cat.items.length} isEditing={isEditing}
                       onMoveUp={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si - 1) } : c); onUpdate?.("skills", newCats); }}
                       onMoveDown={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si + 1) } : c); onUpdate?.("skills", newCats); }}
                       onDelete={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: c.items.filter((_: any, j: number) => j !== si) } : c); onUpdate?.("skills", newCats); }}
-                      style={{ marginBottom: "2mm", paddingLeft: "4mm", position: "relative" }}
+                      style={{ marginBottom: fs("2mm"), paddingLeft: "4mm", position: "relative" }}
                     >
                       <li style={{ listStyle: "none", color: "rgba(255,255,255,.92)" }}>
                         <span style={{ position: "absolute", left: 0, color: "#f0c674", fontSize: "10pt" }}>•</span>
-                        {E({ field: `skills.${ci}.items.${si}`, value: skill, style: { color: "rgba(255,255,255,.92)", fontSize: "8.5pt" } })}
+                        {E({ field: `skills.${ci}.items.${si}`, value: skill, style: { color: "rgba(255,255,255,.92)", fontSize: fs("8.5pt") } })}
                       </li>
                     </DragItem>
                   ))}
@@ -581,7 +599,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
         </div>
 
         {/* Sections */}
-        <div style={{ padding: "9mm 10mm", fontSize: "9.5pt", lineHeight: 1.55, fontWeight: 300 }}>
+        <div style={{ padding: "9mm 10mm", fontSize: fs("9.5pt"), lineHeight: lh(1.55), fontWeight: 300 }}>
           {sectionOrder.map((id, si) => {
             const render = sectionMap[id]; if (!render) return null;
             const node = render(); if (!node) return null;

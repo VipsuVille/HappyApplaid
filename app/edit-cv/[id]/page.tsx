@@ -43,6 +43,10 @@ export default function EditCVPage() {
     profileImages: UserImage[]; backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
 
+  // ── Typography controls ────────────────────────────────────────────
+  const [fontScale, setFontScale] = useState(1.0);
+  const [lineScale, setLineScale] = useState(1.0);
+
   // ── Undo history ───────────────────────────────────────────────────
   const historyRef = useRef<string[]>([]);
   const MAX_HISTORY = 50;
@@ -327,7 +331,8 @@ export default function EditCVPage() {
       <CVContainer>
         <Comp data={cvd} aiData={aid} isEditing={isEditing}
           onUpdate={handleUpdate} onDelete={handleDelete}
-          showEditControls={false} editMode={null} />
+          showEditControls={false} editMode={null}
+          fontScale={fontScale} lineScale={lineScale} />
       </CVContainer>
     );
   };
@@ -449,6 +454,80 @@ export default function EditCVPage() {
                   <Camera className="w-4 h-4" /> Vaihda taustakuva
                 </button>
               )}
+            </div>
+
+            {/* Typography controls */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-violet-500/10 border border-violet-500/20 p-2 rounded-xl">
+                  <svg className="w-4 h-4 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 7V4h16v3M9 20h6M12 4v16" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-wider">Typografia</h3>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Tiivistä sisältö yhdelle sivulle</p>
+
+              {/* Font size */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Fonttikoko</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-mono text-violet-600 dark:text-violet-400 w-10 text-right">{Math.round(fontScale * 100)}%</span>
+                    <button onClick={() => setFontScale(1.0)} title="Palauta oletukseksi"
+                      className="text-xs text-gray-400 hover:text-violet-500 transition-colors ml-1">↺</button>
+                  </div>
+                </div>
+                <input type="range" min="70" max="115" step="1"
+                  value={Math.round(fontScale * 100)}
+                  onChange={e => setFontScale(Number(e.target.value) / 100)}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: '#8b5cf6' }}
+                />
+                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                  <span>70%</span><span>Oletus (100%)</span><span>115%</span>
+                </div>
+              </div>
+
+              {/* Line height */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Riviväli</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-mono text-violet-600 dark:text-violet-400 w-10 text-right">{Math.round(lineScale * 100)}%</span>
+                    <button onClick={() => setLineScale(1.0)} title="Palauta oletukseksi"
+                      className="text-xs text-gray-400 hover:text-violet-500 transition-colors ml-1">↺</button>
+                  </div>
+                </div>
+                <input type="range" min="70" max="130" step="1"
+                  value={Math.round(lineScale * 100)}
+                  onChange={e => setLineScale(Number(e.target.value) / 100)}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: '#8b5cf6' }}
+                />
+                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                  <span>Tiivis</span><span>Oletus</span><span>Väljä</span>
+                </div>
+              </div>
+
+              {/* Quick preset buttons */}
+              <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <p className="text-xs text-gray-500 mb-2 font-semibold">Pikaasetukset</p>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => { setFontScale(0.85); setLineScale(0.82); }}
+                    className="text-xs px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg font-semibold transition-colors">
+                    Kompakti
+                  </button>
+                  <button onClick={() => { setFontScale(1.0); setLineScale(1.0); }}
+                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg font-semibold transition-colors">
+                    Oletus
+                  </button>
+                  <button onClick={() => { setFontScale(1.08); setLineScale(1.15); }}
+                    className="text-xs px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg font-semibold transition-colors">
+                    Väljä
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
