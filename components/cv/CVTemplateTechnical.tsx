@@ -201,8 +201,8 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   const [skillsTop, setSkillsTop] = useState(0);
 
   // Use prop values when provided (controlled from parent), otherwise internal defaults
-  const fontScale = fontScaleProp ?? 1.0;
-  const lineScale = lineScaleProp ?? 1.0;
+   const fontScale = fontScaleProp ?? (data as any)?.fontScale ?? 1.0;
+  const lineScale = lineScaleProp ?? (data as any)?.lineScale ?? 1.0;
 
   // Scale a pt/mm value by fontScale
   const fs = (base: string): string => {

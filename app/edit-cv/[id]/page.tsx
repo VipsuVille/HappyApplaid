@@ -44,6 +44,7 @@ export default function EditCVPage() {
   }>({ profileImages: [], backgroundImages: [] });
 
   // ── Typography controls ────────────────────────────────────────────
+  // ✅ FIX: These are now synced with cv_data so they persist to DB
   const [fontScale, setFontScale] = useState(1.0);
   const [lineScale, setLineScale] = useState(1.0);
 
@@ -63,8 +64,14 @@ export default function EditCVPage() {
     const h = historyRef.current;
     if (!h.length) { toast.info('Ei enempää kumottavaa'); return; }
     const prev = h.pop()!;
-    try { setCvData(JSON.parse(prev)); toast.success('Kumottu!'); }
-    catch { toast.error('Kumoaminen epäonnistui'); }
+    try {
+      const parsed = JSON.parse(prev);
+      setCvData(parsed);
+      // ✅ Also restore fontScale/lineScale from undo state
+      setFontScale(parsed.cv_data?.fontScale ?? 1.0);
+      setLineScale(parsed.cv_data?.lineScale ?? 1.0);
+      toast.success('Kumottu!');
+    } catch { toast.error('Kumoaminen epäonnistui'); }
   }, []);
 
   useEffect(() => {
@@ -121,7 +128,6 @@ export default function EditCVPage() {
           }
           if (!Array.isArray(cvDataParsed?.[k])) cvDataParsed[k] = [];
         }
-        // Skills: normalize to [{category, items}] if flat strings
         if (typeof cvDataParsed?.skills === 'string') {
           try { cvDataParsed.skills = JSON.parse(cvDataParsed.skills); }
           catch { cvDataParsed.skills = cvDataParsed.skills.split(',').map((s: string) => s.trim()).filter(Boolean); }
@@ -143,6 +149,10 @@ export default function EditCVPage() {
         cvDataParsed.backgroundImage = backgroundImage;
         if (aiDataParsed) { aiDataParsed.profile_image = profileImage; aiDataParsed.background_image = backgroundImage; }
 
+        // ✅ FIX: Load saved fontScale/lineScale from DB
+        setFontScale(cvDataParsed.fontScale ?? 1.0);
+        setLineScale(cvDataParsed.lineScale ?? 1.0);
+
         const processed: BaseCV = {
           ...data, cv_data: cvDataParsed, ai_data: aiDataParsed,
           content: { ...(data.content || {}), cv_data: cvDataParsed, ai_data: aiDataParsed },
@@ -160,12 +170,7 @@ export default function EditCVPage() {
     init();
   }, [id, userId, getToken]);
 
-  // ══════════════════════════════════════════════════════════════════
-  //  handleUpdate — supports BOTH:
-  //   1. dot-path scalar:  "experience.0.title" → sets nested value
-  //   2. full array:       "skills" → replaces entire array
-  //   3. image fields:     "profileImage" / "backgroundImage"
-  // ══════════════════════════════════════════════════════════════════
+  // ── handleUpdate ───────────────────────────────────────────────────
   const handleUpdate = useCallback((field: string, value: any) => {
     setCvData(prev => {
       if (!prev) return prev;
@@ -177,15 +182,7 @@ export default function EditCVPage() {
 
       const setAt = (root: any, path: string, val: any) => {
         const parts = path.split('.');
-
-        // If value is a full array/object replacement and path has no dots
-        // OR if the last segment is not a number and value is array/object
-        // → just assign directly without deep traversal for safety
-        if (parts.length === 1) {
-          root[parts[0]] = val;
-          return;
-        }
-
+        if (parts.length === 1) { root[parts[0]] = val; return; }
         let cur = root;
         for (let i = 0; i < parts.length - 1; i++) {
           const p = parts[i];
@@ -201,8 +198,7 @@ export default function EditCVPage() {
           cur = cur[p];
         }
         const last = parts[parts.length - 1];
-        const lastIsIndex = !isNaN(Number(last));
-        if (lastIsIndex) {
+        if (!isNaN(Number(last))) {
           const idx = Number(last);
           if (Array.isArray(cur)) { while (cur.length <= idx) cur.push(undefined); cur[idx] = val; }
         } else { cur[last] = val; }
@@ -211,7 +207,6 @@ export default function EditCVPage() {
       setAt(updated.cv_data, field, value);
       setAt(updated.content.cv_data, field, value);
 
-      // Image fields: propagate to all locations
       if (field === 'profileImage') {
         updated.cv_data.profileImage = value;
         updated.content.cv_data.profileImage = value;
@@ -229,9 +224,7 @@ export default function EditCVPage() {
     });
   }, [pushHistory]);
 
-  // ══════════════════════════════════════════════════════════════════
-  //  handleDelete — splices index from a nested array path
-  // ══════════════════════════════════════════════════════════════════
+  // ── handleDelete ───────────────────────────────────────────────────
   const handleDelete = useCallback((field: string, index: number) => {
     setCvData(prev => {
       if (!prev) return prev;
@@ -278,6 +271,17 @@ export default function EditCVPage() {
     toast.success('Kuva valittu!');
   };
 
+  // ✅ FIX: fontScale/lineScale update also writes to cv_data
+  const updateFontScale = useCallback((val: number) => {
+    setFontScale(val);
+    handleUpdate('fontScale', val);
+  }, [handleUpdate]);
+
+  const updateLineScale = useCallback((val: number) => {
+    setLineScale(val);
+    handleUpdate('lineScale', val);
+  }, [handleUpdate]);
+
   // ── Save ───────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!cvData || !userId) return;
@@ -285,8 +289,20 @@ export default function EditCVPage() {
     try {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No token');
-      const final = cvData.cv_data || cvData.content?.cv_data || {};
-      await updateCV(id, { content: { cv_data: final, ai_data: cvData.ai_data || {} }, profile_image: final.profileImage || '', background_image: final.backgroundImage || '' }, token);
+
+      // ✅ FIX: Include fontScale/lineScale in saved data
+      const final = {
+        ...(cvData.cv_data || cvData.content?.cv_data || {}),
+        fontScale,
+        lineScale,
+      };
+
+      await updateCV(id, {
+        content: { cv_data: final, ai_data: cvData.ai_data || {} },
+        profile_image: final.profileImage || '',
+        background_image: final.backgroundImage || '',
+      }, token);
+
       toast.success('✅ CV tallennettu!');
       setIsEditing(false);
     } catch (err) { console.error(err); toast.error('Tallennus epäonnistui'); }
@@ -296,8 +312,24 @@ export default function EditCVPage() {
   // ── PDF ────────────────────────────────────────────────────────────
   const handleDownloadPDF = async () => {
     if (!cvData || !userId) return;
+
+    // ✅ FIX: Save first to ensure PDF sees latest data
     setIsDownloading(true);
     try {
+      const token = await getToken({ template: 'supabase' });
+      if (token) {
+        const final = {
+          ...(cvData.cv_data || cvData.content?.cv_data || {}),
+          fontScale,
+          lineScale,
+        };
+        await updateCV(id, {
+          content: { cv_data: final, ai_data: cvData.ai_data || {} },
+          profile_image: final.profileImage || '',
+          background_image: final.backgroundImage || '',
+        }, token);
+      }
+
       const res = await fetch(`/api/cvs/${id}/pdf`);
       if (!res.ok) throw new Error('PDF failed');
       const blob = await res.blob();
@@ -468,19 +500,19 @@ export default function EditCVPage() {
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Tiivistä sisältö yhdelle sivulle</p>
 
-              {/* Font size */}
+              {/* Font size — ✅ FIX: uses updateFontScale to save to cv_data */}
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Fonttikoko</label>
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-mono text-violet-600 dark:text-violet-400 w-10 text-right">{Math.round(fontScale * 100)}%</span>
-                    <button onClick={() => setFontScale(1.0)} title="Palauta oletukseksi"
+                    <button onClick={() => updateFontScale(1.0)} title="Palauta oletukseksi"
                       className="text-xs text-gray-400 hover:text-violet-500 transition-colors ml-1">↺</button>
                   </div>
                 </div>
                 <input type="range" min="70" max="115" step="1"
                   value={Math.round(fontScale * 100)}
-                  onChange={e => setFontScale(Number(e.target.value) / 100)}
+                  onChange={e => updateFontScale(Number(e.target.value) / 100)}
                   className="w-full h-2 rounded-full appearance-none cursor-pointer"
                   style={{ accentColor: '#8b5cf6' }}
                 />
@@ -489,19 +521,19 @@ export default function EditCVPage() {
                 </div>
               </div>
 
-              {/* Line height */}
+              {/* Line height — ✅ FIX: uses updateLineScale */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Riviväli</label>
                   <div className="flex items-center gap-1">
                     <span className="text-xs font-mono text-violet-600 dark:text-violet-400 w-10 text-right">{Math.round(lineScale * 100)}%</span>
-                    <button onClick={() => setLineScale(1.0)} title="Palauta oletukseksi"
+                    <button onClick={() => updateLineScale(1.0)} title="Palauta oletukseksi"
                       className="text-xs text-gray-400 hover:text-violet-500 transition-colors ml-1">↺</button>
                   </div>
                 </div>
                 <input type="range" min="70" max="130" step="1"
                   value={Math.round(lineScale * 100)}
-                  onChange={e => setLineScale(Number(e.target.value) / 100)}
+                  onChange={e => updateLineScale(Number(e.target.value) / 100)}
                   className="w-full h-2 rounded-full appearance-none cursor-pointer"
                   style={{ accentColor: '#8b5cf6' }}
                 />
@@ -510,19 +542,19 @@ export default function EditCVPage() {
                 </div>
               </div>
 
-              {/* Quick preset buttons */}
+              {/* Quick presets — ✅ FIX: uses updateFontScale/updateLineScale */}
               <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
                 <p className="text-xs text-gray-500 mb-2 font-semibold">Pikaasetukset</p>
                 <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => { setFontScale(0.85); setLineScale(0.82); }}
+                  <button onClick={() => { updateFontScale(0.85); updateLineScale(0.82); }}
                     className="text-xs px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg font-semibold transition-colors">
                     Kompakti
                   </button>
-                  <button onClick={() => { setFontScale(1.0); setLineScale(1.0); }}
+                  <button onClick={() => { updateFontScale(1.0); updateLineScale(1.0); }}
                     className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg font-semibold transition-colors">
                     Oletus
                   </button>
-                  <button onClick={() => { setFontScale(1.08); setLineScale(1.15); }}
+                  <button onClick={() => { updateFontScale(1.08); updateLineScale(1.15); }}
                     className="text-xs px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg font-semibold transition-colors">
                     Väljä
                   </button>
