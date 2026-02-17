@@ -36,6 +36,7 @@ export default function EditCVPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(0);
   const previewContainerRef = useRef<HTMLDivElement>(null);
+const [loadKey, setLoadKey] = useState(0);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
@@ -92,7 +93,18 @@ export default function EditCVPage() {
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
-
+useEffect(() => {
+const onFocus = () => setLoadKey(k => k + 1);
+window.addEventListener('focus', onFocus);
+const onVisibility = () => {
+if (document.visibilityState === 'visible') setLoadKey(k => k + 1);
+};
+document.addEventListener('visibilitychange', onVisibility);
+return () => {
+window.removeEventListener('focus', onFocus);
+document.removeEventListener('visibilitychange', onVisibility);
+};
+}, []);
   useEffect(() => {
     const t = setTimeout(() => {
       if (previewContainerRef.current) setPreviewWidth(previewContainerRef.current.offsetWidth);
@@ -168,7 +180,7 @@ export default function EditCVPage() {
       } finally { setIsLoading(false); }
     };
     init();
-  }, [id, userId, getToken]);
+}, [id, userId, getToken, loadKey]);
 
   // ── handleUpdate ───────────────────────────────────────────────────
   const handleUpdate = useCallback((field: string, value: any) => {

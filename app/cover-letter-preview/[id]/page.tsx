@@ -1,4 +1,4 @@
-// app/cover-letter-preview/[id]/page.tsx - ✅ FIXED (NO PLACEHOLDERS)
+// app/cover-letter-preview/[id]/page.tsx - ✅ FIXED: Reads saved typography settings
 
 "use client";
 
@@ -50,9 +50,9 @@ export default function CoverLetterPreviewPage() {
           hasAiData: !!data.ai_data,
         });
 
-        // ✅ KORJAUS: CLEAN DATA EXTRACTION (EI PLACEHOLDEREITA!)
+        // ✅ CLEAN DATA EXTRACTION
         const coverLetterData = {
-          // ✅ Contact info (PUHDAS, ei hakasulkeita)
+          // Contact info
           name: data.content?.contactInfo?.name || 
                 data.ai_data?.name || 
                 data.content?.name || 
@@ -73,7 +73,7 @@ export default function CoverLetterPreviewPage() {
                     data.content?.location || 
                     "",
           
-          // ✅ Job details (PUHDAS)
+          // Job details
           jobTitle: data.content?.job_title || 
                     data.ai_data?.job_title || 
                     "",
@@ -82,22 +82,27 @@ export default function CoverLetterPreviewPage() {
                        data.ai_data?.company_name || 
                        "",
           
-          // ✅ Content (TÄRKEINTÄ!)
+          // Content
           title: data.title || 'Hakukirje',
           
           content: data.content?.body || 
                    data.ai_data?.html?.content || 
                    '',
           
-          // ✅ Styling
+          // Styling
           keyHighlights: data.ai_data?.key_highlights || [],
           language: data.content?.language || 'finnish',
           style: (data.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
           
-          // ✅ Header settings
+          // Header settings
           headerColor: data.content?.headerColor || 'rgb(181, 152, 79)',
           headerLayout: (data.content?.headerLayout || 'top') as 'top' | 'left',
           sidebarContent: (data.content?.sidebarContent || 'contact') as 'contact' | 'highlights' | 'none',
+
+          // ✅ FIX: Read saved typography settings so PDF matches editor preview
+          fontSize: data.content?.fontSize ?? 11,
+          lineHeight: data.content?.lineHeight ?? 1.8,
+          textAlign: (data.content?.textAlign || 'justify') as 'left' | 'justify' | 'center',
         };
 
         console.log("═══════════════════════════════════════════");
@@ -107,7 +112,9 @@ export default function CoverLetterPreviewPage() {
         console.log("email:", coverLetterData.email);
         console.log("phone:", coverLetterData.phone);
         console.log("content length:", coverLetterData.content.length);
-        console.log("content preview:", coverLetterData.content.substring(0, 100));
+        console.log("fontSize:", coverLetterData.fontSize);
+        console.log("lineHeight:", coverLetterData.lineHeight);
+        console.log("textAlign:", coverLetterData.textAlign);
         console.log("═══════════════════════════════════════════");
 
         setLetter(coverLetterData);

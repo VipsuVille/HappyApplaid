@@ -1,5 +1,6 @@
 // components/cover-letter/CoverLetterTemplate.tsx
 // ✅ FANCY REDESIGN – sama interface, näyttävämpi ulkoasu
+// ✅ UPDATED: fontSize, lineHeight & textAlign props now affect actual rendering
 
 'use client';
 
@@ -20,6 +21,10 @@ export interface CoverLetterData {
   headerColor?: string;
   headerLayout?: 'top' | 'left';
   sidebarContent?: 'contact' | 'highlights' | 'none';
+  // ✅ NEW: Typography controls
+  fontSize?: number;
+  lineHeight?: number;
+  textAlign?: 'left' | 'justify' | 'center';
 }
 
 interface CoverLetterTemplateProps {
@@ -36,6 +41,11 @@ export default function CoverLetterTemplate({
   const headerColor = data.headerColor || '#1a1a2e';
   const headerLayout = data.headerLayout || 'top';
   const sidebarContent = data.sidebarContent || 'contact';
+  
+  // ✅ FIX: Use provided fontSize/lineHeight/textAlign instead of hardcoded values
+  const bodyFontSize = data.fontSize ?? 10.8;
+  const bodyLineHeight = data.lineHeight ?? 1.85;
+  const bodyTextAlign = data.textAlign ?? 'justify';
   
   const paragraphs = data.content?.split('\n\n').filter(p => p.trim()) || [];
   
@@ -70,6 +80,12 @@ export default function CoverLetterTemplate({
   const lastName = data.name.split(' ').slice(1).join(' ') || '';
   const initials = `${firstName.charAt(0)}${lastName.charAt(0) || firstName.charAt(1) || ''}`.toUpperCase();
 
+  // ✅ Scale contact font size proportionally
+  const contactFontSize = Math.max(8, bodyFontSize * 0.88);
+
+  // ✅ Paragraph spacing scales with font size
+  const paragraphSpacing = Math.round(bodyFontSize * 1.6);
+
   const ContactInfo = ({ vertical = false }: { vertical?: boolean }) => (
     <div
       style={{
@@ -77,7 +93,7 @@ export default function CoverLetterTemplate({
         flexDirection: vertical ? 'column' : 'row',
         gap: vertical ? '14px' : '28px',
         flexWrap: 'wrap',
-        fontSize: '9.5pt',
+        fontSize: `${contactFontSize}pt`,
         fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
       }}
     >
@@ -345,11 +361,11 @@ export default function CoverLetterTemplate({
             <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
           </div>
 
-          {/* Content paragraphs */}
+          {/* ✅ FIX: Content paragraphs use dynamic fontSize, lineHeight, textAlign */}
           <div
             style={{
-              lineHeight: '1.85',
-              fontSize: '10.8pt',
+              lineHeight: bodyLineHeight,
+              fontSize: `${bodyFontSize}pt`,
               fontFamily: "'Libre Baskerville', Georgia, serif",
               color: '#334155',
             }}
@@ -358,11 +374,8 @@ export default function CoverLetterTemplate({
               <p
                 key={idx}
                 style={{
-                  marginBottom: '18px',
-                  textAlign: 'justify',
-                  ...(idx === 0 ? {
-                    // First paragraph: drop-cap style first line
-                  } : {}),
+                  marginBottom: `${paragraphSpacing}px`,
+                  textAlign: bodyTextAlign,
                 }}
               >
                 {paragraph}
@@ -590,11 +603,11 @@ export default function CoverLetterTemplate({
             <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
           </div>
 
-          {/* Content */}
+          {/* ✅ FIX: Content uses dynamic fontSize, lineHeight, textAlign */}
           <div
             style={{
-              lineHeight: '1.85',
-              fontSize: '10.5pt',
+              lineHeight: bodyLineHeight,
+              fontSize: `${bodyFontSize}pt`,
               fontFamily: "'Libre Baskerville', Georgia, serif",
               color: '#334155',
             }}
@@ -603,8 +616,8 @@ export default function CoverLetterTemplate({
               <p
                 key={idx}
                 style={{
-                  marginBottom: '18px',
-                  textAlign: 'justify',
+                  marginBottom: `${paragraphSpacing}px`,
+                  textAlign: bodyTextAlign,
                 }}
               >
                 {paragraph}

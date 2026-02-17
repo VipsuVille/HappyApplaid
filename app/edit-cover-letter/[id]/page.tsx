@@ -8,8 +8,7 @@ import {
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Palette, RotateCcw, X, Eye, Settings, 
   AlignLeft, AlignCenter, AlignJustify,
-  CheckCircle, Clock, FileText, Sparkles,
-  ChevronLeft, ChevronRight
+  CheckCircle, Clock, FileText, Sparkles
 } from 'lucide-react';
 
 import IterativeFeedback from '@/components/IterativeFeedback';
@@ -98,7 +97,6 @@ export default function EditCoverLetterPage() {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -172,6 +170,21 @@ export default function EditCoverLetterPage() {
     loadCoverLetter();
   }, [id, userId, getToken]);
 
+  // ✅ Build save content (reusable for save + PDF)
+  const buildSaveContent = () => {
+    return {
+      ...letterData?.content,
+      contactInfo: { name, email, phone, location },
+      body: content,
+      ...styleSettings,
+      job_description: letterData?.content?.job_description,
+      job_title: letterData?.content?.job_title,
+      company_name: letterData?.content?.company_name,
+      language: letterData?.content?.language,
+      style: letterData?.content?.style,
+    };
+  };
+
   const handleSave = async () => {
     if (!letterData || !userId) return;
     setIsSaving(true);
@@ -180,17 +193,7 @@ export default function EditCoverLetterPage() {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No authentication token');
 
-      const finalContent = {
-        ...letterData.content,
-        contactInfo: { name, email, phone, location },
-        body: content,
-        ...styleSettings,
-        job_description: letterData.content?.job_description,
-        job_title: letterData.content?.job_title,
-        company_name: letterData.content?.company_name,
-        language: letterData.content?.language,
-        style: letterData.content?.style,
-      };
+      const finalContent = buildSaveContent();
 
       const response = await fetch(`/api/cover-letters/${id}`, {
         method: 'PATCH',
@@ -222,9 +225,29 @@ export default function EditCoverLetterPage() {
     }
   };
 
+  // ✅ FIX: Save FIRST, then generate PDF so styles are persisted
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
+      // Save first so Puppeteer sees latest fontSize/lineHeight/etc
+      const token = await getToken({ template: 'supabase' });
+      if (token && letterData) {
+        const finalContent = buildSaveContent();
+        const saveRes = await fetch(`/api/cover-letters/${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: finalContent }),
+        });
+        if (saveRes.ok) {
+          const result = await saveRes.json();
+          if (result.coverLetter) setLetterData(result.coverLetter);
+        }
+      }
+
+      // Now generate PDF
       const response = await fetch('/api/generate-cover-letter-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -306,21 +329,11 @@ export default function EditCoverLetterPage() {
 
   const saveField = (field: string) => {
     switch (field) {
-      case 'name':
-        setName(tempValue);
-        break;
-      case 'email':
-        setEmail(tempValue);
-        break;
-      case 'phone':
-        setPhone(tempValue);
-        break;
-      case 'location':
-        setLocation(tempValue);
-        break;
-      case 'content':
-        setContent(tempValue);
-        break;
+      case 'name': setName(tempValue); break;
+      case 'email': setEmail(tempValue); break;
+      case 'phone': setPhone(tempValue); break;
+      case 'location': setLocation(tempValue); break;
+      case 'content': setContent(tempValue); break;
     }
     setEditingField(null);
     setTempValue('');
@@ -355,7 +368,7 @@ export default function EditCoverLetterPage() {
     );
   }
 
-  // ✅ KORJATTU: Rakenna template data AINA live state:sta
+  // ✅ FIX: Include fontSize, lineHeight, textAlign in template data
   const templateData = {
     name,
     email,
@@ -371,6 +384,10 @@ export default function EditCoverLetterPage() {
     headerColor: styleSettings.headerColor,
     headerLayout: styleSettings.headerLayout,
     sidebarContent: styleSettings.sidebarContent,
+    // ✅ NEW: Pass typography to template so it actually renders with these values
+    fontSize: styleSettings.fontSize,
+    lineHeight: styleSettings.lineHeight,
+    textAlign: styleSettings.textAlign,
   };
 
   const paragraphs = content?.split('\n\n').filter(p => p.trim()) || [];
@@ -546,7 +563,7 @@ export default function EditCoverLetterPage() {
                   </div>
                 </div>
 
-                {/* Font Size */}
+                {/* ✅ Font Size — NOW ACTUALLY AFFECTS TEMPLATE */}
                 <div>
                   <label className="text-xs font-bold mb-2 block flex justify-between uppercase tracking-wider">
                     <span>Fonttikoko</span>
@@ -554,16 +571,21 @@ export default function EditCoverLetterPage() {
                   </label>
                   <input
                     type="range"
-                    min="9"
+                    min="8"
                     max="14"
                     step="0.5"
                     value={styleSettings.fontSize}
                     onChange={(e) => setStyleSettings(prev => ({ ...prev, fontSize: parseFloat(e.target.value) }))}
                     className="w-full accent-orange-500"
                   />
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                    <span>8pt (tiivis)</span>
+                    <span>11pt</span>
+                    <span>14pt (iso)</span>
+                  </div>
                 </div>
 
-                {/* Line Height */}
+                {/* ✅ Line Height — NOW ACTUALLY AFFECTS TEMPLATE */}
                 <div>
                   <label className="text-xs font-bold mb-2 block flex justify-between uppercase tracking-wider">
                     <span>Riviväli</span>
@@ -571,13 +593,18 @@ export default function EditCoverLetterPage() {
                   </label>
                   <input
                     type="range"
-                    min="1.2"
+                    min="1.1"
                     max="2.5"
-                    step="0.1"
+                    step="0.05"
                     value={styleSettings.lineHeight}
                     onChange={(e) => setStyleSettings(prev => ({ ...prev, lineHeight: parseFloat(e.target.value) }))}
                     className="w-full accent-orange-500"
                   />
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                    <span>Tiivis</span>
+                    <span>Oletus (1.8)</span>
+                    <span>Väljä</span>
+                  </div>
                 </div>
 
                 {/* Text Alignment */}
@@ -617,6 +644,31 @@ export default function EditCoverLetterPage() {
                   </div>
                 </div>
 
+                {/* ✅ Quick presets for typography */}
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <p className="text-xs text-gray-500 mb-2 font-semibold">Pikaasetukset</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <button 
+                      onClick={() => setStyleSettings(prev => ({ ...prev, fontSize: 9.5, lineHeight: 1.4 }))}
+                      className="text-xs px-3 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 rounded-lg font-semibold transition-colors"
+                    >
+                      Kompakti
+                    </button>
+                    <button 
+                      onClick={() => setStyleSettings(prev => ({ ...prev, fontSize: 11, lineHeight: 1.8 }))}
+                      className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg font-semibold transition-colors"
+                    >
+                      Oletus
+                    </button>
+                    <button 
+                      onClick={() => setStyleSettings(prev => ({ ...prev, fontSize: 12, lineHeight: 2.1 }))}
+                      className="text-xs px-3 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 rounded-lg font-semibold transition-colors"
+                    >
+                      Väljä
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   onClick={handleResetStyles}
                   className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
@@ -631,26 +683,36 @@ export default function EditCoverLetterPage() {
           {/* PREVIEW & EDIT */}
           <div className="flex-1 space-y-4 sm:space-y-6">
             
-            {/* ✅ KORJATTU PREVIEW - Käyttää CoverLetterTemplate-komponenttia ja live state dataa */}
+            {/* ✅ PREVIEW — Uses CoverLetterTemplate with live state data */}
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-800">
-              <div className="flex items-center justify-center p-4 sm:p-6 bg-gray-50 dark:bg-black/20">
+              <div className="relative flex items-center justify-center p-4 sm:p-6 bg-gray-50 dark:bg-black/20">
                 <div
                   style={{
                     transform: isMobile ? 'scale(0.35)' : 'scale(0.65)',
                     transformOrigin: isMobile ? 'top center' : 'center',
                   }}
                 >
-                  <CoverLetterContainer>
-                    <CoverLetterTemplate
-                      data={templateData}
-                      isEditing={false}
-                      isPdfPreview={false}
-                    />
-                  </CoverLetterContainer>
+                  {/* ✅ Page boundary indicator */}
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: '297mm', left: '-10px', right: '-10px', zIndex: 20, pointerEvents: 'none' }}>
+                      <div style={{ borderTop: '2px dashed #ef4444', position: 'relative' }}>
+                        <span style={{ position: 'absolute', top: '-11px', right: '8px', background: '#ef4444', color: 'white', fontSize: '10px', padding: '1px 8px', borderRadius: '4px', fontWeight: 700 }}>
+                          ↑ Sivu 1 · Sivu 2 ↓
+                        </span>
+                      </div>
+                    </div>
+                    <CoverLetterContainer>
+                      <CoverLetterTemplate
+                        data={templateData}
+                        isEditing={false}
+                        isPdfPreview={false}
+                      />
+                    </CoverLetterContainer>
+                  </div>
                 </div>
               </div>
               
-              {/* ✅ MUOKKAUSNAPPI PREVIEWIN ALLA */}
+              {/* Edit button below preview */}
               <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/60">
                 <button
                   onClick={() => startEditing('content', content)}
@@ -662,7 +724,7 @@ export default function EditCoverLetterPage() {
               </div>
             </div>
 
-            {/* ✅ MUOKKAUS TEKSTIKENTTÄ (näkyy kun muokataan) */}
+            {/* ✅ EDIT TEXT FIELD (visible when editing) */}
             {editingField === 'content' && (
               <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border-2 border-orange-400 dark:border-orange-600 p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -725,7 +787,7 @@ export default function EditCoverLetterPage() {
                         </p>
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        💬 <span className="italic">"{iter.user_feedback}"</span>
+                        💬 <span className="italic">&quot;{iter.user_feedback}&quot;</span>
                       </p>
                       <p className="text-xs text-gray-500">
                         ✅ {iter.changes_made}
@@ -752,7 +814,7 @@ export default function EditCoverLetterPage() {
             <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
               <p className="text-sm font-bold text-orange-900 dark:text-orange-100 flex items-center gap-2">
                 <Eye className="w-4 h-4" />
-                Klikkaa "Muokkaa tekstiä" -nappia tai käytä AI-muokkausta!
+                Klikkaa &quot;Muokkaa tekstiä&quot; tai käytä AI-muokkausta · Säädä fonttikokoa ja riviväliä ⚙️ Muotoilu-paneelista
               </p>
             </div>
           </div>
