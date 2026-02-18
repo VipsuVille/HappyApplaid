@@ -1,4 +1,4 @@
-// app/layout.tsx - ✅ KORJATTU: Provider oikeassa paikassa
+// app/layout.tsx
 
 import { ClerkProvider } from '@clerk/nextjs';
 import { Inter } from "next/font/google";
@@ -7,6 +7,8 @@ import GlobalLayout from '@/components/layout/GlobalLayout';
 import { clerkAppearance } from '@/lib/clerkAppearance';
 import { GenerationProvider } from '@/context/GenerationContext';
 import GlobalGenerationBanner from '@/components/GlobalGenerationBanner';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,12 +21,14 @@ export default function RootLayout({
     <ClerkProvider appearance={clerkAppearance}>
       <html lang="en" suppressHydrationWarning>
         <body className={`${inter.className} bg-gray-900`} suppressHydrationWarning>
-          <GenerationProvider> {/* ✅ SISÄLLÄ body:ä */}
+          <GenerationProvider>
             <GlobalLayout>
               {children}
             </GlobalLayout>
-            <GlobalGenerationBanner /> {/* ✅ GlobalLayout:in jälkeen */}
+            <GlobalGenerationBanner />
           </GenerationProvider>
+          <Analytics />
+          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>

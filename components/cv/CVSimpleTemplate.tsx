@@ -130,13 +130,17 @@ const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
     }
     const displayValue = value || "";
     if (!displayValue && !isEditing) return null;
-    return (
-      <Tag onClick={() => startEditing(field, value)}
-        style={{ ...style, ...(isEditing ? { cursor: "pointer", borderRadius: "4px", transition: "background 0.15s" } : {}) }}
-        className={`${className || ""} ${isEditing ? "editable-field" : ""}`}>
-        {displayValue || placeholder || "..."}
-      </Tag>
-    );
+return (
+<Tag onClick={() => startEditing(field, value)}
+style={{
+...style,
+...(multiline ? { whiteSpace: 'pre-line' as const } : {}),
+...(isEditing ? { cursor: "pointer", borderRadius: "4px", transition: "background 0.15s" } : {}),
+}}
+className={${className || ""} ${isEditing ? "editable-field" : ""}}>
+{displayValue || placeholder || "..."}
+</Tag>
+);
   };
 
   const DeleteBtn = ({ onClick, title: t }: { onClick: () => void; title?: string }) => {

@@ -103,15 +103,19 @@ const InlineEditor = React.memo(function InlineEditor({
       : <input ref={inputRef as any} type="text" defaultValue={value} style={inputStyle} onBlur={commit} onKeyDown={onKey} />;
   }
 
-  return (
-    <Tag
-      onClick={activate}
-      style={{ ...style, ...(isEditing ? { cursor: "text", borderRadius: "3px" } : {}) }}
-      className={`${className ?? ""} ${isEditing ? "editable-hover" : ""}`}
-    >
-      {value || (isEditing ? (placeholder ?? "") : "")}
-    </Tag>
-  );
+return (
+<Tag
+onClick={activate}
+style={{
+...style,
+...(multiline ? { whiteSpace: 'pre-line' as const } : {}),
+...(isEditing ? { cursor: "text", borderRadius: "3px" } : {}),
+}}
+className={${className ?? ""} ${isEditing ? "editable-hover" : ""}}
+>
+{value || (isEditing ? (placeholder ?? "") : "")}
+</Tag>
+);
 });
 
 // ══════════════════════════════════════════════════════════════════════
