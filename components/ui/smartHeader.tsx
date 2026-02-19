@@ -27,6 +27,7 @@ import {
   ReceiptEuro,
   CircleDollarSign,
   Sparkles,
+  Shield,
 } from 'lucide-react';
 
 export default function SmartHeader() {
@@ -59,6 +60,8 @@ export default function SmartHeader() {
       signUp: 'Sign Up',
       toggleLang: 'EN',
       balance: 'Balance',
+      atsChecker: 'ATS Check',  // ← ADD THIS
+
     },
     fi: {
       home: 'Koti',
@@ -73,6 +76,8 @@ export default function SmartHeader() {
       signUp: 'Rekisteröidy',
       toggleLang: 'FI',
       balance: 'Saldosi',
+      atsChecker: 'ATS Mittari',  // ← ADD THIS
+
     },
   }[language];
 
@@ -98,6 +103,8 @@ export default function SmartHeader() {
     { href: '/my-cvs', label: t.cvs, icon: FileText },
     { href: '/my-cover-letters', label: t.letters, icon: FileEdit },
     { href: '/profile/responses', label: t.answers, icon: Book },
+        { href: '/ats-checker', label: t.atsChecker, icon: Shield },  // ← ADD THIS
+
     { href: '/profile', label: t.profile, icon: UserIcon },
     { href: '/pricing', label: t.pricing, icon: PricingIcon },
   ];
