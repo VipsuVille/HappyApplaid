@@ -1,7 +1,6 @@
 // app/layout.tsx
 
 import { ClerkProvider } from '@clerk/nextjs';
-import { Inter } from "next/font/google";
 import "./globals.css";
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import { clerkAppearance } from '@/lib/clerkAppearance';
@@ -9,6 +8,7 @@ import { GenerationProvider } from '@/context/GenerationContext';
 import GlobalGenerationBanner from '@/components/GlobalGenerationBanner';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { Inter, Playfair_Display } from 'next/font/google';
 
 const inter = Inter({ subsets: ["latin"] });
 
