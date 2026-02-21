@@ -72,7 +72,6 @@ const isPaid = isActive && tier !== "free";
   const { tokens } = useTokens();
 
   const displayName = user?.firstName || null;
-  // Check first visit
   useEffect(() => {
     const checkFirstVisit = async () => {
       if (!isSignedIn || !user?.id) return;
@@ -113,7 +112,6 @@ useEffect(() => {
         setRecentCVs(cvData.slice(0, 3));
       }
 
-      // ✅ korvattu freemiumStatus-logiikka
       if (tokens > 0 || (isActive && tier !== "free")) {
         const letterResponse = await fetch("/api/recent-cover-letters");
         if (letterResponse.ok) {
@@ -202,7 +200,6 @@ useEffect(() => {
     }
   };
 
-  // ✅ SINGLE LOADING STATE - Käytetään dark-teemaa
   if (!isLoaded || subLoading) {
     return <LoadingScreen />;
   }
@@ -288,15 +285,12 @@ if (!isLoaded || subLoading) {
     );
   }
 
-  // LANDING PAGE (LOGGED OUT) EI KIRJAUTUNUT!
-// KORVAA alkuperäinen if (!isSignedIn) { return (...) } -blokki tällä
-// Kaikki importit ovat samat kuin alkuperäisessä koodissa
+
 
 if (!isSignedIn) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#121212] via-[#0e0e0e] to-[#1a1a1a] font-sans text-[#e7e3dc]">
       
-      {/* Background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/8 to-gray-700/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }}></div>
@@ -305,7 +299,6 @@ if (!isSignedIn) {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
 
-        {/* ─── HERO ─── */}
         <div className="mb-16">
           <div className="backdrop-blur-2xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-3xl shadow-2xl shadow-black/50 p-8 md:p-16 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-orange-500/5 pointer-events-none rounded-3xl"></div>
@@ -400,7 +393,7 @@ if (!isSignedIn) {
               {/* Esimerkki-analyysi */}
               <div className="bg-black/40 backdrop-blur-md rounded-2xl p-6 border border-white/10 text-left max-w-lg mx-auto mb-8">
                 <p className="text-xs font-mono text-gray-500 mb-4">
-                  // {language === "en" ? "Example: Junior developer applying to mid-level role" : "Esimerkki: Junior-kehittäjä hakee mid-tason rooliin"}
+                  {language === "en" ? "Example: Junior developer applying to mid-level role" : "Esimerkki: Junior-kehittäjä hakee mid-tason rooliin"}
                 </p>
                 <div className="space-y-2 mb-4">
                   {[
