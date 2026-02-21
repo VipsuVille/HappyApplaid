@@ -32,6 +32,8 @@ import {
   Play,
   CheckCircle,
   Star,
+  AlertTriangle,
+  TrendingDown,
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
