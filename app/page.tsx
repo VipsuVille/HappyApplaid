@@ -287,10 +287,14 @@ if (!isLoaded || subLoading) {
 
 
 
+// KORVAA alkuperäinen if (!isSignedIn) { return (...) } -blokki tällä
+// Kaikki importit ovat samat kuin alkuperäisessä koodissa
+
 if (!isSignedIn) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#121212] via-[#0e0e0e] to-[#1a1a1a] font-sans text-[#e7e3dc]">
       
+      {/* Background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/8 to-gray-700/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }}></div>
@@ -299,6 +303,7 @@ if (!isSignedIn) {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
 
+        {/* ─── HERO ─── */}
         <div className="mb-16">
           <div className="backdrop-blur-2xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-3xl shadow-2xl shadow-black/50 p-8 md:p-16 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-orange-500/5 pointer-events-none rounded-3xl"></div>
@@ -366,7 +371,7 @@ if (!isSignedIn) {
           </div>
         </div>
 
-        {/* ─── REALITY CHECK — uusi osio ─── */}
+        {/* ─── REALITY CHECK — universaali, kaikille aloille ─── */}
         <div className="mb-16">
           <div className="bg-gradient-to-br from-red-900/20 via-orange-900/10 to-red-900/20 rounded-3xl p-8 md:p-16 shadow-2xl relative overflow-hidden border border-red-500/20">
             <div className="absolute top-0 right-0 w-96 h-96 bg-red-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
@@ -386,66 +391,129 @@ if (!isSignedIn) {
 
               <p className="text-lg md:text-xl text-gray-200 mb-10">
                 {language === "en"
-                  ? "ATS systems like Workday, Greenhouse, and Lever filter applications mechanically. They don't understand synonyms. They don't care about potential. They match exact keywords — nothing more."
-                  : "ATS-järjestelmät kuten Workday, Greenhouse ja Lever seulovat hakemuksia mekaanisesti. Ne eivät ymmärrä synonyymejä. Ne eivät arvosta potentiaalia. Ne etsivät täsmälleen oikeita sanoja — ei mitään muuta."}
+                  ? "Automated screening systems filter applications mechanically — in every industry. They don't understand context. They don't care about potential. They scan for exact matches — nothing more."
+                  : "Automaattiset seulontajärjestelmät suodattavat hakemuksia mekaanisesti — kaikilla aloilla. Ne eivät ymmärrä kontekstia. Ne eivät arvosta potentiaalia. Ne etsivät täsmälleen oikeita sanoja — ei mitään muuta."}
               </p>
 
-              {/* Esimerkki-analyysi */}
-              <div className="bg-black/40 backdrop-blur-md rounded-2xl p-6 border border-white/10 text-left max-w-lg mx-auto mb-8">
-                <p className="text-xs font-mono text-gray-500 mb-4">
-                  {language === "en" ? "Example: Junior developer applying to mid-level role" : "Esimerkki: Junior-kehittäjä hakee mid-tason rooliin"}
-                </p>
-                <div className="space-y-2 mb-4">
-                  {[
-                    { label: "React", found: true },
-                    { label: "TypeScript", found: true },
-                    { label: "Docker", found: false },
-                    { label: "AWS", found: false },
-                    { label: "CI/CD", found: false },
-                  ].map((kw, i) => (
-                    <div key={i} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/5">
-                      <span className="text-sm font-mono text-gray-300">{kw.label}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${kw.found ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"}`}>
-                        {kw.found
-                          ? (language === "en" ? "✓ matched" : "✓ löydetty")
-                          : (language === "en" ? "✗ missing" : "✗ puuttuu")}
-                      </span>
-                    </div>
-                  ))}
+              {/* Kaksi esimerkkiä rinnakkain — early career + vaativa rooli */}
+              <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto mb-8">
+
+                {/* Esimerkki A — Entry level */}
+                <div className="bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/10 text-left">
+                  <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">
+                    {language === "en" ? "Early career" : "Ensimmäinen tai varhainen rooli"}
+                  </p>
+                  <p className="text-sm text-gray-300 mb-4 font-medium">
+                    {language === "en" ? "Applicant → Customer Service role" : "Hakija → Asiakaspalvelurooli"}
+                  </p>
+                  <div className="space-y-1.5 mb-4">
+                    {[
+                      { label: language === "en" ? "Communication skills" : "Viestintätaidot", found: true },
+                      { label: language === "en" ? "Customer interaction" : "Asiakaskohtaaminen", found: true },
+                      { label: language === "en" ? "CRM experience" : "CRM-kokemus", found: false },
+                      { label: language === "en" ? "1+ year experience" : "1+ vuoden kokemus", found: false },
+                    ].map((kw, i) => (
+                      <div key={i} className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-white/5">
+                        <span className="text-xs text-gray-300">{kw.label}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${kw.found ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"}`}>
+                          {kw.found ? "✓" : "✗"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
+                    <span className="text-xs text-gray-500">
+                      {language === "en" ? "ATS Score" : "ATS-pisteet"}
+                    </span>
+                    <span className="font-bold text-amber-400 text-sm">58% — {language === "en" ? "Medium risk" : "Kohtalainen riski"}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 italic">
+                    {language === "en" ? "→ Add concrete examples of customer situations" : "→ Lisää konkreettisia esimerkkejä asiakastilanteista"}
+                  </p>
                 </div>
-                <div className="flex items-center justify-between pt-3 border-t border-white/10">
-                  <span className="text-sm text-gray-400">
-                    {language === "en" ? "ATS Score" : "ATS-pisteet"}
-                  </span>
-                  <span className="font-bold text-red-400 text-lg">38% — {language === "en" ? "Auto-rejected" : "Automaattihylky"}</span>
+
+                {/* Esimerkki B — Vaativa rooli */}
+                <div className="bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/10 text-left">
+                  <p className="text-xs text-gray-500 mb-1 uppercase tracking-wide font-semibold">
+                    {language === "en" ? "Competitive role" : "Kilpailtu rooli"}
+                  </p>
+                  <p className="text-sm text-gray-300 mb-4 font-medium">
+                    {language === "en" ? "Applicant → Senior Marketing Specialist" : "Hakija → Senior markkinointiasiantuntija"}
+                  </p>
+                  <div className="space-y-1.5 mb-4">
+                    {[
+                      { label: language === "en" ? "Campaign management" : "Kampanjanhallinta", found: true },
+                      { label: language === "en" ? "Budget management" : "Budjettiosaaminen", found: true },
+                      { label: language === "en" ? "5+ years experience" : "5+ vuoden kokemus", found: false },
+                      { label: language === "en" ? "Team leadership" : "Tiiminjohtaminen", found: false },
+                      { label: language === "en" ? "Advanced analytics" : "Edistynyt analytiikka", found: false },
+                    ].map((kw, i) => (
+                      <div key={i} className="flex items-center justify-between py-1 px-2.5 rounded-lg bg-white/5">
+                        <span className="text-xs text-gray-300">{kw.label}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${kw.found ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"}`}>
+                          {kw.found ? "✓" : "✗"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
+                    <span className="text-xs text-gray-500">
+                      {language === "en" ? "ATS Score" : "ATS-pisteet"}
+                    </span>
+                    <span className="font-bold text-red-400 text-sm">42% — {language === "en" ? "High risk" : "Korkea riski"}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 italic">
+                    {language === "en" ? "→ Highlight measurable results and leadership scope" : "→ Korosta mitattavia tuloksia ja johtamisvastuuta"}
+                  </p>
                 </div>
               </div>
 
               <p className="text-sm text-gray-400">
                 {language === "en"
-                  ? "HappyApplaid shows you this before you apply — and tells you what to do about it."
-                  : "HappyApplaid näyttää tämän ennen kuin haet — ja kertoo mitä tehdä asialle."}
+                  ? "HappyApplaid shows you this before you apply — and tells you exactly what to do about it. Whether it's your first application or your tenth senior role."
+                  : "HappyApplaid näyttää tämän ennen kuin haet — ja kertoo täsmälleen mitä tehdä. Oli kyseessä ensimmäinen hakemus tai kymmenes johtotason haku."}
               </p>
             </div>
           </div>
         </div>
 
-        {/* ─── KENELLE — Kohderyhmät ─── */}
+        {/* ─── KENELLE — Universaali, kaikille aloille ja kokemustasosta riippumatta ─── */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center text-gray-100 mb-8">
-            {language === "en" ? "Does this sound like you?" : "Tunnistatko itsesi?"}
-          </h2>
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-100 mb-3">
+              {language === "en" ? "Does this sound like you?" : "Tunnistatko itsesi?"}
+            </h2>
+            <p className="text-gray-400 text-lg">
+              {language === "en"
+                ? "From early career to senior roles — in any industry."
+                : "Ensimmäisestä hakemuksesta johtotason rooliin — millä alalla tahansa."}
+            </p>
+          </div>
           <div className="grid md:grid-cols-2 gap-6">
 
+            {/* Early career */}
             <div className="bg-gradient-to-br from-orange-900/20 to-amber-900/10 rounded-3xl p-8 border border-orange-500/20">
-              <div className="text-4xl mb-4">🎓</div>
-              <h3 className="font-bold text-xl mb-3 text-orange-300">
-                {language === "en" ? "Student or summer job seeker" : "Opiskelija tai kesätyönhakija"}
+              <div className="text-4xl mb-4">🌱</div>
+              <h3 className="font-bold text-xl mb-1 text-orange-300">
+                {language === "en" ? "Early career" : "Varhainen ura"}
               </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                {language === "en"
+                  ? "Student, trainee, or first years in the workforce"
+                  : "Opiskelija, harjoittelija tai vasta työelämässä aloittanut"}
+              </p>
               <ul className="space-y-2 text-sm text-gray-300 mb-5">
                 {(language === "en"
-                  ? ["Sending applications but not getting replies", "Not sure why your CV gets rejected", "Competing with 200+ applicants for the same role"]
-                  : ["Lähetät hakemuksia mutta et saa vastauksia", "Et tiedä miksi CV:si hylätään", "Kilpailet 200+ hakijan kanssa samasta paikasta"]
+                  ? [
+                      "Sending applications but getting no replies",
+                      "Not sure why your application gets rejected",
+                      "Want to make the most of what you have — even without much experience",
+                    ]
+                  : [
+                      "Lähetät hakemuksia mutta et saa vastauksia",
+                      "Et tiedä miksi hakemuksesi hylätään",
+                      "Haluat hyödyntää sen mitä sinulla on — vaikka kokemusta olisi vähän",
+                    ]
                 ).map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <span className="text-orange-400 mt-0.5">→</span>
@@ -453,22 +521,36 @@ if (!isSignedIn) {
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-orange-300/70">
+              <p className="text-sm text-orange-300/70 italic">
                 {language === "en"
-                  ? "HappyApplaid shows where you stand before you send."
-                  : "HappyApplaid kertoo missä olet ennen kuin lähetät."}
+                  ? "Know where you stand — and what to improve — before you send."
+                  : "Tiedä missä olet — ja mitä parantaa — ennen kuin lähetät."}
               </p>
             </div>
 
+            {/* Experienced / career changer */}
             <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/10 rounded-3xl p-8 border border-indigo-500/20">
-              <div className="text-4xl mb-4">🔄</div>
-              <h3 className="font-bold text-xl mb-3 text-indigo-300">
-                {language === "en" ? "Career changer or recently unemployed" : "Alanvaihtaja tai äskettäin työtön"}
+              <div className="text-4xl mb-4">🎯</div>
+              <h3 className="font-bold text-xl mb-1 text-indigo-300">
+                {language === "en" ? "Aiming higher" : "Tähtäät korkeammalle"}
               </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                {language === "en"
+                  ? "Career changer, re-entering work, or targeting competitive roles"
+                  : "Alanvaihtaja, palannut töihin tai tähtäät vaativiin rooleihin"}
+              </p>
               <ul className="space-y-2 text-sm text-gray-300 mb-5">
                 {(language === "en"
-                  ? ["You have experience — but from the wrong field", "Applying to roles unsure if your background fits", "Cover letters don't seem to land"]
-                  : ["Sinulla on kokemusta — mutta väärältä alalta", "Haet rooleihin tietämättä sopiiko taustasi", "Hakukirjeet eivät tunnu kolahtavan"]
+                  ? [
+                      "You have experience — but unsure how it translates",
+                      "Applying to competitive roles without knowing your real chances",
+                      "Cover letters feel generic and don't land",
+                    ]
+                  : [
+                      "Sinulla on kokemusta — mutta et tiedä miten se kääntyy",
+                      "Haet kilpailtuihin rooleihin tietämättä todellisia mahdollisuuksiasi",
+                      "Hakukirjeet tuntuvat geneerisiltä eivätkä kolahdeta",
+                    ]
                 ).map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <span className="text-indigo-400 mt-0.5">→</span>
@@ -476,12 +558,21 @@ if (!isSignedIn) {
                   </li>
                 ))}
               </ul>
-              <p className="text-sm text-indigo-300/70">
+              <p className="text-sm text-indigo-300/70 italic">
                 {language === "en"
-                  ? "See honestly how big the experience gap is — and how to close it."
-                  : "Näe rehellisesti miten iso kokemuskuilu on — ja miten kuroa se umpeen."}
+                  ? "See the gap honestly — then close it strategically."
+                  : "Näe kuilu rehellisesti — sitten kuroe se umpeen strategisesti."}
               </p>
             </div>
+          </div>
+
+          {/* Universaali tagline */}
+          <div className="mt-6 text-center">
+            <p className="text-gray-500 text-sm">
+              {language === "en"
+                ? "Works for healthcare, business, education, tech, marketing, trade — any field, any level."
+                : "Toimii terveydenhuollossa, liiketoiminnassa, opetuksessa, IT:ssä, markkinoinnissa, käsityössä — millä alalla tahansa, millä tasolla tahansa."}
+            </p>
           </div>
         </div>
 
