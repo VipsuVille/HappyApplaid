@@ -287,9 +287,13 @@ if (!isLoaded || subLoading) {
   }
 
   // LANDING PAGE (LOGGED OUT) EI KIRJAUTUNUT!
+// KORVAA alkuperäinen if (!isSignedIn) { return (...) } -blokki tällä
+// Kaikki importit ovat samat kuin alkuperäisessä koodissa
+
 if (!isSignedIn) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#121212] via-[#0e0e0e] to-[#1a1a1a] font-sans text-[#e7e3dc]">
+      
       {/* Background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl animate-pulse"></div>
@@ -298,34 +302,37 @@ if (!isSignedIn) {
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
-        
-        {/* Hero Section */}
+
+        {/* ─── HERO ─── */}
         <div className="mb-16">
           <div className="backdrop-blur-2xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-3xl shadow-2xl shadow-black/50 p-8 md:p-16 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-orange-500/5 pointer-events-none rounded-3xl"></div>
 
             <div className="relative z-10 text-center">
+
+              {/* Badge */}
               <div className="inline-flex items-center gap-2 px-6 py-3 bg-black/40 backdrop-blur-md rounded-full border border-orange-400/30 shadow-xl mb-6">
-                <Sparkles className="w-6 h-6 text-orange-400" />
-                <span className="font-bold text-orange-300">
-                  {language === "en" ? "Your Digital Twin" : "Digitaalinen Kaksosesi"}
+                <Sparkles className="w-5 h-5 text-orange-400" />
+                <span className="font-bold text-orange-300 text-sm">
+                  {language === "en" ? "Realistic ATS Analysis" : "Realistinen ATS-analyysi"}
                 </span>
               </div>
 
+              {/* Pääotsikko — uusi strateginen kulma */}
               <h1 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">
                 <span className="bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-                  {language === "en" ? "Beat the ATS." : "Voita ATS."}
+                  {language === "en" ? "See if you'd actually pass." : "Selvitä pääsetkö läpi."}
                 </span>
                 <br />
                 <span className="text-gray-100">
-                  {language === "en" ? "Land Your Dream Job." : "Saa Unelmatyösi."}
+                  {language === "en" ? "Before you apply." : "Ennen kuin haet."}
                 </span>
               </h1>
 
               <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed mb-8">
                 {language === "en"
-                  ? "AI-powered applications that pass Applicant Tracking Systems and sell you to employers. Job-specific CVs and cover letters using STAR methodology."
-                  : "Tekoälypohjaiset hakemukset jotka läpäisevät ATS-järjestelmät ja myyvät sinut työnantajalle. Työkohtaiset CV:t ja hakukirjeet STAR-metodologialla."}
+                  ? "75% of applications are auto-rejected before a human reads them. HappyApplaid analyzes your competitiveness, experience gaps, and keyword match — honestly."
+                  : "75% hakemuksista hylätään automaattisesti ennen kuin ihminen näkee ne. HappyApplaid analysoi kilpailukykyäsi, kokemuskuiluasi ja keyword-osumaa — rehellisesti."}
               </p>
 
               <HowItWorksTimeline />
@@ -334,7 +341,7 @@ if (!isSignedIn) {
                 <SignUpButton mode="modal" appearance={clerkAppearance}>
                   <Button className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl font-bold text-lg shadow-xl hover:shadow-orange-500/50 transform hover:scale-105 transition-all">
                     <Sparkles className="inline w-5 h-5 mr-2" />
-                    {language === "en" ? "Start Free" : "Aloita Ilmaiseksi"}
+                    {language === "en" ? "Test My Application Free" : "Testaa hakemukseni ilmaiseksi"}
                   </Button>
                 </SignUpButton>
                 <Button
@@ -353,91 +360,222 @@ if (!isSignedIn) {
                 </div>
                 <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
                   <Clock className="w-4 h-4 text-orange-400" />
-                  <span>{language === "en" ? "10-15min setup" : "10-15min asennus"}</span>
+                  <span>{language === "en" ? "Result in 60 seconds" : "Tulos 60 sekunnissa"}</span>
                 </div>
                 <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
                   <Check className="w-4 h-4 text-green-400" />
-                  <span>{language === "en" ? "No commitment" : "Ei sitoutumista"}</span>
+                  <span>{language === "en" ? "No personal data to AI" : "Ei PII:tä AI:lle"}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ATS Optimization Highlight Section */}
+        {/* ─── REALITY CHECK — uusi osio ─── */}
+        <div className="mb-16">
+          <div className="bg-gradient-to-br from-red-900/20 via-orange-900/10 to-red-900/20 rounded-3xl p-8 md:p-16 shadow-2xl relative overflow-hidden border border-red-500/20">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-red-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl -ml-20 -mb-20"></div>
+
+            <div className="relative z-10 max-w-4xl mx-auto text-center">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-500/15 backdrop-blur-md rounded-full border border-red-400/30 mb-6">
+                <AlertTriangle className="w-5 h-5 text-red-300" />
+                <span className="font-bold text-red-200 tracking-wide uppercase text-sm">
+                  {language === "en" ? "The Real Problem" : "Todellinen ongelma"}
+                </span>
+              </div>
+
+              <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">
+                {language === "en" ? "Most applicants never get seen." : "Useimmat hakijat jäävät näkemättä."}
+              </h2>
+
+              <p className="text-lg md:text-xl text-gray-200 mb-10">
+                {language === "en"
+                  ? "ATS systems like Workday, Greenhouse, and Lever filter applications mechanically. They don't understand synonyms. They don't care about potential. They match exact keywords — nothing more."
+                  : "ATS-järjestelmät kuten Workday, Greenhouse ja Lever seulovat hakemuksia mekaanisesti. Ne eivät ymmärrä synonyymejä. Ne eivät arvosta potentiaalia. Ne etsivät täsmälleen oikeita sanoja — ei mitään muuta."}
+              </p>
+
+              {/* Esimerkki-analyysi */}
+              <div className="bg-black/40 backdrop-blur-md rounded-2xl p-6 border border-white/10 text-left max-w-lg mx-auto mb-8">
+                <p className="text-xs font-mono text-gray-500 mb-4">
+                  // {language === "en" ? "Example: Junior developer applying to mid-level role" : "Esimerkki: Junior-kehittäjä hakee mid-tason rooliin"}
+                </p>
+                <div className="space-y-2 mb-4">
+                  {[
+                    { label: "React", found: true },
+                    { label: "TypeScript", found: true },
+                    { label: "Docker", found: false },
+                    { label: "AWS", found: false },
+                    { label: "CI/CD", found: false },
+                  ].map((kw, i) => (
+                    <div key={i} className="flex items-center justify-between py-1.5 px-3 rounded-lg bg-white/5">
+                      <span className="text-sm font-mono text-gray-300">{kw.label}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${kw.found ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"}`}>
+                        {kw.found
+                          ? (language === "en" ? "✓ matched" : "✓ löydetty")
+                          : (language === "en" ? "✗ missing" : "✗ puuttuu")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-white/10">
+                  <span className="text-sm text-gray-400">
+                    {language === "en" ? "ATS Score" : "ATS-pisteet"}
+                  </span>
+                  <span className="font-bold text-red-400 text-lg">38% — {language === "en" ? "Auto-rejected" : "Automaattihylky"}</span>
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-400">
+                {language === "en"
+                  ? "HappyApplaid shows you this before you apply — and tells you what to do about it."
+                  : "HappyApplaid näyttää tämän ennen kuin haet — ja kertoo mitä tehdä asialle."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── KENELLE — Kohderyhmät ─── */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-center text-gray-100 mb-8">
+            {language === "en" ? "Does this sound like you?" : "Tunnistatko itsesi?"}
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+
+            <div className="bg-gradient-to-br from-orange-900/20 to-amber-900/10 rounded-3xl p-8 border border-orange-500/20">
+              <div className="text-4xl mb-4">🎓</div>
+              <h3 className="font-bold text-xl mb-3 text-orange-300">
+                {language === "en" ? "Student or summer job seeker" : "Opiskelija tai kesätyönhakija"}
+              </h3>
+              <ul className="space-y-2 text-sm text-gray-300 mb-5">
+                {(language === "en"
+                  ? ["Sending applications but not getting replies", "Not sure why your CV gets rejected", "Competing with 200+ applicants for the same role"]
+                  : ["Lähetät hakemuksia mutta et saa vastauksia", "Et tiedä miksi CV:si hylätään", "Kilpailet 200+ hakijan kanssa samasta paikasta"]
+                ).map((item, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-orange-400 mt-0.5">→</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-orange-300/70">
+                {language === "en"
+                  ? "HappyApplaid shows where you stand before you send."
+                  : "HappyApplaid kertoo missä olet ennen kuin lähetät."}
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-indigo-900/20 to-purple-900/10 rounded-3xl p-8 border border-indigo-500/20">
+              <div className="text-4xl mb-4">🔄</div>
+              <h3 className="font-bold text-xl mb-3 text-indigo-300">
+                {language === "en" ? "Career changer or recently unemployed" : "Alanvaihtaja tai äskettäin työtön"}
+              </h3>
+              <ul className="space-y-2 text-sm text-gray-300 mb-5">
+                {(language === "en"
+                  ? ["You have experience — but from the wrong field", "Applying to roles unsure if your background fits", "Cover letters don't seem to land"]
+                  : ["Sinulla on kokemusta — mutta väärältä alalta", "Haet rooleihin tietämättä sopiiko taustasi", "Hakukirjeet eivät tunnu kolahtavan"]
+                ).map((item, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="text-indigo-400 mt-0.5">→</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-sm text-indigo-300/70">
+                {language === "en"
+                  ? "See honestly how big the experience gap is — and how to close it."
+                  : "Näe rehellisesti miten iso kokemuskuilu on — ja miten kuroa se umpeen."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── ATS OPTIMIZATION — päivitetty viestintä ─── */}
         <div className="mb-16">
           <div className="bg-gradient-to-br from-green-900/30 via-emerald-900/20 to-green-800/30 rounded-3xl p-8 md:p-16 shadow-2xl relative overflow-hidden border border-green-500/30">
             <div className="absolute top-0 right-0 w-96 h-96 bg-green-500/20 rounded-full blur-3xl -mr-20 -mt-20"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl -ml-20 -mb-20"></div>
-            
+
             <div className="relative z-10 max-w-4xl mx-auto text-center">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/20 backdrop-blur-md rounded-full border border-green-400/40 mb-6">
                 <Shield className="w-5 h-5 text-green-300" />
                 <span className="font-bold text-green-200 tracking-wide uppercase text-sm">
-                  {language === "en" ? "ATS Guaranteed" : "ATS Taattu"}
+                  {language === "en" ? "Not just keywords" : "Ei pelkkiä avainsanoja"}
                 </span>
               </div>
-              
+
               <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">
-                {language === "en" ? "Don't Get Filtered Out." : "Älä Jää Seulan Taakse."}
+                {language === "en" ? "Real analysis. Real strategy." : "Oikea analyysi. Oikea strategia."}
               </h2>
-              
+
               <p className="text-lg md:text-xl text-gray-200 mb-8">
                 {language === "en"
-                  ? "75% of applications never reach human eyes. Our Premium AI optimizes every word to pass Applicant Tracking Systems and uses STAR methodology to make you irresistible to employers."
-                  : "75% hakemuksista ei koskaan pääse ihmisen silmille. Premium-tekoälymme optimoi jokaisen sanan läpäisemään ATS-järjestelmät ja käyttää STAR-metodologiaa tehdäkseen sinusta vastustamattoman työnantajalle."}
+                  ? "Most ATS checkers give you a percentage. HappyApplaid tells you the whole picture — experience gaps, competitiveness, and whether applying is worth your time."
+                  : "Useimmat ATS-checkerit antavat sinulle prosentin. HappyApplaid kertoo koko kuvan — kokemuskuilut, kilpailukyvyn ja sen, kannattaako hakea ylipäätään."}
               </p>
 
               <div className="grid md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-green-500/20">
                   <Target className="w-10 h-10 text-green-400 mb-3 mx-auto" />
                   <h3 className="font-bold text-lg mb-2 text-green-300">
-                    {language === "en" ? "Job-Matched" : "Työhön Sovitettu"}
+                    {language === "en" ? "Exact Keyword Match" : "Täsmällinen keyword-matching"}
                   </h3>
                   <p className="text-sm text-gray-300">
-                    {language === "en" ? "Every CV tailored to specific job requirements" : "Jokainen CV räätälöity työpaikan vaatimuksiin"}
+                    {language === "en"
+                      ? "Like real ATS — no fake synonym tricks"
+                      : "Kuten oikeat ATS:t — ei tekaistuja synonyymitemppuja"}
+                  </p>
+                </div>
+                <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-green-500/20">
+                  <TrendingDown className="w-10 h-10 text-green-400 mb-3 mx-auto" />
+                  <h3 className="font-bold text-lg mb-2 text-green-300">
+                    {language === "en" ? "Experience Gap Severity" : "Kokemuskuilu-analyysi"}
+                  </h3>
+                  <p className="text-sm text-gray-300">
+                    {language === "en"
+                      ? "Low / Medium / High — not just missing keywords"
+                      : "Low / Medium / High — ei vain lista puuttuvista sanoista"}
                   </p>
                 </div>
                 <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-green-500/20">
                   <CheckCircle className="w-10 h-10 text-green-400 mb-3 mx-auto" />
                   <h3 className="font-bold text-lg mb-2 text-green-300">
-                    {language === "en" ? "ATS Optimized" : "ATS-Optimoitu"}
+                    {language === "en" ? "Apply / Don't Apply" : "Hae / Älä hae"}
                   </h3>
                   <p className="text-sm text-gray-300">
-                    {language === "en" ? "Keywords and formatting that pass screening" : "Avainsanat ja muotoilu jotka läpäisevät seulonnan"}
-                  </p>
-                </div>
-                <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-green-500/20">
-                  <Star className="w-10 h-10 text-green-400 mb-3 mx-auto" />
-                  <h3 className="font-bold text-lg mb-2 text-green-300">
-                    {language === "en" ? "STAR Method" : "STAR-Metodi"}
-                  </h3>
-                  <p className="text-sm text-gray-300">
-                    {language === "en" ? "Proven framework that sells your achievements" : "Todistettu viitekehys myymään saavutuksesi"}
+                    {language === "en"
+                      ? "Honest recommendation before you waste time"
+                      : "Rehellinen suositus ennen kuin tuhlaat aikaa"}
                   </p>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-red-500/10 to-orange-500/10 backdrop-blur-md p-6 rounded-2xl border border-red-500/20">
-                <p className="text-sm text-gray-200 mb-2">
-                  <strong className="text-red-300">{language === "en" ? "⚠️ Basic Plan:" : "⚠️ Basic-Paketti:"}</strong>
-                </p>
-                <p className="text-sm text-gray-300">
-                  {language === "en"
-                    ? "Creates a general CV that describes you—but doesn't target specific jobs or optimize for ATS systems."
-                    : "Luo yleisen CV:n joka kuvaa sinua—muttei kohdistu tiettyihin töihin eikä optimoi ATS-järjestelmille."}
-                </p>
+              {/* Privacy highlight */}
+              <div className="bg-gradient-to-r from-emerald-500/10 to-green-500/10 backdrop-blur-md p-5 rounded-2xl border border-green-500/20 text-left">
+                <div className="flex items-start gap-3">
+                  <Shield className="w-5 h-5 text-green-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-green-300 mb-1">
+                      {language === "en" ? "Privacy-first by architecture" : "Tietosuoja arkkitehtuurin tasolla"}
+                    </p>
+                    <p className="text-sm text-gray-300">
+                      {language === "en"
+                        ? "Your name, email, and phone never go to AI. This is a technical decision — not just a promise."
+                        : "Nimesi, emailisi ja puhelinnumerosi eivät koskaan mene AI:lle. Tämä on tekninen valinta — ei pelkkä lupaus."}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Digital Twin Section */}
+        {/* ─── DIGITAL TWIN — alkuperäinen, siirretty alemmas ─── */}
         <div className="mb-16">
           <div className="bg-gradient-to-br from-gray-900 via-black to-gray-800 rounded-3xl p-8 md:p-16 shadow-2xl relative overflow-hidden border border-white/10">
             <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl -ml-20 -mb-20"></div>
-            
+
             <div className="relative z-10 max-w-4xl mx-auto text-center">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-md rounded-full border border-orange-400/30 mb-6">
                 <Brain className="w-5 h-5 text-orange-300" />
@@ -445,11 +583,11 @@ if (!isSignedIn) {
                   {language === "en" ? "Not Just AI" : "Ei Vain AI"}
                 </span>
               </div>
-              
+
               <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">
                 {language === "en" ? "Your Digital Twin." : "Sinun Digitaalinen Kaksosesi."}
               </h2>
-              
+
               <p className="text-lg md:text-xl text-gray-300 mb-8">
                 {language === "en"
                   ? "Generic AI creates robotic text. Our engine analyzes your profile psychologically and writes in YOUR unique voice."
@@ -482,11 +620,11 @@ if (!isSignedIn) {
           </div>
         </div>
 
-        {/* AI That Grows Section */}
+        {/* ─── AI GROWS — alkuperäinen säilytetty ─── */}
         <div className="mb-16">
           <div className="max-w-4xl mx-auto bg-gradient-to-br from-gray-900/50 via-black/50 to-gray-800/50 backdrop-blur-2xl rounded-3xl p-8 md:p-12 border border-white/10 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-500/10 to-amber-500/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
-            
+
             <div className="relative z-10">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-md rounded-full border border-orange-400/30 mb-6">
                 <Sparkles className="w-5 h-5 text-orange-400" />
@@ -498,7 +636,7 @@ if (!isSignedIn) {
               <h2 className="text-3xl md:text-4xl font-extrabold text-gray-100 mb-6">
                 {language === "en" ? "AI That Grows With You" : "AI Joka Kasvaa Kanssasi"}
               </h2>
-              
+
               <p className="text-lg md:text-xl text-gray-300 mb-8">
                 {language === "en"
                   ? "Our AI asks smart questions when it needs more info. It learns and saves answers to your profile."
@@ -515,7 +653,6 @@ if (!isSignedIn) {
                     {language === "en" ? "Contextual follow-ups" : "Kontekstuaaliset jatkokysymykset"}
                   </p>
                 </div>
-
                 <div className="bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-white/10">
                   <Lightbulb className="w-8 h-8 text-yellow-400 mb-3" />
                   <h3 className="font-bold text-lg text-gray-100 mb-2">
@@ -530,12 +667,13 @@ if (!isSignedIn) {
           </div>
         </div>
 
-        {/* Features Grid */}
+        {/* ─── FEATURES GRID — päivitetty sisältö ─── */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-center text-gray-100 mb-8">
             {language === "en" ? "Everything You Need" : "Kaikki Mitä Tarvitset"}
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
               <Target className="w-10 h-10 text-green-400 mb-4" />
               <h3 className="font-bold text-lg mb-2 text-gray-100 flex items-center gap-2">
@@ -543,10 +681,21 @@ if (!isSignedIn) {
                 <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">Premium</span>
               </h3>
               <p className="text-sm text-gray-400">
-                {language === "en" ? "Pass employer screening systems" : "Läpäise työnantajan seulontajärjestelmät"}
+                {language === "en" ? "Exact keyword matching — like real ATS systems" : "Täsmällinen keyword matching — kuten oikeat ATS-järjestelmät"}
               </p>
             </div>
-            
+
+            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
+              <TrendingDown className="w-10 h-10 text-amber-400 mb-4" />
+              <h3 className="font-bold text-lg mb-2 text-gray-100 flex items-center gap-2">
+                {language === "en" ? "Experience Gap Analysis" : "Kokemuskuilu-analyysi"}
+                <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">Premium</span>
+              </h3>
+              <p className="text-sm text-gray-400">
+                {language === "en" ? "Low / Medium / High severity — not just a list" : "Low / Medium / High — ei vain lista puuttuvista"}
+              </p>
+            </div>
+
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
               <Star className="w-10 h-10 text-amber-400 mb-4" />
               <h3 className="font-bold text-lg mb-2 text-gray-100 flex items-center gap-2">
@@ -569,35 +718,12 @@ if (!isSignedIn) {
             </div>
 
             <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
-              <FileText className="w-10 h-10 text-blue-400 mb-4" />
-              <h3 className="font-bold text-lg mb-2 text-gray-100">
-                {language === "en" ? "Basic Profile" : "Perusprofiili"}
-              </h3>
-              <p className="text-sm text-gray-400">
-                {language === "en" ? "Describe who you are authentically" : "Kuvaile kuka olet aidosti"}
-              </p>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 hover:border-orange-400/30 transition-all">
               <FileText className="w-10 h-10 text-orange-400 mb-4" />
               <h3 className="font-bold text-lg mb-2 text-gray-100">
                 {language === "en" ? "PDF Export" : "PDF-Vienti"}
               </h3>
               <p className="text-sm text-gray-400">
                 {language === "en" ? "Professional PDF downloads" : "Ammattimaiset PDF-lataukset"}
-              </p>
-            </div>
-
-            <div className="bg-gray-900/50 backdrop-blur-xl p-6 rounded-3xl border border-white/5 relative overflow-hidden grayscale opacity-60">
-              <div className="absolute top-3 right-3 bg-yellow-500/80 text-black text-[10px] font-bold px-2 py-1 rounded uppercase">
-                {language === "en" ? "Soon" : "Pian"}
-              </div>
-              <FileEdit className="w-10 h-10 text-gray-500 mb-4" />
-              <h3 className="font-bold text-lg mb-2 text-gray-400">
-                {language === "en" ? "More Templates" : "Lisää Pohjia"}
-              </h3>
-              <p className="text-sm text-gray-500">
-                {language === "en" ? "Currently few options, more coming" : "Tällä hetkellä muutama, lisää tulossa"}
               </p>
             </div>
 
@@ -616,19 +742,20 @@ if (!isSignedIn) {
           </div>
         </div>
 
-        {/* Pricing Section */}
+        {/* ─── PRICING — tokens vaihdettu hyödyiksi ─── */}
         <div id="pricing" className="bg-white/5 backdrop-blur-2xl rounded-3xl p-8 md:p-12 border border-white/10 shadow-2xl mb-16 scroll-mt-20">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-100 mb-4">
               {language === "en" ? "Simple Pricing" : "Yksinkertainen Hinnoittelu"}
             </h2>
             <p className="text-lg text-gray-300">
-              {language === "en" ? "Start free - upgrade when you need more" : "Aloita ilmaiseksi - päivitä kun tarvitset"}
+              {language === "en" ? "Start free — upgrade when you need more" : "Aloita ilmaiseksi — päivitä kun tarvitset"}
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-            {/* Free Plan */}
+
+            {/* Free */}
             <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 flex flex-col">
               <h3 className="text-xl font-bold mb-2 text-gray-100">
                 {language === "en" ? "Free" : "Ilmainen"}
@@ -647,13 +774,13 @@ if (!isSignedIn) {
                 <li className="flex items-start gap-2 opacity-50">
                   <Ban className="w-4 h-4 text-gray-500 mt-0.5" />
                   <span className="text-sm text-gray-500">
-                    {language === "en" ? "No job targeting" : "Ei työkohdennusta"}
+                    {language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}
                   </span>
                 </li>
                 <li className="flex items-start gap-2 opacity-50">
                   <Ban className="w-4 h-4 text-gray-500 mt-0.5" />
                   <span className="text-sm text-gray-500">
-                    {language === "en" ? "No ATS optimization" : "Ei ATS-optimointia"}
+                    {language === "en" ? "No experience gap analysis" : "Ei kokemuskuilu-analyysiä"}
                   </span>
                 </li>
               </ul>
@@ -664,7 +791,7 @@ if (!isSignedIn) {
               </SignUpButton>
             </div>
 
-            {/* Basic Plan */}
+            {/* Basic */}
             <div className="bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-blue-400/30 flex flex-col">
               <h3 className="text-xl font-bold mb-2 text-blue-300">Basic</h3>
               <div className="mb-4">
@@ -674,12 +801,8 @@ if (!isSignedIn) {
               <ul className="space-y-3 mb-6 flex-1">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-green-400 mt-0.5" />
-                  <span className="text-sm text-gray-300">10,000 tokens/mo</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-400 mt-0.5" />
                   <span className="text-sm text-gray-300">
-                    {language === "en" ? "Unlimited General CVs" : "Rajattomat Yleiset CV:t"}
+                    {language === "en" ? "Unlimited General CVs & Letters" : "Rajattomat Yleiset CV:t ja kirjeet"}
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -702,7 +825,7 @@ if (!isSignedIn) {
               </Link>
             </div>
 
-            {/* Premium Plan */}
+            {/* Premium */}
             <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 backdrop-blur-md rounded-3xl p-6 border border-amber-400/40 shadow-2xl relative scale-105 flex flex-col">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">
                 {language === "en" ? "Best Value" : "Paras"}
@@ -716,13 +839,15 @@ if (!isSignedIn) {
               </div>
               <ul className="space-y-3 mb-6 flex-1">
                 <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-400 mt-0.5" />
-                  <span className="text-sm font-bold text-gray-200">100,000 tokens/mo</span>
+                  <Check className="w-4 h-4 text-amber-400 mt-0.5" />
+                  <span className="text-sm font-bold text-amber-200">
+                    {language === "en" ? "✨ ATS Optimized — exact matching" : "✨ ATS-Optimoitu — täsmällinen matching"}
+                  </span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-amber-400 mt-0.5" />
                   <span className="text-sm font-bold text-amber-200">
-                    {language === "en" ? "✨ ATS Optimized" : "✨ ATS-Optimoitu"}
+                    {language === "en" ? "✨ Experience Gap Analysis" : "✨ Kokemuskuilu-analyysi"}
                   </span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -747,15 +872,15 @@ if (!isSignedIn) {
           </div>
         </div>
 
-        {/* Final CTA */}
+        {/* ─── FINAL CTA — uusi viesti ─── */}
         <div className="bg-gradient-to-r from-orange-500/20 to-amber-500/20 backdrop-blur-2xl rounded-3xl p-12 md:p-16 text-center shadow-2xl border border-orange-400/30">
           <h2 className="text-3xl md:text-5xl font-extrabold mb-6 text-white">
-            {language === "en" ? "Ready to Save Hours?" : "Valmis Säästämään Tunteja?"}
+            {language === "en" ? "Stop guessing. Apply strategically." : "Lopeta arvaileminen. Hae strategisesti."}
           </h2>
           <p className="text-lg md:text-xl mb-8 text-gray-200 max-w-2xl mx-auto">
             {language === "en"
-              ? "Create your profile once. Get personalized applications forever."
-              : "Luo profiili kerran. Saa personoituja hakemuksia ikuisesti."}
+              ? "Create your profile once. Know where you stand — before you send."
+              : "Luo profiili kerran. Tiedä missä olet — ennen kuin lähetät."}
           </p>
 
           <SignUpButton mode="modal" appearance={clerkAppearance}>
@@ -767,7 +892,7 @@ if (!isSignedIn) {
         </div>
       </div>
 
-      {/* Footer */}
+      {/* ─── FOOTER ─── */}
       <footer className="relative z-10 py-12 text-center text-gray-500 border-t border-white/10 mt-16">
         <div className="max-w-7xl mx-auto px-4">
           <p className="text-sm">
