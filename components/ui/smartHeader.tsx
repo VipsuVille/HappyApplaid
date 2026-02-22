@@ -36,8 +36,13 @@ export default function SmartHeader() {
   const { user, isSignedIn, isLoaded: isClerkLoaded } = useUser();
   const { language, toggleLanguage } = useLanguage();
   const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
-  const { isDark } = useTheme();
-  const pathname = usePathname();
+let isDark = false;
+try {
+  const theme = useTheme();
+  isDark = theme?.isDark ?? false;
+} catch (error) {
+  isDark = false;
+}  const pathname = usePathname();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);

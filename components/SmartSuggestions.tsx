@@ -1,9 +1,10 @@
+// components/SmartSuggestions.tsx
+
 'use client';
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sparkles, TrendingUp, FileText, Shield, Crown } from 'lucide-react';
-import { useTheme } from '@/context/ThemeContext';
 
 interface SmartSuggestionsProps {
   hasDocuments: boolean;
@@ -12,6 +13,7 @@ interface SmartSuggestionsProps {
   hasHighGap?: boolean;
   isFreeTierLimited: boolean;
   language: string;
+  isDark?: boolean; // ✅ LISÄÄ TÄMÄ
 }
 
 export function SmartSuggestions({
@@ -21,16 +23,11 @@ export function SmartSuggestions({
   hasHighGap,
   isFreeTierLimited,
   language,
+  isDark = false, // ✅ DEFAULT FALSE
 }: SmartSuggestionsProps) {
-  // ✅ TURVALLINEN KÄYTTÖ
-  let isDark = false;
-  try {
-    const theme = useTheme();
-    isDark = theme?.isDark ?? false;
-  } catch (error) {
-    isDark = false;
-  }
-
+  // ❌ POISTA TÄMÄ:
+  // const { isDark } = useTheme();
+  
   const t = (fi: string, en: string) => language === 'en' ? en : fi;
 
   const suggestions: { icon: React.ReactNode; title: string; desc: string; href: string; cta: string; accent: string }[] = [];

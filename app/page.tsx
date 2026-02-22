@@ -63,7 +63,6 @@ const [loadingRecent, setLoadingRecent] = useState(false);
 const [showWelcome, setShowWelcome] = useState(false);
 const [showOnboarding, setShowOnboarding] = useState(false);
 const [showProfilePrompt, setShowProfilePrompt] = useState(false);
-  const { isDark } = useTheme();
 
 const { subscription, isLoading: subLoading } = useSubscription();
 const tier = subscription?.tier ?? "free";
@@ -241,6 +240,7 @@ useEffect(() => {
   if (!isLoaded || subLoading) {
     return <LoadingScreen />;
   }
+  const { isDark } = useTheme();
 
   // Welcome/Onboarding State
   if (showWelcome) {
@@ -1242,6 +1242,8 @@ return (
   hasHighGap={hasHighGap}         // ✅ Muutettu: false → hasHighGap
   isFreeTierLimited={tier === 'free' && hasUsedFreeCv}
   language={language}
+    isDark={isDark} // ✅ LISÄÄ TÄMÄ
+
 />
 
       {/* ═══════════════════════════════════
