@@ -298,12 +298,12 @@ try {
         </div>
 
         {/* ── MOBILE MENU ────────────────────────────────────────────────── */}
-        {mobileMenuOpen && (
-          <div className={`lg:hidden border-b absolute left-0 top-full w-full z-50 animate-in slide-in-from-top duration-200 ${
-            isDark
-              ? 'bg-black/97 backdrop-blur-xl border-white/10'
-              : 'bg-white/98 backdrop-blur-xl border-gray-200'
-          }`}>
+{mobileMenuOpen && (
+  <div className={`lg:hidden border-b absolute left-0 top-full w-full z-50 animate-in slide-in-from-top duration-200 shadow-2xl ${
+    isDark
+      ? 'bg-[#0a0a0a] backdrop-blur-2xl border-white/10'  // ✅ Täysi musta
+      : 'bg-white backdrop-blur-2xl border-gray-200'      // ✅ Täysi valkoinen
+  }`}>
             <div className="flex flex-col p-4 gap-1 max-h-[80vh] overflow-y-auto">
 
               {isSignedIn ? (
