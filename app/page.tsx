@@ -42,6 +42,8 @@ import HowItWorksTimeline from "@/components/howitworks";
 import { clerkAppearance } from "@/lib/clerkAppearance";
 import LoadingScreen from "@/components/LoadingScreen";
 import { useTheme } from "@/context/ThemeContext";
+import { SmartSuggestions } from "@/components/SmartSuggestions";
+import { supabaseAdmin } from "@/lib/supabase";
 
 interface SubscriptionStatus {
   plan_type: "free" | "basic" | "premium";
@@ -61,6 +63,7 @@ const [loadingRecent, setLoadingRecent] = useState(false);
 const [showWelcome, setShowWelcome] = useState(false);
 const [showOnboarding, setShowOnboarding] = useState(false);
 const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+  const { isDark } = useTheme();
 
 const { subscription, isLoading: subLoading } = useSubscription();
 const tier = subscription?.tier ?? "free";
@@ -71,8 +74,42 @@ const isPaid = isActive && tier !== "free";
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const { tokens } = useTokens();
-
+  const [hasRunATS, setHasRunATS] = useState(false);
+  const [atsScore, setAtsScore] = useState<number | null>(null);
+  const [hasHighGap, setHasHighGap] = useState(false);
   const displayName = user?.firstName || null;
+
+
+  // ✅ LISÄÄ TÄMÄ UUSI useEffect
+  useEffect(() => {
+    const loadATSStatus = async () => {
+      if (!isSignedIn || !user?.id) return;
+
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('ats_checks')
+          .select('score, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (data && !error) {
+          setHasRunATS(true);
+          setAtsScore(data.score || null);
+          // Jos sinulla on gap_severity kenttä:
+          // setHasHighGap(data.gap_severity === 'high');
+        }
+      } catch (err) {
+        console.error('Error loading ATS status:', err);
+      }
+    };
+
+    if (isLoaded && isSignedIn) {
+      loadATSStatus();
+    }
+  }, [isSignedIn, user?.id, isLoaded]);
+
   useEffect(() => {
     const checkFirstVisit = async () => {
       if (!isSignedIn || !user?.id) return;
@@ -298,7 +335,6 @@ if (!isLoaded || subLoading) {
 // Muut ikonit ja Clerk/Button/Link ovat samat kuin aiemmin.
 
 if (!isSignedIn) {
-  const { isDark } = useTheme();
   const t = (fi: string, en: string) => language === "en" ? en : fi;
 
   // ── Uudelleenkäytettävä mid-page CTA -komponentti ─────────────────────
@@ -993,167 +1029,281 @@ if (!isSignedIn) {
     </div>
   );
 }
- return (
-  <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 font-sans">
-    
-    {/* --- PROFIILI MODAALI --- */}
+// ═══════════════════════════════════════════════════════════════════════════
+// DASHBOARD — Kirjautuneen käyttäjän pääsivu
+// ═══════════════════════════════════════════════════════════════════════════
+
+return (
+  <div className={`min-h-screen font-sans transition-colors duration-300 ${
+    isDark
+      ? 'bg-gradient-to-br from-gray-900 via-black to-gray-800'
+      : 'bg-gradient-to-br from-gray-50 via-white to-gray-100'
+  }`}>
+
+    {/* ═══════════════════════════════════
+        PROFIILIMODAALI
+    ═══════════════════════════════════ */}
     {showProfilePrompt && profileCompleted === false && (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div className="backdrop-blur-2xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative animate-in fade-in zoom-in duration-300">
+        <div className={`backdrop-blur-2xl border rounded-[2.5rem] shadow-2xl p-8 max-w-md w-full relative animate-in fade-in zoom-in duration-300 transition-colors ${
+          isDark ? 'bg-[#1a1a1a]/70 border-[#2a2a2a]' : 'bg-white/90 border-orange-200/60'
+        }`}>
           <button
             onClick={() => setShowProfilePrompt(false)}
             className="absolute top-6 right-6 hover:bg-white/10 rounded-full p-2 transition-colors"
           >
-            <X className="w-5 h-5 text-gray-400" />
+            <X className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`} />
           </button>
 
-          <div className="bg-gradient-to-br from-orange-500/20 to-amber-500/20 backdrop-blur-md w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner border border-orange-400/30">
+          <div className="bg-gradient-to-br from-orange-500/20 to-amber-500/20 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-orange-400/30">
             <User className="h-10 w-10 text-orange-400" />
           </div>
 
-          <h3 className="text-2xl font-black text-center mb-3 text-gray-100 tracking-tight">
-            {language === "en" ? `Hey, ${user?.firstName}!` : `Hei, ${user?.firstName}!`}
+          <h3 className={`text-2xl font-black text-center mb-3 tracking-tight ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+            {language === 'en' ? `Hey, ${user?.firstName}!` : `Hei, ${user?.firstName}!`}
           </h3>
-          <p className="text-center text-gray-400 mb-8 leading-relaxed">
-            {language === "en"
-              ? "We recommend filling out your profile to get the best results."
-              : "Suosittelemme profiilin täyttämistä, jotta saat parhaan hyödyn tekoälystämme."}
+          <p className={`text-center mb-8 leading-relaxed ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {language === 'en'
+              ? 'Fill your profile to get the best results from AI.'
+              : 'Täytä profiilisi, jotta saat parhaan hyödyn tekoälystämme.'}
           </p>
 
           <div className="flex flex-col gap-3">
             <Link href="/profile" className="w-full">
-              <Button className="w-full h-12 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-2xl shadow-lg shadow-orange-500/20 transition-all active:scale-95 border-none text-white font-bold">
-                {language === "en" ? "Fill Profile" : "Täytä Profiili"}
+              <Button className="w-full h-12 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-2xl font-bold text-white">
+                {language === 'en' ? 'Fill Profile' : 'Täytä Profiili'}
               </Button>
             </Link>
             <Button
               variant="ghost"
               onClick={() => setShowProfilePrompt(false)}
-              className="w-full h-12 rounded-2xl text-gray-400 hover:text-gray-200 hover:bg-white/5"
+              className={`w-full h-12 rounded-2xl ${isDark ? 'text-gray-400 hover:text-gray-200 hover:bg-white/5' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
             >
-              {language === "en" ? "Maybe later" : "Ehkä myöhemmin"}
+              {language === 'en' ? 'Maybe later' : 'Ehkä myöhemmin'}
             </Button>
           </div>
         </div>
       </div>
     )}
 
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      
-      {/* --- TERVEHDYS OSA --- */}
-      <div className="mb-10 backdrop-blur-xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2.5rem] shadow-xl shadow-black/50 p-8 sm:p-10 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 blur-3xl rounded-full -mr-10 -mt-10"></div>
-        
-        <h1 className="text-3xl sm:text-5xl font-black bg-gradient-to-r from-amber-400 via-orange-500 to-amber-300
- bg-clip-text text-transparent mb-3 tracking-tight">
-          {language === "en"
-            ? `Welcome${displayName ? `, ${displayName}` : ""}!`
-            : `Tervetuloa${displayName ? `, ${displayName}` : ""}!`}
-        </h1>
-        <div className="flex items-center gap-2">
-           <span className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-md ${tier === 'free' ? 'bg-gray-700/50 text-gray-300 border border-gray-600/30' : 'bg-orange-500/20 text-orange-300 border border-orange-400/30'}`}>
-              {tier === "free"
-                ? language === "en" ? "Free Member" : "Ilmaisjäsen"
-                : tier.toUpperCase()}
-           </span>
-           <p className="text-gray-400 text-sm sm:text-base font-medium">
-            {tier === "free" && (
-                language === "en" ? "• 1 CV + 1 Letter included" : "• Sisältää 1 CV:n + 1 hakukirjeen"
-            )}
-           </p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+      {/* ═══════════════════════════════════
+          1. TERVEHDYS + BADGE
+      ═══════════════════════════════════ */}
+      <div className={`mb-8 backdrop-blur-xl border rounded-[2.5rem] shadow-xl p-7 sm:p-9 relative overflow-hidden transition-colors duration-300 ${
+        isDark
+          ? 'bg-[#1a1a1a]/70 border-[#2a2a2a] shadow-black/50'
+          : 'bg-white/80 border-orange-200/60 shadow-orange-100/30'
+      }`}>
+        <div className={`absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full -mr-10 -mt-10 ${
+          isDark ? 'bg-orange-500/10' : 'bg-orange-200/30'
+        }`}></div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-amber-400 via-orange-500 to-amber-300 bg-clip-text text-transparent mb-2 tracking-tight">
+              {language === 'en'
+                ? `Welcome${displayName ? `, ${displayName}` : ''}!`
+                : `Tervetuloa${displayName ? `, ${displayName}` : ''}!`}
+            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${
+                tier === 'free'
+                  ? isDark ? 'bg-gray-700/50 text-gray-300 border border-gray-600/30' : 'bg-gray-100 text-gray-500 border border-gray-300/50'
+                  : isDark ? 'bg-orange-500/20 text-orange-300 border border-orange-400/30' : 'bg-orange-100 text-orange-600 border border-orange-300/50'
+              }`}>
+                {tier === 'free'
+                  ? language === 'en' ? 'Free Member' : 'Ilmaisjäsen'
+                  : tier.toUpperCase()}
+              </span>
+              {tier === 'free' && (
+                <p className={`text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  {language === 'en' ? '• 1 CV + 1 Letter included' : '• Sisältää 1 CV:n + 1 hakukirjeen'}
+                </p>
+              )}
+            </div>
+          </div>
+          
+          {/* Setup Progress — vain jos uusi käyttäjä */}
+          {(profileCompleted === false || (recentCVs.length === 0 && recentCoverLetters.length === 0)) && (
+            <div className={`rounded-2xl p-4 border min-w-[200px] transition-colors duration-300 ${
+              isDark ? 'bg-white/5 border-white/10' : 'bg-orange-50 border-orange-200/60'
+            }`}>
+              <p className={`text-xs font-bold uppercase tracking-wide mb-3 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {language === 'en' ? 'Your setup progress' : 'Aloituksen edistyminen'}
+              </p>
+              {[
+                { 
+                  label: language === 'en' ? 'Complete profile' : 'Täytä profiili', 
+                  done: profileCompleted === true, 
+                  href: '/profile' 
+                },
+                { 
+                  label: language === 'en' ? 'Create first CV' : 'Luo ensimmäinen CV', 
+                  done: recentCVs.length > 0, 
+                  href: '/create-cv' 
+                },
+                { 
+                  label: language === 'en' ? 'Run ATS check' : 'Aja ATS-testi', 
+                  done: false, 
+                  href: '/ats-checker' 
+                },
+              ].map((step, i) => (
+                <Link key={i} href={step.done ? '#' : step.href}>
+                  <div className={`flex items-center gap-2 py-1.5 text-sm transition-colors ${
+                    step.done
+                      ? isDark ? 'text-green-400' : 'text-green-600'
+                      : isDark ? 'text-gray-300 hover:text-orange-300' : 'text-gray-600 hover:text-orange-600'
+                  }`}>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                      step.done
+                        ? 'bg-green-500 text-white'
+                        : isDark ? 'bg-white/10 text-gray-400' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {step.done ? '✓' : i + 1}
+                    </span>
+                    {step.label}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* --- UPGRADE BANNERI --- */}
-      {tier === "free" && hasUsedFreeCv && (
-        <div className="mb-10 backdrop-blur-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-400/30 rounded-[2.5rem] shadow-xl p-8 flex flex-col items-center relative overflow-hidden group">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          
-          <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl shadow-sm mb-4 relative z-10 border border-white/10">
+      {/* ═══════════════════════════════════
+          2. SMART ACTION BAR — Kolme päätoimintoa
+      ═══════════════════════════════════ */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        {[
+          {
+            href: '/ats-checker',
+            icon: <Shield className="h-7 w-7 text-green-400" />,
+            iconBg: isDark ? 'bg-green-500/20 border-green-400/30' : 'bg-green-100 border-green-300/50',
+            title: language === 'en' ? 'Run ATS Check' : 'Aja ATS-testi',
+            desc: language === 'en' ? 'See your pass probability' : 'Näe läpipääsytodennäköisyys',
+            btnClass: 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white',
+            available: true,
+          },
+          {
+            href: canCreateCV ? '/create-cv' : '/pricing',
+            icon: <FileText className="h-7 w-7 text-orange-400" />,
+            iconBg: isDark ? 'bg-orange-500/20 border-orange-400/30' : 'bg-orange-100 border-orange-300/50',
+            title: language === 'en' ? 'Create CV' : 'Luo CV',
+            desc: language === 'en' ? 'ATS-optimized, your voice' : 'ATS-optimoitu, sinun äänelläsi',
+            btnClass: canCreateCV
+              ? 'bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white'
+              : isDark ? 'bg-white/10 text-gray-400 border border-white/10' : 'bg-gray-100 text-gray-500 border border-gray-300',
+            available: canCreateCV,
+          },
+          {
+            href: '/create-cover-letter',
+            icon: <FileEdit className="h-7 w-7 text-indigo-400" />,
+            iconBg: isDark ? 'bg-indigo-500/20 border-indigo-400/30' : 'bg-indigo-100 border-indigo-300/50',
+            title: language === 'en' ? 'Cover Letter' : 'Hakukirje',
+            desc: language === 'en' ? 'Targeted, not generic' : 'Kohdennettu, ei geneerinen',
+            btnClass: 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white',
+            available: true,
+          },
+        ].map((action, i) => (
+          <Link key={i} href={action.href} className="group">
+            <div className={`h-full backdrop-blur-xl border rounded-[2rem] p-6 group-hover:-translate-y-1 group-hover:shadow-xl transition-all duration-300 ${
+              isDark
+                ? 'bg-[#1a1a1a]/70 border-[#2a2a2a] group-hover:shadow-black/40'
+                : 'bg-white/80 border-gray-200 group-hover:shadow-orange-100/50'
+            }`}>
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border transition-transform group-hover:scale-110 ${action.iconBg}`}>
+                {action.icon}
+              </div>
+              <h3 className={`font-black text-lg mb-1 tracking-tight ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+                {action.title}
+              </h3>
+              <p className={`text-sm mb-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                {action.desc}
+              </p>
+              <Button className={`w-full h-11 rounded-xl font-bold shadow-md transition-all text-sm ${action.btnClass}`}>
+                {action.available
+                  ? language === 'en' ? 'Start Now →' : 'Aloita →'
+                  : language === 'en' ? 'Upgrade' : 'Päivitä'}
+              </Button>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* ═══════════════════════════════════
+          3. SMART SUGGESTIONS — dynaaminen
+      ═══════════════════════════════════ */}
+     <SmartSuggestions
+  hasDocuments={recentCVs.length > 0 || recentCoverLetters.length > 0}
+  hasRunATS={hasRunATS}           // ✅ Muutettu: false → hasRunATS
+  atsScore={atsScore}             // ✅ Muutettu: null → atsScore
+  hasHighGap={hasHighGap}         // ✅ Muutettu: false → hasHighGap
+  isFreeTierLimited={tier === 'free' && hasUsedFreeCv}
+  language={language}
+/>
+
+      {/* ═══════════════════════════════════
+          4. UPGRADE BANNERI — vain jos relevantti
+      ═══════════════════════════════════ */}
+      {tier === 'free' && hasUsedFreeCv && (
+        <div className={`mb-8 backdrop-blur-xl border rounded-[2.5rem] shadow-xl p-7 flex flex-col sm:flex-row items-center gap-6 relative overflow-hidden group transition-colors duration-300 ${
+          isDark
+            ? 'bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-400/30'
+            : 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300/60'
+        }`}>
+          <div className={`w-16 h-16 flex-shrink-0 rounded-2xl flex items-center justify-center border ${
+            isDark ? 'bg-white/5 border-white/10' : 'bg-white/70 border-amber-200'
+          }`}>
             <Crown className="h-8 w-8 text-amber-400 animate-pulse" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-100 mb-3 relative z-10">
-            {language === "en" ? "Unlock Your Full Potential" : "Avaa täydet ominaisuudet"}
-          </h2>
-          <p className="text-center text-gray-300 mb-8 max-w-md relative z-10 leading-relaxed">
-            {language === "en"
-              ? "Upgrade to Premium to create unlimited ATS-optimized documents and stand out from the crowd."
-              : "Päivitä Premium-tiliin ja luo rajattomasti ATS-optimoituja dokumentteja ilman rajoituksia."}
-          </p>
-          <Link href="/pricing" className="relative z-10 w-full sm:w-auto">
-            <Button className="px-10 h-14 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 transition-all hover:scale-105 shadow-xl">
-              <Crown className="w-5 h-5" />
-              {language === "en" ? "Get Premium Access" : "Hanki Premium-käyttöoikeus"}
+          <div className="flex-1 text-center sm:text-left">
+            <h2 className={`text-xl font-bold mb-1 ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+              {language === 'en' ? 'Ready for more?' : 'Valmis enempään?'}
+            </h2>
+            <p className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              {language === 'en'
+                ? 'Unlock unlimited ATS-optimized documents, experience gap analysis, and STAR methodology.'
+                : 'Avaa rajattomat ATS-optimoidut dokumentit, kokemuskuilu-analyysi ja STAR-metodologia.'}
+            </p>
+          </div>
+          <Link href="/pricing" className="flex-shrink-0">
+            <Button className="h-12 px-8 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-2xl font-bold shadow-xl whitespace-nowrap">
+              <Crown className="w-4 h-4 mr-2" />
+              {language === 'en' ? 'Get Premium' : 'Hanki Premium'}
             </Button>
           </Link>
         </div>
       )}
 
-      <HowItWorksTimeline />
+      {/* ═══════════════════════════════════
+          5. MY DOCUMENTS — secondary, alla
+      ═══════════════════════════════════ */}
+      <div className={`backdrop-blur-xl border rounded-[2.5rem] shadow-xl p-7 sm:p-9 transition-colors duration-300 ${
+        isDark ? 'bg-[#1a1a1a]/70 border-[#2a2a2a]' : 'bg-white/80 border-gray-200'
+      }`}>
+        <h2 className={`text-xl font-black flex items-center gap-3 mb-7 tracking-tight ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
+          <Files className="h-6 w-6 text-orange-400" />
+          {language === 'en' ? 'My Documents' : 'Omat Dokumentit'}
+        </h2>
 
-      {/* --- PÄÄTOIMINNOT (GRID) --- */}
-      <div className="grid mt-10 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        
-        {/* CV KORTTI */}
-        {canCreateCV ? (
-          <Link href="/create-cv" className="group">
-            <div className="h-full backdrop-blur-xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2rem] shadow-lg p-8 group-hover:shadow-2xl group-hover:shadow-orange-500/20 group-hover:-translate-y-2 transition-all duration-300">
-              <div className="bg-orange-500/20 backdrop-blur-md w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform border border-orange-400/30">
-                <FileText className="h-8 w-8 text-orange-400" />
-              </div>
-              <h3 className="font-black text-2xl mb-2 text-gray-100 tracking-tight">
-                {language === "en" ? "Create CV" : "Luo CV"}
-              </h3>
-              <p className="text-sm text-gray-400 mb-8 leading-relaxed">
-                {isPaid
-                  ? language === "en" ? "Unlimited ATS-optimized CVs for your dream job." : "Rajattomat ATS-optimoidut CV:t unelmaduuniisi."
-                  : language === "en" ? "Try our personality-driven basic template." : "Kokeile persoonallisuusvetoista pohjaamme."}
-              </p>
-              <Button className="w-full h-12 bg-orange-500 hover:bg-orange-600 rounded-xl font-bold shadow-lg shadow-orange-500/20 transition-colors text-white">
-                {language === "en" ? "Start Now" : "Aloita heti"}
-              </Button>
-            </div>
-          </Link>
-        ) : (
-          <div className="h-full backdrop-blur-xl bg-gray-900/50 border border-gray-700/50 rounded-[2rem] p-8 opacity-80 relative">
-            <Lock className="absolute top-8 right-8 h-6 w-6 text-gray-600" />
-            <div className="bg-gray-700/30 w-16 h-16 rounded-2xl flex items-center justify-center mb-6">
-              <FileText className="h-8 w-8 text-gray-600" />
-            </div>
-            <h3 className="font-black text-2xl mb-2 text-gray-600 tracking-tight">
-              {language === "en" ? "Create CV" : "Luo CV"}
-            </h3>
-            <p className="text-sm text-gray-500 mb-8">
-              {language === "en" ? "Free CV already used. Upgrade to create more!" : "Ilmainen CV jo käytetty. Päivitä luodaksesi lisää!"}
-            </p>
-            <Link href="/pricing">
-              <Button variant="outline" className="w-full h-12 rounded-xl border border-gray-700 font-bold text-gray-400 hover:bg-white/5">
-                {language === "en" ? "Upgrade" : "Päivitä"}
-              </Button>
-            </Link>
-          </div>
-        )}
-   
-      </div>
+        <div className="grid md:grid-cols-2 gap-7">
 
-      {/* --- OMAT DOKUMENTIT --- */}
-      <div className="backdrop-blur-xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-[2.5rem] shadow-xl p-8 sm:p-10">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-black flex items-center gap-3 text-gray-100 tracking-tight">
-            <Files className="h-7 w-7 text-orange-400" />
-            {language === "en" ? "My Documents" : "Omat Dokumentit"}
-          </h2>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-8">
           {/* CV-lista */}
-          <div className="space-y-4">
-            <Link href="/my-cvs" className="flex items-center justify-between p-5 bg-orange-500/10 hover:bg-orange-500/20 backdrop-blur-md rounded-[1.5rem] transition-all group border border-orange-400/20">
+          <div className="space-y-3">
+            <Link href="/my-cvs" className={`flex items-center justify-between p-4 backdrop-blur-md rounded-[1.5rem] transition-all group border ${
+              isDark
+                ? 'bg-orange-500/10 hover:bg-orange-500/20 border-orange-400/20'
+                : 'bg-orange-50 hover:bg-orange-100 border-orange-200/60'
+            }`}>
               <div className="flex items-center gap-3">
-                <div className="bg-white/10 backdrop-blur-md p-2 rounded-lg shadow-sm border border-white/10">
+                <div className={`p-2 rounded-lg border ${isDark ? 'bg-white/10 border-white/10' : 'bg-white border-orange-200'}`}>
                   <FileText className="h-5 w-5 text-orange-400" />
                 </div>
-                <span className="font-black text-gray-100">{language === "en" ? "My CVs" : "Omat CV:t"}</span>
+                <span className={`font-black ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+                  {language === 'en' ? 'My CVs' : 'Omat CV:t'}
+                </span>
                 {recentCVs.length > 0 && (
                   <span className="bg-orange-500 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">
                     {recentCVs.length}
@@ -1163,40 +1313,53 @@ if (!isSignedIn) {
               <ChevronRight className="h-5 w-5 text-orange-400 group-hover:translate-x-1 transition-transform" />
             </Link>
 
-            <div className="space-y-3 min-h-[100px]">
+            <div className="space-y-2 min-h-[80px]">
               {loadingRecent ? (
-                <div className="flex justify-center py-10"><div className="animate-spin h-6 w-6 border-4 border-orange-500 border-t-transparent rounded-full"></div></div>
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin h-6 w-6 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+                </div>
               ) : recentCVs.length > 0 ? (
                 recentCVs.map((cv: any) => (
                   <Link key={cv.id} href={`/edit-cv/${cv.id}`}>
-                    <div className="p-4 bg-white/5 backdrop-blur-md border border-white/10 hover:border-orange-400/30 hover:bg-white/10 rounded-2xl transition-all shadow-sm hover:shadow-md flex justify-between items-center group">
+                    <div className={`p-4 backdrop-blur-md border rounded-2xl transition-all flex justify-between items-center group hover:-translate-y-0.5 ${
+                      isDark
+                        ? 'bg-white/5 border-white/10 hover:border-orange-400/30 hover:bg-white/10'
+                        : 'bg-gray-50 border-gray-200 hover:border-orange-300 hover:bg-orange-50/50'
+                    }`}>
                       <div>
-                        <p className="font-bold text-sm text-gray-200 group-hover:text-orange-400 transition-colors">
-                          {cv.content?.personalInfo?.name || cv.title || (language === "en" ? "Unnamed CV" : "Nimetön CV")}
+                        <p className={`font-bold text-sm group-hover:text-orange-400 transition-colors ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                          {cv.content?.cv_data?.name || cv.title || (language === 'en' ? 'Unnamed CV' : 'Nimetön CV')}
                         </p>
-                        <p className="text-[10px] text-gray-500 uppercase font-bold mt-1 tracking-wider">
-                          {new Date(cv.created_at).toLocaleDateString(language === "en" ? "en-US" : "fi-FI")}
+                        <p className={`text-[10px] uppercase font-bold mt-0.5 tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {new Date(cv.created_at).toLocaleDateString(language === 'en' ? 'en-US' : 'fi-FI')}
                         </p>
                       </div>
+                      <ChevronRight className={`h-4 w-4 opacity-0 group-hover:opacity-100 transition-all ${isDark ? 'text-orange-400' : 'text-orange-500'}`} />
                     </div>
                   </Link>
                 ))
               ) : (
-                <p className="text-center text-gray-500 text-sm py-6 bg-gray-900/50 rounded-2xl border border-dashed border-gray-700">
-                  {language === "en" ? "No CVs yet" : "Ei vielä CV:itä"}
+                <p className={`text-center text-sm py-6 rounded-2xl border border-dashed ${isDark ? 'text-gray-500 bg-gray-900/50 border-gray-700' : 'text-gray-400 bg-gray-50 border-gray-300'}`}>
+                  {language === 'en' ? 'No CVs yet' : 'Ei vielä CV:itä'}
                 </p>
               )}
             </div>
           </div>
 
           {/* Kirje-lista */}
-          <div className="space-y-4">
-            <Link href="/my-cover-letters" className="flex items-center justify-between p-5 bg-emerald-500/10 hover:bg-emerald-500/20 backdrop-blur-md rounded-[1.5rem] transition-all group border border-emerald-400/20">
+          <div className="space-y-3">
+            <Link href="/my-cover-letters" className={`flex items-center justify-between p-4 backdrop-blur-md rounded-[1.5rem] transition-all group border ${
+              isDark
+                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-400/20'
+                : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200/60'
+            }`}>
               <div className="flex items-center gap-3">
-                <div className="bg-white/10 backdrop-blur-md p-2 rounded-lg shadow-sm border border-white/10">
+                <div className={`p-2 rounded-lg border ${isDark ? 'bg-white/10 border-white/10' : 'bg-white border-emerald-200'}`}>
                   <FileInput className="h-5 w-5 text-emerald-400" />
                 </div>
-                <span className="font-black text-gray-100">{language === "en" ? "Cover Letters" : "Hakukirjeet"}</span>
+                <span className={`font-black ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+                  {language === 'en' ? 'Cover Letters' : 'Hakukirjeet'}
+                </span>
                 {recentCoverLetters.length > 0 && (
                   <span className="bg-emerald-500 text-white px-2.5 py-0.5 rounded-full text-xs font-bold">
                     {recentCoverLetters.length}
@@ -1206,27 +1369,34 @@ if (!isSignedIn) {
               <ChevronRight className="h-5 w-5 text-emerald-400 group-hover:translate-x-1 transition-transform" />
             </Link>
 
-            <div className="space-y-3 min-h-[100px]">
+            <div className="space-y-2 min-h-[80px]">
               {loadingRecent ? (
-                <div className="flex justify-center py-10"><div className="animate-spin h-6 w-6 border-4 border-emerald-500 border-t-transparent rounded-full"></div></div>
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin h-6 w-6 border-4 border-emerald-500 border-t-transparent rounded-full"></div>
+                </div>
               ) : recentCoverLetters.length > 0 ? (
                 recentCoverLetters.map((letter: any) => (
                   <Link key={letter.id} href={`/edit-cover-letter/${letter.id}`}>
-                    <div className="p-4 bg-white/5 backdrop-blur-md border border-white/10 hover:border-emerald-400/30 hover:bg-white/10 rounded-2xl transition-all shadow-sm hover:shadow-md flex justify-between items-center group">
+                    <div className={`p-4 backdrop-blur-md border rounded-2xl transition-all flex justify-between items-center group hover:-translate-y-0.5 ${
+                      isDark
+                        ? 'bg-white/5 border-white/10 hover:border-emerald-400/30 hover:bg-white/10'
+                        : 'bg-gray-50 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50'
+                    }`}>
                       <div>
-                        <p className="font-bold text-sm text-gray-200 group-hover:text-emerald-400 transition-colors">
-                          {letter.title || letter.job_title || (language === "en" ? "Unnamed Letter" : "Nimetön Kirje")}
+                        <p className={`font-bold text-sm group-hover:text-emerald-400 transition-colors ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                          {letter.title || (language === 'en' ? 'Unnamed Letter' : 'Nimetön Kirje')}
                         </p>
-                        <p className="text-[10px] text-gray-500 uppercase font-bold mt-1 tracking-wider">
-                          {new Date(letter.created_at).toLocaleDateString(language === "en" ? "en-US" : "fi-FI")}
+                        <p className={`text-[10px] uppercase font-bold mt-0.5 tracking-wider ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                          {new Date(letter.created_at).toLocaleDateString(language === 'en' ? 'en-US' : 'fi-FI')}
                         </p>
                       </div>
+                      <ChevronRight className={`h-4 w-4 opacity-0 group-hover:opacity-100 transition-all ${isDark ? 'text-emerald-400' : 'text-emerald-500'}`} />
                     </div>
                   </Link>
                 ))
               ) : (
-                <p className="text-center text-gray-500 text-sm py-6 bg-gray-900/50 rounded-2xl border border-dashed border-gray-700">
-                  {language === "en" ? "No letters yet" : "Ei vielä kirjeitä"}
+                <p className={`text-center text-sm py-6 rounded-2xl border border-dashed ${isDark ? 'text-gray-500 bg-gray-900/50 border-gray-700' : 'text-gray-400 bg-gray-50 border-gray-300'}`}>
+                  {language === 'en' ? 'No letters yet' : 'Ei vielä kirjeitä'}
                 </p>
               )}
             </div>
@@ -1235,13 +1405,15 @@ if (!isSignedIn) {
       </div>
     </div>
 
-    {/* --- FOOTER --- */}
-    <footer className="py-12 text-center text-gray-500 mt-20">
+    {/* ═══════════════════════════════════
+        FOOTER
+    ═══════════════════════════════════ */}
+    <footer className={`py-10 text-center mt-16 transition-colors duration-300 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
       <div className="max-w-7xl mx-auto px-4">
-        <div className="h-px bg-gradient-to-r from-transparent via-orange-500/20 to-transparent mb-8"></div>
+        <div className={`h-px mb-6 bg-gradient-to-r from-transparent via-orange-500/20 to-transparent`}></div>
         <p className="text-sm font-medium tracking-wide">
-          © {new Date().getFullYear()} HappyApplaid.{" "}
-          {language === "en" ? "Crafted with love for your career." : "Rakkaudella luotu urallesi."}
+          © {new Date().getFullYear()} HappyApplaid.{' '}
+          {language === 'en' ? 'Crafted with love for your career.' : 'Rakkaudella luotu urallesi.'}
         </p>
       </div>
     </footer>
