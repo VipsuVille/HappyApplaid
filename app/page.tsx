@@ -41,6 +41,8 @@ import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
 import HowItWorksTimeline from "@/components/howitworks";
 import { clerkAppearance } from "@/lib/clerkAppearance";
 import LoadingScreen from "@/components/LoadingScreen";
+import { useTheme } from "@/context/ThemeContext";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface SubscriptionStatus {
   plan_type: "free" | "basic" | "premium";
