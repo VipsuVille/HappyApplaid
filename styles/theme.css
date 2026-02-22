@@ -37,7 +37,7 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 220 14% 90%;
+--border: 220 14% 85%;
   --input: 220 14% 90%;
   --ring: var(--brand-primary);
 
@@ -73,7 +73,7 @@
   --accent: var(--brand-secondary);
   --accent-foreground: 0 0% 0%;
 
-  --muted: 220 14% 20%;
+--muted: 220 14% 94%;
   --muted-foreground: 215 20% 65%;
 
   --destructive: 0 84% 60%;
