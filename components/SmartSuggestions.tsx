@@ -1,8 +1,3 @@
- // ═══════════════════════════════════════════════════════════
-// SmartSuggestions.tsx — Uudelleenkäytettävä suosituskomponentti
-// LISÄÄ omaksi tiedostokseen: components/SmartSuggestions.tsx
-// ═══════════════════════════════════════════════════════════
-
 'use client';
 
 import Link from 'next/link';
@@ -27,10 +22,17 @@ export function SmartSuggestions({
   isFreeTierLimited,
   language,
 }: SmartSuggestionsProps) {
-  const { isDark } = useTheme();
+  // ✅ TURVALLINEN KÄYTTÖ
+  let isDark = false;
+  try {
+    const theme = useTheme();
+    isDark = theme?.isDark ?? false;
+  } catch (error) {
+    isDark = false;
+  }
+
   const t = (fi: string, en: string) => language === 'en' ? en : fi;
 
-  // Laske mitkä suositukset näytetään (max 2 kerrallaan)
   const suggestions: { icon: React.ReactNode; title: string; desc: string; href: string; cta: string; accent: string }[] = [];
 
   if (!hasDocuments) {
