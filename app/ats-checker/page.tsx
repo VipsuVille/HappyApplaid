@@ -1,4 +1,4 @@
-// app/ats-checker/page.tsx — v2: Role-aware ATS analysis UI
+// app/ats-checker/page.tsx — v3: ATS Usage Detection + Human Reading Mode
 'use client';
 
 import { useState, useCallback } from 'react';
@@ -8,13 +8,25 @@ import {
   Shield, Target, AlertTriangle, CheckCircle2, XCircle,
   Loader2, FileText, Briefcase, BarChart3, ArrowRight,
   Lock, Zap, ChevronDown, ChevronUp, Info, Star,
-  Users, TrendingUp, Car, Globe,
+  Car, Globe, User, Bot, Eye, EyeOff, Lightbulb,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type RoleType = 'tech' | 'sales' | 'healthcare' | 'service' | 'admin' | 'logistics' | 'education' | 'marketing' | 'finance' | 'general';
+type ATSLikelihood = 'very_high' | 'high' | 'low' | 'very_low';
+
+interface ATSUsageResult {
+  likelihood: ATSLikelihood;
+  confidence: number;
+  usesATS: boolean;
+  signals: { positive: string[]; negative: string[] };
+  recruitmentMode: 'ats' | 'human' | 'mixed';
+  explanation: string;
+  humanReadingTips: string[];
+  atsTips: string[];
+}
 
 interface HardRequirement {
   requirement: string;
@@ -55,6 +67,7 @@ interface ATSResult {
   formattingScore: number;
   roleType: RoleType;
   themeScore: number;
+  atsUsage: ATSUsageResult;
   hardRequirements: HardRequirement[];
   competencyThemes: CompetencyTheme[];
   keywordMatches: KeywordMatch[];
@@ -89,7 +102,147 @@ const ROLE_LABELS: Record<RoleType, { fi: string; en: string; icon: string; colo
   general:    { fi: 'Yleinen rooli',      en: 'General role',      icon: '🔍', color: 'gray' },
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── ATS Usage Banner Component ───────────────────────────────────────────────
+
+function ATSUsageBanner({ atsUsage, isFi }: { atsUsage: ATSUsageResult; isFi: boolean }) {
+  const [showSignals, setShowSignals] = useState(false);
+
+  const isHuman = !atsUsage.usesATS;
+  const isMixed = atsUsage.recruitmentMode === 'mixed';
+
+  const config = {
+    human: {
+      bg: 'bg-blue-50 dark:bg-blue-950/30',
+      border: 'border-blue-200 dark:border-blue-800/50',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/50',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
+      badgeText: isFi ? '👤 Ihminen lukee' : '👤 Human reads',
+      title: isFi ? 'Ihminen lukee hakemuksesi suoraan' : 'A human reads your application directly',
+      titleColor: 'text-blue-800 dark:text-blue-200',
+      descColor: 'text-blue-700 dark:text-blue-300',
+      tipsTitle: isFi ? '💡 Vinkit tähän hakuun' : '💡 Tips for this application',
+      tips: atsUsage.humanReadingTips,
+    },
+    mixed: {
+      bg: 'bg-amber-50 dark:bg-amber-950/30',
+      border: 'border-amber-200 dark:border-amber-800/50',
+      iconBg: 'bg-amber-100 dark:bg-amber-900/50',
+      iconColor: 'text-amber-600 dark:text-amber-400',
+      badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
+      badgeText: isFi ? '🔀 Sekahaku' : '🔀 Mixed process',
+      title: isFi ? 'Sekä ATS että ihminen osallistuvat päätökseen' : 'Both ATS and human are involved',
+      titleColor: 'text-amber-800 dark:text-amber-200',
+      descColor: 'text-amber-700 dark:text-amber-300',
+      tipsTitle: isFi ? '💡 Tasapainota molemmat' : '💡 Balance both approaches',
+      tips: [...atsUsage.humanReadingTips.slice(0, 2), ...atsUsage.atsTips.slice(0, 2)],
+    },
+    ats: {
+      bg: 'bg-purple-50 dark:bg-purple-950/30',
+      border: 'border-purple-200 dark:border-purple-800/50',
+      iconBg: 'bg-purple-100 dark:bg-purple-900/50',
+      iconColor: 'text-purple-600 dark:text-purple-400',
+      badge: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300',
+      badgeText: isFi ? '🤖 ATS suodattaa' : '🤖 ATS filters',
+      title: isFi ? 'ATS-ohjelmisto suodattaa hakemuksia' : 'ATS software filters applications',
+      titleColor: 'text-purple-800 dark:text-purple-200',
+      descColor: 'text-purple-700 dark:text-purple-300',
+      tipsTitle: isFi ? '💡 ATS-optimointivinkit' : '💡 ATS optimization tips',
+      tips: atsUsage.atsTips,
+    },
+  };
+
+  const mode = isHuman ? 'human' : isMixed ? 'mixed' : 'ats';
+  const c = config[mode];
+
+  return (
+    <div className={`rounded-2xl border p-6 ${c.bg} ${c.border}`}>
+
+      {/* Header row */}
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${c.iconBg}`}>
+          {isHuman ? <User className={`w-6 h-6 ${c.iconColor}`} /> :
+           isMixed ? <Eye className={`w-6 h-6 ${c.iconColor}`} /> :
+           <Bot className={`w-6 h-6 ${c.iconColor}`} />}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${c.badge}`}>
+              {c.badgeText}
+            </span>
+            <span className="text-xs text-gray-400">
+              {isFi ? `Varmuus: ${atsUsage.confidence}%` : `Confidence: ${atsUsage.confidence}%`}
+            </span>
+          </div>
+          <h3 className={`font-black text-lg leading-tight ${c.titleColor}`}>{c.title}</h3>
+          <p className={`text-sm mt-1 leading-relaxed ${c.descColor}`}>{atsUsage.explanation}</p>
+        </div>
+      </div>
+
+      {/* Tips */}
+      <div className={`mt-5 pt-4 border-t ${c.border}`}>
+        <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${c.descColor}`}>{c.tipsTitle}</p>
+        <ul className="space-y-2">
+          {c.tips.map((tip, i) => (
+            <li key={i} className={`flex items-start gap-2 text-sm ${c.descColor}`}>
+              <Lightbulb className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 opacity-70" />
+              {tip}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Detection signals — collapsible */}
+      {(atsUsage.signals.positive.length > 0 || atsUsage.signals.negative.length > 0) && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowSignals(!showSignals)}
+            className={`flex items-center gap-1.5 text-xs font-semibold ${c.descColor} opacity-70 hover:opacity-100 transition-opacity`}
+          >
+            {showSignals ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            {isFi ? 'Näytä tunnistussignaalit' : 'Show detection signals'}
+          </button>
+
+          {showSignals && (
+            <div className={`mt-3 pt-3 border-t ${c.border} grid sm:grid-cols-2 gap-4`}>
+              {atsUsage.signals.positive.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-purple-500 mb-2">
+                    {isFi ? '🤖 ATS-signaalit' : '🤖 ATS signals'}
+                  </p>
+                  <ul className="space-y-1">
+                    {atsUsage.signals.positive.map((s, i) => (
+                      <li key={i} className="text-xs text-gray-500 flex items-start gap-1.5">
+                        <span className="text-purple-400 mt-0.5">•</span>{s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {atsUsage.signals.negative.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-500 mb-2">
+                    {isFi ? '👤 Ihmislukusignaalit' : '👤 Human-read signals'}
+                  </p>
+                  <ul className="space-y-1">
+                    {atsUsage.signals.negative.map((s, i) => (
+                      <li key={i} className="text-xs text-gray-500 flex items-start gap-1.5">
+                        <span className="text-blue-400 mt-0.5">•</span>{s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page Component ───────────────────────────────────────────────────────
 
 export default function ATSCheckerPage() {
   const { isSignedIn } = useAuth();
@@ -308,10 +461,15 @@ export default function ATSCheckerPage() {
               </div>
             </div>
 
+            {/* ── ATS Usage Banner — most important context ── */}
+            <ATSUsageBanner atsUsage={result.atsUsage} isFi={isFi} />
+
             {/* ── Overall score ── */}
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center">
               <h2 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4">
-                {isFi ? 'ATS-yhteensopivuus' : 'ATS Compatibility Score'}
+                {result.atsUsage.usesATS
+                  ? (isFi ? 'ATS-yhteensopivuus' : 'ATS Compatibility Score')
+                  : (isFi ? 'Hakemuksen sopivuus' : 'Application Fit Score')}
               </h2>
               <div className={`text-7xl sm:text-8xl font-black ${scoreColor(result.overallScore)}`}>
                 {result.overallScore}
@@ -328,7 +486,9 @@ export default function ATSCheckerPage() {
                 {result.passLikelihood === 'very_high' || result.passLikelihood === 'high'
                   ? <CheckCircle2 className="w-4 h-4" />
                   : <AlertTriangle className="w-4 h-4" />}
-                {isFi ? 'Läpimenon todennäköisyys' : 'Pass likelihood'}: {result.passLikelihood.replace('_', ' ').toUpperCase()}
+                {isFi
+                  ? (result.atsUsage.usesATS ? 'ATS-läpimenon todennäköisyys' : 'Soveltuvuuden arvio')
+                  : (result.atsUsage.usesATS ? 'ATS pass likelihood' : 'Application fit estimate')}: {result.passLikelihood.replace('_', ' ').toUpperCase()}
               </div>
 
               <p className="text-gray-500 dark:text-gray-400 mt-4 max-w-lg mx-auto text-sm">

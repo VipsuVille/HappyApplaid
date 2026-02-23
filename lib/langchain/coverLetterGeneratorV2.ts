@@ -1,4 +1,4 @@
-// lib/langchain/atsCoverLetterV2Generator.ts - PRIVACY + TRUTH + SAVED RESPONSES
+// lib/langchain/atsCoverLetterV2Generator.ts - V2 + SMART QUESTIONS
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -7,7 +7,6 @@ import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/maste
 import { analyzeKeywordsUniversal } from "@/lib/ats/synonymMatcher";
 import { supabaseAdmin } from "@/lib/supabase";
 
-// ✅ responseHelper — shared category-based merge logic
 import {
   convertToAnswerFormat,
   mergeResponsesIntoLetterContext,
@@ -85,6 +84,7 @@ export interface ATSV2Output {
   };
   iterations: number;
   questions?: any[];
+  needsMoreInfo?: boolean;
   personalContext?: string;
 }
 
@@ -140,13 +140,9 @@ Return JSON:
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ✅ SAVED RESPONSES — Direct DB fetch, merge via responseHelper
+// SAVED RESPONSES — Direct DB fetch, merge via responseHelper
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * Infer a responseHelper-compatible category from question text.
- * DB's question_category often doesn't match responseHelper's bucket names.
- */
 function inferCategory(dbCategory: string, questionText: string): string {
   const cat = (dbCategory || '').toLowerCase();
   const q = (questionText || '').toLowerCase();
@@ -192,10 +188,6 @@ async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]>
   }
 }
 
-/**
- * Enrich ATSV2Input with saved responses using responseHelper's
- * category-based, language-agnostic merge logic.
- */
 async function enrichInputWithSavedResponses(input: ATSV2Input): Promise<ATSV2Input> {
   if (!input.userId) {
     console.log('⚠️ [V2-ATS] No userId — skipping saved response fetch');
@@ -205,7 +197,6 @@ async function enrichInputWithSavedResponses(input: ATSV2Input): Promise<ATSV2In
   const answerEntries = await fetchSavedResponsesFromDB(input.userId);
   if (answerEntries.length === 0) return input;
 
-  // Build a context object for cover letter merging
   const contextObj: Record<string, any> = {
     workExperience: input.workExperience || '',
     education: input.education || '',
@@ -215,7 +206,6 @@ async function enrichInputWithSavedResponses(input: ATSV2Input): Promise<ATSV2In
     additionalContext: '',
   };
 
-  // Merge using responseHelper (category-based buckets, language-agnostic)
   const merged = mergeResponsesIntoLetterContext(contextObj, answerEntries);
 
   console.log('✅ [V2-ATS] Merged saved responses into input');
@@ -231,7 +221,7 @@ async function enrichInputWithSavedResponses(input: ATSV2Input): Promise<ATSV2In
 }
 
 // ═══════════════════════════════════════════════════════════════
-// TRUTH RULES (for the prompt)
+// TRUTH RULES
 // ═══════════════════════════════════════════════════════════════
 
 const TRUTH_RULES = `
@@ -270,6 +260,31 @@ You write cover letters, not fiction. Present the applicant's ACTUAL background.
 `;
 
 // ═══════════════════════════════════════════════════════════════
+// EMPTY OUTPUT HELPER
+// ═══════════════════════════════════════════════════════════════
+
+function buildEmptyOutputWithQuestions(input: ATSV2Input, questions: any[]): ATSV2Output {
+  return {
+    content: "",
+    title: "Lisätietoja tarvitaan",
+    signature: input.name,
+    keyHighlights: [],
+    atsScore: 0,
+    atsAnalysis: {
+      keywordMatch: 0,
+      readability: 0,
+      overall: 0,
+      exactMatches: [],
+      synonymMatches: [],
+      missingCritical: [],
+    },
+    iterations: 0,
+    needsMoreInfo: true,
+    questions,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN V2 GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
@@ -289,6 +304,49 @@ export async function generateATSCoverLetterV2(
   } catch (err) {
     console.error('⚠️ [V2-ATS] Saved response enrichment failed, continuing:', err);
     enrichedInput = { ...input };
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // STEP 0.5: SMART QUESTIONS (NEW)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  if (!enrichedInput.skipQuestions) {
+    console.log('🧠 [V2-ATS] Checking if questions needed...');
+
+    try {
+      const analysis = await analyzeJobAndProfile({
+        jobDescription: enrichedInput.jobDescription,
+        userProfile: {
+          name: 'Applicant', // ✅ Anonymous
+          workExperience: enrichedInput.workExperience || '',
+          education: enrichedInput.education || '',
+          skills: enrichedInput.skills || '',
+          workingStyle: enrichedInput.workingStyle || '',
+          problemSolving: enrichedInput.problemSolving || '',
+          uniqueStrength: enrichedInput.uniqueStrength || '',
+          careerGoals: enrichedInput.careerGoals || '',
+          bestProjectExample: enrichedInput.bestProjectExample || '',
+          failureLesson: enrichedInput.failureLesson || '',
+          personalNotes: enrichedInput.personalNotes || '',
+        },
+        language: enrichedInput.language || 'finnish',
+        userId: enrichedInput.userId,
+      });
+
+      const safeQuestions = Array.isArray(analysis?.questions) ? analysis.questions : [];
+      const criticalQuestions = safeQuestions.filter(q => q && q.priority === 'critical');
+
+      if (analysis?.shouldAskQuestions && criticalQuestions.length > 0) {
+        console.log(`❓ [V2-ATS] Returning ${criticalQuestions.length} critical questions`);
+        return buildEmptyOutputWithQuestions(enrichedInput, criticalQuestions);
+      }
+
+      console.log('✅ [V2-ATS] No critical questions needed, proceeding...');
+    } catch (error) {
+      console.error('⚠️ [V2-ATS] Question analysis failed, proceeding without questions:', error);
+    }
+  } else {
+    console.log('⏭️ [V2-ATS] Questions skipped');
   }
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -388,7 +446,6 @@ export async function generateATSCoverLetterV2(
 ❌ DO NOT INCLUDE in the letter body:
 - Full name (template handles it)
 - Email, phone, address
-- Social security number
 
 ✅ FOCUS ON:
 - Skills and experience (anonymized)
@@ -496,6 +553,16 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
         .replace(/\[.*?\]/g, '')
         .replace(/\n\s*\n\s*\n/g, '\n\n')
         .trim();
+
+      // ── Remove leaked name ──────────────────────────────────────
+      if (input.name) {
+        const namePattern = new RegExp(`\\b${input.name}\\b`, 'gi');
+        const nameCount = (content.match(namePattern) || []).length;
+        if (nameCount > 0) {
+          console.warn(`⚠️ [V2-ATS] AI leaked name ${nameCount} times - removing`);
+          content = content.replace(namePattern, '').trim();
+        }
+      }
 
       // Calculate ATS score
       const allKeywords = [

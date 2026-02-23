@@ -41,6 +41,7 @@ export interface ATSCheckInput {
 export interface JobRequirementsResult {
   jobTitle: string;
   roleType: RoleType;
+  atsUsage: ATSUsageResult;
   requiredSkills: string[];
   preferredSkills: string[];
   hardRequirements: HardRequirement[];
@@ -85,6 +86,26 @@ export interface ExperienceGap {
   passLikelihood: number;
 }
 
+// ─── v3: ATS Usage Detection ───────────────────────────────────────────────
+
+export type ATSLikelihood = 'very_high' | 'high' | 'low' | 'very_low';
+
+export interface ATSUsageResult {
+  likelihood: ATSLikelihood;         // How likely this posting uses ATS software
+  confidence: number;                // 0-100
+  usesATS: boolean;                  // true = ATS mode, false = human-reads mode
+  signals: {
+    positive: string[];              // Signals that suggest ATS is used
+    negative: string[];              // Signals that suggest human reading
+  };
+  recruitmentMode: 'ats' | 'human' | 'mixed';
+  explanation: string;               // Human-readable explanation (Finnish)
+  humanReadingTips: string[];        // Tips when human reads (not ATS)
+  atsTips: string[];                 // Tips when ATS is used
+}
+
+// ─── Main result type ──────────────────────────────────────────────────────
+
 export interface ATSScoreResult {
   overallScore: number;
   keywordScore: number;
@@ -96,7 +117,10 @@ export interface ATSScoreResult {
   roleType: RoleType;
   hardRequirements: HardRequirement[];
   competencyThemes: CompetencyTheme[];
-  themeScore: number;         // 0-100, replaces pure keyword score for non-tech roles
+  themeScore: number;
+
+  // v3: ATS usage detection
+  atsUsage: ATSUsageResult;
 
   keywordMatches: KeywordMatch[];
   experienceGaps: ExperienceGap[];
@@ -169,8 +193,197 @@ function validateInput(text: string): { valid: boolean; reason?: string } {
 }
 
 // ═══════════════════════════════════════
-// ROLE TYPE DETECTION
+// ATS USAGE DETECTION (v3)
 // ═══════════════════════════════════════
+
+/**
+ * Determines whether a job posting likely goes through ATS software
+ * or is read directly by a human recruiter.
+ *
+ * This fundamentally changes how we should advise the user:
+ * - ATS mode  → keyword density, exact matching, structured CV
+ * - Human mode → personal storytelling, motivation, personality
+ */
+export function detectATSUsage(jobPosting: string): ATSUsageResult {
+  const t = jobPosting.toLowerCase();
+
+  let atsScore = 0;      // Higher = more likely ATS
+  let humanScore = 0;    // Higher = more likely human reading
+
+  const positiveSignals: string[] = [];   // ATS signals
+  const negativeSignals: string[] = [];   // Human-reading signals
+
+  // ── ATS positive signals ─────────────────────────────────────────────────
+
+  // Explicit ATS system mentions
+  const atsSystems = ['workday', 'greenhouse', 'lever', 'taleo', 'bamboohr', 'recruitee',
+    'teamtailor', 'jobvite', 'icims', 'smartrecruiters', 'personio'];
+  for (const sys of atsSystems) {
+    if (t.includes(sys)) {
+      atsScore += 30;
+      positiveSignals.push(`Mainitsee ATS-järjestelmän: ${sys}`);
+    }
+  }
+
+  // Portal/system apply instructions
+  if (/apply\s*(through|via|on|at)\s*(our|the)?\s*(portal|system|platform|website)/i.test(jobPosting)) {
+    atsScore += 20;
+    positiveSignals.push('Ohjeistaa hakemaan portaalin kautta');
+  }
+  if (/lähetä\s*hakemus\s*(järjestelmä|portaali|sivusto)/i.test(jobPosting)) {
+    atsScore += 20;
+    positiveSignals.push('Ohjeistaa hakemaan järjestelmän kautta');
+  }
+  if (/upload\s*(your|cv|resume)/i.test(jobPosting)) {
+    atsScore += 15;
+    positiveSignals.push('Pyytää lataamaan CV:n järjestelmään');
+  }
+
+  // Large company indicators (Fortune 500 / suuryritys)
+  const largeCorps = ['accenture', 'deloitte', 'kpmg', 'pwc', 'microsoft', 'google',
+    'amazon', 'meta', 'apple', 'ibm', 'oracle', 'sap', 'salesforce', 'capgemini',
+    'tietoevry', 'nordea', 'op ', 'op-', 's-ryhmä', 'kesko', 'upm', 'stora enso',
+    'nokia', 'kone', 'metso', 'fortum', 'neste', 'wärtsilä'];
+  for (const corp of largeCorps) {
+    if (t.includes(corp)) {
+      atsScore += 15;
+      positiveSignals.push(`Suuri yritys tunnistettu`);
+      break;
+    }
+  }
+
+  // Very structured / formal job posting (many sections, requirement lists)
+  const bulletCount = (jobPosting.match(/^[\s]*[-•*]\s/gm) || []).length;
+  if (bulletCount >= 10) {
+    atsScore += 10;
+    positiveSignals.push('Erittäin jäsennelty ilmoitus (paljon vaatimuslistoja)');
+  }
+
+  // Tech industry posting
+  const techIndustryWords = ['software', 'saas', 'cloud', 'platform', 'api', 'development',
+    'engineering', 'startup', 'scaleup', 'ohjelmisto', 'teknologia'];
+  let techHits = 0;
+  for (const w of techIndustryWords) { if (t.includes(w)) techHits++; }
+  if (techHits >= 3) {
+    atsScore += 10;
+    positiveSignals.push('Teknologia-alan ilmoitus');
+  }
+
+  // ── Human-reading signals (negative for ATS) ─────────────────────────────
+
+  // Direct email application
+  const emailMatch = jobPosting.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (emailMatch) {
+    humanScore += 25;
+    negativeSignals.push('Hakemus lähetetään sähköpostilla suoraan');
+  }
+
+  // Small/medium company size indicators
+  if (/pieni|pk-yritys|perheyhtiö|family.owned|small\s*team|startup/i.test(jobPosting)) {
+    humanScore += 15;
+    negativeSignals.push('Pieni tai keskikokoinen yritys');
+  }
+
+  // Personal contact person named
+  if (/lisätietoja.*?(hae|anna|kysy|ota yhteyttä|contact).*?(päällikkö|johtaja|manager|director|HR|rekry)/i.test(jobPosting)) {
+    humanScore += 10;
+    negativeSignals.push('Nimetty kontaktihenkilö mainittu');
+  }
+
+  // Field sales / provision-based / personal roles
+  const humanRoleIndicators = ['provisio', 'komissio', 'kenttämyynti', 'suoramyynti',
+    'turvakartoitus', 'lähihoitaja', 'kiinteistönhoito', 'siivous', 'kuljettaja',
+    'asentaja', 'kodinturva', 'hälytysjärjestelmä'];
+  let humanRoleHits = 0;
+  for (const w of humanRoleIndicators) {
+    if (t.includes(w)) humanRoleHits++;
+  }
+  if (humanRoleHits >= 2) {
+    humanScore += 20;
+    negativeSignals.push('Kenttä- tai suoramyyntirooli — tyypillisesti henkilökohtainen rekrytointi');
+  }
+
+  // Informal tone / personality focus
+  if (/persoon|luonne|asenne|into|inno|motivaatio|fiilikset|meininki/i.test(jobPosting)) {
+    humanScore += 15;
+    negativeSignals.push('Ilmoitus korostaa persoonallisuutta ja asennetta');
+  }
+
+  // "Apply via link on page" (common in Finnish job boards, still human-read)
+  if (/sivulla\s*olevasta\s*linkistä|hakulomakkeella/i.test(jobPosting)) {
+    humanScore += 10;
+    negativeSignals.push('Yksinkertainen hakulomake (ei ATS-portaali)');
+  }
+
+  // Social media references (informal recruiting)
+  if (/instagram|tiktok|facebook|linkedin/i.test(jobPosting)) {
+    humanScore += 5;
+    negativeSignals.push('Sosiaalisen median rekrytointi-signaali');
+  }
+
+  // ── Calculate result ──────────────────────────────────────────────────────
+
+  const total = atsScore + humanScore || 1;
+  const atsRatio = atsScore / total;
+
+  let likelihood: ATSLikelihood;
+  let recruitmentMode: ATSUsageResult['recruitmentMode'];
+
+  if (atsRatio >= 0.70) {
+    likelihood = 'very_high';
+    recruitmentMode = 'ats';
+  } else if (atsRatio >= 0.50) {
+    likelihood = 'high';
+    recruitmentMode = 'mixed';
+  } else if (atsRatio >= 0.30) {
+    likelihood = 'low';
+    recruitmentMode = 'mixed';
+  } else {
+    likelihood = 'very_low';
+    recruitmentMode = 'human';
+  }
+
+  const usesATS = likelihood === 'very_high' || likelihood === 'high';
+  const confidence = Math.round(Math.max(atsRatio, 1 - atsRatio) * 100);
+
+  // ── Explanations ──────────────────────────────────────────────────────────
+
+  const explanations: Record<ATSLikelihood, string> = {
+    very_high: 'Tämä ilmoitus käyttää todennäköisesti ATS-ohjelmistoa hakemusten suodattamiseen. Avainsanat ja rakenne ovat kriittisiä.',
+    high: 'Tämä ilmoitus saattaa käyttää ATS-ohjelmistoa, mutta ihminen tekee lopullisen päätöksen. Sekä avainsanat että persoonallisuus ovat tärkeitä.',
+    low: 'Tämä ilmoitus käsitellään todennäköisesti pääosin ihmisten toimesta. ATS-optimointi on toissijaista — persoonallinen kerronta ratkaisee.',
+    very_low: 'Ihminen lukee hakemuksesi suoraan. ATS-avainsanoja ei tarvita. Keskity motivaatioon, persoonallisuuteen ja siihen miksi juuri sinä sopid tähän rooliin.',
+  };
+
+  const humanReadingTips: string[] = [
+    'Kirjoita hakukirje persoonallisesti — kerro miksi juuri tämä työ kiinnostaa sinua',
+    'Kuvaile konkreettisia tilanteita joissa olet onnistunut vastaavissa tehtävissä',
+    'Mainitse asenteesi ja motivaatiosi — ne painavat enemmän kuin avainsanat',
+    'Tarkista pakolliset vaatimukset (ajokortti, kielit) ja mainitse ne selkeästi',
+    'Lyhyt, selkeä ja rehellinen hakemus toimii paremmin kuin optimoitu "ATS-CV"',
+  ];
+
+  const atsTips: string[] = [
+    'Käytä täsmällisiä avainsanoja suoraan ilmoituksesta',
+    'Toista kriittiset termit luonnollisesti useamman kerran',
+    'Käytä standardeja otsikkoja (Kokemus, Koulutus, Taidot)',
+    'Vältä taulukoita ja graafisia elementtejä — ATS ei lue niitä',
+    'Tavoittele 70%+ avainsanaosumaa ennen lähettämistä',
+  ];
+
+  return {
+    likelihood,
+    confidence,
+    usesATS,
+    signals: { positive: positiveSignals, negative: negativeSignals },
+    recruitmentMode,
+    explanation: explanations[likelihood],
+    humanReadingTips,
+    atsTips,
+  };
+}
+
+
 
 /**
  * Detects the role type from a job posting.
@@ -883,6 +1096,7 @@ function calculateFormattingScore(text: string): number {
 
 function generateRecommendations(
   roleType: RoleType,
+  atsUsage: ATSUsageResult,
   keywordMatches: KeywordMatch[],
   competencyThemes: CompetencyTheme[],
   hardRequirements: HardRequirement[],
@@ -895,69 +1109,95 @@ function generateRecommendations(
   const important: string[] = [];
   const optional: string[] = [];
 
-  // Language mismatch
+  // Language mismatch — always critical
   if (!languageMatch) {
     critical.push(
-      'Dokumentin kieli ei vastaa ilmoituksen kieltä. Tämä johtaa todennäköisesti automaattiseen hylkäykseen.'
+      'Dokumentin kieli ei vastaa ilmoituksen kieltä. Tämä johtaa todennäköisesti hylkäykseen.'
     );
   }
 
-  // Hard requirements not found
+  // Hard requirements — critical regardless of mode
   const missingCritical = hardRequirements.filter((r) => r.critical && !r.found);
   if (missingCritical.length > 0) {
     critical.push(
-      `Kriittiset vaatimukset puuttuvat CV:stä: ${missingCritical.map((r) => r.requirement).join(', ')}. ` +
-      `Lisää nämä jos sinulla ne on.`
+      `Pakolliset vaatimukset puuttuvat CV:stä: ${missingCritical.map((r) => r.requirement).join(', ')}. ` +
+      `Lisää nämä selkeästi jos sinulla ne on — sekä ATS että ihminen tarkistaa nämä.`
     );
   }
 
-  // Role-specific: missing competency themes
-  const missingThemes = competencyThemes.filter((t) => !t.found && t.weight >= 2);
-  if (missingThemes.length > 0) {
+  if (!atsUsage.usesATS) {
+    // ── HUMAN READING MODE ──────────────────────────────────────────────────
+    // Don't mention keywords at all. Focus on storytelling and motivation.
+
+    important.push(
+      '👤 Ihminen lukee hakemuksesi — unohda avainsanaoptimointi. ' +
+      'Kirjoita persoonallisesti: miksi juuri tämä työ, miksi juuri sinä.'
+    );
+
+    // Role-specific human tips
     if (roleType === 'sales') {
       important.push(
-        `CV:ssäsi ei vielä näy: ${missingThemes.map((t) => t.theme).join(', ')}. ` +
-        `Myyntiroolissa on tärkeää kuvata konkreettisia myyntituloksia ja -prosesseja.`
+        'Myyntiroolissa kerro konkreettisista tilanteista: milloin olet toiminut tavoitteellisesti, ' +
+        'selvinnyt paineen alla tai voittanut jonkin haasteen. Luvut auttavat jos niitä on, mutta tarina ratkaisee.'
       );
-    } else {
+      important.push(
+        'Mainitse motivaatiosi suoramyyntiä kohtaan — Verisure haluaa tietää että haluat tehdä kenttämyyntiä, ei vain että "osaat myydä".'
+      );
+    } else if (roleType === 'healthcare') {
+      important.push('Kerro miksi hoitotyö on sinulle tärkeää — arvolähtöinen motivaatio painaa paljon.');
+    } else if (roleType === 'service') {
+      important.push('Kuvaile tilanteita joissa olet ratkaissut haastavan asiakastilanteen onnistuneesti.');
+    }
+
+    // Missing competency themes — framed as storytelling gaps, not keyword gaps
+    const missingThemes = competencyThemes.filter((t) => !t.found && t.weight >= 2);
+    if (missingThemes.length > 0) {
+      optional.push(
+        `Hakemuksestasi ei vielä välity: ${missingThemes.map((t) => t.theme).join(', ')}. ` +
+        `Lisää lyhyt esimerkki tai kuvaus näistä — ei avainsanoja, vaan oikea tilanne.`
+      );
+    }
+
+    if (formattingScore < 60) {
+      optional.push('Selkeä rakenne helpottaa lukemista — lyhyt intro, kokemus, miksi tämä työ.');
+    }
+
+  } else {
+    // ── ATS MODE ────────────────────────────────────────────────────────────
+
+    // Missing required keywords
+    const missingRequired = keywordMatches.filter((m) => !m.found && m.importance === 'required');
+    if (missingRequired.length > 0) {
+      const keywords = missingRequired.map((m) => m.keyword).slice(0, 5).join(', ');
+      critical.push(`Vaaditut avainsanat puuttuvat: ${keywords}. Lisää nämä jos sinulla on kyseinen kokemus.`);
+    }
+
+    // Missing competency themes
+    const missingThemes = competencyThemes.filter((t) => !t.found && t.weight >= 2);
+    if (missingThemes.length > 0) {
       important.push(
         `Nämä osaamisalueet puuttuvat: ${missingThemes.map((t) => t.theme).join(', ')}.`
       );
     }
-  }
 
-  // Tech-role keyword gaps
-  const missingRequired = keywordMatches.filter((m) => !m.found && m.importance === 'required');
-  if (missingRequired.length > 0) {
-    const keywords = missingRequired.map((m) => m.keyword).slice(0, 5).join(', ');
-    critical.push(`Vaaditut avainsanat puuttuvat: ${keywords}. Lisää ne jos sinulla on kyseinen kokemus.`);
-  }
+    // Experience gaps
+    const criticalGaps = experienceGaps.filter((g) => g.gapSeverity === 'critical' || g.gapSeverity === 'high');
+    if (criticalGaps.length > 0) {
+      important.push(
+        `Merkittäviä kokemuspuutteita: ${criticalGaps.map((g) => g.skill).join(', ')}. ` +
+        `Harkitse miten voit tuoda esiin siirrettävissä olevat taidot.`
+      );
+    }
 
-  // Experience gaps
-  const criticalGaps = experienceGaps.filter((g) => g.gapSeverity === 'critical' || g.gapSeverity === 'high');
-  if (criticalGaps.length > 0) {
-    important.push(
-      `Merkittäviä kokemuspuutteita: ${criticalGaps.map((g) => g.skill).join(', ')}. ` +
-      `Harkitse miten voit tuoda esiin siirrettävissä olevat taidot.`
-    );
-  }
+    // Formatting
+    if (formattingScore < 60) {
+      important.push('Paranna dokumentin rakennetta: luettelopisteet, selkeät osiot, konkreettiset luvut.');
+    }
 
-  // Formatting
-  if (formattingScore < 60) {
-    important.push('Paranna dokumentin rakennetta: käytä luettelopisteitä, selkeitä osioita ja konkreettisia lukuja.');
-  }
-
-  // Role-specific tips
-  if (roleType === 'sales' && competencyThemes.every((t) => !t.found)) {
-    important.push(
-      'Myyntiroolissa ATS ei etsi teknisiä avainsanoja vaan käyttäytymistä: ' +
-      'kirjoita myyntituloksista (€, %, kauppojen määrä), asiakashankinnasta ja tavoitteiden saavuttamisesta.'
-    );
-  }
-
-  // Additional keywords from AI
-  if (additionalKeywords.length > 0) {
-    optional.push(`Harkitse mainitsemista: ${additionalKeywords.slice(0, 5).join(', ')}`);
+    // Additional keywords from AI
+    if (additionalKeywords.length > 0) {
+      optional.push(`Harkitse mainitsemista: ${additionalKeywords.slice(0, 5).join(', ')}`);
+    }
   }
 
   return { critical, important, optional };
@@ -977,6 +1217,7 @@ export function analyzeJobOnly(jobPosting: string): JobRequirementsResult {
   const lang = detectLanguage(cleanJob);
   const hardReqs = extractHardRequirements(cleanJob);
   const themes = getCompetencyThemes(roleType);
+  const atsUsage = detectATSUsage(cleanJob);
   const totalKeywords = reqs.requiredSkills.length + reqs.preferredSkills.length + themes.length;
 
   const difficulty: JobRequirementsResult['difficultyEstimate'] =
@@ -986,27 +1227,34 @@ export function analyzeJobOnly(jobPosting: string): JobRequirementsResult {
 
   const tips: string[] = [];
 
+  // Lead with ATS usage insight — most important context
+  if (!atsUsage.usesATS) {
+    tips.push('👤 Ihminen lukee hakemuksesi todennäköisesti suoraan. ATS-optimointi on toissijaista.');
+    tips.push('Keskity persoonalliseen hakukirjeeseen: miksi haluat juuri tähän työhön ja miksi olet sopiva.');
+  } else {
+    tips.push('🤖 ATS-ohjelmisto suodattaa hakemuksia. Avainsanat ja rakenne ovat tärkeitä.');
+  }
+
   // Role-specific tips
-  if (roleType === 'sales') {
-    tips.push('Tämä on myyntirooli. ATS etsii käyttäytymiskuvauksia: myyntituloksia, asiakashankintaa ja tavoitteellisuutta.');
-    tips.push('Mainitse konkreettiset luvut: montako kauppaa per viikko, kuinka suuri liikevaihto, mitkä tavoitteet saavutit.');
+  if (roleType === 'sales' && !atsUsage.usesATS) {
+    tips.push('Myyntiroolissa kerro motivaatiostasi, kilpailullisuudestasi ja tilanteista joissa olet tavoitteellisesti onnistunut.');
+  } else if (roleType === 'sales') {
+    tips.push('Myyntiroolissa mainitse konkreettiset tulokset: kauppojen määrä, tavoitteiden saavuttaminen.');
   } else if (roleType === 'healthcare') {
     tips.push('Terveydenhuoltoroolissa korostuvat kliininen osaaminen, empatia ja tiimityökyky.');
   }
 
   if (hardReqs.length > 0) {
-    tips.push(`Kriittiset vaatimukset: ${hardReqs.filter((r) => r.critical).map((r) => r.requirement).join(', ')}.`);
+    tips.push(`Pakolliset vaatimukset — mainitse nämä selkeästi: ${hardReqs.filter((r) => r.critical).map((r) => r.requirement).join(', ')}.`);
   }
   if (reqs.languages.length > 0) {
     tips.push(`Kielivaatimukset: ${reqs.languages.join(', ')}. Kirjoita hakemus samalla kielellä.`);
-  }
-  if (totalKeywords >= 10) {
-    tips.push('Ilmoitus on avainsanarikas. Käytä täsmällisiä termejä ilmoituksesta.');
   }
 
   return {
     jobTitle: reqs.jobTitle,
     roleType,
+    atsUsage,
     requiredSkills: reqs.requiredSkills,
     preferredSkills: reqs.preferredSkills,
     hardRequirements: hardReqs,
@@ -1037,52 +1285,56 @@ export async function checkATSScore(input: ATSCheckInput): Promise<ATSScoreResul
     if (!docValidation.valid) throw new Error(`Invalid document: ${docValidation.reason}`);
   }
 
-  // STEP 2: Detect role type
+  // STEP 2: Detect ATS usage — this changes everything downstream
+  const atsUsage = detectATSUsage(cleanJob);
+  console.log(`[ATS] ATS likelihood: ${atsUsage.likelihood} (${atsUsage.recruitmentMode} mode)`);
+
+  // STEP 3: Detect role type
   const roleType = detectRoleType(cleanJob);
   console.log(`[ATS] Detected role type: ${roleType}`);
 
-  // STEP 3: Extract requirements
+  // STEP 4: Extract requirements
   const requirements = extractRequirementsLocal(cleanJob);
 
-  // STEP 4: Hard requirements
+  // STEP 5: Hard requirements
   const rawHardReqs = extractHardRequirements(cleanJob);
   const hardRequirements = cleanDoc
     ? matchHardRequirements(rawHardReqs, cleanDoc)
     : rawHardReqs;
 
-  // STEP 5: Competency themes (role-aware)
+  // STEP 6: Competency themes (role-aware)
   const competencyThemes = cleanDoc
     ? matchCompetencyThemes(roleType, cleanDoc)
     : getCompetencyThemes(roleType).map((t) => ({ ...t, found: false, matchedKeywords: [] }));
 
-  // STEP 6: Keyword matching (still useful for tech roles)
+  // STEP 7: Keyword matching (mainly for tech/ATS roles)
   const keywordMatches = cleanDoc ? matchKeywords(requirements, cleanDoc) : [];
 
-  // STEP 7: Language detection
+  // STEP 8: Language detection
   const jobLang = detectLanguage(cleanJob);
   const docLang = cleanDoc ? detectLanguage(cleanDoc) : jobLang;
   const languageMatch = jobLang === docLang || jobLang === 'unknown' || docLang === 'unknown';
 
-  // STEP 8: Calculate scores
+  // STEP 9: Calculate scores
 
-  // Theme score — weighted average of found themes
+  // Theme score
   const totalThemeWeight = competencyThemes.reduce((s, t) => s + t.weight, 0);
   const foundThemeWeight = competencyThemes.filter((t) => t.found).reduce((s, t) => s + t.weight, 0);
   const themeScore = totalThemeWeight > 0 ? Math.round((foundThemeWeight / totalThemeWeight) * 100) : 50;
 
-  // Keyword score — only meaningful for tech roles
+  // Keyword score
   const totalKwWeight = keywordMatches.reduce((s, m) => s + m.weight, 0);
   const foundKwWeight = keywordMatches.filter((m) => m.found).reduce((s, m) => s + m.weight, 0);
   const keywordScore = totalKwWeight > 0 ? Math.round((foundKwWeight / totalKwWeight) * 100) : themeScore;
 
-  // Hard requirement penalty
+  // Hard requirement penalty (applies regardless of ATS mode — human also checks these)
   const missingCritical = hardRequirements.filter((r) => r.critical && !r.found).length;
-  const hardReqPenalty = missingCritical * 15; // -15 per missing critical requirement
+  const hardReqPenalty = missingCritical * 15;
 
   const languageScore = languageMatch ? 100 : 15;
   const formattingScore = cleanDoc ? calculateFormattingScore(cleanDoc) : 70;
 
-  // STEP 9: AI-enhanced analysis
+  // STEP 10: AI-enhanced analysis
   let experienceGaps: ExperienceGap[] = [];
   let aiSummary = '';
   let additionalKeywords: string[] = [];
@@ -1101,10 +1353,20 @@ export async function checkATSScore(input: ATSCheckInput): Promise<ATSScoreResul
       ? Math.round(experienceGaps.reduce((s, g) => s + g.passLikelihood, 0) / experienceGaps.length)
       : themeScore;
 
-  // STEP 10: Overall score — role-adaptive weighting
+  // STEP 11: Overall score — adjusts based on ATS likelihood + role type
   let overallScore: number;
-  if (roleType === 'tech') {
-    // Tech: keyword-heavy
+
+  if (!atsUsage.usesATS) {
+    // Human reads: score is based on hard requirements + themes only.
+    // We intentionally don't penalise for missing keywords — they don't matter.
+    // Hard reqs still matter (ajokortti etc.) because human checks those too.
+    overallScore = Math.round(
+      themeScore * 0.50 +
+      languageScore * 0.30 +
+      formattingScore * 0.20
+    );
+  } else if (roleType === 'tech') {
+    // ATS + tech: keyword-heavy
     overallScore = Math.round(
       keywordScore * 0.40 +
       experienceScore * 0.25 +
@@ -1112,7 +1374,7 @@ export async function checkATSScore(input: ATSCheckInput): Promise<ATSScoreResul
       formattingScore * 0.15
     );
   } else {
-    // Non-tech: theme-heavy
+    // ATS + non-tech: theme-heavy
     overallScore = Math.round(
       themeScore * 0.40 +
       experienceScore * 0.25 +
@@ -1121,12 +1383,12 @@ export async function checkATSScore(input: ATSCheckInput): Promise<ATSScoreResul
     );
   }
 
-  // Apply hard requirement penalty
   overallScore = Math.max(0, overallScore - hardReqPenalty);
 
-  // STEP 11: Recommendations
+  // STEP 12: Recommendations — mode-aware
   const recommendations = generateRecommendations(
     roleType,
+    atsUsage,
     keywordMatches,
     competencyThemes,
     hardRequirements,
@@ -1136,26 +1398,29 @@ export async function checkATSScore(input: ATSCheckInput): Promise<ATSScoreResul
     additionalKeywords,
   );
 
-  // STEP 12: Pass likelihood
+  // STEP 13: Pass likelihood
   const passLikelihood: ATSScoreResult['passLikelihood'] =
     overallScore >= 80 ? 'very_high' :
     overallScore >= 65 ? 'high' :
     overallScore >= 50 ? 'medium' :
     overallScore >= 35 ? 'low' : 'very_low';
 
-  // STEP 13: Summary
+  // STEP 14: Summary
   const matchedThemeCount = competencyThemes.filter((t) => t.found).length;
   const matchedCount = keywordMatches.filter((m) => m.found).length;
-  const summary =
-    aiSummary ||
-    (roleType === 'tech'
-      ? `Löydettiin ${matchedCount}/${keywordMatches.length} avainsanaa. ` +
-        `${!languageMatch ? 'Kieliristiriita havaittu. ' : ''}` +
-        `ATS-läpimenon todennäköisyys: ${passLikelihood.replace('_', ' ')}.`
-      : `${roleType.charAt(0).toUpperCase() + roleType.slice(1)}-rooli: ` +
-        `${matchedThemeCount}/${competencyThemes.length} osaamisteemat löydetty. ` +
-        `${!languageMatch ? 'Kieliristiriita havaittu. ' : ''}` +
-        `Läpimenon todennäköisyys: ${passLikelihood.replace('_', ' ')}.`);
+
+  const summary = aiSummary || (
+    !atsUsage.usesATS
+      ? `Ihminen lukee hakemuksesi. ${matchedThemeCount}/${competencyThemes.length} osaamisteemaa löydetty. ` +
+        `Keskity persoonalliseen kerrontaan.`
+      : roleType === 'tech'
+        ? `ATS-tila: ${matchedCount}/${keywordMatches.length} avainsanaa löydetty. ` +
+          `${!languageMatch ? 'Kieliristiriita havaittu. ' : ''}` +
+          `Läpimenon todennäköisyys: ${passLikelihood.replace('_', ' ')}.`
+        : `ATS-tila: ${matchedThemeCount}/${competencyThemes.length} osaamisteemat löydetty. ` +
+          `${!languageMatch ? 'Kieliristiriita havaittu. ' : ''}` +
+          `Läpimenon todennäköisyys: ${passLikelihood.replace('_', ' ')}.`
+  );
 
   return {
     overallScore,
@@ -1167,6 +1432,7 @@ export async function checkATSScore(input: ATSCheckInput): Promise<ATSScoreResul
     hardRequirements,
     competencyThemes,
     themeScore,
+    atsUsage,
     keywordMatches,
     experienceGaps,
     detectedLanguage: { jobPosting: jobLang, userDocument: docLang, match: languageMatch },
