@@ -355,18 +355,18 @@ export default function CreateCoverLetterPage() {
       });
 
       // ✅ 2. ANALYZE STAGE
-      setStage('analyzing', 20);
+  setStage('analyzing', 20);
 
-      const response = await fetch("/api/generate-cover-letter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
+const response = await fetch("/api/generate-cover-letter", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(requestBody),
+});
 
-      // ✅ 3. GENERATE STAGE
-      setStage('generating', 50);
+const data = await response.json(); // ← Siirrä ENSIN
 
-      const data = await response.json();
+// ✅ 3. GENERATE STAGE
+setStage('generating', 50); // ← Vasta tämän jälkeen
 
       console.log('📨 API Response:', data);
 
