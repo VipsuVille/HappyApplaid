@@ -1,6 +1,4 @@
 // components/GlobalGenerationBanner.tsx
-// ✅ FINAL: Ei overlay, vain success-toiminnot
-
 'use client';
 
 import { useGeneration } from '@/context/GenerationContext';
@@ -24,7 +22,7 @@ import { useState } from 'react';
 
 interface GlobalGenerationBannerProps {
   onOpenQuestions?: () => void;
-  generatedItemId?: string; // ✅ ID kun valmis
+  generatedItemId?: string;
 }
 
 export default function GlobalGenerationBanner({ 
@@ -86,22 +84,19 @@ export default function GlobalGenerationBanner({
   const config = stageConfig[state.stage];
   const showProgress = ['starting', 'analyzing', 'generating', 'finalizing'].includes(state.stage);
 
-  // ✅ Success toiminnot
   const handleEdit = () => {
     if (!state.generatedItemId) return;
-    
     const route = state.type === 'cv' 
       ? `/edit-cv/${state.generatedItemId}`
       : `/edit-cover-letter/${state.generatedItemId}`;
-    
     router.push(route);
-    reset(); // Tyhjennä banner
+    reset();
   };
 
   const handleViewAll = () => {
     const route = state.type === 'cv' ? '/my-cvs' : '/my-cover-letters';
     router.push(route);
-    reset(); // Tyhjennä banner
+    reset();
   };
 
   return (
@@ -111,7 +106,7 @@ export default function GlobalGenerationBanner({
       <div className={`${config.bgColor} border-t-2 border-white/10 backdrop-blur-xl shadow-2xl`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           
-          {/* HEADER (aina näkyvissä) */}
+          {/* HEADER */}
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               {config.icon}
@@ -128,27 +123,29 @@ export default function GlobalGenerationBanner({
             </div>
 
             <div className="flex items-center gap-2">
-              {/* ✅ SUCCESS ACTIONS */}
+
+              {/* MUOKKAA + NÄYTÄ KAIKKI - vain kun valmis */}
               {state.stage === 'complete' && state.generatedItemId && (
-                <>
-                  <button
-                    onClick={handleEdit}
-                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Muokkaa
-                  </button>
-                  <button
-                    onClick={handleViewAll}
-                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <FolderOpen className="w-4 h-4" />
-                    {state.type === 'cv' ? 'Kaikki CV:t' : 'Kaikki kirjeet'}
-                  </button>
-                </>
+                <button
+                  onClick={handleEdit}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  Muokkaa
+                </button>
               )}
 
-              {/* Vastaa kysymyksiin -nappi */}
+              {state.stage === 'complete' && (
+                <button
+                  onClick={handleViewAll}
+                  className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  {state.type === 'cv' ? 'Kaikki CV:t' : 'Kaikki kirjeet'}
+                </button>
+              )}
+
+              {/* VASTAA KYSYMYKSIIN */}
               {state.stage === 'waiting_questions' && onOpenQuestions && (
                 <button
                   onClick={onOpenQuestions}
@@ -159,7 +156,7 @@ export default function GlobalGenerationBanner({
                 </button>
               )}
 
-              {/* Sulje (vain jos valmis tai error) */}
+              {/* SULJE - vain complete tai error */}
               {(state.stage === 'complete' || state.stage === 'error') && (
                 <button
                   onClick={reset}
@@ -170,7 +167,7 @@ export default function GlobalGenerationBanner({
                 </button>
               )}
 
-              {/* Laajenna/Supista */}
+              {/* LAAJENNA/SUPISTA */}
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
@@ -185,7 +182,7 @@ export default function GlobalGenerationBanner({
             </div>
           </div>
 
-          {/* PROGRESS (näkyy kun laajennettu) */}
+          {/* PROGRESS */}
           {isExpanded && showProgress && (
             <div className="mt-3">
               <Progress value={state.progress} className="h-2 bg-gray-800/50">
