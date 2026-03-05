@@ -458,44 +458,16 @@ export default function Home() {
         line-height: 1; letter-spacing: -.02em;
       }
 
-      /* ── HERO TWO-COLUMN ── */
-      .ha-hero-inner {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 40px;
-        align-items: center;
+      /* ── HERO SIDE PANE ── */
+      .ha-hero-side {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        max-width: 340px;
+        flex-shrink: 0;
       }
-      .ha-hero-video {
-        background: var(--bg-3);
-        border: 1px solid var(--border);
-        aspect-ratio: 16/10;
-        display: flex; align-items: center; justify-content: center;
-        position: relative; overflow: hidden; cursor: pointer;
-        min-height: 260px;
-      }
-      .ha-hero-video-play {
-        width: 72px; height: 72px;
-        background: var(--orange);
-        clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
-        display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 16px;
-        transition: transform .2s;
-      }
-      .ha-hero-video:hover .ha-hero-video-play { transform: scale(1.08); }
-
-      /* Light theme hero BG adjustment */
-      .ha-landing.ha-light .ha-hero-bg-grad {
-        background: radial-gradient(ellipse 80% 60% at 40% 40%, rgba(249,115,22,.07) 0%, transparent 65%) !important;
-      }
-      .ha-landing.ha-light .ha-hero-fade {
-        background: linear-gradient(180deg, rgba(245,244,240,0) 0%, rgba(245,244,240,.4) 50%, #f5f4f0 100%) !important;
-      }
-
-      @media (max-width: 900px) {
-        .ha-hero-inner {
-          grid-template-columns: 1fr;
-        }
-        .ha-hero-video { min-height: 200px; }
+      @media (max-width: 860px) {
+        .ha-hero-side { display: none !important; }
       }
       @media (max-width: 640px) {
         .ha-stat-grid { grid-template-columns: 1fr; }
@@ -533,132 +505,142 @@ export default function Home() {
         <div className="ha-scan" />
 
         {/* ════════════════════════════════════════════════
-            1. HERO — two-column: video left, text right
+            1. HERO — single column, video below headline
         ════════════════════════════════════════════════ */}
-        <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden", padding: "0" }}>
+        <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden" }}>
 
           {/* BG layers */}
-          <div className="ha-hero-bg-grad" style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 40% 40%, rgba(249,115,22,.1) 0%, transparent 65%)", pointerEvents: "none" }} />
+          <div className="ha-hero-bg-grad" style={{ position: "absolute", inset: 0, background: isDark ? "radial-gradient(ellipse 80% 60% at 60% 30%, rgba(249,115,22,.1) 0%, transparent 65%)" : "radial-gradient(ellipse 80% 60% at 60% 30%, rgba(249,115,22,.06) 0%, transparent 65%)", pointerEvents: "none" }} />
           <div className="ha-hero-fade" style={{ position: "absolute", inset: 0, background: isDark ? "linear-gradient(180deg, rgba(8,8,8,0) 0%, rgba(8,8,8,.3) 60%, #080808 100%)" : "linear-gradient(180deg, rgba(245,244,240,0) 0%, rgba(245,244,240,.3) 60%, #f5f4f0 100%)", pointerEvents: "none" }} />
 
-          {/* Geometric X — top right corner decoration */}
-          <svg style={{ position: "absolute", top: "5%", right: "2%", width: "clamp(120px, 18vw, 280px)", opacity: isDark ? .06 : .04, pointerEvents: "none" }} viewBox="0 0 100 100" fill="none">
+          {/* Geometric X — right side decoration */}
+          <svg style={{ position: "absolute", top: "8%", right: "3%", width: "clamp(140px, 22vw, 340px)", opacity: isDark ? .06 : .04, pointerEvents: "none" }} viewBox="0 0 100 100" fill="none">
             <line x1="10" y1="10" x2="90" y2="90" stroke="#f97316" strokeWidth="3.5" />
             <line x1="90" y1="10" x2="10" y2="90" stroke="#f97316" strokeWidth="3.5" />
             <rect x="5" y="5" width="90" height="90" stroke="#f97316" strokeWidth="1.5" />
             <rect x="20" y="20" width="60" height="60" stroke="#f97316" strokeWidth="1" />
           </svg>
 
-          {/* Grid texture */}
+          {/* Grid texture right side */}
           <div style={{
             position: "absolute", top: 0, right: 0, width: "55%", height: "70%",
-            backgroundImage: `linear-gradient(rgba(249,115,22,${isDark ? ".03" : ".02"}) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,${isDark ? ".03" : ".02"}) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(rgba(249,115,22,${isDark ? ".03" : ".015"}) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,${isDark ? ".03" : ".015"}) 1px, transparent 1px)`,
             backgroundSize: "40px 40px",
             pointerEvents: "none",
           }} />
 
-          {/* ── TWO-COLUMN GRID ── */}
-          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "clamp(80px, 12vw, 120px) 24px clamp(80px, 10vw, 100px)", width: "100%" }}>
-            <div className="ha-hero-inner">
+          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "clamp(80px, 12vw, 120px) 24px clamp(64px, 8vw, 80px)", width: "100%" }}>
 
-              {/* LEFT — Video placeholder */}
-              <div className="ha-hero-video">
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(249,115,22,.06) 0%, transparent 55%)", pointerEvents: "none" }} />
-                <div style={{
-                  position: "absolute", inset: 0,
-                  backgroundImage: `linear-gradient(rgba(249,115,22,${isDark ? ".04" : ".025"}) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,${isDark ? ".04" : ".025"}) 1px, transparent 1px)`,
-                  backgroundSize: "36px 36px", pointerEvents: "none",
-                }} />
-                {/* Orange corner accent */}
-                <div style={{ position: "absolute", top: 0, left: 0, width: "3px", height: "40px", background: "var(--orange)" }} />
-                <div style={{ position: "absolute", top: 0, left: 0, width: "40px", height: "3px", background: "var(--orange)" }} />
-                <div style={{ position: "absolute", bottom: 0, right: 0, width: "3px", height: "40px", background: "var(--orange)" }} />
-                <div style={{ position: "absolute", bottom: 0, right: 0, width: "40px", height: "3px", background: "var(--orange)" }} />
+            {/* Eyebrow */}
+            <div style={{ marginBottom: "22px" }}>
+              <span className="ha-badge">
+                <Sparkles size={12} />
+                {t("Realistinen ATS-analyysi", "Realistic ATS Analysis")}
+              </span>
+            </div>
 
-                <div style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
-                  <div className="ha-hero-video-play">
-                    <Play size={28} color="#000" fill="#000" />
-                  </div>
-                  <p style={{ fontWeight: 800, fontSize: "1rem", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text)" }}>
-                    {t("Katso miten se toimii", "See How It Works")}
-                  </p>
-                  <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".78rem", marginTop: "6px", maxWidth: "240px", margin: "6px auto 0" }}>
-                    {t("90 sekuntia", "90 seconds — before you send your next application")}
-                  </p>
-                  {/* TODO: replace this div with <video> or <iframe> when ready */}
-                </div>
-              </div>
-
-              {/* RIGHT — Text & CTAs */}
+            {/* ── TWO-PANE: headline left, meta right ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "48px", alignItems: "flex-end", marginBottom: "40px" }}>
               <div>
-                {/* Eyebrow */}
-                <div style={{ marginBottom: "22px" }}>
-                  <span className="ha-badge">
-                    <Sparkles size={12} />
-                    {t("Realistinen ATS-analyysi", "Realistic ATS Analysis")}
-                  </span>
-                </div>
-
-                {/* Headline */}
                 <h1 style={{
-                  fontSize: "clamp(2.8rem, 5.5vw, 5.5rem)",
-                  fontWeight: 900, lineHeight: .92,
+                  fontSize: "clamp(3.8rem, 8vw, 7.5rem)",
+                  fontWeight: 900, lineHeight: .9,
                   letterSpacing: "-.02em", textTransform: "uppercase",
-                  marginBottom: "22px",
                   color: "var(--text)",
                 }}>
                   <span style={{ display: "block" }}>
-                    {t("Selvitä", "See if you'd")}
+                    {t("Selvitä", "See if")}
                   </span>
                   <span style={{ display: "block", color: "var(--orange)", fontStyle: "italic" }}>
-                    {t("pääsetkö läpi.", "actually pass.")}
+                    {t("pääsetkö läpi.", "you'd pass.")}
                   </span>
-                  <span style={{ display: "block", color: isDark ? "rgba(240,236,228,.35)" : "rgba(17,17,17,.35)", fontSize: ".52em", fontWeight: 700, letterSpacing: ".03em", marginTop: "10px" }}>
+                  <span style={{ display: "block", color: isDark ? "rgba(240,236,228,.3)" : "rgba(17,17,17,.25)", fontSize: ".48em", fontWeight: 700, letterSpacing: ".03em", marginTop: "12px", fontStyle: "normal" }}>
                     {t("Ennen kuin haet.", "Before you apply.")}
                   </span>
                 </h1>
+              </div>
 
-                {/* Description */}
-                <p className="ha-body" style={{ fontSize: "clamp(.9rem, 1.8vw, 1rem)", color: "var(--gray-mid)", maxWidth: "460px", lineHeight: 1.75, marginBottom: "36px" }}>
+              {/* Right side — description + trust on larger screens */}
+              <div style={{ maxWidth: "360px", flexShrink: 0, display: "flex", flexDirection: "column", gap: "20px" }} className="ha-hero-side">
+                <p className="ha-body" style={{ fontSize: ".95rem", color: "var(--gray-mid)", lineHeight: 1.75 }}>
                   {t(
-                    "75% hakemuksista hylätään automaattisesti. HappyApplaid näyttää kilpailukykysi, kokemuskuilusi ja keyword-osuman — ennen kuin lähetät.",
-                    "75% of applications are auto-rejected. HappyApplaid shows your competitiveness, experience gaps, and keyword match — before you apply."
+                    "75% hakemuksista hylätään automaattisesti. HappyApplaid näyttää kilpailukykysi ja keyword-osuman — ennen kuin lähetät.",
+                    "75% of applications are auto-rejected. HappyApplaid shows your competitiveness and keyword match — before you apply."
                   )}
                 </p>
-
-                {/* CTAs */}
-                <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "40px" }}>
-                  <SignUpButton mode="modal" appearance={clerkAppearance}>
-                    <button className="ha-btn-primary" style={{ fontSize: "1rem" }}>
-                      <Sparkles size={15} />
-                      {t("Testaa hakemukseni ilmaiseksi", "Test My Application Free")}
-                    </button>
-                  </SignUpButton>
-                  <button
-                    className="ha-btn-ghost"
-                    onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
-                  >
-                    {t("Katso Hinnoittelu", "See Pricing")}
-                    <ChevronDown size={13} />
-                  </button>
-                </div>
-
-                {/* Trust row */}
-                <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }} className="ha-body">
+                {/* Trust badges */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }} className="ha-body">
                   {[
                     { icon: <CreditCard size={13} />, label: t("Ei luottokorttia", "No credit card") },
                     { icon: <Clock size={13} />, label: t("Tulos 60 sekunnissa", "Result in 60 sec") },
                     { icon: <Shield size={13} />, label: t("Ei PII:tä AI:lle", "No PII to AI") },
                   ].map((item, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "7px", color: "var(--gray-dim)", fontSize: ".74rem", fontWeight: 600, letterSpacing: ".07em", textTransform: "uppercase" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--gray-dim)", fontSize: ".74rem", fontWeight: 600, letterSpacing: ".07em", textTransform: "uppercase" }}>
                       <span style={{ color: "var(--orange)" }}>{item.icon}</span>
                       {item.label}
                     </div>
                   ))}
                 </div>
               </div>
+            </div>
 
-            </div>{/* end ha-hero-inner */}
+            {/* ── VIDEO — full-width, directly under headline ── */}
+            <div style={{
+              background: "var(--bg-3)", border: "1px solid var(--border)",
+              position: "relative", overflow: "hidden", cursor: "pointer",
+              aspectRatio: "16/6", maxHeight: "340px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              marginBottom: "36px",
+            }}>
+              {/* Orange corner brackets */}
+              <div style={{ position: "absolute", top: 0, left: 0, width: "3px", height: "48px", background: "var(--orange)" }} />
+              <div style={{ position: "absolute", top: 0, left: 0, width: "48px", height: "3px", background: "var(--orange)" }} />
+              <div style={{ position: "absolute", bottom: 0, right: 0, width: "3px", height: "48px", background: "var(--orange)" }} />
+              <div style={{ position: "absolute", bottom: 0, right: 0, width: "48px", height: "3px", background: "var(--orange)" }} />
+              {/* BG effects */}
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(249,115,22,.05) 0%, transparent 55%)", pointerEvents: "none" }} />
+              <div style={{
+                position: "absolute", inset: 0,
+                backgroundImage: `linear-gradient(rgba(249,115,22,${isDark ? ".04" : ".02"}) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,${isDark ? ".04" : ".02"}) 1px, transparent 1px)`,
+                backgroundSize: "40px 40px", pointerEvents: "none",
+              }} />
+              <div style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
+                <div style={{
+                  width: "72px", height: "72px", margin: "0 auto 16px",
+                  background: "var(--orange)",
+                  clipPath: "polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "transform .2s",
+                }}>
+                  <Play size={28} color="#000" fill="#000" />
+                </div>
+                <p style={{ fontWeight: 800, fontSize: "1.1rem", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text)" }}>
+                  {t("Katso miten se toimii", "See How It Works")}
+                </p>
+                <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".82rem", marginTop: "6px" }}>
+                  {t("90 sekuntia — ennen kuin lähetät seuraavan hakemuksesi", "90 seconds — before you send your next application")}
+                </p>
+              </div>
+              {/* TODO: replace with <video> or <iframe> when ready */}
+            </div>
+
+            {/* ── CTAs row ── */}
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", alignItems: "center" }}>
+              <SignUpButton mode="modal" appearance={clerkAppearance}>
+                <button className="ha-btn-primary" style={{ fontSize: "1.05rem" }}>
+                  <Sparkles size={16} />
+                  {t("Testaa hakemukseni ilmaiseksi", "Test My Application Free")}
+                </button>
+              </SignUpButton>
+              <button
+                className="ha-btn-ghost"
+                onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                {t("Katso Hinnoittelu", "See Pricing")}
+                <ChevronDown size={14} />
+              </button>
+            </div>
+
           </div>
         </section>
 
@@ -1129,6 +1111,8 @@ export default function Home() {
       </div>
     );
   }
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Kirjautuneen käyttäjän pääsivu
 // ═══════════════════════════════════════════════════════════════════════════

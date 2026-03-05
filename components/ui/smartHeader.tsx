@@ -475,6 +475,9 @@ export default function SmartHeader() {
           {/* Desktop right side */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }} className="desktop-actions">
 
+            {/* Theme toggle */}
+            <ThemeToggle />
+
             {/* Lang toggle */}
             <button className="ha-lang-btn" onClick={toggleLanguage}>
               <Languages size={12} />
@@ -503,7 +506,7 @@ export default function SmartHeader() {
               padding: '8px',
               background: 'transparent',
               border: 'none',
-              color: 'rgba(240,236,228,.7)',
+              color: isDark ? 'rgba(240,236,228,.7)' : 'rgba(17,17,17,.6)',
               cursor: 'pointer',
             }}
             className="mobile-hamburger"
@@ -532,7 +535,15 @@ export default function SmartHeader() {
               </a>
 
               {/* Divider */}
-              <div style={{ height: '1px', background: 'rgba(255,255,255,.06)', margin: '8px 0' }} />
+              <div style={{ height: '1px', background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.07)', margin: '8px 0' }} />
+
+              {/* Theme toggle row */}
+              <div className="ha-mobile-link" style={{ justifyContent: 'space-between', cursor: 'default' }}>
+                <span style={{ color: isDark ? 'rgba(240,236,228,.5)' : 'rgba(17,17,17,.5)' }}>
+                  {language === 'en' ? 'Dark mode' : 'Tumma tila'}
+                </span>
+                <ThemeToggle />
+              </div>
 
               {/* Lang */}
               <button
@@ -540,12 +551,12 @@ export default function SmartHeader() {
                 onClick={() => { toggleLanguage(); setMobileMenuOpen(false); }}
                 style={{ width: '100%', textAlign: 'left' }}
               >
-                <Languages size={18} style={{ color: 'rgba(240,236,228,.4)' }} />
+                <Languages size={18} style={{ color: isDark ? 'rgba(240,236,228,.4)' : 'rgba(17,17,17,.4)' }} />
                 {language === 'en' ? 'Suomeksi' : 'In English'}
               </button>
 
               {/* Divider */}
-              <div style={{ height: '1px', background: 'rgba(255,255,255,.06)', margin: '8px 0' }} />
+              <div style={{ height: '1px', background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.07)', margin: '8px 0' }} />
 
               {/* Auth CTAs */}
               <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
