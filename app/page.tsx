@@ -34,6 +34,7 @@ import {
   Star,
   AlertTriangle,
   TrendingDown,
+  ChevronDown,
 } from "lucide-react";
 import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
@@ -56,20 +57,20 @@ interface SubscriptionStatus {
 }
 
 export default function Home() {
- const [profileCompleted, setProfileCompleted] = useState<boolean | null>(null);
-const [recentCVs, setRecentCVs] = useState<any[]>([]);
-const [recentCoverLetters, setRecentCoverLetters] = useState<any[]>([]);
-const [loadingRecent, setLoadingRecent] = useState(false);
-const [showWelcome, setShowWelcome] = useState(false);
-const [showOnboarding, setShowOnboarding] = useState(false);
-const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+  const [profileCompleted, setProfileCompleted] = useState<boolean | null>(null);
+  const [recentCVs, setRecentCVs] = useState<any[]>([]);
+  const [recentCoverLetters, setRecentCoverLetters] = useState<any[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showProfilePrompt, setShowProfilePrompt] = useState(false);
 
-const { subscription, isLoading: subLoading } = useSubscription();
-const tier = subscription?.tier ?? "free";
-const isActive = subscription?.active === true;
-const hasUsedFreeCv = subscription?.has_used_free_cv || false;
-const canCreateCV = subscription?.can_create_cv || false;
-const isPaid = isActive && tier !== "free";
+  const { subscription, isLoading: subLoading } = useSubscription();
+  const tier = subscription?.tier ?? "free";
+  const isActive = subscription?.active === true;
+  const hasUsedFreeCv = subscription?.has_used_free_cv || false;
+  const canCreateCV = subscription?.can_create_cv || false;
+  const isPaid = isActive && tier !== "free";
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
   const { tokens } = useTokens();
@@ -78,12 +79,9 @@ const isPaid = isActive && tier !== "free";
   const [hasHighGap, setHasHighGap] = useState(false);
   const displayName = user?.firstName || null;
 
-
-  // ✅ LISÄÄ TÄMÄ UUSI useEffect
   useEffect(() => {
     const loadATSStatus = async () => {
       if (!isSignedIn || !user?.id) return;
-
       try {
         const { data, error } = await supabaseAdmin
           .from('ats_checks')
@@ -92,18 +90,14 @@ const isPaid = isActive && tier !== "free";
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
-
         if (data && !error) {
           setHasRunATS(true);
           setAtsScore(data.score || null);
-          // Jos sinulla on gap_severity kenttä:
-          // setHasHighGap(data.gap_severity === 'high');
         }
       } catch (err) {
         console.error('Error loading ATS status:', err);
       }
     };
-
     if (isLoaded && isSignedIn) {
       loadATSStatus();
     }
@@ -120,9 +114,7 @@ const isPaid = isActive && tier !== "free";
         const hasProfile = profileResponse.ok;
         const cvsData = cvsResponse.ok ? await cvsResponse.json() : [];
         const hasCVs = cvsData.length > 0;
-        const hasSeenOnboarding = localStorage.getItem(
-          `onboarding_completed_${user.id}`
-        );
+        const hasSeenOnboarding = localStorage.getItem(`onboarding_completed_${user.id}`);
         const isNewUser = !hasProfile && !hasCVs && !hasSeenOnboarding;
         if (isNewUser) {
           setShowWelcome(true);
@@ -137,55 +129,52 @@ const isPaid = isActive && tier !== "free";
       checkFirstVisit();
     }
   }, [isSignedIn, user?.id, isLoaded]);
-useEffect(() => {
-  const loadRecentDocuments = async () => {
-    if (!isSignedIn || !user?.id || profileCompleted !== true) return;
 
-    setLoadingRecent(true);
-    try {
-      const cvResponse = await fetch("/api/recent-cvs");
-      if (cvResponse.ok) {
-        const cvData = await cvResponse.json();
-        setRecentCVs(cvData.slice(0, 3));
-      }
-
-      if (tokens > 0 || (isActive && tier !== "free")) {
-        const letterResponse = await fetch("/api/recent-cover-letters");
-        if (letterResponse.ok) {
-          const letterData = await letterResponse.json();
-          setRecentCoverLetters(letterData.slice(0, 3));
+  useEffect(() => {
+    const loadRecentDocuments = async () => {
+      if (!isSignedIn || !user?.id || profileCompleted !== true) return;
+      setLoadingRecent(true);
+      try {
+        const cvResponse = await fetch("/api/recent-cvs");
+        if (cvResponse.ok) {
+          const cvData = await cvResponse.json();
+          setRecentCVs(cvData.slice(0, 3));
         }
+        if (tokens > 0 || (isActive && tier !== "free")) {
+          const letterResponse = await fetch("/api/recent-cover-letters");
+          if (letterResponse.ok) {
+            const letterData = await letterResponse.json();
+            setRecentCoverLetters(letterData.slice(0, 3));
+          }
+        }
+      } catch (error) {
+        console.error("Error loading recent documents:", error);
+      } finally {
+        setLoadingRecent(false);
       }
-    } catch (error) {
-      console.error("Error loading recent documents:", error);
-    } finally {
-      setLoadingRecent(false);
+    };
+    if (
+      isLoaded &&
+      isSignedIn &&
+      profileCompleted === true &&
+      !showWelcome &&
+      !showOnboarding
+    ) {
+      loadRecentDocuments();
     }
-  };
+  }, [
+    isSignedIn,
+    user?.id,
+    profileCompleted,
+    tokens,
+    isActive,
+    tier,
+    isLoaded,
+    showWelcome,
+    showOnboarding,
+  ]);
 
-  if (
-    isLoaded &&
-    isSignedIn &&
-    profileCompleted === true &&
-    !showWelcome &&
-    !showOnboarding
-  ) {
-    loadRecentDocuments();
-  }
-}, [
-  isSignedIn,
-  user?.id,
-  profileCompleted,
-  tokens,
-  isActive,
-  tier,
-  isLoaded,
-  showWelcome,
-  showOnboarding,
-]);
-
-
-   const handleWelcomeComplete = async (data: {
+  const handleWelcomeComplete = async (data: {
     name: string;
     email: string;
     useClerkEmail: boolean;
@@ -240,6 +229,7 @@ useEffect(() => {
   if (!isLoaded || subLoading) {
     return <LoadingScreen />;
   }
+
   const { isDark } = useTheme();
 
   // Welcome/Onboarding State
@@ -268,767 +258,808 @@ useEffect(() => {
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  //  UNAUTHENTICATED — Riot Games × Blizzard aesthetic
+  //  Dark, cinematic, bold typography, black + orange brand palette
+  // ══════════════════════════════════════════════════════════════════
+  if (!isSignedIn) {
+    const t = (fi: string, en: string) => language === "en" ? en : fi;
 
+    // CSS injected once for the Riot/Blizzard aesthetic
+    const riotCSS = `
+      @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,700&family=Barlow:wght@300;400;500;600&display=swap');
 
- 
+      .ha-landing * { box-sizing: border-box; }
 
-if (!isLoaded || subLoading) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100 flex items-center justify-center">
-      <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
-        <div className="text-lg font-bold text-gray-900">
-          {language === "en" ? "Loading..." : "Ladataan..."}
-        </div>
-      </div>
-    </div>
-  );
-}
+      .ha-landing {
+        --orange: #f97316;
+        --orange-bright: #fb923c;
+        --amber: #f59e0b;
+        --black: #080808;
+        --black-2: #0f0f0f;
+        --black-3: #161616;
+        --gray-dim: #555;
+        --gray-mid: #888;
+        --gray-light: #bbb;
+        font-family: 'Barlow Condensed', 'Impact', sans-serif;
+        background: #080808;
+        color: #f0ece4;
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
 
-  // --- 1. ENSIN: Clerk Loading State ---
- if (!isLoaded || subLoading) {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100 flex items-center justify-center">
-      <div className="backdrop-blur-xl bg-white/70 border-2 border-white/40 rounded-2xl shadow-2xl p-8 text-center">
-        <div className="text-lg font-bold text-gray-900">
-          {language === "en" ? "Loading..." : "Ladataan..."}
-        </div>
-      </div>
-    </div>
-  );
-}
+      .ha-body { font-family: 'Barlow', sans-serif; }
 
-  // --- 2. Welcome/Onboarding State ---
-  if (showWelcome) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100">
-        <WelcomeModal
-          isOpen={true}
-          onComplete={handleWelcomeComplete}
-          onSkip={handleWelcomeSkip}
-          initialEmail={user?.emailAddresses?.[0]?.emailAddress}
-        />
+      /* ── BTN PRIMARY — angled corners like Riot ── */
+      .ha-btn-primary {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: var(--orange);
+        color: #000;
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 900; font-size: 1rem;
+        letter-spacing: .1em; text-transform: uppercase;
+        padding: 14px 32px;
+        clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+        border: none; cursor: pointer;
+        position: relative; overflow: hidden;
+        transition: background .2s, transform .15s;
+      }
+      .ha-btn-primary::before {
+        content: '';
+        position: absolute; inset: 0;
+        background: linear-gradient(135deg, rgba(255,255,255,.15) 0%, transparent 50%);
+        pointer-events: none;
+      }
+      .ha-btn-primary:hover { background: var(--orange-bright); transform: translateY(-2px); }
+      .ha-btn-primary:active { transform: none; }
+
+      .ha-btn-ghost {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: transparent; color: var(--gray-light);
+        font-family: 'Barlow Condensed', sans-serif;
+        font-weight: 700; font-size: .9rem;
+        letter-spacing: .08em; text-transform: uppercase;
+        padding: 12px 24px;
+        border: 1px solid rgba(255,255,255,.14);
+        cursor: pointer;
+        transition: border-color .2s, color .2s, background .2s;
+      }
+      .ha-btn-ghost:hover { border-color: var(--orange); color: var(--orange); background: rgba(249,115,22,.05); }
+
+      /* ── DIVIDER ── */
+      .ha-divider {
+        width: 100%; height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(249,115,22,.4), transparent);
+      }
+
+      /* ── BADGE ── */
+      .ha-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        border: 1px solid rgba(249,115,22,.4);
+        background: rgba(249,115,22,.08);
+        padding: 5px 14px;
+        font-size: .72rem; font-weight: 700;
+        letter-spacing: .15em; text-transform: uppercase;
+        color: var(--orange-bright);
+      }
+
+      /* ── CARD ── */
+      .ha-card {
+        background: var(--black-3);
+        border: 1px solid rgba(255,255,255,.07);
+        position: relative; overflow: hidden;
+      }
+      .ha-card::before {
+        content: '';
+        position: absolute; top: 0; left: 0; right: 0; height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(249,115,22,.3), transparent);
+      }
+
+      /* ── KW ITEM ── */
+      .ha-kw {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 12px;
+        border-bottom: 1px solid rgba(255,255,255,.05);
+        font-family: 'Barlow', sans-serif; font-size: .82rem;
+      }
+      .ha-kw-y { color: #4ade80; background: rgba(74,222,128,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
+      .ha-kw-n { color: #f87171; background: rgba(248,113,113,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
+
+      /* ── PRICE CARD ── */
+      .ha-price {
+        background: var(--black-3);
+        border: 1px solid rgba(255,255,255,.07);
+        padding: 36px 28px;
+        position: relative; overflow: hidden;
+        transition: border-color .2s, transform .2s;
+      }
+      .ha-price:hover { border-color: rgba(249,115,22,.3); transform: translateY(-4px); }
+      .ha-price-top {
+        position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+        background: var(--orange); color: #000;
+        font-size: .65rem; font-weight: 800; letter-spacing: .12em;
+        text-transform: uppercase; padding: 4px 16px;
+        clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
+      }
+
+      /* ── SCAN LINE ── */
+      @keyframes haScan {
+        0% { transform: translateY(-100%); opacity: 0; }
+        10% { opacity: .3; } 90% { opacity: .3; }
+        100% { transform: translateY(100vh); opacity: 0; }
+      }
+      .ha-scan {
+        position: fixed; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(249,115,22,.3), transparent);
+        animation: haScan 10s linear infinite;
+        pointer-events: none; z-index: 0;
+      }
+
+      /* ── VIDEO MODAL ── */
+      .ha-video-overlay {
+        position: fixed; inset: 0; z-index: 200;
+        background: rgba(0,0,0,.92);
+        display: flex; align-items: center; justify-content: center;
+      }
+
+      /* ── FEAT CARD ── */
+      .ha-feat {
+        padding: 36px 28px;
+        border-left: 3px solid var(--orange);
+        background: var(--black-3);
+        position: relative; overflow: hidden;
+      }
+
+      /* ── STAT BAR ── */
+      .ha-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        background: rgba(255,255,255,.05);
+      }
+      .ha-stat-cell {
+        background: var(--black-2);
+        padding: 32px 40px;
+        text-align: center;
+      }
+      .ha-stat-num {
+        font-size: clamp(2.5rem, 5vw, 3.5rem);
+        font-weight: 900; color: var(--orange);
+        line-height: 1; letter-spacing: -.02em;
+      }
+
+      @media (max-width: 640px) {
+        .ha-stat-grid { grid-template-columns: 1fr; }
+        .ha-stat-cell { padding: 20px 24px; }
+        .ha-price-grid { grid-template-columns: 1fr !important; }
+      }
+    `;
+
+    // ── Video modal state (local to this render scope) ──────────────
+    // We use a ref-style approach via a small wrapper component to avoid
+    // hooks-in-conditionals — useState is called in the parent already.
+    // Since we already have component-level state, we reuse setters here.
+    // videoOpen / setVideoOpen are defined at the top of Home().
+    // (They are declared via useState above — add them if not present;
+    //  here we declare them inline for clarity.)
+
+    // ── Reusable MID-PAGE CTA ────────────────────────────────────────
+    const MidCTA = ({ label }: { label: string }) => (
+      <div style={{ textAlign: "center", margin: "72px 0 8px" }}>
+        <SignUpButton mode="modal" appearance={clerkAppearance}>
+          <button className="ha-btn-primary" style={{ fontSize: "1.05rem" }}>
+            <Sparkles size={16} />
+            {label}
+          </button>
+        </SignUpButton>
+        <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".78rem", marginTop: "12px", letterSpacing: ".06em", textTransform: "uppercase" }}>
+          {t("Ei luottokorttia · Tulos 60 sekunnissa", "No credit card · Result in 60 seconds")}
+        </p>
       </div>
     );
-  }
 
-  if (showOnboarding) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-100 via-orange-50 to-pink-100">
-        <OnboardingSteps
-          isOpen={true}
-          onComplete={handleOnboardingComplete}
-          currentUserName={user?.firstName || "käyttäjä"}
-        />
-      </div>
-    );
-  }
+      <div className="ha-landing">
+        <style>{riotCSS}</style>
+        <div className="ha-scan" />
 
+        {/* ════════════════════════════════════════════════
+            1. HERO
+        ════════════════════════════════════════════════ */}
+        <section style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: "80px", overflow: "hidden" }}>
 
+          {/* BG layers */}
+          <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 60% 30%, rgba(249,115,22,.1) 0%, transparent 65%)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(8,8,8,0) 0%, rgba(8,8,8,.5) 50%, #080808 100%)", pointerEvents: "none" }} />
 
-// KORVAA alkuperäinen if (!isSignedIn) { return (...) } -blokki tällä
-//
-// LISÄÄ sivun yläosaan importit (jos ei jo ole):
-//   import { useTheme } from '@/context/ThemeContext';
-//   import ThemeToggle from '@/components/ThemeToggle';
-//
-// Uudet lucide-react ikonit tarvittaessa: AlertTriangle, TrendingDown, Play
-// Muut ikonit ja Clerk/Button/Link ovat samat kuin aiemmin.
+          {/* Geometric X mark — Riot-style background decoration */}
+          <svg style={{ position: "absolute", top: "8%", right: "3%", width: "clamp(160px, 28vw, 400px)", opacity: .06, pointerEvents: "none" }} viewBox="0 0 100 100" fill="none">
+            <line x1="10" y1="10" x2="90" y2="90" stroke="#f97316" strokeWidth="3.5" />
+            <line x1="90" y1="10" x2="10" y2="90" stroke="#f97316" strokeWidth="3.5" />
+            <rect x="5" y="5" width="90" height="90" stroke="#f97316" strokeWidth="1.5" />
+            <rect x="20" y="20" width="60" height="60" stroke="#f97316" strokeWidth="1" />
+          </svg>
 
-if (!isSignedIn) {
-  const t = (fi: string, en: string) => language === "en" ? en : fi;
+          {/* Grid texture */}
+          <div style={{
+            position: "absolute", top: 0, right: 0, width: "55%", height: "70%",
+            backgroundImage: "linear-gradient(rgba(249,115,22,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,.03) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+            pointerEvents: "none",
+          }} />
 
-  // ── Uudelleenkäytettävä mid-page CTA -komponentti ─────────────────────
-  const MidPageCTA = ({ label }: { label: string }) => (
-    <div className="text-center mt-10 mb-2">
-      <SignUpButton mode="modal" appearance={clerkAppearance}>
-        <Button className="px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl font-bold text-lg shadow-xl hover:shadow-orange-500/40 transform hover:scale-105 transition-all">
-          <Sparkles className="inline w-5 h-5 mr-2" />
-          {label}
-        </Button>
-      </SignUpButton>
-      <p className={`text-xs mt-3 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-        {t("Ei luottokorttia. Tulos 60 sekunnissa.", "No credit card. Result in 60 seconds.")}
-      </p>
-    </div>
-  );
+          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "clamp(100px, 14vw, 140px) 24px 0", width: "100%" }}>
 
-  return (
-    <div className={`min-h-screen font-sans transition-colors duration-300 ${
-      isDark ? "bg-[#0d0d14] text-[#e7e3dc]" : "bg-[#f8f7f4] text-[#1a1a2e]"
-    }`}>
-
-      {/* ── TAUSTAKUVIOT ── */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className={`absolute top-0 left-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse ${isDark ? "bg-orange-500/10" : "bg-orange-300/20"}`}></div>
-        <div className={`absolute bottom-0 right-1/4 w-[500px] h-[500px] rounded-full blur-3xl animate-pulse ${isDark ? "bg-orange-500/8" : "bg-amber-200/25"}`} style={{ animationDelay: "1s" }}></div>
-        <div className={`absolute top-1/2 left-1/2 w-72 h-72 rounded-full blur-3xl animate-pulse ${isDark ? "bg-amber-500/8" : "bg-orange-200/20"}`} style={{ animationDelay: "2s" }}></div>
-      </div>
-
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-16">
-
-        {/* ══════════════════════════════════════════════════
-            1. HERO — ei muutosta, toimii hyvin
-        ══════════════════════════════════════════════════ */}
-        <div className="mb-16">
-          <div className={`backdrop-blur-2xl border rounded-3xl shadow-2xl p-8 md:p-16 relative overflow-hidden transition-colors duration-300 ${
-            isDark ? "bg-[#1a1a1a]/70 border-[#2a2a2a] shadow-black/50" : "bg-white/80 border-orange-200/60 shadow-orange-100/50"
-          }`}>
-            <div className={`absolute inset-0 bg-gradient-to-br pointer-events-none rounded-3xl ${
-              isDark ? "from-white/5 via-transparent to-orange-500/5" : "from-orange-50/50 via-transparent to-amber-50/30"
-            }`}></div>
-
-            <div className="relative z-10 text-center">
-              <div className={`inline-flex items-center gap-2 px-6 py-3 backdrop-blur-md rounded-full border shadow-xl mb-6 transition-colors duration-300 ${
-                isDark ? "bg-black/40 border-orange-400/30" : "bg-orange-50 border-orange-300/50"
-              }`}>
-                <Sparkles className="w-5 h-5 text-orange-400" />
-                <span className="font-bold text-orange-400 text-sm">
-                  {t("Realistinen ATS-analyysi", "Realistic ATS Analysis")}
-                </span>
-              </div>
-
-              <h1 className="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">
-                <span className="bg-gradient-to-r from-orange-400 to-amber-500 bg-clip-text text-transparent">
-                  {t("Selvitä pääsetkö läpi.", "See if you'd actually pass.")}
-                </span>
-                <br />
-                <span className={isDark ? "text-gray-100" : "text-gray-800"}>
-                  {t("Ennen kuin haet.", "Before you apply.")}
-                </span>
-              </h1>
-
-              <p className={`text-lg md:text-xl max-w-2xl mx-auto leading-relaxed mb-8 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                {t(
-                  "75% hakemuksista hylätään automaattisesti. HappyApplaid näyttää kilpailukykysi, kokemuskuilusi ja keyword-osuman — ennen kuin lähetät.",
-                  "75% of applications are auto-rejected. HappyApplaid shows your competitiveness, experience gaps, and keyword match — before you apply."
-                )}
-              </p>
-
-              <HowItWorksTimeline />
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8 mb-8">
-                <SignUpButton mode="modal" appearance={clerkAppearance}>
-                  <Button className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl font-bold text-lg shadow-xl hover:shadow-orange-500/50 transform hover:scale-105 transition-all">
-                    <Sparkles className="inline w-5 h-5 mr-2" />
-                    {t("Testaa hakemukseni ilmaiseksi", "Test My Application Free")}
-                  </Button>
-                </SignUpButton>
-                <Button
-                  variant="outline"
-                  onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
-                  className={`w-full sm:w-auto px-8 py-4 rounded-xl font-bold text-lg transition-all ${
-                    isDark ? "bg-white/5 backdrop-blur-md text-orange-300 border-orange-400/30 hover:bg-white/10" : "bg-orange-50 text-orange-600 border-orange-300 hover:bg-orange-100"
-                  }`}
-                >
-                  {t("Katso Hinnoittelu", "See Pricing")}
-                </Button>
-              </div>
-
-              <div className={`flex flex-wrap items-center justify-center gap-4 text-sm max-w-2xl mx-auto font-medium ${isDark ? "text-gray-300" : "text-gray-500"}`}>
-                {[
-                  { icon: <CreditCard className="w-4 h-4 text-green-500" />, label: t("Ei luottokorttia", "No credit card") },
-                  { icon: <Clock className="w-4 h-4 text-orange-400" />, label: t("Tulos 60 sekunnissa", "Result in 60 sec") },
-                  { icon: <Check className="w-4 h-4 text-green-500" />, label: t("Ei PII:tä AI:lle", "No personal data to AI") },
-                ].map((item, i) => (
-                  <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors duration-300 ${
-                    isDark ? "bg-black/30 border-white/10" : "bg-white/70 border-gray-200"
-                  }`}>
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </div>
-                ))}
-              </div>
+            {/* Eyebrow */}
+            <div style={{ marginBottom: "24px" }}>
+              <span className="ha-badge">
+                <Sparkles size={12} />
+                {t("Realistinen ATS-analyysi", "Realistic ATS Analysis")}
+              </span>
             </div>
-          </div>
-        </div>
 
-        {/* ══════════════════════════════════════════════════
-            VIDEO PLACEHOLDER — heron alla, ennen reality checkiä
-            Korvaa src omalla videollasi kun se on valmis.
-            Rakenne: "You apply → no reply → here's why → gap → CTA"
-        ══════════════════════════════════════════════════ */}
-        <div className="mb-16">
-          <div className={`rounded-3xl overflow-hidden border shadow-2xl transition-colors duration-300 ${
-            isDark ? "border-white/10" : "border-gray-200"
-          }`}>
-            {/* Vaihda tämä <video> tai <iframe> -elementiksi kun video on valmis */}
-            <div className={`relative aspect-video flex items-center justify-center cursor-pointer group transition-colors duration-300 ${
-              isDark ? "bg-[#111118]" : "bg-gray-900"
-            }`}>
-              {/* Taustakuvio */}
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-amber-500/10"></div>
+            {/* Headline */}
+            <h1 style={{
+              fontSize: "clamp(3.2rem, 7.5vw, 7rem)",
+              fontWeight: 900, lineHeight: .93,
+              letterSpacing: "-.02em", textTransform: "uppercase",
+              marginBottom: "24px", maxWidth: "820px",
+            }}>
+              <span style={{ display: "block", color: "#f0ece4" }}>
+                {t("Selvitä pääsetkö läpi.", "See if you'd")}
+              </span>
+              <span style={{ display: "block", color: "var(--orange)", fontStyle: "italic" }}>
+                {t("", "actually pass.")}
+              </span>
+              <span style={{ display: "block", color: "rgba(240,236,228,.42)", fontSize: ".55em", fontWeight: 700, letterSpacing: ".02em", marginTop: "10px" }}>
+                {t("Ennen kuin haet.", "Before you apply.")}
+              </span>
+            </h1>
 
-              {/* Play-nappi */}
-              <div className="relative z-10 flex flex-col items-center gap-4">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-orange-500 to-amber-600 flex items-center justify-center shadow-2xl shadow-orange-500/40 group-hover:scale-110 transition-transform duration-200">
-                  <Play className="w-8 h-8 text-white ml-1" />
-                </div>
-                <div className="text-center">
-                  <p className="text-white font-bold text-lg">
-                    {t("Katso miten se toimii", "See how it works")}
-                  </p>
-                  <p className="text-gray-400 text-sm mt-1">
-                    {t("90 sekuntia — ennen kuin lähetät seuraavan hakemuksesi", "90 seconds — before you send your next application")}
-                  </p>
-                </div>
-              </div>
+            {/* Description */}
+            <p className="ha-body" style={{ fontSize: "clamp(.95rem, 2vw, 1.1rem)", color: "var(--gray-mid)", maxWidth: "520px", lineHeight: 1.7, marginBottom: "40px" }}>
+              {t(
+                "75% hakemuksista hylätään automaattisesti. HappyApplaid näyttää kilpailukykysi, kokemuskuilusi ja keyword-osuman — ennen kuin lähetät.",
+                "75% of applications are auto-rejected. HappyApplaid shows your competitiveness, experience gaps, and keyword match — before you apply."
+              )}
+            </p>
 
-              {/* TODO: Kun video on valmis, korvaa tämä div:
-              <video
-                controls
-                poster="/video-thumbnail.jpg"
-                className="w-full h-full object-cover"
+            {/* CTAs */}
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "52px" }}>
+              <SignUpButton mode="modal" appearance={clerkAppearance}>
+                <button className="ha-btn-primary" style={{ fontSize: "1.05rem" }}>
+                  <Sparkles size={16} />
+                  {t("Testaa hakemukseni ilmaiseksi", "Test My Application Free")}
+                </button>
+              </SignUpButton>
+              <button
+                className="ha-btn-ghost"
+                onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
               >
-                <source src="/demo-video.mp4" type="video/mp4" />
-              </video>
-              */}
+                {t("Katso Hinnoittelu", "See Pricing")}
+                <ChevronDown size={14} />
+              </button>
+            </div>
+
+            {/* Trust row */}
+            <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }} className="ha-body">
+              {[
+                { icon: <CreditCard size={14} />, label: t("Ei luottokorttia", "No credit card") },
+                { icon: <Clock size={14} />, label: t("Tulos 60 sekunnissa", "Result in 60 sec") },
+                { icon: <Shield size={14} />, label: t("Ei PII:tä AI:lle", "No PII to AI") },
+              ].map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--gray-dim)", fontSize: ".78rem", fontWeight: 600, letterSpacing: ".07em", textTransform: "uppercase" }}>
+                  <span style={{ color: "var(--orange)" }}>{item.icon}</span>
+                  {item.label}
+                </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* ══════════════════════════════════════════════════
-            2. REALITY CHECK — tiivistetty ~25%
-        ══════════════════════════════════════════════════ */}
-        <div className="mb-8">
-          <div className={`rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden border transition-colors duration-300 ${
-            isDark ? "bg-gradient-to-br from-red-900/20 via-orange-900/10 to-red-900/20 border-red-500/20" : "bg-gradient-to-br from-red-50 via-orange-50/50 to-red-50 border-red-200/60"
-          }`}>
-            <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl -mr-20 -mt-20 ${isDark ? "bg-red-500/10" : "bg-red-200/30"}`}></div>
-            <div className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl -ml-20 -mb-20 ${isDark ? "bg-orange-500/10" : "bg-orange-200/30"}`}></div>
-
-            <div className="relative z-10 max-w-4xl mx-auto text-center">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 backdrop-blur-md rounded-full border mb-5 transition-colors duration-300 ${
-                isDark ? "bg-red-500/15 border-red-400/30" : "bg-red-100 border-red-300/50"
-              }`}>
-                <AlertTriangle className={`w-5 h-5 ${isDark ? "text-red-300" : "text-red-500"}`} />
-                <span className={`font-bold tracking-wide uppercase text-sm ${isDark ? "text-red-200" : "text-red-600"}`}>
-                  {t("Todellinen ongelma", "The Real Problem")}
-                </span>
+          {/* Video area */}
+          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "56px auto 0", padding: "0 24px", width: "100%" }}>
+            <div
+              style={{
+                background: "var(--black-3)", border: "1px solid rgba(255,255,255,.07)",
+                aspectRatio: "16/5.5", maxHeight: "260px",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                position: "relative", overflow: "hidden", cursor: "pointer",
+              }}
+            >
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(249,115,22,.05) 0%, transparent 50%)", pointerEvents: "none" }} />
+              <div style={{
+                position: "absolute", inset: 0,
+                backgroundImage: "linear-gradient(rgba(249,115,22,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,.03) 1px, transparent 1px)",
+                backgroundSize: "40px 40px", pointerEvents: "none",
+              }} />
+              <div style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
+                <div style={{
+                  width: "64px", height: "64px", margin: "0 auto 14px",
+                  background: "var(--orange)",
+                  clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <Play size={24} color="#000" fill="#000" />
+                </div>
+                <p style={{ fontWeight: 800, fontSize: "1rem", letterSpacing: ".06em", textTransform: "uppercase" }}>
+                  {t("Katso miten se toimii", "See How It Works")}
+                </p>
+                <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".78rem", marginTop: "4px" }}>
+                  {t("90 sekuntia — ennen kuin lähetät seuraavan hakemuksesi", "90 seconds — before you send your next application")}
+                </p>
               </div>
+            </div>
+          </div>
+        </section>
 
-              <h2 className={`text-3xl md:text-4xl font-extrabold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>
-                {t("Useimmat hakijat jäävät näkemättä.", "Most applicants never get seen.")}
+        <div className="ha-divider" />
+
+        {/* ════════════════════════════════════════════════
+            STATS BAR
+        ════════════════════════════════════════════════ */}
+        <section style={{ background: "var(--black-2)", padding: "48px 24px" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+            <div className="ha-stat-grid">
+              {[
+                { value: "75%", label: t("Automaattisesti hylätty", "Auto-rejected") },
+                { value: "3s", label: t("Keskimääräinen seulonta-aika", "Avg screening time") },
+                { value: "10×", label: t("Enemmän osumia", "More keyword matches") },
+              ].map((s, i) => (
+                <div key={i} className="ha-stat-cell">
+                  <div className="ha-stat-num">{s.value}</div>
+                  <div className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".75rem", fontWeight: 600, letterSpacing: ".1em", textTransform: "uppercase", marginTop: "6px" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <div className="ha-divider" />
+
+        {/* ════════════════════════════════════════════════
+            2. REALITY CHECK
+        ════════════════════════════════════════════════ */}
+        <section style={{ padding: "96px 24px", background: "var(--black)" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+
+            <div style={{ marginBottom: "52px" }}>
+              <span className="ha-badge" style={{ borderColor: "rgba(239,68,68,.3)", background: "rgba(239,68,68,.06)", color: "#f87171", marginBottom: "18px", display: "inline-flex" }}>
+                <AlertTriangle size={12} />
+                {t("Todellinen ongelma", "The Real Problem")}
+              </span>
+              <h2 style={{ fontSize: "clamp(2rem, 5vw, 3.8rem)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-.01em", lineHeight: .93, maxWidth: "720px" }}>
+                {t("Useimmat hakijat", "Most applicants")}<br />
+                <span style={{ color: "var(--orange)" }}>{t("jäävät näkemättä.", "never get seen.")}</span>
               </h2>
-
-              <p className={`text-lg max-w-2xl mx-auto mb-8 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
+              <p className="ha-body" style={{ color: "var(--gray-mid)", marginTop: "18px", maxWidth: "540px", lineHeight: 1.7 }}>
                 {t(
-                  "Seulontajärjestelmät suodattavat hakemuksia mekaanisesti kaikilla aloilla — ilman kontekstia, ilman harkintaa. Täsmälliset sanat ratkaisevat, ei potentiaali.",
-                  "Screening systems filter applications mechanically across all industries — no context, no judgment. Exact words decide, not potential."
+                  "Seulontajärjestelmät suodattavat hakemuksia mekaanisesti — ilman kontekstia, ilman harkintaa. Täsmälliset sanat ratkaisevat, ei potentiaali.",
+                  "Screening systems filter applications mechanically — no context, no judgment. Exact words decide, not potential."
                 )}
               </p>
-
-              {/* Kaksi esimerkkiä */}
-              <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto">
-                {[
-                  {
-                    badge: t("Varhainen ura", "Early career"),
-                    title: t("Hakija → Asiakaspalvelurooli", "Applicant → Customer Service role"),
-                    keywords: [
-                      { label: t("Viestintätaidot", "Communication skills"), found: true },
-                      { label: t("Asiakaskohtaaminen", "Customer interaction"), found: true },
-                      { label: t("CRM-kokemus", "CRM experience"), found: false },
-                      { label: t("1+ vuoden kokemus", "1+ year experience"), found: false },
-                    ],
-                    score: "58%", risk: t("Kohtalainen riski", "Medium risk"), riskColor: "text-amber-500",
-                    tip: t("Lisää konkreettisia tilanteita", "Add concrete examples"),
-                  },
-                  {
-                    badge: t("Kilpailtu rooli", "Competitive role"),
-                    title: t("Hakija → Senior markkinointiasiantuntija", "Applicant → Senior Marketing Specialist"),
-                    keywords: [
-                      { label: t("Kampanjanhallinta", "Campaign management"), found: true },
-                      { label: t("Budjettiosaaminen", "Budget management"), found: true },
-                      { label: t("5+ vuoden kokemus", "5+ years experience"), found: false },
-                      { label: t("Tiiminjohtaminen", "Team leadership"), found: false },
-                      { label: t("Edistynyt analytiikka", "Advanced analytics"), found: false },
-                    ],
-                    score: "42%", risk: t("Korkea riski", "High risk"), riskColor: "text-red-500",
-                    tip: t("Korosta mitattavia tuloksia", "Highlight measurable results"),
-                  },
-                ].map((ex, i) => (
-                  <div key={i} className={`backdrop-blur-md rounded-2xl p-5 border text-left transition-colors duration-300 ${
-                    isDark ? "bg-black/40 border-white/10" : "bg-white/80 border-gray-200"
-                  }`}>
-                    <p className={`text-xs mb-1 uppercase tracking-wide font-semibold ${isDark ? "text-gray-500" : "text-gray-400"}`}>{ex.badge}</p>
-                    <p className={`text-sm mb-3 font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>{ex.title}</p>
-                    <div className="space-y-1.5 mb-3">
-                      {ex.keywords.map((kw, j) => (
-                        <div key={j} className={`flex items-center justify-between py-1 px-2.5 rounded-lg ${isDark ? "bg-white/5" : "bg-gray-50"}`}>
-                          <span className={`text-xs ${isDark ? "text-gray-300" : "text-gray-600"}`}>{kw.label}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${kw.found ? "text-green-500 bg-green-500/10" : "text-red-500 bg-red-500/10"}`}>
-                            {kw.found ? "✓" : "✗"}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className={`flex items-center justify-between pt-2 border-t ${isDark ? "border-white/10" : "border-gray-200"}`}>
-                      <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>{t("ATS-pisteet", "ATS Score")}</span>
-                      <span className={`font-bold text-sm ${ex.riskColor}`}>{ex.score} — {ex.risk}</span>
-                    </div>
-                    <p className={`text-xs mt-1.5 italic ${isDark ? "text-gray-500" : "text-gray-400"}`}>→ {ex.tip}</p>
-                  </div>
-                ))}
-              </div>
             </div>
+
+            {/* Example cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "2px" }}>
+              {[
+                {
+                  badge: t("Varhainen ura", "Early career"),
+                  title: t("Hakija → Asiakaspalvelurooli", "Applicant → Customer Service"),
+                  keywords: [
+                    { label: t("Viestintätaidot", "Communication skills"), found: true },
+                    { label: t("Asiakaskohtaaminen", "Customer interaction"), found: true },
+                    { label: t("CRM-kokemus", "CRM experience"), found: false },
+                    { label: t("1+ vuoden kokemus", "1+ year experience"), found: false },
+                  ],
+                  score: "58%", risk: t("Kohtalainen riski", "Medium risk"), riskColor: "#f59e0b",
+                  tip: t("Lisää konkreettisia tilanteita", "Add concrete examples"),
+                },
+                {
+                  badge: t("Kilpailtu rooli", "Competitive role"),
+                  title: t("Hakija → Senior markkinointiasiantuntija", "Applicant → Senior Marketing Specialist"),
+                  keywords: [
+                    { label: t("Kampanjanhallinta", "Campaign management"), found: true },
+                    { label: t("Budjettiosaaminen", "Budget management"), found: true },
+                    { label: t("5+ vuoden kokemus", "5+ years experience"), found: false },
+                    { label: t("Tiiminjohtaminen", "Team leadership"), found: false },
+                    { label: t("Edistynyt analytiikka", "Advanced analytics"), found: false },
+                  ],
+                  score: "42%", risk: t("Korkea riski", "High risk"), riskColor: "#f87171",
+                  tip: t("Korosta mitattavia tuloksia", "Highlight measurable results"),
+                },
+              ].map((ex, i) => (
+                <div key={i} className="ha-card" style={{ padding: "28px" }}>
+                  <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: "var(--gray-dim)", marginBottom: "6px" }}>{ex.badge}</p>
+                  <p className="ha-body" style={{ fontSize: ".92rem", fontWeight: 600, marginBottom: "18px", color: "var(--gray-light)" }}>{ex.title}</p>
+                  <div>
+                    {ex.keywords.map((kw, j) => (
+                      <div key={j} className="ha-kw">
+                        <span style={{ color: "var(--gray-light)" }}>{kw.label}</span>
+                        <span className={kw.found ? "ha-kw-y" : "ha-kw-n"}>{kw.found ? "✓ MATCH" : "✗ MISSING"}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span className="ha-body" style={{ fontSize: ".75rem", color: "var(--gray-dim)" }}>{t("ATS-pisteet", "ATS Score")}</span>
+                    <span style={{ fontWeight: 900, color: ex.riskColor, fontSize: ".95rem" }}>{ex.score} — {ex.risk}</span>
+                  </div>
+                  <p className="ha-body" style={{ fontSize: ".75rem", color: "var(--gray-dim)", marginTop: "8px", fontStyle: "italic" }}>→ {ex.tip}</p>
+                </div>
+              ))}
+            </div>
+
+            <MidCTA label={t("Tarkista hakemukseni nyt — ilmaiseksi", "Check My Application Now — Free")} />
           </div>
-        </div>
+        </section>
 
-        {/* ── MID-PAGE CTA #1 — heti Reality Checkin jälkeen ──────────────
-            Käyttäjä on juuri pelästynyt. Nyt on oikea hetki. */}
-        <MidPageCTA label={t("Tarkista hakemukseni nyt — ilmaiseksi", "Check My Application Now — Free")} />
+        <div className="ha-divider" />
 
-        {/* ══════════════════════════════════════════════════
-            3. KENELLE — tiivistetty
-        ══════════════════════════════════════════════════ */}
-        <div className="mb-16 mt-16">
-          <div className="text-center mb-8">
-            <h2 className={`text-3xl font-bold mb-2 ${isDark ? "text-gray-100" : "text-gray-900"}`}>
-              {t("Tunnistatko itsesi?", "Does this sound like you?")}
-            </h2>
-            <p className={`${isDark ? "text-gray-400" : "text-gray-500"}`}>
-              {t("Ensimmäisestä hakemuksesta johtotason rooliin — millä alalla tahansa.", "From early career to senior roles — in any industry.")}
+        {/* ════════════════════════════════════════════════
+            3. WHO IS IT FOR
+        ════════════════════════════════════════════════ */}
+        <section style={{ padding: "96px 24px", background: "var(--black-2)" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+            <div style={{ marginBottom: "52px" }}>
+              <span className="ha-badge" style={{ marginBottom: "16px", display: "inline-flex" }}>
+                {t("Kenelle", "For every applicant")}
+              </span>
+              <h2 style={{ fontSize: "clamp(2rem, 5vw, 3.5rem)", fontWeight: 900, textTransform: "uppercase", lineHeight: .93, letterSpacing: "-.01em" }}>
+                {t("Tunnistatko", "Does this sound")}<br />
+                <span style={{ color: "var(--orange)" }}>{t("itsesi?", "like you?")}</span>
+              </h2>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "2px" }}>
+              {[
+                {
+                  emoji: "🌱", num: "01",
+                  title: t("Varhainen ura", "Early Career"),
+                  sub: t("Opiskelija, harjoittelija tai vasta aloittanut", "Student, trainee, or new to the workforce"),
+                  points: [
+                    t("Lähetät hakemuksia mutta et saa vastauksia", "Sending applications but getting no replies"),
+                    t("Et tiedä miksi hakemus hylätään", "Not sure why applications get rejected"),
+                    t("Haluat hyödyntää sen mitä sinulla on", "Want to make the most of what you have"),
+                  ],
+                  cta: t("Tiedä missä olet — ennen kuin lähetät.", "Know where you stand — before you send."),
+                  accent: "var(--orange)",
+                },
+                {
+                  emoji: "🎯", num: "02",
+                  title: t("Tähtäät korkeammalle", "Aiming Higher"),
+                  sub: t("Alanvaihtaja tai kilpailtuihin rooleihin tähtäävä", "Career changer or targeting competitive roles"),
+                  points: [
+                    t("Sinulla on kokemusta — mutta et tiedä miten se kääntyy", "You have experience — but unsure how it translates"),
+                    t("Haet tietämättä todellisia mahdollisuuksiasi", "Applying without knowing your real chances"),
+                    t("Hakukirjeet eivät tunnu kolahtavan", "Cover letters feel generic and don't land"),
+                  ],
+                  cta: t("Näe kuilu rehellisesti — sitten kuroe se umpeen.", "See the gap honestly — then close it."),
+                  accent: "#38bdf8",
+                },
+              ].map((seg, i) => (
+                <div key={i} className="ha-card" style={{ padding: "40px 32px", borderLeft: `3px solid ${seg.accent}` }}>
+                  <div style={{ fontSize: "2.8rem", marginBottom: "14px" }}>{seg.emoji}</div>
+                  <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: seg.accent, marginBottom: "4px" }}>
+                    {seg.num} / {seg.title}
+                  </p>
+                  <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".8rem", marginBottom: "22px" }}>{seg.sub}</p>
+                  <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
+                    {seg.points.map((p, j) => (
+                      <li key={j} className="ha-body" style={{ display: "flex", gap: "10px", color: "var(--gray-light)", fontSize: ".88rem", lineHeight: 1.5 }}>
+                        <span style={{ color: seg.accent, flexShrink: 0, marginTop: "2px" }}>›</span>
+                        {p}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="ha-body" style={{ color: seg.accent, fontSize: ".82rem", fontStyle: "italic", borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: "14px" }}>{seg.cta}</p>
+                </div>
+              ))}
+            </div>
+
+            <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".75rem", textAlign: "center", marginTop: "28px", letterSpacing: ".06em", textTransform: "uppercase" }}>
+              {t(
+                "Toimii terveydenhuollossa · liiketoiminnassa · opetuksessa · IT:ssä · markkinoinnissa",
+                "Works for healthcare · business · education · tech · marketing — any field"
+              )}
             </p>
           </div>
+        </section>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            {[
-              {
-                emoji: "🌱",
-                title: t("Varhainen ura", "Early career"),
-                subtitle: t("Opiskelija, harjoittelija tai vasta aloittanut", "Student, trainee, or new to the workforce"),
-                points: [
-                  t("Lähetät hakemuksia mutta et saa vastauksia", "Sending applications but getting no replies"),
-                  t("Et tiedä miksi hakemus hylätään", "Not sure why applications get rejected"),
-                  t("Haluat hyödyntää sen mitä sinulla on", "Want to make the most of what you have"),
-                ],
-                cta: t("Tiedä missä olet — ennen kuin lähetät.", "Know where you stand — before you send."),
-                darkCard: "from-orange-900/20 to-amber-900/10 border-orange-500/20",
-                lightCard: "from-orange-50 to-amber-50 border-orange-200/60",
-                darkTitle: "text-orange-300", lightTitle: "text-orange-600",
-                darkArrow: "text-orange-400", lightArrow: "text-orange-500",
-                darkCta: "text-orange-300/70", lightCta: "text-orange-500/80",
-              },
-              {
-                emoji: "🎯",
-                title: t("Tähtäät korkeammalle", "Aiming higher"),
-                subtitle: t("Alanvaihtaja tai kilpailtuihin rooleihin tähtäävä", "Career changer or targeting competitive roles"),
-                points: [
-                  t("Sinulla on kokemusta — mutta et tiedä miten se kääntyy", "You have experience — but unsure how it translates"),
-                  t("Haet tietämättä todellisia mahdollisuuksiasi", "Applying without knowing your real chances"),
-                  t("Hakukirjeet eivät tunnu kolahtavan", "Cover letters feel generic and don't land"),
-                ],
-                cta: t("Näe kuilu rehellisesti — sitten kuroe se umpeen.", "See the gap honestly — then close it."),
-                darkCard: "from-indigo-900/20 to-purple-900/10 border-indigo-500/20",
-                lightCard: "from-indigo-50 to-purple-50 border-indigo-200/60",
-                darkTitle: "text-indigo-300", lightTitle: "text-indigo-600",
-                darkArrow: "text-indigo-400", lightArrow: "text-indigo-500",
-                darkCta: "text-indigo-300/70", lightCta: "text-indigo-500/80",
-              },
-            ].map((seg, i) => (
-              <div key={i} className={`bg-gradient-to-br rounded-3xl p-8 border transition-colors duration-300 ${isDark ? seg.darkCard : seg.lightCard}`}>
-                <div className="text-4xl mb-4">{seg.emoji}</div>
-                <h3 className={`font-bold text-xl mb-1 ${isDark ? seg.darkTitle : seg.lightTitle}`}>{seg.title}</h3>
-                <p className={`text-sm mb-4 ${isDark ? "text-gray-500" : "text-gray-400"}`}>{seg.subtitle}</p>
-                <ul className={`space-y-2 text-sm mb-5 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                  {seg.points.map((p, j) => (
-                    <li key={j} className="flex items-start gap-2">
-                      <span className={`mt-0.5 ${isDark ? seg.darkArrow : seg.lightArrow}`}>→</span>
-                      {p}
+        <div className="ha-divider" />
+
+        {/* ════════════════════════════════════════════════
+            4. HOW IT WORKS
+        ════════════════════════════════════════════════ */}
+        <section style={{ padding: "96px 24px", background: "var(--black)" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+            <div style={{ marginBottom: "52px" }}>
+              <span className="ha-badge" style={{ marginBottom: "16px", display: "inline-flex" }}>
+                {t("Yksinkertainen prosessi", "Simple Process")}
+              </span>
+              <h2 style={{ fontSize: "clamp(2rem, 5vw, 3.5rem)", fontWeight: 900, textTransform: "uppercase", lineHeight: .93 }}>
+                {t("Miten se", "How it")}{" "}
+                <span style={{ color: "var(--orange)" }}>{t("toimii", "works")}</span>
+              </h2>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "2px" }}>
+              {[
+                { n: "01", title: t("Lataa CV ja työ", "Upload CV & Job"), desc: t("Liitä työkuvaus. Lataa CV:si.", "Paste the job description. Upload your CV.") },
+                { n: "02", title: t("Tekoäly skannaa kuten ATS", "AI Scans Like ATS"), desc: t("Täsmällinen keyword matching — kuten oikeat seulontajärjestelmät.", "Exact keyword matching — like real screening systems.") },
+                { n: "03", title: t("Saat pisteytyksen", "Get Your Score"), desc: t("Hae / Älä hae -tuomio 60 sekunnissa.", "Apply / Don't Apply verdict in 60 seconds.") },
+              ].map((step, i) => (
+                <div key={i} className="ha-feat">
+                  <p style={{ fontSize: "clamp(3rem, 6vw, 4.5rem)", fontWeight: 900, color: "rgba(249,115,22,.1)", lineHeight: 1, marginBottom: "14px", letterSpacing: "-.02em" }}>{step.n}</p>
+                  <h3 style={{ fontSize: "1.15rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: "10px" }}>{step.title}</h3>
+                  <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".85rem", lineHeight: 1.65 }}>{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <div className="ha-divider" />
+
+        {/* ════════════════════════════════════════════════
+            5. REAL ANALYSIS / ATS HIGHLIGHT
+        ════════════════════════════════════════════════ */}
+        <section style={{ padding: "96px 24px", background: "var(--black-2)" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+            <div style={{ marginBottom: "52px" }}>
+              <span className="ha-badge" style={{ borderColor: "rgba(74,222,128,.3)", background: "rgba(74,222,128,.06)", color: "#4ade80", marginBottom: "16px", display: "inline-flex" }}>
+                <Shield size={12} />
+                {t("Ei pelkkiä avainsanoja", "Not just keywords")}
+              </span>
+              <h2 style={{ fontSize: "clamp(2rem, 5vw, 3.5rem)", fontWeight: 900, textTransform: "uppercase", lineHeight: .93, maxWidth: "680px" }}>
+                {t("Oikea analyysi.", "Real analysis.")}<br />
+                <span style={{ color: "var(--orange)" }}>{t("Oikea strategia.", "Real strategy.")}</span>
+              </h2>
+              <p className="ha-body" style={{ color: "var(--gray-mid)", marginTop: "18px", maxWidth: "520px", lineHeight: 1.7 }}>
+                {t(
+                  "Useimmat checkerit antavat prosentin. HappyApplaid kertoo koko kuvan — kokemuskuilut, kilpailukyvyn, ja suoran suosituksen.",
+                  "Most checkers give you a percentage. HappyApplaid gives the full picture — experience gaps, competitiveness, and a direct verdict."
+                )}
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "2px", marginBottom: "40px" }}>
+              {[
+                { icon: <Target size={28} />, title: t("Täsmällinen matching", "Exact Keyword Match"), desc: t("Kuten oikeat ATS:t — ei synonyymitemppuja", "Like real ATS — no synonym tricks"), color: "#4ade80" },
+                { icon: <TrendingDown size={28} />, title: t("Kokemuskuilu", "Experience Gap"), desc: t("Low / Medium / High vakavuus", "Low / Medium / High severity"), color: "var(--orange)" },
+                { icon: <CheckCircle size={28} />, title: t("Hae / Älä hae", "Apply / Don't Apply"), desc: t("Rehellinen suositus — ei false hope", "Honest call — no false hope"), color: "#38bdf8" },
+                { icon: <Brain size={28} />, title: t("Älykkäät kysymykset", "Smart Follow-ups"), desc: t("Kysyy kun tietoa puuttuu", "Asks when info is missing"), color: "#a78bfa" },
+              ].map((item, i) => (
+                <div key={i} className="ha-card" style={{ padding: "28px 22px" }}>
+                  <div style={{ color: item.color, marginBottom: "14px" }}>{item.icon}</div>
+                  <h3 style={{ fontSize: ".95rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: "8px" }}>{item.title}</h3>
+                  <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".82rem", lineHeight: 1.6 }}>{item.desc}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Privacy note */}
+            <div style={{ background: "var(--black-3)", border: "1px solid rgba(74,222,128,.15)", padding: "18px 22px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <Shield size={16} color="#4ade80" style={{ flexShrink: 0, marginTop: "2px" }} />
+              <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".85rem", lineHeight: 1.6 }}>
+                <strong style={{ color: "#4ade80" }}>{t("Tietosuoja arkkitehtuurin tasolla. ", "Privacy-first by architecture. ")}</strong>
+                {t(
+                  "Nimesi, emailisi ja puhelinnumerosi eivät koskaan mene AI:lle — tekninen valinta, ei lupaus.",
+                  "Your name, email, and phone never go to AI — a technical decision, not just a promise."
+                )}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div className="ha-divider" />
+
+        {/* ════════════════════════════════════════════════
+            6. INTELLIGENT ENGINE
+        ════════════════════════════════════════════════ */}
+        <section style={{ padding: "96px 24px", background: "var(--black)" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+            <div style={{ marginBottom: "52px" }}>
+              <span className="ha-badge" style={{ marginBottom: "16px", display: "inline-flex" }}>
+                <Brain size={12} />
+                {t("Älykäs hakemuskone", "Intelligent Engine")}
+              </span>
+              <h2 style={{ fontSize: "clamp(2rem, 5vw, 3.5rem)", fontWeight: 900, textTransform: "uppercase", lineHeight: .93 }}>
+                {t("Kirjoittaa sinun äänelläsi.", "Writes in your voice.")}<br />
+                <span style={{ color: "var(--orange)" }}>{t("Oppii joka kerta.", "Learns every time.")}</span>
+              </h2>
+              <p className="ha-body" style={{ color: "var(--gray-mid)", marginTop: "18px", maxWidth: "520px", lineHeight: 1.7 }}>
+                {t(
+                  "Ei robottitekstiä. Järjestelmä analysoi profiilisi, kysyy älykkäitä lisäkysymyksiä ja tallentaa vastauksesi.",
+                  "No robotic text. The engine analyzes your profile, asks smart follow-ups, and saves your answers — so every application improves on the last."
+                )}
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2px" }}>
+              {[
+                { icon: <X size={18} />, iconColor: "#f87171", label: "Generic AI", content: '"I am a hard working individual with excellent communication skills..."', highlight: false },
+                { icon: <Check size={18} />, iconColor: "#4ade80", label: "HappyApplaid", content: t('"Analyyttinen lähestymistapani auttoi tiimimme lyhentämään asiakasvasteaikaa 40%..."', '"My analytical approach helped our team cut customer response time by 40%..."'), highlight: true },
+                { icon: <MessageCircle size={18} />, iconColor: "var(--orange)", label: t("Älykkäät kysymykset", "Smart follow-ups"), content: t("Kun tietoa puuttuu, järjestelmä kysyy — oikeaan aikaan, oikeasta asiasta.", "When info is missing, the engine asks — at the right time, about the right thing."), highlight: false },
+                { icon: <Lightbulb size={18} />, iconColor: "#f59e0b", label: t("Paranee käytöllä", "Gets better with use"), content: t("Vastauksesi tallentuvat profiiliisi. Seuraava hakemus on nopeampi ja tarkempi.", "Your answers are saved. The next application is faster and more accurate."), highlight: false },
+              ].map((card, i) => (
+                <div key={i} className="ha-card" style={{ padding: "26px 22px", ...(card.highlight ? { borderColor: "rgba(74,222,128,.2)", background: "rgba(74,222,128,.04)" } : {}) }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                    <span style={{ color: card.iconColor }}>{card.icon}</span>
+                    <span style={{ fontWeight: 800, fontSize: ".82rem", textTransform: "uppercase", letterSpacing: ".08em" }}>{card.label}</span>
+                  </div>
+                  <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".85rem", lineHeight: 1.65, fontStyle: "italic" }}>{card.content}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Features row */}
+            <div style={{ marginTop: "56px" }}>
+              <h2 style={{ fontSize: "clamp(1.8rem, 4vw, 2.8rem)", fontWeight: 900, textTransform: "uppercase", textAlign: "center", marginBottom: "32px" }}>
+                {t("Kaikki mitä tarvitset", "Everything You Need")}
+              </h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "2px" }}>
+                {[
+                  { icon: <Target size={28} color="#4ade80" />, title: t("ATS-Optimoitu", "ATS Optimized"), desc: t("Täsmällinen keyword matching", "Exact keyword matching — like real ATS systems"), tag: "Premium" },
+                  { icon: <TrendingDown size={28} color="#f59e0b" />, title: t("Kokemuskuilu", "Experience Gap"), desc: t("Low / Medium / High — strateginen suositus", "Low / Medium / High — with strategic advice"), tag: "Premium" },
+                  { icon: <Star size={28} color="#f59e0b" />, title: "STAR-Metodi", desc: t("Todistettu viitekehys — myy taitosi oikein", "Proven framework — sell your skills right"), tag: "Premium" },
+                  { icon: <FileText size={28} color="var(--orange)" />, title: t("PDF-Vienti", "PDF Export"), desc: t("Ammattimaiset lataukset välittömästi", "Professional downloads instantly"), tag: null },
+                ].map((feat, i) => (
+                  <div key={i} className="ha-card" style={{ padding: "28px 22px" }}>
+                    <div style={{ marginBottom: "14px" }}>{feat.icon}</div>
+                    <h3 style={{ fontSize: ".95rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px" }}>
+                      {feat.title}
+                      {feat.tag && <span style={{ fontSize: ".6rem", fontWeight: 700, background: "rgba(74,222,128,.15)", color: "#4ade80", padding: "2px 7px", letterSpacing: ".08em" }}>PREMIUM</span>}
+                    </h3>
+                    <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".82rem", lineHeight: 1.6 }}>{feat.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <MidCTA label={t("Aloita ilmaiseksi — näe tuloksesi heti", "Start Free — See Your Results Now")} />
+          </div>
+        </section>
+
+        <div className="ha-divider" />
+
+        {/* ════════════════════════════════════════════════
+            7. PRICING
+        ════════════════════════════════════════════════ */}
+        <section id="pricing" style={{ padding: "96px 24px", background: "var(--black-2)", scrollMarginTop: "80px" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+            <div style={{ textAlign: "center", marginBottom: "60px" }}>
+              <span className="ha-badge" style={{ marginBottom: "20px", display: "inline-flex" }}>
+                {t("Yksinkertainen hinnoittelu", "Simple Pricing")}
+              </span>
+              <h2 style={{ fontSize: "clamp(2rem, 5vw, 3.5rem)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-.01em" }}>
+                {t("Aloita ilmaiseksi.", "Start free.")}<br />
+                <span style={{ color: "var(--orange)" }}>{t("Päivitä kun olet valmis.", "Upgrade when ready.")}</span>
+              </h2>
+            </div>
+
+            <div className="ha-price-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "2px" }}>
+
+              {/* Free */}
+              <div className="ha-price">
+                <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: "var(--gray-dim)", marginBottom: "12px" }}>{t("Ilmainen", "Free")}</p>
+                <div style={{ marginBottom: "26px" }}>
+                  <span style={{ fontSize: "3rem", fontWeight: 900 }}>0€</span>
+                  <span className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".82rem" }}>/mo</span>
+                </div>
+                <ul className="ha-body" style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "12px", marginBottom: "28px" }}>
+                  <li style={{ display: "flex", gap: "10px", color: "var(--gray-light)", fontSize: ".88rem" }}>
+                    <Check size={14} color="#4ade80" style={{ marginTop: "3px", flexShrink: 0 }} />
+                    {t("1 Yleinen CV + Kirje", "1 General CV + Letter")}
+                  </li>
+                  {[t("Ei ATS-analyysiä", "No ATS analysis"), t("Ei kokemuskuilu-analyysiä", "No gap analysis")].map((item, i) => (
+                    <li key={i} style={{ display: "flex", gap: "10px", color: "var(--gray-dim)", fontSize: ".88rem", opacity: .5 }}>
+                      <Ban size={14} style={{ marginTop: "3px", flexShrink: 0 }} />
+                      {item}
                     </li>
                   ))}
                 </ul>
-                <p className={`text-sm italic ${isDark ? seg.darkCta : seg.lightCta}`}>{seg.cta}</p>
-              </div>
-            ))}
-          </div>
-          <p className={`text-sm text-center mt-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-            {t(
-              "Toimii terveydenhuollossa, liiketoiminnassa, opetuksessa, IT:ssä, markkinoinnissa — millä alalla tahansa.",
-              "Works for healthcare, business, education, tech, marketing — any field, any level."
-            )}
-          </p>
-        </div>
-
-        {/* ══════════════════════════════════════════════════
-            4. ATS HIGHLIGHT
-        ══════════════════════════════════════════════════ */}
-        <div className="mb-16">
-          <div className={`rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden border transition-colors duration-300 ${
-            isDark ? "bg-gradient-to-br from-green-900/30 via-emerald-900/20 to-green-800/30 border-green-500/30" : "bg-gradient-to-br from-green-50 via-emerald-50/50 to-green-50 border-green-200/60"
-          }`}>
-            <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl -mr-20 -mt-20 ${isDark ? "bg-green-500/20" : "bg-green-200/40"}`}></div>
-            <div className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl -ml-20 -mb-20 ${isDark ? "bg-emerald-500/15" : "bg-emerald-200/30"}`}></div>
-
-            <div className="relative z-10 max-w-4xl mx-auto text-center">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 backdrop-blur-md rounded-full border mb-5 transition-colors duration-300 ${
-                isDark ? "bg-green-500/20 border-green-400/40" : "bg-green-100 border-green-300/50"
-              }`}>
-                <Shield className={`w-5 h-5 ${isDark ? "text-green-300" : "text-green-600"}`} />
-                <span className={`font-bold tracking-wide uppercase text-sm ${isDark ? "text-green-200" : "text-green-700"}`}>
-                  {t("Ei pelkkiä avainsanoja", "Not just keywords")}
-                </span>
+                <SignUpButton mode="modal" appearance={clerkAppearance}>
+                  <button className="ha-btn-ghost" style={{ width: "100%", justifyContent: "center" }}>{t("Aloita", "Start Free")}</button>
+                </SignUpButton>
               </div>
 
-              <h2 className={`text-3xl md:text-4xl font-extrabold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>
-                {t("Oikea analyysi. Oikea strategia.", "Real analysis. Real strategy.")}
-              </h2>
-
-              <p className={`text-lg max-w-2xl mx-auto mb-8 ${isDark ? "text-gray-200" : "text-gray-600"}`}>
-                {t(
-                  "Useimmat checkerit antavat prosentin. HappyApplaid kertoo koko kuvan — kokemuskuilut, kilpailukyvyn, ja suoran suosituksen: kannattaako hakea.",
-                  "Most checkers give you a percentage. HappyApplaid gives the full picture — experience gaps, competitiveness, and a direct recommendation: apply or not."
-                )}
-              </p>
-
-              <div className="grid md:grid-cols-3 gap-5 mb-8">
-                {[
-                  {
-                    icon: <Target className={`w-10 h-10 mb-3 mx-auto ${isDark ? "text-green-400" : "text-green-600"}`} />,
-                    title: t("Täsmällinen matching", "Exact Keyword Match"),
-                    desc: t("Kuten oikeat ATS:t — ei synonyymitemppuja", "Like real ATS — no synonym tricks"),
-                  },
-                  {
-                    icon: <TrendingDown className={`w-10 h-10 mb-3 mx-auto ${isDark ? "text-green-400" : "text-green-600"}`} />,
-                    title: t("Kokemuskuilu", "Experience Gap"),
-                    desc: t("Low / Medium / High vakavuus — ei vain lista", "Low / Medium / High severity — not just a list"),
-                  },
-                  {
-                    icon: <CheckCircle className={`w-10 h-10 mb-3 mx-auto ${isDark ? "text-green-400" : "text-green-600"}`} />,
-                    title: t("Hae / Älä hae", "Apply / Don't Apply"),
-                    desc: t("Rehellinen suositus — ei false hope", "Honest call — no false hope"),
-                  },
-                ].map((item, i) => (
-                  <div key={i} className={`backdrop-blur-md p-5 rounded-3xl border transition-colors duration-300 ${
-                    isDark ? "bg-white/5 border-green-500/20" : "bg-white/70 border-green-200/50"
-                  }`}>
-                    {item.icon}
-                    <h3 className={`font-bold text-base mb-1 ${isDark ? "text-green-300" : "text-green-700"}`}>{item.title}</h3>
-                    <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-600"}`}>{item.desc}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Privacy */}
-              <div className={`backdrop-blur-md p-4 rounded-2xl border text-left transition-colors duration-300 ${
-                isDark ? "bg-emerald-500/10 border-green-500/20" : "bg-green-50 border-green-200/60"
-              }`}>
-                <div className="flex items-start gap-3">
-                  <Shield className={`w-4 h-4 mt-0.5 shrink-0 ${isDark ? "text-green-400" : "text-green-600"}`} />
-                  <p className={`text-sm ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                    <span className={`font-bold ${isDark ? "text-green-300" : "text-green-700"}`}>
-                      {t("Tietosuoja arkkitehtuurin tasolla. ", "Privacy-first by architecture. ")}
-                    </span>
-                    {t(
-                      "Nimesi, emailisi ja puhelinnumerosi eivät koskaan mene AI:lle — tekninen valinta, ei lupaus.",
-                      "Your name, email, and phone never go to AI — a technical decision, not just a promise."
-                    )}
-                  </p>
+              {/* Basic */}
+              <div className="ha-price" style={{ borderColor: "rgba(56,189,248,.2)" }}>
+                <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: "#38bdf8", marginBottom: "12px" }}>Basic</p>
+                <div style={{ marginBottom: "26px" }}>
+                  <span style={{ fontSize: "3rem", fontWeight: 900 }}>4.99€</span>
+                  <span className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".82rem" }}>/mo</span>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ══════════════════════════════════════════════════
-            5. INTELLIGENT ENGINE — Digital Twin + AI Grows yhdistetty
-        ══════════════════════════════════════════════════ */}
-        <div className="mb-16">
-          <div className={`rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden border transition-colors duration-300 ${
-            isDark ? "bg-gradient-to-br from-gray-900 via-black to-gray-800 border-white/10" : "bg-gradient-to-br from-gray-50 via-white to-gray-50 border-gray-200"
-          }`}>
-            <div className={`absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl -mr-16 -mt-16 ${isDark ? "bg-orange-500/10" : "bg-orange-100/40"}`}></div>
-            <div className={`absolute bottom-0 left-0 w-80 h-80 rounded-full blur-3xl -ml-16 -mb-16 ${isDark ? "bg-amber-500/10" : "bg-amber-100/40"}`}></div>
-
-            <div className="relative z-10 max-w-4xl mx-auto">
-              <div className="text-center mb-8">
-                <div className={`inline-flex items-center gap-2 px-4 py-2 backdrop-blur-md rounded-full border mb-5 transition-colors duration-300 ${
-                  isDark ? "bg-white/5 border-orange-400/30" : "bg-orange-50 border-orange-300/50"
-                }`}>
-                  <Brain className={`w-5 h-5 ${isDark ? "text-orange-300" : "text-orange-500"}`} />
-                  <span className={`font-bold tracking-wide uppercase text-sm ${isDark ? "text-orange-200" : "text-orange-600"}`}>
-                    {t("Älykäs hakemuskone", "Intelligent Engine")}
-                  </span>
-                </div>
-
-                <h2 className={`text-3xl md:text-4xl font-extrabold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>
-                  {t("Kirjoittaa sinun äänelläsi. Oppii joka kerta.", "Writes in your voice. Learns every time.")}
-                </h2>
-                <p className={`text-lg max-w-2xl mx-auto ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                  {t(
-                    "Ei robottitekstiä. Järjestelmä analysoi profiilisi, kysyy älykkäitä lisäkysymyksiä ja tallentaa vastauksesi — jotta jokainen hakemus on parempi kuin edellinen.",
-                    "No robotic text. The engine analyzes your profile, asks smart follow-ups, and saves your answers — so every application improves on the last."
-                  )}
-                </p>
-              </div>
-
-              {/* Neljä korttia 2x2 */}
-              <div className="grid sm:grid-cols-2 gap-5">
-                {[
-                  {
-                    icon: <X className="w-5 h-5 text-red-400" />,
-                    label: "Generic AI",
-                    content: '"I am a hard working individual with excellent communication skills..."',
-                    highlight: false,
-                  },
-                  {
-                    icon: <Check className="w-5 h-5 text-green-400" />,
-                    label: "HappyApplaid",
-                    content: t(
-                      '"Analyyttinen lähestymistapani auttoi tiimimme lyhentämään asiakasvasteaikaa 40%..."',
-                      '"My analytical approach helped our team cut customer response time by 40%..."'
-                    ),
-                    highlight: true,
-                  },
-                  {
-                    icon: <MessageCircle className="w-5 h-5 text-orange-400" />,
-                    label: t("Älykkäät kysymykset", "Smart follow-ups"),
-                    content: t(
-                      "Kun tietoa puuttuu, järjestelmä kysyy — oikeaan aikaan, oikeasta asiasta.",
-                      "When info is missing, the engine asks — at the right time, about the right thing."
-                    ),
-                    highlight: false,
-                  },
-                  {
-                    icon: <Lightbulb className="w-5 h-5 text-yellow-400" />,
-                    label: t("Paranee käytöllä", "Gets better with use"),
-                    content: t(
-                      "Vastauksesi tallentuvat profiiliisi. Seuraava hakemus on nopeampi ja tarkempi.",
-                      "Your answers are saved. The next application is faster and more accurate."
-                    ),
-                    highlight: false,
-                  },
-                ].map((card, i) => (
-                  <div key={i} className={`backdrop-blur-md p-5 rounded-2xl border transition-colors duration-300 ${
-                    card.highlight
-                      ? isDark ? "bg-green-500/10 border-green-500/20" : "bg-green-50 border-green-200/60"
-                      : isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"
-                  }`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      {card.icon}
-                      <span className={`font-bold text-sm ${isDark ? "text-gray-200" : "text-gray-700"}`}>{card.label}</span>
-                    </div>
-                    <p className={`text-sm italic ${isDark ? "text-gray-400" : "text-gray-500"}`}>{card.content}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ══════════════════════════════════════════════════
-            6. FEATURES — tiivistetty 6 → 4
-        ══════════════════════════════════════════════════ */}
-        <div className="mb-16">
-          <h2 className={`text-3xl font-bold text-center mb-8 ${isDark ? "text-gray-100" : "text-gray-900"}`}>
-            {t("Kaikki Mitä Tarvitset", "Everything You Need")}
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[
-              {
-                icon: <Target className="w-9 h-9 text-green-500 mb-3" />,
-                title: t("ATS-Optimoitu", "ATS Optimized"),
-                desc: t("Täsmällinen keyword matching — kuten oikeat ATS:t", "Exact keyword matching — like real ATS systems"),
-                tag: "Premium",
-              },
-              {
-                icon: <TrendingDown className="w-9 h-9 text-amber-400 mb-3" />,
-                title: t("Kokemuskuilu", "Experience Gap"),
-                desc: t("Low / Medium / High — strateginen suositus", "Low / Medium / High — with strategic advice"),
-                tag: "Premium",
-              },
-              {
-                icon: <Star className="w-9 h-9 text-amber-400 mb-3" />,
-                title: "STAR-Metodi",
-                desc: t("Todistettu viitekehys — myy taitosi oikein", "Proven framework — sell your skills right"),
-                tag: "Premium",
-              },
-              {
-                icon: <FileText className="w-9 h-9 text-orange-400 mb-3" />,
-                title: t("PDF-Vienti", "PDF Export"),
-                desc: t("Ammattimaiset lataukset välittömästi", "Professional downloads instantly"),
-                tag: null,
-              },
-            ].map((feat, i) => (
-              <div key={i} className={`backdrop-blur-xl p-5 rounded-3xl border hover:border-orange-400/30 transition-all ${
-                isDark ? "bg-white/5 border-white/10" : "bg-white/70 border-gray-200 hover:border-orange-300"
-              }`}>
-                {feat.icon}
-                <h3 className={`font-bold text-base mb-1 flex items-center gap-2 ${isDark ? "text-gray-100" : "text-gray-800"}`}>
-                  {feat.title}
-                  {feat.tag === "Premium" && (
-                    <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">Premium</span>
-                  )}
-                </h3>
-                <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>{feat.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── MID-PAGE CTA #2 — ennen pricingiä ───────────────────────────
-            Käyttäjä on lukenut featuresit ja on valmis päätökseen. */}
-        <MidPageCTA label={t("Aloita ilmaiseksi — näe tuloksesi heti", "Start Free — See Your Results Now")} />
-
-        {/* ══════════════════════════════════════════════════
-            7. PRICING
-        ══════════════════════════════════════════════════ */}
-        <div id="pricing" className={`backdrop-blur-2xl rounded-3xl p-8 md:p-12 border shadow-2xl mt-16 mb-16 scroll-mt-20 transition-colors duration-300 ${
-          isDark ? "bg-white/5 border-white/10" : "bg-white/80 border-gray-200"
-        }`}>
-          <div className="text-center mb-10">
-            <h2 className={`text-3xl md:text-4xl font-bold mb-3 ${isDark ? "text-gray-100" : "text-gray-900"}`}>
-              {t("Yksinkertainen Hinnoittelu", "Simple Pricing")}
-            </h2>
-            <p className={`text-lg ${isDark ? "text-gray-300" : "text-gray-500"}`}>
-              {t("Aloita ilmaiseksi — päivitä kun tarvitset", "Start free — upgrade when you need more")}
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-
-            {/* Free */}
-            <div className={`backdrop-blur-md rounded-3xl p-6 border flex flex-col transition-colors duration-300 ${
-              isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"
-            }`}>
-              <h3 className={`text-xl font-bold mb-2 ${isDark ? "text-gray-100" : "text-gray-800"}`}>{t("Ilmainen", "Free")}</h3>
-              <div className="mb-4">
-                <span className={`text-3xl font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>0€</span>
-                <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-400"}`}>/mo</span>
-              </div>
-              <ul className="space-y-3 mb-6 flex-1">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                  <span className={`text-sm ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                    {t("1 Yleinen CV + Kirje", "1 General CV + Letter")}
-                  </span>
-                </li>
-                {[t("Ei ATS-analyysiä", "No ATS analysis"), t("Ei kokemuskuilu-analyysiä", "No gap analysis")].map((item, i) => (
-                  <li key={i} className="flex items-start gap-2 opacity-50">
-                    <Ban className="w-4 h-4 text-gray-500 mt-0.5" />
-                    <span className={`text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <SignUpButton mode="modal" appearance={clerkAppearance}>
-                <Button variant="outline" className={`w-full transition-colors duration-300 ${
-                  isDark ? "border-white/20 bg-white/5 text-gray-200 hover:bg-white/10" : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-                }`}>
-                  {t("Aloita", "Start Free")}
-                </Button>
-              </SignUpButton>
-            </div>
-
-            {/* Basic */}
-            <div className={`backdrop-blur-md rounded-3xl p-6 border flex flex-col transition-colors duration-300 ${
-              isDark ? "bg-white/5 border-blue-400/30" : "bg-blue-50/50 border-blue-200"
-            }`}>
-              <h3 className={`text-xl font-bold mb-2 ${isDark ? "text-blue-300" : "text-blue-600"}`}>Basic</h3>
-              <div className="mb-4">
-                <span className={`text-3xl font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>4.99€</span>
-                <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-400"}`}>/mo</span>
-              </div>
-              <ul className="space-y-3 mb-6 flex-1">
-                <li className="flex items-start gap-2">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5" />
-                  <span className={`text-sm ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                    {t("Rajattomat CV:t ja kirjeet", "Unlimited CVs & Letters")}
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className={`w-4 h-4 mt-0.5 ${isDark ? "text-blue-400" : "text-blue-500"}`} />
-                  <span className={`text-sm ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-                    {t("Kirjoittaa aidon äänesi", "Captures your authentic voice")}
-                  </span>
-                </li>
-                <li className="flex items-start gap-2 opacity-50">
-                  <Ban className="w-4 h-4 text-gray-500 mt-0.5" />
-                  <span className={`text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                <ul className="ha-body" style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "12px", marginBottom: "28px" }}>
+                  {[t("Rajattomat CV:t ja kirjeet", "Unlimited CVs & Letters"), t("Kirjoittaa aidon äänesi", "Captures your authentic voice")].map((item, i) => (
+                    <li key={i} style={{ display: "flex", gap: "10px", color: "var(--gray-light)", fontSize: ".88rem" }}>
+                      <Check size={14} color="#38bdf8" style={{ marginTop: "3px", flexShrink: 0 }} />
+                      {item}
+                    </li>
+                  ))}
+                  <li style={{ display: "flex", gap: "10px", color: "var(--gray-dim)", fontSize: ".88rem", opacity: .5 }}>
+                    <Ban size={14} style={{ marginTop: "3px", flexShrink: 0 }} />
                     {t("Ei ATS-analyysiä", "No ATS analysis")}
-                  </span>
-                </li>
-              </ul>
-              <Link href="/pricing">
-                <Button className={`w-full transition-colors duration-300 ${
-                  isDark ? "bg-blue-500/20 text-blue-300 border border-blue-400/30 hover:bg-blue-500/30" : "bg-blue-100 text-blue-600 border border-blue-300 hover:bg-blue-200"
-                }`}>
-                  {t("Valitse Basic", "Choose Basic")}
-                </Button>
-              </Link>
-            </div>
-
-            {/* Premium */}
-            <div className={`backdrop-blur-md rounded-3xl p-6 border shadow-2xl relative scale-105 flex flex-col transition-colors duration-300 ${
-              isDark ? "bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-400/40" : "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300/60"
-            }`}>
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                {t("Paras", "Best Value")}
-              </div>
-              <h3 className={`text-xl font-bold mb-2 flex items-center gap-2 ${isDark ? "text-amber-300" : "text-amber-600"}`}>
-                Premium <Crown className="w-4 h-4" />
-              </h3>
-              <div className="mb-4">
-                <span className={`text-3xl font-bold ${isDark ? "text-gray-100" : "text-gray-900"}`}>14.99€</span>
-                <span className={`text-sm ${isDark ? "text-gray-300" : "text-gray-500"}`}>/mo</span>
-              </div>
-              <ul className="space-y-3 mb-6 flex-1">
-                {[
-                  t("✨ ATS-analyysi & keyword matching", "✨ ATS analysis & keyword matching"),
-                  t("✨ Kokemuskuilu-raportti", "✨ Experience Gap report"),
-                  t("✨ Työkohtainen kohdistus", "✨ Job-specific targeting"),
-                  t("✨ STAR-metodologia", "✨ STAR methodology"),
-                ].map((item, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <Check className="w-4 h-4 text-amber-400 mt-0.5" />
-                    <span className={`text-sm font-semibold ${isDark ? "text-amber-200" : "text-amber-700"}`}>{item}</span>
                   </li>
-                ))}
-              </ul>
-              <Link href="/pricing">
-                <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg">
-                  {t("Valitse Premium", "Choose Premium")}
-                </Button>
-              </Link>
+                </ul>
+                <Link href="/pricing">
+                  <button className="ha-btn-ghost" style={{ width: "100%", justifyContent: "center", borderColor: "rgba(56,189,248,.3)", color: "#38bdf8" }}>
+                    {t("Valitse Basic", "Choose Basic")}
+                  </button>
+                </Link>
+              </div>
+
+              {/* Premium */}
+              <div className="ha-price" style={{ borderColor: "rgba(249,115,22,.5)", background: "linear-gradient(160deg, rgba(249,115,22,.06) 0%, var(--black-3) 60%)", paddingTop: "52px" }}>
+                <div className="ha-price-top">{t("Paras arvo", "Best Value")}</div>
+                <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: "var(--orange)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  Premium <Crown size={12} />
+                </p>
+                <div style={{ marginBottom: "26px" }}>
+                  <span style={{ fontSize: "3rem", fontWeight: 900 }}>14.99€</span>
+                  <span className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".82rem" }}>/mo</span>
+                </div>
+                <ul className="ha-body" style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "12px", marginBottom: "28px" }}>
+                  {[
+                    t("ATS-analyysi & keyword matching", "ATS analysis & keyword matching"),
+                    t("Kokemuskuilu-raportti", "Experience Gap report"),
+                    t("Työkohtainen kohdistus", "Job-specific targeting"),
+                    t("STAR-metodologia", "STAR methodology"),
+                  ].map((item, i) => (
+                    <li key={i} style={{ display: "flex", gap: "10px", color: "var(--orange-bright)", fontSize: ".88rem", fontWeight: 600 }}>
+                      <Check size={14} color="var(--orange)" style={{ marginTop: "3px", flexShrink: 0 }} />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/pricing">
+                  <button className="ha-btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+                    {t("Valitse Premium", "Choose Premium")}
+                  </button>
+                </Link>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* ══════════════════════════════════════════════════
+        <div className="ha-divider" />
+
+        {/* ════════════════════════════════════════════════
             8. FINAL CTA
-        ══════════════════════════════════════════════════ */}
-        <div className={`backdrop-blur-2xl rounded-3xl p-12 md:p-16 text-center shadow-2xl border transition-colors duration-300 ${
-          isDark ? "bg-gradient-to-r from-orange-500/20 to-amber-500/20 border-orange-400/30" : "bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200"
-        }`}>
-          <h2 className={`text-3xl md:text-4xl font-extrabold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}>
-            {t("Lopeta arvaileminen. Hae strategisesti.", "Stop guessing. Apply strategically.")}
-          </h2>
-          <p className={`text-lg mb-8 max-w-xl mx-auto ${isDark ? "text-gray-200" : "text-gray-600"}`}>
-            {t("Luo profiili kerran. Tiedä missä olet — ennen kuin lähetät.", "Create your profile once. Know where you stand — before you send.")}
-          </p>
-          <SignUpButton mode="modal" appearance={clerkAppearance}>
-            <Button className={`px-8 py-4 rounded-xl font-bold text-lg shadow-xl transform hover:scale-105 transition-all ${
-              isDark ? "bg-white text-orange-600 hover:bg-gray-100" : "bg-gradient-to-r from-orange-500 to-amber-600 text-white hover:from-orange-600 hover:to-amber-700"
-            }`}>
-              <Sparkles className="inline w-5 h-5 mr-2" />
-              {t("Aloita Ilmaiseksi", "Start Free Now")}
-            </Button>
-          </SignUpButton>
-        </div>
-      </div>
+        ════════════════════════════════════════════════ */}
+        <section style={{ padding: "120px 24px", background: "var(--black)", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(249,115,22,.07) 0%, transparent 70%)", pointerEvents: "none" }} />
+          <div style={{
+            position: "absolute", inset: 0, opacity: .025,
+            backgroundImage: "linear-gradient(rgba(249,115,22,1) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,1) 1px, transparent 1px)",
+            backgroundSize: "60px 60px", pointerEvents: "none",
+          }} />
+          <div style={{ position: "relative", zIndex: 2, maxWidth: "860px", margin: "0 auto", textAlign: "center" }}>
+            <h2 style={{ fontSize: "clamp(2.4rem, 6vw, 5rem)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-.02em", lineHeight: .9, marginBottom: "26px" }}>
+              {t("Lopeta arvaileminen.", "Stop guessing.")}<br />
+              <span style={{ color: "var(--orange)" }}>{t("Hae strategisesti.", "Apply strategically.")}</span>
+            </h2>
+            <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: "1.05rem", maxWidth: "460px", margin: "0 auto 44px", lineHeight: 1.7 }}>
+              {t("Luo profiili kerran. Tiedä missä olet — ennen kuin lähetät.", "Create your profile once. Know where you stand — before you send.")}
+            </p>
+            <SignUpButton mode="modal" appearance={clerkAppearance}>
+              <button className="ha-btn-primary" style={{ fontSize: "1.1rem", padding: "18px 48px" }}>
+                <Sparkles size={18} />
+                {t("Aloita Ilmaiseksi", "Start Free Now")}
+              </button>
+            </SignUpButton>
+          </div>
+        </section>
 
-      {/* ── FOOTER ── */}
-      <footer className={`relative z-10 py-10 text-center border-t mt-16 transition-colors duration-300 ${
-        isDark ? "text-gray-500 border-white/10" : "text-gray-400 border-gray-200"
-      }`}>
-        <div className="max-w-7xl mx-auto px-4">
-          <p className="text-sm">
-            © {new Date().getFullYear()} HappyApplaid.{" "}
+        {/* ── FOOTER ── */}
+        <footer style={{ background: "var(--black-2)", borderTop: "1px solid rgba(255,255,255,.06)", padding: "36px 24px", textAlign: "center" }}>
+          <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".75rem", letterSpacing: ".06em", textTransform: "uppercase" }}>
+            © {new Date().getFullYear()} HAPPYAPPLAID —{" "}
             {t("Kaikki oikeudet pidätetään.", "All rights reserved.")}
           </p>
-        </div>
-      </footer>
-    </div>
-  );
-}
+        </footer>
+      </div>
+    );
+  }
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Kirjautuneen käyttäjän pääsivu
 // ═══════════════════════════════════════════════════════════════════════════
