@@ -42,7 +42,7 @@ const riotStyles = `
     font-weight: 700;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: rgba(240,236,228,.55);
+    color: rgba(17,17,17,.45);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -51,6 +51,7 @@ const riotStyles = `
     text-decoration: none;
     white-space: nowrap;
   }
+  .ha-header-dark .ha-nav-link { color: rgba(240,236,228,.55); }
   .ha-nav-link::after {
     content: '';
     position: absolute;
@@ -61,7 +62,8 @@ const riotStyles = `
     transform-origin: left;
     transition: transform .22s ease;
   }
-  .ha-nav-link:hover { color: #f0ece4; }
+  .ha-nav-link:hover { color: #111 !important; }
+  .ha-header-dark .ha-nav-link:hover { color: #f0ece4 !important; }
   .ha-nav-link:hover::after { transform: scaleX(1); }
 
   /* Sign In ghost */
@@ -75,17 +77,22 @@ const riotStyles = `
     font-weight: 800;
     letter-spacing: .12em;
     text-transform: uppercase;
-    color: rgba(240,236,228,.7);
+    color: rgba(17,17,17,.6);
     background: transparent;
-    border: 1px solid rgba(255,255,255,.12);
+    border: 1px solid rgba(0,0,0,.15);
     cursor: pointer;
     transition: border-color .2s, color .2s, background .2s;
   }
+  .ha-header-dark .ha-btn-ghost {
+    color: rgba(240,236,228,.7);
+    border-color: rgba(255,255,255,.12);
+  }
   .ha-btn-ghost:hover {
     border-color: rgba(249,115,22,.5);
-    color: #f0ece4;
+    color: #111;
     background: rgba(249,115,22,.06);
   }
+  .ha-header-dark .ha-btn-ghost:hover { color: #f0ece4; }
 
   /* Sign Up CTA */
   .ha-btn-cta {
@@ -118,14 +125,15 @@ const riotStyles = `
     font-weight: 700;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: rgba(240,236,228,.45);
+    color: rgba(17,17,17,.38);
     border: none;
     background: transparent;
     cursor: pointer;
     transition: color .18s;
     text-decoration: none;
   }
-  .ha-pricing-link:hover { color: #f97316; }
+  .ha-header-dark .ha-pricing-link { color: rgba(240,236,228,.45); }
+  .ha-pricing-link:hover, .ha-header-dark .ha-pricing-link:hover { color: #f97316; }
 
   /* Lang toggle */
   .ha-lang-btn {
@@ -138,13 +146,18 @@ const riotStyles = `
     font-weight: 800;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: rgba(240,236,228,.4);
+    color: rgba(17,17,17,.35);
     background: transparent;
-    border: 1px solid rgba(255,255,255,.08);
+    border: 1px solid rgba(0,0,0,.1);
     cursor: pointer;
     transition: color .18s, border-color .18s;
   }
-  .ha-lang-btn:hover { color: #f0ece4; border-color: rgba(255,255,255,.2); }
+  .ha-header-dark .ha-lang-btn {
+    color: rgba(240,236,228,.4);
+    border-color: rgba(255,255,255,.08);
+  }
+  .ha-lang-btn:hover { color: #111; border-color: rgba(0,0,0,.25); }
+  .ha-header-dark .ha-lang-btn:hover { color: #f0ece4; border-color: rgba(255,255,255,.2); }
 
   /* Mobile menu */
   .ha-mobile-menu {
@@ -155,6 +168,12 @@ const riotStyles = `
     border-top: 1px solid rgba(249,115,22,.15);
     z-index: 100;
     box-shadow: 0 20px 60px rgba(0,0,0,.8);
+  }
+  .ha-header-unauth:not(.ha-header-dark) .ha-mobile-menu {
+    background: #f0efe9;
+    border-bottom-color: rgba(249,115,22,.3);
+    border-top-color: rgba(249,115,22,.3);
+    box-shadow: 0 20px 40px rgba(0,0,0,.12);
   }
   .ha-mobile-link {
     display: flex;
@@ -167,15 +186,17 @@ const riotStyles = `
     font-weight: 700;
     letter-spacing: .08em;
     text-transform: uppercase;
-    color: rgba(240,236,228,.6);
+    color: rgba(17,17,17,.55);
     background: transparent;
     border: none;
     cursor: pointer;
-    border-bottom: 1px solid rgba(255,255,255,.04);
+    border-bottom: 1px solid rgba(0,0,0,.06);
     text-decoration: none;
     transition: color .15s, background .15s;
   }
-  .ha-mobile-link:hover { color: #f0ece4; background: rgba(249,115,22,.04); }
+  .ha-header-dark .ha-mobile-link { color: rgba(240,236,228,.6); border-bottom-color: rgba(255,255,255,.04); }
+  .ha-mobile-link:hover { color: #111; background: rgba(249,115,22,.04); }
+  .ha-header-dark .ha-mobile-link:hover { color: #f0ece4; }
 
   /* Bottom orange line on header */
   .ha-header-line {
@@ -235,8 +256,8 @@ export default function SmartHeader() {
 
   useEffect(() => {
     if (!profileMenuOpen) return;
-    const close = (e) => {
-      if (!e.target.closest('[data-profile-menu]')) setProfileMenuOpen(false);
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-profile-menu]')) setProfileMenuOpen(false);
     };
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
@@ -244,7 +265,7 @@ export default function SmartHeader() {
 
   if (!isClerkLoaded || isSubscriptionLoading || tokensLoading) {
     return (
-      <header style={{ height: '64px', background: 'rgba(8,8,8,.95)', borderBottom: '1px solid rgba(255,255,255,.06)' }} />
+      <header style={{ height: '64px', background: isDark ? 'rgba(8,8,8,.95)' : 'rgba(245,244,240,.95)', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.08)'}` }} />
     );
   }
 
@@ -412,14 +433,17 @@ export default function SmartHeader() {
       <style>{riotStyles}</style>
 
       <header
-        className={`ha-header-unauth${scrolled ? ' ha-header-scrolled' : ''}`}
+        className={`ha-header-unauth${scrolled ? ' ha-header-scrolled' : ''}${isDark ? ' ha-header-dark' : ''}`}
         style={{
           position: 'sticky',
           top: 0,
           zIndex: 50,
           height: '64px',
-          background: scrolled ? 'rgba(8,8,8,.98)' : 'rgba(8,8,8,.7)',
+          background: scrolled
+            ? (isDark ? 'rgba(8,8,8,.98)' : 'rgba(245,244,240,.98)')
+            : (isDark ? 'rgba(8,8,8,.7)' : 'rgba(245,244,240,.7)'),
           backdropFilter: 'blur(20px)',
+          borderBottom: `1px solid ${isDark ? 'rgba(249,115,22,.15)' : 'rgba(249,115,22,.2)'}`,
           transition: 'background .3s, box-shadow .3s',
           display: 'flex',
           alignItems: 'center',

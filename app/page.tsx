@@ -266,26 +266,54 @@ export default function Home() {
     const t = (fi: string, en: string) => language === "en" ? en : fi;
 
     // CSS injected once for the Riot/Blizzard aesthetic
+    // Supports both dark (default) and light theme via .ha-light modifier
     const riotCSS = `
       @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,700&family=Barlow:wght@300;400;500;600&display=swap');
 
       .ha-landing * { box-sizing: border-box; }
 
+      /* ══ DARK THEME (default) ══ */
       .ha-landing {
         --orange: #f97316;
         --orange-bright: #fb923c;
         --amber: #f59e0b;
-        --black: #080808;
-        --black-2: #0f0f0f;
-        --black-3: #161616;
+        --bg:      #080808;
+        --bg-2:    #0f0f0f;
+        --bg-3:    #161616;
+        --border:  rgba(255,255,255,.07);
+        --border-strong: rgba(255,255,255,.14);
+        --text:    #f0ece4;
         --gray-dim: #555;
         --gray-mid: #888;
         --gray-light: #bbb;
+        --card-top: rgba(249,115,22,.3);
+        --stat-sep: rgba(255,255,255,.05);
+        --kw-sep:   rgba(255,255,255,.05);
+        --scan-color: rgba(249,115,22,.3);
         font-family: 'Barlow Condensed', 'Impact', sans-serif;
-        background: #080808;
-        color: #f0ece4;
+        background: var(--bg);
+        color: var(--text);
         min-height: 100vh;
         overflow-x: hidden;
+      }
+
+      /* ══ LIGHT THEME ══ */
+      .ha-landing.ha-light {
+        --bg:      #f5f4f0;
+        --bg-2:    #eeede9;
+        --bg-3:    #e8e7e2;
+        --border:  rgba(0,0,0,.08);
+        --border-strong: rgba(0,0,0,.15);
+        --text:    #111;
+        --gray-dim: #888;
+        --gray-mid: #555;
+        --gray-light: #333;
+        --card-top: rgba(249,115,22,.4);
+        --stat-sep: rgba(0,0,0,.07);
+        --kw-sep:   rgba(0,0,0,.07);
+        --scan-color: rgba(249,115,22,.2);
+        background: var(--bg);
+        color: var(--text);
       }
 
       .ha-body { font-family: 'Barlow', sans-serif; }
@@ -320,7 +348,7 @@ export default function Home() {
         font-weight: 700; font-size: .9rem;
         letter-spacing: .08em; text-transform: uppercase;
         padding: 12px 24px;
-        border: 1px solid rgba(255,255,255,.14);
+        border: 1px solid var(--border-strong);
         cursor: pointer;
         transition: border-color .2s, color .2s, background .2s;
       }
@@ -345,30 +373,32 @@ export default function Home() {
 
       /* ── CARD ── */
       .ha-card {
-        background: var(--black-3);
-        border: 1px solid rgba(255,255,255,.07);
+        background: var(--bg-3);
+        border: 1px solid var(--border);
         position: relative; overflow: hidden;
       }
       .ha-card::before {
         content: '';
         position: absolute; top: 0; left: 0; right: 0; height: 1px;
-        background: linear-gradient(90deg, transparent, rgba(249,115,22,.3), transparent);
+        background: linear-gradient(90deg, transparent, var(--card-top), transparent);
       }
 
       /* ── KW ITEM ── */
       .ha-kw {
         display: flex; align-items: center; justify-content: space-between;
         padding: 8px 12px;
-        border-bottom: 1px solid rgba(255,255,255,.05);
+        border-bottom: 1px solid var(--kw-sep);
         font-family: 'Barlow', sans-serif; font-size: .82rem;
       }
-      .ha-kw-y { color: #4ade80; background: rgba(74,222,128,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
-      .ha-kw-n { color: #f87171; background: rgba(248,113,113,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
+      .ha-kw-y { color: #16a34a; background: rgba(22,163,74,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
+      .ha-kw-n { color: #dc2626; background: rgba(220,38,38,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
+      .ha-landing:not(.ha-light) .ha-kw-y { color: #4ade80; background: rgba(74,222,128,.1); }
+      .ha-landing:not(.ha-light) .ha-kw-n { color: #f87171; background: rgba(248,113,113,.1); }
 
       /* ── PRICE CARD ── */
       .ha-price {
-        background: var(--black-3);
-        border: 1px solid rgba(255,255,255,.07);
+        background: var(--bg-3);
+        border: 1px solid var(--border);
         padding: 36px 28px;
         position: relative; overflow: hidden;
         transition: border-color .2s, transform .2s;
@@ -390,7 +420,7 @@ export default function Home() {
       }
       .ha-scan {
         position: fixed; left: 0; right: 0; height: 2px;
-        background: linear-gradient(90deg, transparent, rgba(249,115,22,.3), transparent);
+        background: linear-gradient(90deg, transparent, var(--scan-color), transparent);
         animation: haScan 10s linear infinite;
         pointer-events: none; z-index: 0;
       }
@@ -406,7 +436,7 @@ export default function Home() {
       .ha-feat {
         padding: 36px 28px;
         border-left: 3px solid var(--orange);
-        background: var(--black-3);
+        background: var(--bg-3);
         position: relative; overflow: hidden;
       }
 
@@ -415,10 +445,10 @@ export default function Home() {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 1px;
-        background: rgba(255,255,255,.05);
+        background: var(--stat-sep);
       }
       .ha-stat-cell {
-        background: var(--black-2);
+        background: var(--bg-2);
         padding: 32px 40px;
         text-align: center;
       }
@@ -428,6 +458,45 @@ export default function Home() {
         line-height: 1; letter-spacing: -.02em;
       }
 
+      /* ── HERO TWO-COLUMN ── */
+      .ha-hero-inner {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+        align-items: center;
+      }
+      .ha-hero-video {
+        background: var(--bg-3);
+        border: 1px solid var(--border);
+        aspect-ratio: 16/10;
+        display: flex; align-items: center; justify-content: center;
+        position: relative; overflow: hidden; cursor: pointer;
+        min-height: 260px;
+      }
+      .ha-hero-video-play {
+        width: 72px; height: 72px;
+        background: var(--orange);
+        clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px;
+        transition: transform .2s;
+      }
+      .ha-hero-video:hover .ha-hero-video-play { transform: scale(1.08); }
+
+      /* Light theme hero BG adjustment */
+      .ha-landing.ha-light .ha-hero-bg-grad {
+        background: radial-gradient(ellipse 80% 60% at 40% 40%, rgba(249,115,22,.07) 0%, transparent 65%) !important;
+      }
+      .ha-landing.ha-light .ha-hero-fade {
+        background: linear-gradient(180deg, rgba(245,244,240,0) 0%, rgba(245,244,240,.4) 50%, #f5f4f0 100%) !important;
+      }
+
+      @media (max-width: 900px) {
+        .ha-hero-inner {
+          grid-template-columns: 1fr;
+        }
+        .ha-hero-video { min-height: 200px; }
+      }
       @media (max-width: 640px) {
         .ha-stat-grid { grid-template-columns: 1fr; }
         .ha-stat-cell { padding: 20px 24px; }
@@ -459,21 +528,21 @@ export default function Home() {
     );
 
     return (
-      <div className="ha-landing">
+      <div className={`ha-landing${isDark ? "" : " ha-light"}`}>
         <style>{riotCSS}</style>
         <div className="ha-scan" />
 
         {/* ════════════════════════════════════════════════
-            1. HERO
+            1. HERO — two-column: video left, text right
         ════════════════════════════════════════════════ */}
-        <section style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingBottom: "80px", overflow: "hidden" }}>
+        <section style={{ position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden", padding: "0" }}>
 
           {/* BG layers */}
-          <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 60% 30%, rgba(249,115,22,.1) 0%, transparent 65%)", pointerEvents: "none" }} />
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(8,8,8,0) 0%, rgba(8,8,8,.5) 50%, #080808 100%)", pointerEvents: "none" }} />
+          <div className="ha-hero-bg-grad" style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 40% 40%, rgba(249,115,22,.1) 0%, transparent 65%)", pointerEvents: "none" }} />
+          <div className="ha-hero-fade" style={{ position: "absolute", inset: 0, background: isDark ? "linear-gradient(180deg, rgba(8,8,8,0) 0%, rgba(8,8,8,.3) 60%, #080808 100%)" : "linear-gradient(180deg, rgba(245,244,240,0) 0%, rgba(245,244,240,.3) 60%, #f5f4f0 100%)", pointerEvents: "none" }} />
 
-          {/* Geometric X mark — Riot-style background decoration */}
-          <svg style={{ position: "absolute", top: "8%", right: "3%", width: "clamp(160px, 28vw, 400px)", opacity: .06, pointerEvents: "none" }} viewBox="0 0 100 100" fill="none">
+          {/* Geometric X — top right corner decoration */}
+          <svg style={{ position: "absolute", top: "5%", right: "2%", width: "clamp(120px, 18vw, 280px)", opacity: isDark ? .06 : .04, pointerEvents: "none" }} viewBox="0 0 100 100" fill="none">
             <line x1="10" y1="10" x2="90" y2="90" stroke="#f97316" strokeWidth="3.5" />
             <line x1="90" y1="10" x2="10" y2="90" stroke="#f97316" strokeWidth="3.5" />
             <rect x="5" y="5" width="90" height="90" stroke="#f97316" strokeWidth="1.5" />
@@ -483,112 +552,113 @@ export default function Home() {
           {/* Grid texture */}
           <div style={{
             position: "absolute", top: 0, right: 0, width: "55%", height: "70%",
-            backgroundImage: "linear-gradient(rgba(249,115,22,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,.03) 1px, transparent 1px)",
+            backgroundImage: `linear-gradient(rgba(249,115,22,${isDark ? ".03" : ".02"}) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,${isDark ? ".03" : ".02"}) 1px, transparent 1px)`,
             backgroundSize: "40px 40px",
             pointerEvents: "none",
           }} />
 
-          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "clamp(100px, 14vw, 140px) 24px 0", width: "100%" }}>
+          {/* ── TWO-COLUMN GRID ── */}
+          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "clamp(80px, 12vw, 120px) 24px clamp(80px, 10vw, 100px)", width: "100%" }}>
+            <div className="ha-hero-inner">
 
-            {/* Eyebrow */}
-            <div style={{ marginBottom: "24px" }}>
-              <span className="ha-badge">
-                <Sparkles size={12} />
-                {t("Realistinen ATS-analyysi", "Realistic ATS Analysis")}
-              </span>
-            </div>
-
-            {/* Headline */}
-            <h1 style={{
-              fontSize: "clamp(3.2rem, 7.5vw, 7rem)",
-              fontWeight: 900, lineHeight: .93,
-              letterSpacing: "-.02em", textTransform: "uppercase",
-              marginBottom: "24px", maxWidth: "820px",
-            }}>
-              <span style={{ display: "block", color: "#f0ece4" }}>
-                {t("Selvitä pääsetkö läpi.", "See if you'd")}
-              </span>
-              <span style={{ display: "block", color: "var(--orange)", fontStyle: "italic" }}>
-                {t("", "actually pass.")}
-              </span>
-              <span style={{ display: "block", color: "rgba(240,236,228,.42)", fontSize: ".55em", fontWeight: 700, letterSpacing: ".02em", marginTop: "10px" }}>
-                {t("Ennen kuin haet.", "Before you apply.")}
-              </span>
-            </h1>
-
-            {/* Description */}
-            <p className="ha-body" style={{ fontSize: "clamp(.95rem, 2vw, 1.1rem)", color: "var(--gray-mid)", maxWidth: "520px", lineHeight: 1.7, marginBottom: "40px" }}>
-              {t(
-                "75% hakemuksista hylätään automaattisesti. HappyApplaid näyttää kilpailukykysi, kokemuskuilusi ja keyword-osuman — ennen kuin lähetät.",
-                "75% of applications are auto-rejected. HappyApplaid shows your competitiveness, experience gaps, and keyword match — before you apply."
-              )}
-            </p>
-
-            {/* CTAs */}
-            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "52px" }}>
-              <SignUpButton mode="modal" appearance={clerkAppearance}>
-                <button className="ha-btn-primary" style={{ fontSize: "1.05rem" }}>
-                  <Sparkles size={16} />
-                  {t("Testaa hakemukseni ilmaiseksi", "Test My Application Free")}
-                </button>
-              </SignUpButton>
-              <button
-                className="ha-btn-ghost"
-                onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
-              >
-                {t("Katso Hinnoittelu", "See Pricing")}
-                <ChevronDown size={14} />
-              </button>
-            </div>
-
-            {/* Trust row */}
-            <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }} className="ha-body">
-              {[
-                { icon: <CreditCard size={14} />, label: t("Ei luottokorttia", "No credit card") },
-                { icon: <Clock size={14} />, label: t("Tulos 60 sekunnissa", "Result in 60 sec") },
-                { icon: <Shield size={14} />, label: t("Ei PII:tä AI:lle", "No PII to AI") },
-              ].map((item, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--gray-dim)", fontSize: ".78rem", fontWeight: 600, letterSpacing: ".07em", textTransform: "uppercase" }}>
-                  <span style={{ color: "var(--orange)" }}>{item.icon}</span>
-                  {item.label}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Video area */}
-          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "56px auto 0", padding: "0 24px", width: "100%" }}>
-            <div
-              style={{
-                background: "var(--black-3)", border: "1px solid rgba(255,255,255,.07)",
-                aspectRatio: "16/5.5", maxHeight: "260px",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                position: "relative", overflow: "hidden", cursor: "pointer",
-              }}
-            >
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(249,115,22,.05) 0%, transparent 50%)", pointerEvents: "none" }} />
-              <div style={{
-                position: "absolute", inset: 0,
-                backgroundImage: "linear-gradient(rgba(249,115,22,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,.03) 1px, transparent 1px)",
-                backgroundSize: "40px 40px", pointerEvents: "none",
-              }} />
-              <div style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
+              {/* LEFT — Video placeholder */}
+              <div className="ha-hero-video">
+                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(249,115,22,.06) 0%, transparent 55%)", pointerEvents: "none" }} />
                 <div style={{
-                  width: "64px", height: "64px", margin: "0 auto 14px",
-                  background: "var(--orange)",
-                  clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px))",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  <Play size={24} color="#000" fill="#000" />
+                  position: "absolute", inset: 0,
+                  backgroundImage: `linear-gradient(rgba(249,115,22,${isDark ? ".04" : ".025"}) 1px, transparent 1px), linear-gradient(90deg, rgba(249,115,22,${isDark ? ".04" : ".025"}) 1px, transparent 1px)`,
+                  backgroundSize: "36px 36px", pointerEvents: "none",
+                }} />
+                {/* Orange corner accent */}
+                <div style={{ position: "absolute", top: 0, left: 0, width: "3px", height: "40px", background: "var(--orange)" }} />
+                <div style={{ position: "absolute", top: 0, left: 0, width: "40px", height: "3px", background: "var(--orange)" }} />
+                <div style={{ position: "absolute", bottom: 0, right: 0, width: "3px", height: "40px", background: "var(--orange)" }} />
+                <div style={{ position: "absolute", bottom: 0, right: 0, width: "40px", height: "3px", background: "var(--orange)" }} />
+
+                <div style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
+                  <div className="ha-hero-video-play">
+                    <Play size={28} color="#000" fill="#000" />
+                  </div>
+                  <p style={{ fontWeight: 800, fontSize: "1rem", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text)" }}>
+                    {t("Katso miten se toimii", "See How It Works")}
+                  </p>
+                  <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".78rem", marginTop: "6px", maxWidth: "240px", margin: "6px auto 0" }}>
+                    {t("90 sekuntia", "90 seconds — before you send your next application")}
+                  </p>
+                  {/* TODO: replace this div with <video> or <iframe> when ready */}
                 </div>
-                <p style={{ fontWeight: 800, fontSize: "1rem", letterSpacing: ".06em", textTransform: "uppercase" }}>
-                  {t("Katso miten se toimii", "See How It Works")}
-                </p>
-                <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".78rem", marginTop: "4px" }}>
-                  {t("90 sekuntia — ennen kuin lähetät seuraavan hakemuksesi", "90 seconds — before you send your next application")}
-                </p>
               </div>
-            </div>
+
+              {/* RIGHT — Text & CTAs */}
+              <div>
+                {/* Eyebrow */}
+                <div style={{ marginBottom: "22px" }}>
+                  <span className="ha-badge">
+                    <Sparkles size={12} />
+                    {t("Realistinen ATS-analyysi", "Realistic ATS Analysis")}
+                  </span>
+                </div>
+
+                {/* Headline */}
+                <h1 style={{
+                  fontSize: "clamp(2.8rem, 5.5vw, 5.5rem)",
+                  fontWeight: 900, lineHeight: .92,
+                  letterSpacing: "-.02em", textTransform: "uppercase",
+                  marginBottom: "22px",
+                  color: "var(--text)",
+                }}>
+                  <span style={{ display: "block" }}>
+                    {t("Selvitä", "See if you'd")}
+                  </span>
+                  <span style={{ display: "block", color: "var(--orange)", fontStyle: "italic" }}>
+                    {t("pääsetkö läpi.", "actually pass.")}
+                  </span>
+                  <span style={{ display: "block", color: isDark ? "rgba(240,236,228,.35)" : "rgba(17,17,17,.35)", fontSize: ".52em", fontWeight: 700, letterSpacing: ".03em", marginTop: "10px" }}>
+                    {t("Ennen kuin haet.", "Before you apply.")}
+                  </span>
+                </h1>
+
+                {/* Description */}
+                <p className="ha-body" style={{ fontSize: "clamp(.9rem, 1.8vw, 1rem)", color: "var(--gray-mid)", maxWidth: "460px", lineHeight: 1.75, marginBottom: "36px" }}>
+                  {t(
+                    "75% hakemuksista hylätään automaattisesti. HappyApplaid näyttää kilpailukykysi, kokemuskuilusi ja keyword-osuman — ennen kuin lähetät.",
+                    "75% of applications are auto-rejected. HappyApplaid shows your competitiveness, experience gaps, and keyword match — before you apply."
+                  )}
+                </p>
+
+                {/* CTAs */}
+                <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "40px" }}>
+                  <SignUpButton mode="modal" appearance={clerkAppearance}>
+                    <button className="ha-btn-primary" style={{ fontSize: "1rem" }}>
+                      <Sparkles size={15} />
+                      {t("Testaa hakemukseni ilmaiseksi", "Test My Application Free")}
+                    </button>
+                  </SignUpButton>
+                  <button
+                    className="ha-btn-ghost"
+                    onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}
+                  >
+                    {t("Katso Hinnoittelu", "See Pricing")}
+                    <ChevronDown size={13} />
+                  </button>
+                </div>
+
+                {/* Trust row */}
+                <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }} className="ha-body">
+                  {[
+                    { icon: <CreditCard size={13} />, label: t("Ei luottokorttia", "No credit card") },
+                    { icon: <Clock size={13} />, label: t("Tulos 60 sekunnissa", "Result in 60 sec") },
+                    { icon: <Shield size={13} />, label: t("Ei PII:tä AI:lle", "No PII to AI") },
+                  ].map((item, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "7px", color: "var(--gray-dim)", fontSize: ".74rem", fontWeight: 600, letterSpacing: ".07em", textTransform: "uppercase" }}>
+                      <span style={{ color: "var(--orange)" }}>{item.icon}</span>
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>{/* end ha-hero-inner */}
           </div>
         </section>
 
@@ -597,7 +667,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             STATS BAR
         ════════════════════════════════════════════════ */}
-        <section style={{ background: "var(--black-2)", padding: "48px 24px" }}>
+        <section style={{ background: "var(--bg-2)", padding: "48px 24px" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
             <div className="ha-stat-grid">
               {[
@@ -619,7 +689,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             2. REALITY CHECK
         ════════════════════════════════════════════════ */}
-        <section style={{ padding: "96px 24px", background: "var(--black)" }}>
+        <section style={{ padding: "96px 24px", background: "var(--bg)" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
 
             <div style={{ marginBottom: "52px" }}>
@@ -679,7 +749,7 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
-                  <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ marginTop: "18px", paddingTop: "14px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span className="ha-body" style={{ fontSize: ".75rem", color: "var(--gray-dim)" }}>{t("ATS-pisteet", "ATS Score")}</span>
                     <span style={{ fontWeight: 900, color: ex.riskColor, fontSize: ".95rem" }}>{ex.score} — {ex.risk}</span>
                   </div>
@@ -697,7 +767,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             3. WHO IS IT FOR
         ════════════════════════════════════════════════ */}
-        <section style={{ padding: "96px 24px", background: "var(--black-2)" }}>
+        <section style={{ padding: "96px 24px", background: "var(--bg-2)" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
             <div style={{ marginBottom: "52px" }}>
               <span className="ha-badge" style={{ marginBottom: "16px", display: "inline-flex" }}>
@@ -750,7 +820,7 @@ export default function Home() {
                       </li>
                     ))}
                   </ul>
-                  <p className="ha-body" style={{ color: seg.accent, fontSize: ".82rem", fontStyle: "italic", borderTop: "1px solid rgba(255,255,255,.06)", paddingTop: "14px" }}>{seg.cta}</p>
+                  <p className="ha-body" style={{ color: seg.accent, fontSize: ".82rem", fontStyle: "italic", borderTop: "1px solid var(--border)", paddingTop: "14px" }}>{seg.cta}</p>
                 </div>
               ))}
             </div>
@@ -769,7 +839,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             4. HOW IT WORKS
         ════════════════════════════════════════════════ */}
-        <section style={{ padding: "96px 24px", background: "var(--black)" }}>
+        <section style={{ padding: "96px 24px", background: "var(--bg)" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
             <div style={{ marginBottom: "52px" }}>
               <span className="ha-badge" style={{ marginBottom: "16px", display: "inline-flex" }}>
@@ -801,7 +871,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             5. REAL ANALYSIS / ATS HIGHLIGHT
         ════════════════════════════════════════════════ */}
-        <section style={{ padding: "96px 24px", background: "var(--black-2)" }}>
+        <section style={{ padding: "96px 24px", background: "var(--bg-2)" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
             <div style={{ marginBottom: "52px" }}>
               <span className="ha-badge" style={{ borderColor: "rgba(74,222,128,.3)", background: "rgba(74,222,128,.06)", color: "#4ade80", marginBottom: "16px", display: "inline-flex" }}>
@@ -836,7 +906,7 @@ export default function Home() {
             </div>
 
             {/* Privacy note */}
-            <div style={{ background: "var(--black-3)", border: "1px solid rgba(74,222,128,.15)", padding: "18px 22px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+            <div style={{ background: "var(--bg-3)", border: "1px solid rgba(74,222,128,.15)", padding: "18px 22px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
               <Shield size={16} color="#4ade80" style={{ flexShrink: 0, marginTop: "2px" }} />
               <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".85rem", lineHeight: 1.6 }}>
                 <strong style={{ color: "#4ade80" }}>{t("Tietosuoja arkkitehtuurin tasolla. ", "Privacy-first by architecture. ")}</strong>
@@ -854,7 +924,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             6. INTELLIGENT ENGINE
         ════════════════════════════════════════════════ */}
-        <section style={{ padding: "96px 24px", background: "var(--black)" }}>
+        <section style={{ padding: "96px 24px", background: "var(--bg)" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
             <div style={{ marginBottom: "52px" }}>
               <span className="ha-badge" style={{ marginBottom: "16px", display: "inline-flex" }}>
@@ -923,7 +993,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             7. PRICING
         ════════════════════════════════════════════════ */}
-        <section id="pricing" style={{ padding: "96px 24px", background: "var(--black-2)", scrollMarginTop: "80px" }}>
+        <section id="pricing" style={{ padding: "96px 24px", background: "var(--bg-2)", scrollMarginTop: "80px" }}>
           <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
             <div style={{ textAlign: "center", marginBottom: "60px" }}>
               <span className="ha-badge" style={{ marginBottom: "20px", display: "inline-flex" }}>
@@ -988,7 +1058,7 @@ export default function Home() {
               </div>
 
               {/* Premium */}
-              <div className="ha-price" style={{ borderColor: "rgba(249,115,22,.5)", background: "linear-gradient(160deg, rgba(249,115,22,.06) 0%, var(--black-3) 60%)", paddingTop: "52px" }}>
+              <div className="ha-price" style={{ borderColor: "rgba(249,115,22,.5)", background: "linear-gradient(160deg, rgba(249,115,22,.06) 0%, var(--bg-3) 60%)", paddingTop: "52px" }}>
                 <div className="ha-price-top">{t("Paras arvo", "Best Value")}</div>
                 <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: "var(--orange)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
                   Premium <Crown size={12} />
@@ -1025,7 +1095,7 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             8. FINAL CTA
         ════════════════════════════════════════════════ */}
-        <section style={{ padding: "120px 24px", background: "var(--black)", position: "relative", overflow: "hidden" }}>
+        <section style={{ padding: "120px 24px", background: "var(--bg)", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 60% at 50% 50%, rgba(249,115,22,.07) 0%, transparent 70%)", pointerEvents: "none" }} />
           <div style={{
             position: "absolute", inset: 0, opacity: .025,
@@ -1050,8 +1120,8 @@ export default function Home() {
         </section>
 
         {/* ── FOOTER ── */}
-        <footer style={{ background: "var(--black-2)", borderTop: "1px solid rgba(255,255,255,.06)", padding: "36px 24px", textAlign: "center" }}>
-          <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".75rem", letterSpacing: ".06em", textTransform: "uppercase" }}>
+        <footer style={{ background: "var(--bg-2)", borderTop: "1px solid var(--border)", padding: "36px 24px", textAlign: "center" }}>
+          <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".75rem", letterSpacing: ".06em", textTransform: "uppercase" }}>
             © {new Date().getFullYear()} HAPPYAPPLAID —{" "}
             {t("Kaikki oikeudet pidätetään.", "All rights reserved.")}
           </p>
@@ -1059,7 +1129,6 @@ export default function Home() {
       </div>
     );
   }
-
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Kirjautuneen käyttäjän pääsivu
 // ═══════════════════════════════════════════════════════════════════════════
