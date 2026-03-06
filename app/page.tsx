@@ -469,6 +469,9 @@ export default function Home() {
       @media (max-width: 860px) {
         .ha-hero-side { display: none !important; }
         .ha-explorer-grid { grid-template-columns: 1fr !important; }
+        .ha-explorer-list { display: none !important; }
+        .ha-explorer-dots { display: flex !important; }
+        .ha-explorer-mobile-cta { display: block !important; }
       }
       @media (max-width: 640px) {
         .ha-stat-grid { grid-template-columns: 1fr; }
@@ -485,9 +488,9 @@ export default function Home() {
     // (They are declared via useState above — add them if not present;
     //  here we declare them inline for clarity.)
 
-    // ── Interactive Explorer Component (Riot-style tab panel) ────────
-    // Combines: Reality Check, Who It's For, How It Works, Features
-    // into one compact interactive block with left preview + right nav list
+    // ── Interactive Explorer Component (Riot-style) ────────────────
+    // Desktop: preview left + nav list right
+    // Mobile: tabbar top + swipeable cards (one visible at a time)
     const InteractiveExplorer = () => {
       const [activeTab, setActiveTab] = React.useState(0);
       const [activeItem, setActiveItem] = React.useState(0);
@@ -495,241 +498,220 @@ export default function Home() {
       const tabs = [
         {
           id: "problem",
-          label: t("Ongelma", "The Problem"),
-          badge: { text: t("Miksi se tärkeää", "Why It Matters"), color: "#f87171", bg: "rgba(239,68,68,.08)" },
+          label: t("Ongelma", "Problem"),
+          accent: "#f87171",
           items: [
             {
-              title: t("Varhainen ura → Asiakaspalvelu", "Early career → Customer Service"),
-              sub: t("58% ATS-pisteet · Kohtalainen riski", "58% ATS score · Medium risk"),
+              listTitle: t("Varhainen ura → Asiakaspalvelu", "Early career → Customer Service"),
+              listSub: t("58% ATS · Kohtalainen riski", "58% ATS · Medium risk"),
               accent: "#f59e0b",
-              content: {
-                headline: t("Hakemus ei läpäise automaattiseulontaa", "Application won't pass auto-screening"),
-                keywords: [
-                  { label: t("Viestintätaidot", "Communication skills"), found: true },
-                  { label: t("Asiakaskohtaaminen", "Customer interaction"), found: true },
-                  { label: t("CRM-kokemus", "CRM experience"), found: false },
-                  { label: t("1+ vuoden kokemus", "1+ year experience"), found: false },
-                ],
-                score: "58%", riskColor: "#f59e0b",
-                risk: t("Kohtalainen riski", "Medium risk"),
-                tip: t("Lisää konkreettisia esimerkkejä asiakastilanteista profiiliisi.", "Add concrete examples of customer situations to your profile."),
-              }
+              headline: t("Hakemus ei läpäise automaattiseulontaa", "Application won\'t pass auto-screening"),
+              type: "keywords",
+              keywords: [
+                { label: t("Viestintätaidot", "Communication skills"), found: true },
+                { label: t("Asiakaskohtaaminen", "Customer interaction"), found: true },
+                { label: t("CRM-kokemus", "CRM experience"), found: false },
+                { label: t("1+ vuoden kokemus", "1+ year experience"), found: false },
+              ],
+              score: "58%", riskColor: "#f59e0b",
+              risk: t("Kohtalainen riski", "Medium risk"),
+              tip: t("Lisää konkreettisia esimerkkejä asiakastilanteista.", "Add concrete examples of customer situations."),
             },
             {
-              title: t("Kilpailtu rooli → Senior markkinointi", "Competitive → Senior Marketing"),
-              sub: t("42% ATS-pisteet · Korkea riski", "42% ATS score · High risk"),
+              listTitle: t("Kilpailtu → Senior markkinointi", "Competitive → Senior Marketing"),
+              listSub: t("42% ATS · Korkea riski", "42% ATS · High risk"),
               accent: "#f87171",
-              content: {
-                headline: t("Kokemusvaatimus ei täyty", "Experience requirement not met"),
-                keywords: [
-                  { label: t("Kampanjanhallinta", "Campaign management"), found: true },
-                  { label: t("Budjettiosaaminen", "Budget management"), found: true },
-                  { label: t("5+ vuoden kokemus", "5+ years experience"), found: false },
-                  { label: t("Tiiminjohtaminen", "Team leadership"), found: false },
-                  { label: t("Edistynyt analytiikka", "Advanced analytics"), found: false },
-                ],
-                score: "42%", riskColor: "#f87171",
-                risk: t("Korkea riski", "High risk"),
-                tip: t("Korosta mitattavia tuloksia ja johda tiimin saavutuksia esiin.", "Highlight measurable results and surface team leadership achievements."),
-              }
+              headline: t("Kokemusvaatimus ei täyty", "Experience requirement not met"),
+              type: "keywords",
+              keywords: [
+                { label: t("Kampanjanhallinta", "Campaign management"), found: true },
+                { label: t("Budjettiosaaminen", "Budget management"), found: true },
+                { label: t("5+ vuoden kokemus", "5+ years experience"), found: false },
+                { label: t("Tiiminjohtaminen", "Team leadership"), found: false },
+                { label: t("Edistynyt analytiikka", "Advanced analytics"), found: false },
+              ],
+              score: "42%", riskColor: "#f87171",
+              risk: t("Korkea riski", "High risk"),
+              tip: t("Korosta mitattavia tuloksia ja tiimijohtamista.", "Highlight measurable results and team leadership."),
             },
-          ]
+          ],
         },
         {
           id: "who",
-          label: t("Kenelle", "Who It's For"),
-          badge: { text: t("Sinulle", "For you"), color: "var(--orange-bright)", bg: "rgba(249,115,22,.08)" },
+          label: t("Kenelle", "Who"),
+          accent: "var(--orange)",
           items: [
             {
-              title: t("🌱 Varhainen ura", "🌱 Early Career"),
-              sub: t("Opiskelija tai vasta aloittanut", "Student or new to the workforce"),
+              listTitle: t("🌱 Varhainen ura", "🌱 Early Career"),
+              listSub: t("Opiskelija tai vasta aloittanut", "Student or new to workforce"),
               accent: "var(--orange)",
-              content: {
-                headline: t("Lähetät hakemuksia — et saa vastauksia", "Sending applications — getting no replies"),
-                points: [
-                  t("Et tiedä miksi hakemus hylätään automaattisesti", "Not sure why applications get auto-rejected"),
-                  t("Haluat hyödyntää sen mitä sinulla on — nyt", "Want to make the most of what you have — now"),
-                  t("Tarvitset rehellisen kuvan kilpailukyvystäsi", "Need an honest picture of your competitiveness"),
-                ],
-                cta: t("Tiedä missä olet — ennen kuin lähetät.", "Know where you stand — before you send."),
-                ctaColor: "var(--orange)",
-              }
+              headline: t("Lähetät hakemuksia — et saa vastauksia", "Sending applications — getting no replies"),
+              type: "points",
+              points: [
+                t("Et tiedä miksi hakemus hylätään automaattisesti", "Don\'t know why applications get auto-rejected"),
+                t("Haluat hyödyntää sen mitä sinulla on — nyt", "Want to make the most of what you have — now"),
+                t("Tarvitset rehellisen kuvan kilpailukyvystäsi", "Need an honest picture of your competitiveness"),
+              ],
+              tip: t("Tiedä missä olet — ennen kuin lähetät.", "Know where you stand — before you send."),
             },
             {
-              title: t("🎯 Tähtäät korkeammalle", "🎯 Aiming Higher"),
-              sub: t("Alanvaihtaja tai kilpailtuihin rooleihin", "Career changer or targeting competitive roles"),
+              listTitle: t("🎯 Tähtäät korkeammalle", "🎯 Aiming Higher"),
+              listSub: t("Alanvaihtaja tai kilpailtuihin rooleihin", "Career changer or targeting competitive roles"),
               accent: "#38bdf8",
-              content: {
-                headline: t("Sinulla on kokemus — mutta ei varmuutta", "You have experience — but no certainty"),
-                points: [
-                  t("Haet tietämättä todellisia mahdollisuuksiasi", "Applying without knowing your real chances"),
-                  t("Hakukirjeet eivät tunnu kolahtavan", "Cover letters feel generic and don't land"),
-                  t("Haluat tietää kuilun — ennen kuin haet", "Want to know the gap — before you apply"),
-                ],
-                cta: t("Näe kuilu rehellisesti — sitten kuroe se umpeen.", "See the gap honestly — then close it."),
-                ctaColor: "#38bdf8",
-              }
+              headline: t("Sinulla on kokemus — mutta ei varmuutta", "You have experience — but no certainty"),
+              type: "points",
+              points: [
+                t("Haet tietämättä todellisia mahdollisuuksiasi", "Applying without knowing your real chances"),
+                t("Hakukirjeet eivät tunnu kolahtavan", "Cover letters feel generic and don\'t land"),
+                t("Haluat tietää kuilun — ennen kuin haet", "Want to know the gap — before you apply"),
+              ],
+              tip: t("Näe kuilu rehellisesti — sitten kuroe se umpeen.", "See the gap honestly — then close it."),
             },
-          ]
+          ],
         },
         {
           id: "how",
-          label: t("Miten toimii", "How It Works"),
-          badge: { text: t("3 askelta", "3 steps"), color: "var(--orange-bright)", bg: "rgba(249,115,22,.08)" },
+          label: t("Miten", "How"),
+          accent: "var(--orange)",
           items: [
             {
-              title: t("01 — Lataa CV ja työ", "01 — Upload CV & Job"),
-              sub: t("Liitä työkuvaus, lataa CV", "Paste job description, upload CV"),
+              listTitle: t("01 — Lataa CV ja työ", "01 — Upload CV & Job"),
+              listSub: t("Liitä työkuvaus, lataa CV", "Paste job description, upload CV"),
               accent: "var(--orange)",
-              content: {
-                headline: t("Aloita kahdella tiedostolla", "Start with two files"),
-                points: [
-                  t("Liitä työkuvaus suoraan tekstikenttään", "Paste the job description directly"),
-                  t("Lataa CV PDF- tai Word-muodossa", "Upload your CV as PDF or Word"),
-                  t("Profiilisi täydentää puuttuvat tiedot automaattisesti", "Your profile fills missing info automatically"),
-                ],
-                cta: null, ctaColor: "var(--orange)",
-              }
+              headline: t("Aloita kahdella tiedostolla", "Start with two files"),
+              type: "points",
+              points: [
+                t("Liitä työkuvaus suoraan tekstikenttään", "Paste the job description directly"),
+                t("Lataa CV PDF- tai Word-muodossa", "Upload your CV as PDF or Word"),
+                t("Profiilisi täydentää puuttuvat tiedot", "Your profile fills missing info automatically"),
+              ],
+              tip: null,
             },
             {
-              title: t("02 — Tekoäly skannaa", "02 — AI Scans"),
-              sub: t("Täsmällinen keyword matching kuten ATS", "Exact keyword matching like real ATS"),
+              listTitle: t("02 — Tekoäly skannaa", "02 — AI Scans"),
+              listSub: t("Täsmällinen keyword matching", "Exact keyword matching like ATS"),
               accent: "var(--orange)",
-              content: {
-                headline: t("Sama logiikka kuin oikeissa seulontajärjestelmissä", "Same logic as real screening systems"),
-                points: [
-                  t("Täsmälliset avainsanat — ei synonyymitemppuja", "Exact keywords — no synonym tricks"),
-                  t("Kokemuskuiluanalyysi: Low / Medium / High", "Experience gap analysis: Low / Medium / High"),
-                  t("Yksityisyys arkkitehtuurin tasolla — PII ei mene AI:lle", "Privacy by architecture — PII never goes to AI"),
-                ],
-                cta: null, ctaColor: "var(--orange)",
-              }
+              headline: t("Sama logiikka kuin oikeissa seulontajärjestelmissä", "Same logic as real screening systems"),
+              type: "points",
+              points: [
+                t("Täsmälliset avainsanat — ei synonyymitemppuja", "Exact keywords — no synonym tricks"),
+                t("Kokemuskuiluanalyysi: Low / Medium / High", "Experience gap: Low / Medium / High"),
+                t("PII ei koskaan mene AI:lle — tekninen valinta", "PII never goes to AI — a technical decision"),
+              ],
+              tip: null,
             },
             {
-              title: t("03 — Saat pisteytyksen", "03 — Get Your Score"),
-              sub: t("Hae / Älä hae -tuomio 60 sekunnissa", "Apply / Don't Apply verdict in 60 sec"),
+              listTitle: t("03 — Saat pisteytyksen", "03 — Get Your Score"),
+              listSub: t("Hae / Älä hae -tuomio 60 sekunnissa", "Apply / Don\'t Apply in 60 sec"),
               accent: "#4ade80",
-              content: {
-                headline: t("Ei false hope — suora suositus", "No false hope — a direct verdict"),
-                points: [
-                  t("ATS-prosentti + kokemuskuilu-raportti", "ATS percentage + experience gap report"),
-                  t("Konkreettiset toimenpide-ehdotukset", "Concrete action recommendations"),
-                  t("Tieto siitä, kannattaako haekmus lähettää nyt", "Know whether to apply now or improve first"),
-                ],
-                cta: t("Kokeile ilmaiseksi →", "Try free →"), ctaColor: "#4ade80",
-              }
+              headline: t("Rehellinen tuomio — ei false hope", "Honest verdict — no false hope"),
+              type: "points",
+              points: [
+                t("ATS-prosentti + kokemuskuilu-raportti", "ATS percentage + experience gap report"),
+                t("Konkreettiset toimenpide-ehdotukset", "Concrete action recommendations"),
+                t("Tiedä kannattaako haekmus lähettää nyt", "Know whether to apply now or improve first"),
+              ],
+              tip: t("Kokeile ilmaiseksi — tulos 60 sekunnissa.", "Try free — result in 60 seconds."),
             },
-          ]
+          ],
         },
         {
           id: "features",
           label: t("Ominaisuudet", "Features"),
-          badge: { text: "Premium", color: "#4ade80", bg: "rgba(74,222,128,.08)" },
+          accent: "#4ade80",
           items: [
             {
-              title: t("ATS Keyword Matching", "ATS Keyword Matching"),
-              sub: t("Täsmällinen — kuten oikeat järjestelmät", "Exact — like real ATS systems"),
+              listTitle: t("ATS Keyword Matching", "ATS Keyword Matching"),
+              listSub: t("Täsmällinen — kuten oikeat ATS:t", "Exact — like real ATS systems"),
               accent: "#4ade80",
-              content: {
-                headline: t("75% hakemuksista suodatetaan ennen ihmistä", "75% of applications filtered before a human"),
-                points: [
-                  t("Täsmälliset avainsanat — ei synonyymejä", "Exact keyword match — no synonyms"),
-                  t("Näet mitkä sanat puuttuvat hakemuksestasi", "See exactly which words are missing"),
-                  t("Vertailu työkuvauksen vaatimuksiin suoraan", "Direct comparison to job description requirements"),
-                ],
-                cta: null, ctaColor: "#4ade80",
-              }
+              headline: t("75% hakemuksista suodatetaan ennen ihmistä", "75% of applications filtered before a human"),
+              type: "points",
+              points: [
+                t("Täsmälliset avainsanat — ei synonyymejä", "Exact keyword match — no synonyms"),
+                t("Näet mitkä sanat puuttuvat hakemuksestasi", "See exactly which words are missing"),
+                t("Vertailu työkuvauksen vaatimuksiin suoraan", "Direct comparison to job description"),
+              ],
+              tip: null,
             },
             {
-              title: t("Kokemuskuilu-analyysi", "Experience Gap Analysis"),
-              sub: t("Low / Medium / High vakavuus", "Low / Medium / High severity"),
+              listTitle: t("Kokemuskuilu-analyysi", "Experience Gap"),
+              listSub: t("Low / Medium / High vakavuus", "Low / Medium / High severity"),
               accent: "var(--orange)",
-              content: {
-                headline: t("Tiedä kuilu ennen kuin haet", "Know the gap before you apply"),
-                points: [
-                  t("Vuosien kokemusero tunnistetaan automaattisesti", "Years of experience gap detected automatically"),
-                  t("Johtamis- ja erikoisosaamisvaatimukset arvioidaan", "Leadership and specialist requirements evaluated"),
-                  t("Strateginen suositus: hae nyt vai paranna ensin", "Strategic recommendation: apply now or improve first"),
-                ],
-                cta: null, ctaColor: "var(--orange)",
-              }
+              headline: t("Tiedä kuilu ennen kuin haet", "Know the gap before you apply"),
+              type: "points",
+              points: [
+                t("Vuosien kokemusero tunnistetaan automaattisesti", "Years of experience gap detected automatically"),
+                t("Johtamis- ja erikoisosaamisvaatimukset arvioidaan", "Leadership and specialist requirements evaluated"),
+                t("Suositus: hae nyt vai paranna ensin", "Recommendation: apply now or improve first"),
+              ],
+              tip: null,
             },
             {
-              title: t("Kirjoittaa sinun äänelläsi", "Writes In Your Voice"),
-              sub: t("STAR-metodi · Ei robottitekstiä", "STAR method · No robotic text"),
+              listTitle: t("Kirjoittaa sinun äänelläsi", "Writes In Your Voice"),
+              listSub: t("STAR-metodi · Ei robottitekstiä", "STAR method · No robotic text"),
               accent: "#a78bfa",
-              content: {
-                headline: t("Tekoäly oppii sinusta — joka kerta paremmin", "AI learns from you — better every time"),
-                points: [
-                  t("STAR-metodologia: tilanne → tulos", "STAR methodology: situation → result"),
-                  t("Vastauksesi tallentuvat — seuraava hakemus nopeampi", "Your answers saved — next application faster"),
-                  t("Älykkäät lisäkysymykset kun tieto puuttuu", "Smart follow-ups when information is missing"),
-                ],
-                cta: null, ctaColor: "#a78bfa",
-              }
+              headline: t("Oppii sinusta — paranee joka kerta", "Learns from you — better every time"),
+              type: "points",
+              points: [
+                t("STAR-metodologia: tilanne → tulos", "STAR methodology: situation → result"),
+                t("Vastauksesi tallentuvat — seuraava hakemus nopeampi", "Answers saved — next application faster"),
+                t("Älykkäät lisäkysymykset kun tieto puuttuu", "Smart follow-ups when info is missing"),
+              ],
+              tip: null,
             },
-          ]
+          ],
         },
       ];
 
       const currentTab = tabs[activeTab];
-      const currentItem = currentTab.items[Math.min(activeItem, currentTab.items.length - 1)];
-      const ci = currentItem.content as any;
+      const safeItem = Math.min(activeItem, currentTab.items.length - 1);
+      const item = currentTab.items[safeItem];
 
       return (
-        <section style={{ padding: "80px 24px", background: "var(--bg)" }}>
-          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <section style={{ padding: "72px 0 80px", background: "var(--bg)" }}>
 
-            {/* Tab bar */}
-            <div style={{ display: "flex", gap: "2px", marginBottom: "2px", overflowX: "auto" }}>
+          {/* ── TAB BAR ── */}
+          <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 24px 0" }}>
+            <div style={{ display: "flex", gap: "2px", marginBottom: "2px", overflowX: "auto", scrollbarWidth: "none" }}>
               {tabs.map((tab, i) => (
                 <button
                   key={tab.id}
                   onClick={() => { setActiveTab(i); setActiveItem(0); }}
                   style={{
                     flex: "0 0 auto",
-                    padding: "12px 22px",
-                    fontFamily: "'Barlow Condensed', sans-serif",
-                    fontWeight: 800, fontSize: ".82rem",
+                    padding: "11px 20px",
+                    fontFamily: "\'Barlow Condensed\', sans-serif",
+                    fontWeight: 800, fontSize: ".8rem",
                     letterSpacing: ".1em", textTransform: "uppercase",
                     background: i === activeTab ? "var(--orange)" : "var(--bg-3)",
                     color: i === activeTab ? "#000" : "var(--gray-mid)",
                     border: "none", cursor: "pointer",
-                    borderBottom: i === activeTab ? "none" : "2px solid transparent",
-                    transition: "background .18s, color .18s",
-                    clipPath: i === activeTab ? "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)" : "none",
+                    clipPath: i === activeTab
+                      ? "polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)"
+                      : "none",
+                    transition: "background .15s, color .15s",
+                    whiteSpace: "nowrap",
                   }}
-                >
-                  {tab.label}
-                </button>
+                >{tab.label}</button>
               ))}
             </div>
+          </div>
 
-            {/* Main panel — Riot style: list right, preview left */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "2px", minHeight: "420px" }} className="ha-explorer-grid">
+          {/* ── MAIN PANEL ── */}
+          <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 24px" }}>
+            <div className="ha-explorer-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "2px", minHeight: "380px" }}>
 
-              {/* LEFT — Preview content */}
-              <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", padding: "36px 32px", position: "relative", overflow: "hidden" }}>
-                {/* Top accent line */}
-                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "2px", background: `linear-gradient(90deg, ${currentItem.accent}, transparent)` }} />
+              {/* LEFT — Content preview */}
+              <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", padding: "32px 28px", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "2px", background: `linear-gradient(90deg, ${item.accent}, transparent)` }} />
 
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: "6px",
-                  border: `1px solid ${currentTab.badge.color}44`,
-                  background: currentTab.badge.bg,
-                  color: currentTab.badge.color,
-                  padding: "4px 12px", fontSize: ".68rem", fontWeight: 700,
-                  letterSpacing: ".12em", textTransform: "uppercase", marginBottom: "20px",
-                }}>{currentTab.badge.text}</span>
-
-                <h3 style={{ fontSize: "clamp(1.4rem, 3vw, 2rem)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-.01em", marginBottom: "20px", color: "var(--text)" }}>
-                  {ci.headline}
+                <h3 style={{ fontSize: "clamp(1.3rem, 2.5vw, 1.9rem)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-.01em", marginBottom: "22px", color: "var(--text)", lineHeight: 1.05 }}>
+                  {item.headline}
                 </h3>
 
-                {/* Keywords (Reality Check tab) */}
-                {ci.keywords && (
-                  <div style={{ marginBottom: "20px" }}>
-                    {ci.keywords.map((kw: any, j: number) => (
+                {item.type === "keywords" && (item as any).keywords && (
+                  <div>
+                    {(item as any).keywords.map((kw: any, j: number) => (
                       <div key={j} className="ha-kw">
                         <span style={{ color: "var(--gray-light)" }}>{kw.label}</span>
                         <span className={kw.found ? "ha-kw-y" : "ha-kw-n"}>{kw.found ? "✓ MATCH" : "✗ MISSING"}</span>
@@ -737,74 +719,91 @@ export default function Home() {
                     ))}
                     <div style={{ marginTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
                       <span className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".75rem" }}>{t("ATS-pisteet", "ATS Score")}</span>
-                      <span style={{ fontWeight: 900, color: ci.riskColor, fontSize: "1rem" }}>{ci.score} — {ci.risk}</span>
+                      <span style={{ fontWeight: 900, color: (item as any).riskColor, fontSize: "1rem" }}>{(item as any).score} — {(item as any).risk}</span>
                     </div>
                   </div>
                 )}
 
-                {/* Points (Who/How/Features tabs) */}
-                {ci.points && (
-                  <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
-                    {ci.points.map((p: string, j: number) => (
-                      <li key={j} className="ha-body" style={{ display: "flex", gap: "10px", color: "var(--gray-light)", fontSize: ".9rem", lineHeight: 1.55 }}>
-                        <span style={{ color: currentItem.accent, flexShrink: 0, fontSize: "1.1rem", lineHeight: 1 }}>›</span>
+                {item.type === "points" && (item as any).points && (
+                  <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "13px" }}>
+                    {(item as any).points.map((p: string, j: number) => (
+                      <li key={j} className="ha-body" style={{ display: "flex", gap: "10px", color: "var(--gray-light)", fontSize: ".92rem", lineHeight: 1.5 }}>
+                        <span style={{ color: item.accent, flexShrink: 0, fontSize: "1.2rem", lineHeight: "1.1" }}>›</span>
                         {p}
                       </li>
                     ))}
                   </ul>
                 )}
 
-                {/* Tip / CTA text */}
-                {ci.tip && (
-                  <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".82rem", fontStyle: "italic", borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
-                    → {ci.tip}
-                  </p>
-                )}
-                {ci.cta && (
-                  <p className="ha-body" style={{ color: ci.ctaColor, fontSize: ".85rem", fontStyle: "italic", borderTop: "1px solid var(--border)", paddingTop: "12px", fontWeight: 600 }}>
-                    {ci.cta}
+                {item.tip && (
+                  <p className="ha-body" style={{ color: item.accent, fontSize: ".82rem", fontStyle: "italic", borderTop: "1px solid var(--border)", paddingTop: "12px", marginTop: "20px", fontWeight: 600 }}>
+                    {item.tip}
                   </p>
                 )}
               </div>
 
-              {/* RIGHT — Nav list */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                {currentTab.items.map((item, i) => (
+              {/* RIGHT — Nav list (desktop only) */}
+              <div className="ha-explorer-list" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                {currentTab.items.map((it, i) => (
                   <button
                     key={i}
                     onClick={() => setActiveItem(i)}
                     style={{
                       flex: 1,
-                      background: i === activeItem ? "var(--bg-3)" : "var(--bg-2)",
+                      background: i === safeItem ? "var(--bg-3)" : "var(--bg-2)",
                       border: "1px solid var(--border)",
-                      borderLeft: i === activeItem ? `3px solid ${item.accent}` : "1px solid var(--border)",
-                      padding: "18px 20px",
+                      borderLeft: `3px solid ${i === safeItem ? it.accent : "transparent"}`,
+                      padding: "16px 18px",
                       textAlign: "left",
                       cursor: "pointer",
-                      transition: "background .15s, border-color .15s",
+                      transition: "background .13s, border-color .13s",
                     }}
                   >
                     <p style={{
-                      fontFamily: "'Barlow Condensed', sans-serif",
-                      fontWeight: 800, fontSize: ".9rem",
+                      fontFamily: "\'Barlow Condensed\', sans-serif",
+                      fontWeight: 800, fontSize: ".88rem",
                       textTransform: "uppercase", letterSpacing: ".04em",
-                      color: i === activeItem ? "var(--text)" : "var(--gray-mid)",
-                      marginBottom: "4px",
-                    }}>{item.title}</p>
-                    <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".74rem" }}>{item.sub}</p>
+                      color: i === safeItem ? "var(--text)" : "var(--gray-mid)",
+                      marginBottom: "3px",
+                    }}>{it.listTitle}</p>
+                    <p className="ha-body" style={{ color: "var(--gray-dim)", fontSize: ".72rem", lineHeight: 1.3 }}>{it.listSub}</p>
                   </button>
                 ))}
-
-                {/* CTA at bottom of list */}
-                <div style={{ marginTop: "auto", paddingTop: "12px" }}>
-                  <SignUpButton mode="modal" appearance={clerkAppearance}>
-                    <button className="ha-btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: ".85rem", padding: "12px 20px" }}>
-                      <Sparkles size={13} />
-                      {t("Kokeile ilmaiseksi", "Try Free")}
-                    </button>
-                  </SignUpButton>
-                </div>
+                <SignUpButton mode="modal" appearance={clerkAppearance}>
+                  <button className="ha-btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: ".82rem", padding: "11px 16px", marginTop: "2px", clipPath: "none" }}>
+                    <Sparkles size={13} />{t("Kokeile ilmaiseksi", "Try Free")}
+                  </button>
+                </SignUpButton>
               </div>
+
+            </div>
+
+            {/* MOBILE — dot nav instead of list */}
+            <div className="ha-explorer-dots" style={{ display: "none", justifyContent: "center", gap: "8px", marginTop: "16px", alignItems: "center" }}>
+              {currentTab.items.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveItem(i)}
+                  style={{
+                    width: i === safeItem ? "24px" : "8px",
+                    height: "8px",
+                    borderRadius: i === safeItem ? "4px" : "50%",
+                    background: i === safeItem ? "var(--orange)" : "var(--border-strong)",
+                    border: "none", cursor: "pointer",
+                    transition: "width .2s, background .2s",
+                    padding: 0,
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* MOBILE — CTA below card */}
+            <div className="ha-explorer-mobile-cta" style={{ display: "none", marginTop: "16px" }}>
+              <SignUpButton mode="modal" appearance={clerkAppearance}>
+                <button className="ha-btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+                  <Sparkles size={15} />{t("Kokeile ilmaiseksi", "Try Free")}
+                </button>
+              </SignUpButton>
             </div>
 
           </div>
@@ -812,7 +811,7 @@ export default function Home() {
       );
     };
 
-    // ── Reusable MID-PAGE CTA ────────────────────────────────────────
+        // ── Reusable MID-PAGE CTA ────────────────────────────────────────
     const MidCTA = ({ label }: { label: string }) => (
       <div style={{ textAlign: "center", margin: "72px 0 8px" }}>
         <SignUpButton mode="modal" appearance={clerkAppearance}>
@@ -1143,7 +1142,6 @@ export default function Home() {
       </div>
     );
   }
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Kirjautuneen käyttäjän pääsivu
