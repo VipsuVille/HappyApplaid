@@ -258,284 +258,17 @@ export default function Home() {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════
-  //  UNAUTHENTICATED — Riot Games × Blizzard aesthetic
-  //  Dark, cinematic, bold typography, black + orange brand palette
-  // ══════════════════════════════════════════════════════════════════
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use client";
 
-import { useLanguage } from "@/context/LanguageContext";
-import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { useSubscription } from '@/context/SubscriptionContext';
-import { useUser, SignInButton, SignedOut, SignUpButton } from "@clerk/nextjs";
-import {
-  FileText,
-  User,
-  Files,
-  Check,
-  Sparkles,
-  Target,
-  Zap,
-  Crown,
-  Lock,
-  X,
-  ChevronRight,
-  Shield,
-  Brain,
-  FileInput,
-  FileEdit,
-  Clock,
-  CreditCard,
-  Ban,
-  MessageCircle,
-  Database,
-  Lightbulb,
-  Play,
-  CheckCircle,
-  Star,
-  AlertTriangle,
-  TrendingDown,
-  ChevronDown,
-} from "lucide-react";
-import { useTokens } from "@/hooks/useTokens";
-import WelcomeModal from "@/components/welcomephase/WelcomeModal";
-import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
-import HowItWorksTimeline from "@/components/howitworks";
-import { clerkAppearance } from "@/lib/clerkAppearance";
-import LoadingScreen from "@/components/LoadingScreen";
-import { useTheme } from "@/context/ThemeContext";
-import { SmartSuggestions } from "@/components/SmartSuggestions";
-import { supabaseAdmin } from "@/lib/supabase";
-
-interface SubscriptionStatus {
-  plan_type: "free" | "basic" | "premium";
-  is_premium: boolean;
-  has_used_free_cv: boolean;
-  tokens: number;
-  cv_count: number;
-  can_create_cv: boolean;
-  message: string;
-}
-
-export default function Home() {
-  const [profileCompleted, setProfileCompleted] = useState<boolean | null>(null);
-  const [recentCVs, setRecentCVs] = useState<any[]>([]);
-  const [recentCoverLetters, setRecentCoverLetters] = useState<any[]>([]);
-  const [loadingRecent, setLoadingRecent] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showProfilePrompt, setShowProfilePrompt] = useState(false);
-
-  const { subscription, isLoading: subLoading } = useSubscription();
-  const tier = subscription?.tier ?? "free";
-  const isActive = subscription?.active === true;
-  const hasUsedFreeCv = subscription?.has_used_free_cv || false;
-  const canCreateCV = subscription?.can_create_cv || false;
-  const isPaid = isActive && tier !== "free";
-  const { language } = useLanguage();
-  const { isLoaded, isSignedIn, user } = useUser();
-  const { tokens } = useTokens();
-  const [hasRunATS, setHasRunATS] = useState(false);
-  const [atsScore, setAtsScore] = useState<number | null>(null);
-  const [hasHighGap, setHasHighGap] = useState(false);
-  const displayName = user?.firstName || null;
-
-  useEffect(() => {
-    const loadATSStatus = async () => {
-      if (!isSignedIn || !user?.id) return;
-      try {
-        const { data, error } = await supabaseAdmin
-          .from('ats_checks')
-          .select('score, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-        if (data && !error) {
-          setHasRunATS(true);
-          setAtsScore(data.score || null);
-        }
-      } catch (err) {
-        console.error('Error loading ATS status:', err);
-      }
-    };
-    if (isLoaded && isSignedIn) {
-      loadATSStatus();
-    }
-  }, [isSignedIn, user?.id, isLoaded]);
-
-  useEffect(() => {
-    const checkFirstVisit = async () => {
-      if (!isSignedIn || !user?.id) return;
-      try {
-        const [profileResponse, cvsResponse] = await Promise.all([
-          fetch(`/api/user-profile/${user.id}`),
-          fetch("/api/recent-cvs"),
-        ]);
-        const hasProfile = profileResponse.ok;
-        const cvsData = cvsResponse.ok ? await cvsResponse.json() : [];
-        const hasCVs = cvsData.length > 0;
-        const hasSeenOnboarding = localStorage.getItem(`onboarding_completed_${user.id}`);
-        const isNewUser = !hasProfile && !hasCVs && !hasSeenOnboarding;
-        if (isNewUser) {
-          setShowWelcome(true);
-        }
-        setProfileCompleted(hasProfile);
-      } catch (error) {
-        console.error("Error checking first visit:", error);
-        setProfileCompleted(false);
-      }
-    };
-    if (isLoaded && isSignedIn) {
-      checkFirstVisit();
-    }
-  }, [isSignedIn, user?.id, isLoaded]);
-
-  useEffect(() => {
-    const loadRecentDocuments = async () => {
-      if (!isSignedIn || !user?.id || profileCompleted !== true) return;
-      setLoadingRecent(true);
-      try {
-        const cvResponse = await fetch("/api/recent-cvs");
-        if (cvResponse.ok) {
-          const cvData = await cvResponse.json();
-          setRecentCVs(cvData.slice(0, 3));
-        }
-        if (tokens > 0 || (isActive && tier !== "free")) {
-          const letterResponse = await fetch("/api/recent-cover-letters");
-          if (letterResponse.ok) {
-            const letterData = await letterResponse.json();
-            setRecentCoverLetters(letterData.slice(0, 3));
-          }
-        }
-      } catch (error) {
-        console.error("Error loading recent documents:", error);
-      } finally {
-        setLoadingRecent(false);
-      }
-    };
-    if (
-      isLoaded &&
-      isSignedIn &&
-      profileCompleted === true &&
-      !showWelcome &&
-      !showOnboarding
-    ) {
-      loadRecentDocuments();
-    }
-  }, [
-    isSignedIn,
-    user?.id,
-    profileCompleted,
-    tokens,
-    isActive,
-    tier,
-    isLoaded,
-    showWelcome,
-    showOnboarding,
-  ]);
-
-  const handleWelcomeComplete = async (data: {
-    name: string;
-    email: string;
-    useClerkEmail: boolean;
-  }) => {
-    try {
-      const response = await fetch("/api/save-profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile: {
-            name: data.name,
-            email: data.email,
-            education: [{ id: 1, school: "", degree: "", year: "", isOngoing: false }],
-            workExperience: [{ id: 1, company: "", position: "", duration: "", description: "" }],
-            languages: [{ id: 1, language: "", level: "Hyvä" }],
-            workingStyle: "",
-            problemSolving: "",
-            energySources: "",
-            uniqueStrength: "",
-            learningStyle: "",
-            teamRole: "",
-            valuesExample: "",
-            superpower: "",
-            skills: "",
-          },
-        }),
-      });
-      if (response.ok) {
-        setShowWelcome(false);
-        setShowOnboarding(true);
-        setProfileCompleted(true);
-      }
-    } catch (error) {
-      console.error("Error saving initial profile:", error);
-      setShowWelcome(false);
-      setShowOnboarding(true);
-    }
-  };
-
-  const handleWelcomeSkip = () => {
-    setShowWelcome(false);
-    setProfileCompleted(false);
-  };
-
-  const handleOnboardingComplete = () => {
-    setShowOnboarding(false);
-    if (user?.id) {
-      localStorage.setItem(`onboarding_completed_${user.id}`, "true");
-    }
-  };
-
-  if (!isLoaded || subLoading) {
-    return <LoadingScreen />;
-  }
-
-  const { isDark } = useTheme();
-
-  // Welcome/Onboarding State
-  if (showWelcome) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800">
-        <WelcomeModal
-          isOpen={true}
-          onComplete={handleWelcomeComplete}
-          onSkip={handleWelcomeSkip}
-          initialEmail={user?.emailAddresses?.[0]?.emailAddress}
-        />
-      </div>
-    );
-  }
-
-  if (showOnboarding) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800">
-        <OnboardingSteps
-          isOpen={true}
-          onComplete={handleOnboardingComplete}
-          currentUserName={user?.firstName || "käyttäjä"}
-        />
-      </div>
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════
-  //  UNAUTHENTICATED — Riot Games × Blizzard aesthetic
-  //  Dark, cinematic, bold typography, black + orange brand palette
-  // ══════════════════════════════════════════════════════════════════
-  if (!isSignedIn) {
+   if (!isSignedIn) {
     const t = (fi: string, en: string) => language === "en" ? en : fi;
-
+ 
     // CSS injected once for the Riot/Blizzard aesthetic
     // Supports both dark (default) and light theme via .ha-light modifier
     const riotCSS = `
       /* Fonts loaded via next/font in layout.tsx — no @import needed */
-
+ 
       .ha-landing * { box-sizing: border-box; }
-
+ 
       /* ══ DARK THEME (default) ══ */
       .ha-landing {
         --orange: #f97316;
@@ -560,7 +293,7 @@ export default function Home() {
         min-height: 100vh;
         overflow-x: hidden;
       }
-
+ 
       /* ══ LIGHT THEME ══ */
       .ha-landing.ha-light {
         --bg:      #f5f4f0;
@@ -579,9 +312,9 @@ export default function Home() {
         background: var(--bg);
         color: var(--text);
       }
-
+ 
       .ha-body { font-family: var(--font-barlow), sans-serif; }
-
+ 
       /* ── BTN PRIMARY — angled corners like Riot ── */
       .ha-btn-primary {
         display: inline-flex; align-items: center; gap: 8px;
@@ -604,7 +337,7 @@ export default function Home() {
       }
       .ha-btn-primary:hover { background: var(--orange-bright); transform: translateY(-2px); }
       .ha-btn-primary:active { transform: none; }
-
+ 
       .ha-btn-ghost {
         display: inline-flex; align-items: center; gap: 8px;
         background: transparent; color: var(--gray-light);
@@ -617,13 +350,13 @@ export default function Home() {
         transition: border-color .2s, color .2s, background .2s;
       }
       .ha-btn-ghost:hover { border-color: var(--orange); color: var(--orange); background: rgba(249,115,22,.05); }
-
+ 
       /* ── DIVIDER ── */
       .ha-divider {
         width: 100%; height: 1px;
         background: linear-gradient(90deg, transparent, rgba(249,115,22,.4), transparent);
       }
-
+ 
       /* ── BADGE ── */
       .ha-badge {
         display: inline-flex; align-items: center; gap: 6px;
@@ -634,7 +367,7 @@ export default function Home() {
         letter-spacing: .15em; text-transform: uppercase;
         color: var(--orange-bright);
       }
-
+ 
       /* ── CARD ── */
       .ha-card {
         background: var(--bg-3);
@@ -646,7 +379,7 @@ export default function Home() {
         position: absolute; top: 0; left: 0; right: 0; height: 1px;
         background: linear-gradient(90deg, transparent, var(--card-top), transparent);
       }
-
+ 
       /* ── KW ITEM ── */
       .ha-kw {
         display: flex; align-items: center; justify-content: space-between;
@@ -658,7 +391,7 @@ export default function Home() {
       .ha-kw-n { color: #dc2626; background: rgba(220,38,38,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
       .ha-landing:not(.ha-light) .ha-kw-y { color: #4ade80; background: rgba(74,222,128,.1); }
       .ha-landing:not(.ha-light) .ha-kw-n { color: #f87171; background: rgba(248,113,113,.1); }
-
+ 
       /* ── PRICE CARD ── */
       .ha-price {
         background: var(--bg-3);
@@ -675,7 +408,7 @@ export default function Home() {
         text-transform: uppercase; padding: 4px 16px;
         clip-path: polygon(0 0, 100% 0, 93% 100%, 7% 100%);
       }
-
+ 
       /* ── SCAN LINE ── */
       @keyframes haScan {
         0% { transform: translateY(-100%); opacity: 0; }
@@ -688,14 +421,14 @@ export default function Home() {
         animation: haScan 10s linear infinite;
         pointer-events: none; z-index: 0;
       }
-
+ 
       /* ── VIDEO MODAL ── */
       .ha-video-overlay {
         position: fixed; inset: 0; z-index: 200;
         background: rgba(0,0,0,.92);
         display: flex; align-items: center; justify-content: center;
       }
-
+ 
       /* ── FEAT CARD ── */
       .ha-feat {
         padding: 36px 28px;
@@ -703,7 +436,7 @@ export default function Home() {
         background: var(--bg-3);
         position: relative; overflow: hidden;
       }
-
+ 
       /* ── STAT BAR ── */
       .ha-stat-grid {
         display: grid;
@@ -721,7 +454,7 @@ export default function Home() {
         font-weight: 900; color: var(--orange);
         line-height: 1; letter-spacing: -.02em;
       }
-
+ 
       /* ── HERO SIDE PANE ── */
       .ha-hero-side {
         display: flex;
@@ -743,7 +476,7 @@ export default function Home() {
         .ha-price-grid { grid-template-columns: 1fr !important; }
       }
     `;
-
+ 
     // ── Video modal state (local to this render scope) ──────────────
     // We use a ref-style approach via a small wrapper component to avoid
     // hooks-in-conditionals — useState is called in the parent already.
@@ -751,14 +484,14 @@ export default function Home() {
     // videoOpen / setVideoOpen are defined at the top of Home().
     // (They are declared via useState above — add them if not present;
     //  here we declare them inline for clarity.)
-
+ 
     // ── Interactive Explorer Component (Riot-style) ────────────────
     // Desktop: preview left + nav list right
     // Mobile: tabbar top + swipeable cards (one visible at a time)
     const InteractiveExplorer = () => {
       const [activeTab, setActiveTab] = React.useState(0);
       const [activeItem, setActiveItem] = React.useState(0);
-
+ 
       const tabs = [
         {
           id: "problem",
@@ -926,14 +659,14 @@ export default function Home() {
           ],
         },
       ];
-
+ 
       const currentTab = tabs[activeTab];
       const safeItem = Math.min(activeItem, currentTab.items.length - 1);
       const item = currentTab.items[safeItem];
-
+ 
       return (
         <section style={{ padding: "72px 0 80px", background: "var(--bg)" }}>
-
+ 
           {/* ── TAB BAR ── */}
           <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 24px 0" }}>
             <div style={{ display: "flex", gap: "2px", marginBottom: "2px", overflowX: "auto", scrollbarWidth: "none" }}>
@@ -960,19 +693,19 @@ export default function Home() {
               ))}
             </div>
           </div>
-
+ 
           {/* ── MAIN PANEL ── */}
           <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 24px" }}>
             <div className="ha-explorer-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "2px", minHeight: "380px" }}>
-
+ 
               {/* LEFT — Content preview */}
               <div style={{ background: "var(--bg-3)", border: "1px solid var(--border)", padding: "32px 28px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "2px", background: `linear-gradient(90deg, ${item.accent}, transparent)` }} />
-
+ 
                 <h3 style={{ fontSize: "clamp(1.3rem, 2.5vw, 1.9rem)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "-.01em", marginBottom: "22px", color: "var(--text)", lineHeight: 1.05 }}>
                   {item.headline}
                 </h3>
-
+ 
                 {item.type === "keywords" && (item as any).keywords && (
                   <div>
                     {(item as any).keywords.map((kw: any, j: number) => (
@@ -987,7 +720,7 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-
+ 
                 {item.type === "points" && (item as any).points && (
                   <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "13px" }}>
                     {(item as any).points.map((p: string, j: number) => (
@@ -998,14 +731,14 @@ export default function Home() {
                     ))}
                   </ul>
                 )}
-
+ 
                 {item.tip && (
                   <p className="ha-body" style={{ color: item.accent, fontSize: ".82rem", fontStyle: "italic", borderTop: "1px solid var(--border)", paddingTop: "12px", marginTop: "20px", fontWeight: 600 }}>
                     {item.tip}
                   </p>
                 )}
               </div>
-
+ 
               {/* RIGHT — Nav list (desktop only) */}
               <div className="ha-explorer-list" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                 {currentTab.items.map((it, i) => (
@@ -1039,9 +772,9 @@ export default function Home() {
                   </button>
                 </SignUpButton>
               </div>
-
+ 
             </div>
-
+ 
             {/* MOBILE — dot nav instead of list */}
             <div className="ha-explorer-dots" style={{ display: "none", justifyContent: "center", gap: "8px", marginTop: "16px", alignItems: "center" }}>
               {currentTab.items.map((_, i) => (
@@ -1060,7 +793,7 @@ export default function Home() {
                 />
               ))}
             </div>
-
+ 
             {/* MOBILE — CTA below card */}
             <div className="ha-explorer-mobile-cta" style={{ display: "none", marginTop: "16px" }}>
               <SignUpButton mode="modal" appearance={clerkAppearance}>
@@ -1069,12 +802,12 @@ export default function Home() {
                 </button>
               </SignUpButton>
             </div>
-
+ 
           </div>
         </section>
       );
     };
-
+ 
         // ── Reusable MID-PAGE CTA ────────────────────────────────────────
     const MidCTA = ({ label }: { label: string }) => (
       <div style={{ textAlign: "center", margin: "72px 0 8px" }}>
@@ -1089,12 +822,12 @@ export default function Home() {
         </p>
       </div>
     );
-
+ 
     return (
       <div className={`ha-landing${isDark ? "" : " ha-light"}`}>
         <style>{riotCSS}</style>
         <div className="ha-scan" />
-
+ 
         {/* ════════════════════════════════════════════════
             1. HERO — original cinematic layout
         ════════════════════════════════════════════════ */}
@@ -1108,12 +841,12 @@ export default function Home() {
             position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none",
             backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E")`,
           }} />
-
+ 
           {/* BG radial glow */}
           <div style={{ position: "absolute", inset: 0, background: isDark ? "radial-gradient(ellipse 80% 60% at 60% 30%, rgba(249,115,22,.12) 0%, transparent 60%)" : "radial-gradient(ellipse 80% 60% at 60% 30%, rgba(249,115,22,.07) 0%, transparent 60%)" }} />
           {/* Bottom fade to section bg */}
           <div style={{ position: "absolute", inset: 0, background: isDark ? "linear-gradient(180deg, rgba(8,8,8,0) 0%, rgba(8,8,8,.5) 50%, rgba(8,8,8,1) 100%)" : "linear-gradient(180deg, rgba(245,244,240,0) 0%, rgba(245,244,240,.5) 50%, rgba(245,244,240,1) 100%)" }} />
-
+ 
           {/* Diamond crosshatch BG element */}
           <div style={{
             position: "absolute", top: "10%", right: "-5%",
@@ -1122,7 +855,7 @@ export default function Home() {
             backgroundImage: "repeating-linear-gradient(45deg, rgba(249,115,22,1) 0px, rgba(249,115,22,1) 1px, transparent 1px, transparent 40px), repeating-linear-gradient(-45deg, rgba(249,115,22,1) 0px, rgba(249,115,22,1) 1px, transparent 1px, transparent 40px)",
             zIndex: 0,
           }} />
-
+ 
           {/* Large abstract X mark, Riot-style */}
           <svg style={{ position: "absolute", top: "5%", right: "5%", width: "clamp(180px, 30vw, 420px)", opacity: isDark ? .06 : .04, zIndex: 0 }} viewBox="0 0 100 100" fill="none">
             <line x1="10" y1="10" x2="90" y2="90" stroke="#f97316" strokeWidth="4" />
@@ -1130,10 +863,10 @@ export default function Home() {
             <rect x="5" y="5" width="90" height="90" stroke="#f97316" strokeWidth="2" />
             <rect x="20" y="20" width="60" height="60" stroke="#f97316" strokeWidth="1" />
           </svg>
-
+ 
           {/* Content */}
           <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "120px 24px 0", width: "100%" }}>
-
+ 
             {/* Eyebrow badge */}
             <div style={{ marginBottom: "24px" }}>
               <span className="ha-badge">
@@ -1141,7 +874,7 @@ export default function Home() {
                 {t("Realistinen ATS-analyysi", "Realistic ATS Analysis")}
               </span>
             </div>
-
+ 
             {/* Main headline */}
             <h1 style={{
               fontSize: "clamp(3.5rem, 8vw, 7rem)",
@@ -1159,7 +892,7 @@ export default function Home() {
                 {t("Ennen kuin haet.", "Before you apply.")}
               </span>
             </h1>
-
+ 
             {/* Description */}
             <p className="ha-body" style={{ fontSize: "1.1rem", color: "var(--gray-mid)", maxWidth: "540px", lineHeight: 1.65, marginBottom: "40px" }}>
               {t(
@@ -1168,7 +901,7 @@ export default function Home() {
               )}
               <strong style={{ color: "var(--gray-light)" }}>{t("Hae tai Älä hae.", "Apply or Don't Apply.")}</strong>
             </p>
-
+ 
             {/* CTAs */}
             <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "64px" }}>
               <SignUpButton mode="modal" appearance={clerkAppearance}>
@@ -1182,7 +915,7 @@ export default function Home() {
                 <ChevronDown size={14} />
               </button>
             </div>
-
+ 
             {/* Trust badges */}
             <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }} className="ha-body">
               {[
@@ -1197,7 +930,7 @@ export default function Home() {
               ))}
             </div>
           </div>
-
+ 
           {/* Video play area — full-width cinematic strip */}
           <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "60px auto 0", padding: "0 24px", width: "100%" }}>
             <div style={{
@@ -1239,9 +972,9 @@ export default function Home() {
             </div>
           </div>
         </section>
-
+ 
         <div className="ha-divider" />
-
+ 
         {/* ════════════════════════════════════════════════
             STATS BAR
         ════════════════════════════════════════════════ */}
@@ -1261,12 +994,12 @@ export default function Home() {
             </div>
           </div>
         </section>
-
-
+ 
+ 
         <InteractiveExplorer />
-
+ 
         <div className="ha-divider" />
-
+ 
         {/* ════════════════════════════════════════════════
             7. PRICING
         ════════════════════════════════════════════════ */}
@@ -1281,9 +1014,9 @@ export default function Home() {
                 <span style={{ color: "var(--orange)" }}>{t("Päivitä kun olet valmis.", "Upgrade when ready.")}</span>
               </h2>
             </div>
-
+ 
             <div className="ha-price-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "2px" }}>
-
+ 
               {/* Free */}
               <div className="ha-price">
                 <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: "var(--gray-dim)", marginBottom: "12px" }}>{t("Ilmainen", "Free")}</p>
@@ -1307,7 +1040,7 @@ export default function Home() {
                   <button className="ha-btn-ghost" style={{ width: "100%", justifyContent: "center" }}>{t("Aloita", "Start Free")}</button>
                 </SignUpButton>
               </div>
-
+ 
               {/* Basic */}
               <div className="ha-price" style={{ borderColor: "rgba(56,189,248,.2)" }}>
                 <p style={{ fontSize: ".68rem", fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", color: "#38bdf8", marginBottom: "12px" }}>Basic</p>
@@ -1333,7 +1066,7 @@ export default function Home() {
                   </button>
                 </Link>
               </div>
-
+ 
               {/* Premium */}
               <div className="ha-price" style={{ borderColor: "rgba(249,115,22,.5)", background: "linear-gradient(160deg, rgba(249,115,22,.06) 0%, var(--bg-3) 60%)", paddingTop: "52px" }}>
                 <div className="ha-price-top">{t("Paras arvo", "Best Value")}</div>
@@ -1366,9 +1099,9 @@ export default function Home() {
             </div>
           </div>
         </section>
-
+ 
         <div className="ha-divider" />
-
+ 
         {/* ════════════════════════════════════════════════
             8. FINAL CTA
         ════════════════════════════════════════════════ */}
@@ -1395,7 +1128,7 @@ export default function Home() {
             </SignUpButton>
           </div>
         </section>
-
+ 
         {/* ── FOOTER ── */}
         <footer style={{ background: "var(--bg-2)", borderTop: "1px solid var(--border)", padding: "36px 24px", textAlign: "center" }}>
           <p className="ha-body" style={{ color: "var(--gray-mid)", fontSize: ".75rem", letterSpacing: ".06em", textTransform: "uppercase" }}>
@@ -1406,18 +1139,6 @@ export default function Home() {
       </div>
     );
   }
-
-  // ══════════════════════════════════════════════════════════════════
-  //  AUTHENTICATED — rest of your original page.tsx continues here
-  //  (paste your existing signed-in dashboard JSX below this line)
-  // ══════════════════════════════════════════════════════════════════
-  return (
-    <div>
-      {/* Your existing authenticated dashboard JSX goes here */}
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Kirjautuneen käyttäjän pääsivu
 // ═══════════════════════════════════════════════════════════════════════════
