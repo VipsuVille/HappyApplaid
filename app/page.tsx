@@ -262,13 +262,277 @@ export default function Home() {
   //  UNAUTHENTICATED — Riot Games × Blizzard aesthetic
   //  Dark, cinematic, bold typography, black + orange brand palette
   // ══════════════════════════════════════════════════════════════════
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
+
+import { useLanguage } from "@/context/LanguageContext";
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useSubscription } from '@/context/SubscriptionContext';
+import { useUser, SignInButton, SignedOut, SignUpButton } from "@clerk/nextjs";
+import {
+  FileText,
+  User,
+  Files,
+  Check,
+  Sparkles,
+  Target,
+  Zap,
+  Crown,
+  Lock,
+  X,
+  ChevronRight,
+  Shield,
+  Brain,
+  FileInput,
+  FileEdit,
+  Clock,
+  CreditCard,
+  Ban,
+  MessageCircle,
+  Database,
+  Lightbulb,
+  Play,
+  CheckCircle,
+  Star,
+  AlertTriangle,
+  TrendingDown,
+  ChevronDown,
+} from "lucide-react";
+import { useTokens } from "@/hooks/useTokens";
+import WelcomeModal from "@/components/welcomephase/WelcomeModal";
+import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
+import HowItWorksTimeline from "@/components/howitworks";
+import { clerkAppearance } from "@/lib/clerkAppearance";
+import LoadingScreen from "@/components/LoadingScreen";
+import { useTheme } from "@/context/ThemeContext";
+import { SmartSuggestions } from "@/components/SmartSuggestions";
+import { supabaseAdmin } from "@/lib/supabase";
+
+interface SubscriptionStatus {
+  plan_type: "free" | "basic" | "premium";
+  is_premium: boolean;
+  has_used_free_cv: boolean;
+  tokens: number;
+  cv_count: number;
+  can_create_cv: boolean;
+  message: string;
+}
+
+export default function Home() {
+  const [profileCompleted, setProfileCompleted] = useState<boolean | null>(null);
+  const [recentCVs, setRecentCVs] = useState<any[]>([]);
+  const [recentCoverLetters, setRecentCoverLetters] = useState<any[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+
+  const { subscription, isLoading: subLoading } = useSubscription();
+  const tier = subscription?.tier ?? "free";
+  const isActive = subscription?.active === true;
+  const hasUsedFreeCv = subscription?.has_used_free_cv || false;
+  const canCreateCV = subscription?.can_create_cv || false;
+  const isPaid = isActive && tier !== "free";
+  const { language } = useLanguage();
+  const { isLoaded, isSignedIn, user } = useUser();
+  const { tokens } = useTokens();
+  const [hasRunATS, setHasRunATS] = useState(false);
+  const [atsScore, setAtsScore] = useState<number | null>(null);
+  const [hasHighGap, setHasHighGap] = useState(false);
+  const displayName = user?.firstName || null;
+
+  useEffect(() => {
+    const loadATSStatus = async () => {
+      if (!isSignedIn || !user?.id) return;
+      try {
+        const { data, error } = await supabaseAdmin
+          .from('ats_checks')
+          .select('score, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (data && !error) {
+          setHasRunATS(true);
+          setAtsScore(data.score || null);
+        }
+      } catch (err) {
+        console.error('Error loading ATS status:', err);
+      }
+    };
+    if (isLoaded && isSignedIn) {
+      loadATSStatus();
+    }
+  }, [isSignedIn, user?.id, isLoaded]);
+
+  useEffect(() => {
+    const checkFirstVisit = async () => {
+      if (!isSignedIn || !user?.id) return;
+      try {
+        const [profileResponse, cvsResponse] = await Promise.all([
+          fetch(`/api/user-profile/${user.id}`),
+          fetch("/api/recent-cvs"),
+        ]);
+        const hasProfile = profileResponse.ok;
+        const cvsData = cvsResponse.ok ? await cvsResponse.json() : [];
+        const hasCVs = cvsData.length > 0;
+        const hasSeenOnboarding = localStorage.getItem(`onboarding_completed_${user.id}`);
+        const isNewUser = !hasProfile && !hasCVs && !hasSeenOnboarding;
+        if (isNewUser) {
+          setShowWelcome(true);
+        }
+        setProfileCompleted(hasProfile);
+      } catch (error) {
+        console.error("Error checking first visit:", error);
+        setProfileCompleted(false);
+      }
+    };
+    if (isLoaded && isSignedIn) {
+      checkFirstVisit();
+    }
+  }, [isSignedIn, user?.id, isLoaded]);
+
+  useEffect(() => {
+    const loadRecentDocuments = async () => {
+      if (!isSignedIn || !user?.id || profileCompleted !== true) return;
+      setLoadingRecent(true);
+      try {
+        const cvResponse = await fetch("/api/recent-cvs");
+        if (cvResponse.ok) {
+          const cvData = await cvResponse.json();
+          setRecentCVs(cvData.slice(0, 3));
+        }
+        if (tokens > 0 || (isActive && tier !== "free")) {
+          const letterResponse = await fetch("/api/recent-cover-letters");
+          if (letterResponse.ok) {
+            const letterData = await letterResponse.json();
+            setRecentCoverLetters(letterData.slice(0, 3));
+          }
+        }
+      } catch (error) {
+        console.error("Error loading recent documents:", error);
+      } finally {
+        setLoadingRecent(false);
+      }
+    };
+    if (
+      isLoaded &&
+      isSignedIn &&
+      profileCompleted === true &&
+      !showWelcome &&
+      !showOnboarding
+    ) {
+      loadRecentDocuments();
+    }
+  }, [
+    isSignedIn,
+    user?.id,
+    profileCompleted,
+    tokens,
+    isActive,
+    tier,
+    isLoaded,
+    showWelcome,
+    showOnboarding,
+  ]);
+
+  const handleWelcomeComplete = async (data: {
+    name: string;
+    email: string;
+    useClerkEmail: boolean;
+  }) => {
+    try {
+      const response = await fetch("/api/save-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile: {
+            name: data.name,
+            email: data.email,
+            education: [{ id: 1, school: "", degree: "", year: "", isOngoing: false }],
+            workExperience: [{ id: 1, company: "", position: "", duration: "", description: "" }],
+            languages: [{ id: 1, language: "", level: "Hyvä" }],
+            workingStyle: "",
+            problemSolving: "",
+            energySources: "",
+            uniqueStrength: "",
+            learningStyle: "",
+            teamRole: "",
+            valuesExample: "",
+            superpower: "",
+            skills: "",
+          },
+        }),
+      });
+      if (response.ok) {
+        setShowWelcome(false);
+        setShowOnboarding(true);
+        setProfileCompleted(true);
+      }
+    } catch (error) {
+      console.error("Error saving initial profile:", error);
+      setShowWelcome(false);
+      setShowOnboarding(true);
+    }
+  };
+
+  const handleWelcomeSkip = () => {
+    setShowWelcome(false);
+    setProfileCompleted(false);
+  };
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    if (user?.id) {
+      localStorage.setItem(`onboarding_completed_${user.id}`, "true");
+    }
+  };
+
+  if (!isLoaded || subLoading) {
+    return <LoadingScreen />;
+  }
+
+  const { isDark } = useTheme();
+
+  // Welcome/Onboarding State
+  if (showWelcome) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800">
+        <WelcomeModal
+          isOpen={true}
+          onComplete={handleWelcomeComplete}
+          onSkip={handleWelcomeSkip}
+          initialEmail={user?.emailAddresses?.[0]?.emailAddress}
+        />
+      </div>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800">
+        <OnboardingSteps
+          isOpen={true}
+          onComplete={handleOnboardingComplete}
+          currentUserName={user?.firstName || "käyttäjä"}
+        />
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  UNAUTHENTICATED — Riot Games × Blizzard aesthetic
+  //  Dark, cinematic, bold typography, black + orange brand palette
+  // ══════════════════════════════════════════════════════════════════
   if (!isSignedIn) {
     const t = (fi: string, en: string) => language === "en" ? en : fi;
 
     // CSS injected once for the Riot/Blizzard aesthetic
     // Supports both dark (default) and light theme via .ha-light modifier
     const riotCSS = `
-      @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;0,900;1,700&family=Barlow:wght@300;400;500;600&display=swap');
+      /* Fonts loaded via next/font in layout.tsx — no @import needed */
 
       .ha-landing * { box-sizing: border-box; }
 
@@ -290,7 +554,7 @@ export default function Home() {
         --stat-sep: rgba(255,255,255,.05);
         --kw-sep:   rgba(255,255,255,.05);
         --scan-color: rgba(249,115,22,.3);
-        font-family: 'Barlow Condensed', 'Impact', sans-serif;
+        font-family: var(--font-barlow-condensed), 'Impact', sans-serif;
         background: var(--bg);
         color: var(--text);
         min-height: 100vh;
@@ -316,14 +580,14 @@ export default function Home() {
         color: var(--text);
       }
 
-      .ha-body { font-family: 'Barlow', sans-serif; }
+      .ha-body { font-family: var(--font-barlow), sans-serif; }
 
       /* ── BTN PRIMARY — angled corners like Riot ── */
       .ha-btn-primary {
         display: inline-flex; align-items: center; gap: 8px;
         background: var(--orange);
         color: #000;
-        font-family: 'Barlow Condensed', sans-serif;
+        font-family: var(--font-barlow-condensed), sans-serif;
         font-weight: 900; font-size: 1rem;
         letter-spacing: .1em; text-transform: uppercase;
         padding: 14px 32px;
@@ -344,7 +608,7 @@ export default function Home() {
       .ha-btn-ghost {
         display: inline-flex; align-items: center; gap: 8px;
         background: transparent; color: var(--gray-light);
-        font-family: 'Barlow Condensed', sans-serif;
+        font-family: var(--font-barlow-condensed), sans-serif;
         font-weight: 700; font-size: .9rem;
         letter-spacing: .08em; text-transform: uppercase;
         padding: 12px 24px;
@@ -388,7 +652,7 @@ export default function Home() {
         display: flex; align-items: center; justify-content: space-between;
         padding: 8px 12px;
         border-bottom: 1px solid var(--kw-sep);
-        font-family: 'Barlow', sans-serif; font-size: .82rem;
+        font-family: var(--font-barlow), sans-serif; font-size: .82rem;
       }
       .ha-kw-y { color: #16a34a; background: rgba(22,163,74,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
       .ha-kw-n { color: #dc2626; background: rgba(220,38,38,.1); padding: 2px 8px; font-size: .7rem; font-weight: 700; }
@@ -680,7 +944,7 @@ export default function Home() {
                   style={{
                     flex: "0 0 auto",
                     padding: "11px 20px",
-                    fontFamily: "\'Barlow Condensed\', sans-serif",
+                    fontFamily: "var(--font-barlow-condensed), sans-serif",
                     fontWeight: 800, fontSize: ".8rem",
                     letterSpacing: ".1em", textTransform: "uppercase",
                     background: i === activeTab ? "var(--orange)" : "var(--bg-3)",
@@ -760,7 +1024,7 @@ export default function Home() {
                     }}
                   >
                     <p style={{
-                      fontFamily: "\'Barlow Condensed\', sans-serif",
+                      fontFamily: "var(--font-barlow-condensed), sans-serif",
                       fontWeight: 800, fontSize: ".88rem",
                       textTransform: "uppercase", letterSpacing: ".04em",
                       color: i === safeItem ? "var(--text)" : "var(--gray-mid)",
@@ -1142,6 +1406,17 @@ export default function Home() {
       </div>
     );
   }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  AUTHENTICATED — rest of your original page.tsx continues here
+  //  (paste your existing signed-in dashboard JSX below this line)
+  // ══════════════════════════════════════════════════════════════════
+  return (
+    <div>
+      {/* Your existing authenticated dashboard JSX goes here */}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Kirjautuneen käyttäjän pääsivu

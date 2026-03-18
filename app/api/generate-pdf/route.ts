@@ -1,4 +1,3 @@
-// app/api/generate-pdf/route.ts - KORJATTU: Parempi renderöinti
 import { NextRequest, NextResponse } from "next/server";
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
@@ -13,7 +12,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "CV ID is required" }, { status: 400 });
     }
 
+    // ✅ LISÄÄ ?pdf=true parametri
     const cvUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/cv-preview/${cvId}?pdf=true`;
+
     console.log(`📄 Navigating to: ${cvUrl}`);
 
     const browser = await puppeteer.launch({
@@ -24,12 +25,18 @@ export async function POST(req: NextRequest) {
 
     const page = await browser.newPage();
 
-    // ✅ A4 at 96 DPI = 794 x 1123px
     await page.setViewport({
       width: 794,
       height: 1123,
-      deviceScaleFactor: 2, // ✅ Higher quality rendering
+      deviceScaleFactor: 1,
     });
+
+    // ❌ POISTA authToken - middleware ohittaa sen nyt
+    // if (authToken) {
+    //   await page.setExtraHTTPHeaders({
+    //     Authorization: `Bearer ${authToken}`,
+    //   });
+    // }
 
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -40,69 +47,7 @@ export async function POST(req: NextRequest) {
       timeout: 60000,
     });
 
-    // ✅ Wait for CV content to actually render (not just network idle)
-    await page.waitForSelector('.cv-container, [data-template-type]', { timeout: 15000 }).catch(() => {
-      console.warn('⚠️ CV container selector not found, continuing anyway');
-    });
-
-    // ✅ Inject PDF-specific CSS fixes
-    await page.addStyleTag({
-      content: `
-        /* Reset everything for PDF */
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        
-        body { 
-          margin: 0 !important; 
-          padding: 0 !important; 
-          background: white !important;
-          overflow: visible !important;
-        }
-        
-        /* CV container should be exactly A4 */
-        .cv-container {
-          width: 210mm !important;
-          min-height: 297mm !important;
-          max-width: 210mm !important;
-          overflow: visible !important;
-          transform: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        /* Remove any scaling transforms */
-        .cv-container * {
-          transform: none !important;
-        }
-        
-        /* Ensure all sections are visible */
-        .cv-container > div,
-        .cv-container section,
-        .cv-container article {
-          overflow: visible !important;
-          display: block !important;
-        }
-        
-        /* Hide UI elements that shouldn't be in PDF */
-        nav, header:not(.cv-header), footer, 
-        [class*="toolbar"], [class*="sidebar"],
-        [class*="modal"], [class*="toast"] {
-          display: none !important;
-        }
-
-        /* Force backgrounds to print */
-        div[style*="background"] {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-
-        @page {
-          size: A4;
-          margin: 0;
-        }
-      `
-    });
-
-    // Wait for images to load
+    // Odota kuvat
     await page.evaluate(() => {
       return Promise.all(
         Array.from(document.images)
@@ -116,7 +61,9 @@ export async function POST(req: NextRequest) {
       );
     });
 
-    // Wait for background images
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    // Background images
     await page.evaluate(() => {
       return new Promise<void>((resolve) => {
         const elementsWithBg = document.querySelectorAll("*");
@@ -145,9 +92,6 @@ export async function POST(req: NextRequest) {
         Promise.all(promises).then(() => resolve());
       });
     });
-
-    // ✅ Final settle wait (fonts, layout)
-    await new Promise((resolve) => setTimeout(resolve, 3000));
 
     console.log("🖨️ Generating PDF...");
 
