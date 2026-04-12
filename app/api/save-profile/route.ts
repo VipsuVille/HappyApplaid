@@ -137,6 +137,12 @@ export async function GET() {
       careerGoals: dbProfile.career_goals || "",
       bestProjectExample: dbProfile.best_project_example || "",
       failureLesson: dbProfile.failure_lesson || "",
+
+       idealWorkEnvironment: dbProfile.ideal_work_environment || "",
+  feedbackExample: dbProfile.feedback_example || "",
+  workplaceFrustration: dbProfile.workplace_frustration || "",
+  proudMoment: dbProfile.proud_moment || "",
+  whatIfMoney: dbProfile.what_if_money || "",
     };
 
     return NextResponse.json({ profile: profilePageFormat });

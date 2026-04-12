@@ -104,22 +104,21 @@ export function transformUIToDB(
     best_project_example: uiProfile.bestProjectExample || null,
     failure_lesson: uiProfile.failureLesson || null,
 
-    // ✅ LISÄÄ PUUTTUVAT KENTÄT (profiilisivulta)
-    ideal_work_environment: (uiProfile as any).idealWorkEnvironment || null,
-    feedback_example: (uiProfile as any).feedbackExample || null,
-    workplace_frustration: (uiProfile as any).workplaceFrustration || null,
-    proud_moment: (uiProfile as any).proudMoment || null,
-    what_if_money: (uiProfile as any).whatIfMoney || null,
+    // ✅ NÄMÄ TOIMIVAT NYT ILMAN as any
+    ideal_work_environment: uiProfile.idealWorkEnvironment || null,
+    feedback_example: uiProfile.feedbackExample || null,
+    workplace_frustration: uiProfile.workplaceFrustration || null,
+    proud_moment: uiProfile.proudMoment || null,
+    what_if_money: uiProfile.whatIfMoney || null,
 
     education: uiProfile.education || [],
     work_experience: uiProfile.workExperience || [],
     languages: uiProfile.languages || [],
 
-    skills: Array.isArray(uiProfile.skills) 
-  ? JSON.stringify(uiProfile.skills) 
-  : uiProfile.skills || null,
+    skills: Array.isArray(uiProfile.skills)
+      ? JSON.stringify(uiProfile.skills)
+      : uiProfile.skills || null,
 
-    // ✅ NORMALISOITU
     language: "finnish",
   };
 }

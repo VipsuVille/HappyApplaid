@@ -71,6 +71,12 @@ export interface ProfileData {
   superpower: string;
 
   // Taidot ja kielet
+ idealWorkEnvironment?: string;
+  feedbackExample?: string;
+  workplaceFrustration?: string;
+  proudMoment?: string;
+  whatIfMoney?: string;
+
   languages: LanguageItem[];
   skills: string;
 }
