@@ -8,7 +8,7 @@ import {
   Save, ArrowLeft, Trash2, Download, Loader2, 
   Palette, RotateCcw, X, Eye, Settings, 
   AlignLeft, AlignCenter, AlignJustify,
-  CheckCircle, Clock, FileText, Sparkles
+  CheckCircle, Clock, FileText, Sparkles, Pencil
 } from 'lucide-react';
 
 import IterativeFeedback from '@/components/IterativeFeedback';
@@ -62,7 +62,10 @@ export default function EditCoverLetterPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [latestChanges, setLatestChanges] = useState('');
 
-  // Inline editing states
+  // ✅ UUSI: Fullscreen editing modal
+  const [isEditingContent, setIsEditingContent] = useState(false);
+
+  // Inline editing states (pidetään yhteensopivuuden vuoksi)
   const [editingField, setEditingField] = useState<string | null>(null);
   const [tempValue, setTempValue] = useState<string>('');
 
@@ -101,6 +104,18 @@ export default function EditCoverLetterPage() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // ✅ Lukitse scroll kun editointitila on auki
+  useEffect(() => {
+    if (isEditingContent) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isEditingContent]);
 
   // Load cover letter
   useEffect(() => {
@@ -229,7 +244,6 @@ export default function EditCoverLetterPage() {
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
-      // Save first so Puppeteer sees latest fontSize/lineHeight/etc
       const token = await getToken({ template: 'supabase' });
       if (token && letterData) {
         const finalContent = buildSaveContent();
@@ -247,7 +261,6 @@ export default function EditCoverLetterPage() {
         }
       }
 
-      // Now generate PDF
       const response = await fetch('/api/generate-cover-letter-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -317,9 +330,12 @@ export default function EditCoverLetterPage() {
     setTimeout(() => setShowSuccess(false), 10000);
   };
 
-  const startEditing = (field: string, currentValue: string) => {
-    setEditingField(field);
-    setTempValue(currentValue);
+  // ✅ Tallenna editoinnin jälkeen ja sulje modal
+  const handleFinishEditing = () => {
+    setIsEditingContent(false);
+    toast.success('Muokkaukset tallennettu — muista painaa Tallenna!', {
+      duration: 3000,
+    });
   };
 
   const cancelEditing = () => {
@@ -368,7 +384,6 @@ export default function EditCoverLetterPage() {
     );
   }
 
-  // ✅ FIX: Include fontSize, lineHeight, textAlign in template data
   const templateData = {
     name,
     email,
@@ -384,18 +399,10 @@ export default function EditCoverLetterPage() {
     headerColor: styleSettings.headerColor,
     headerLayout: styleSettings.headerLayout,
     sidebarContent: styleSettings.sidebarContent,
-    // ✅ NEW: Pass typography to template so it actually renders with these values
     fontSize: styleSettings.fontSize,
     lineHeight: styleSettings.lineHeight,
     textAlign: styleSettings.textAlign,
   };
-
-  const paragraphs = content?.split('\n\n').filter(p => p.trim()) || [];
-  const today = new Date().toLocaleDateString('fi-FI', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
@@ -405,6 +412,118 @@ export default function EditCoverLetterPage() {
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 dark:bg-emerald-500/5 rounded-full blur-[120px]" />
       </div>
+
+      {/* ✅ FULLSCREEN EDITING MODAL — Canva-tyylinen */}
+      {isEditingContent && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 200,
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
+            overflow: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          {/* Modal toolbar */}
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 201,
+              width: '100%',
+              background: 'rgba(15, 15, 20, 0.95)',
+              borderBottom: '1px solid rgba(249, 115, 22, 0.3)',
+              padding: '12px 24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Pencil style={{ width: '18px', height: '18px', color: '#f97316' }} />
+              <span style={{ 
+                color: '#f97316', 
+                fontWeight: 700, 
+                fontSize: '14px',
+                letterSpacing: '0.05em',
+              }}>
+                Muokkaustila — klikkaa mitä tahansa kappaletta
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <span style={{ 
+                fontSize: '12px', 
+                color: 'rgba(255,255,255,0.4)',
+                display: isMobile ? 'none' : 'block',
+              }}>
+                Klikkaa kappale → kirjoita → klikkaa muualle tallentaaksesi
+              </span>
+              <button
+                onClick={handleFinishEditing}
+                style={{
+                  padding: '8px 20px',
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  color: 'white',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 12px rgba(34, 197, 94, 0.3)',
+                }}
+              >
+                <CheckCircle style={{ width: '16px', height: '16px' }} />
+                Valmis
+              </button>
+            </div>
+          </div>
+
+          {/* Dokumentti täysikokoisena — EI skaalattuna */}
+          <div
+            style={{
+              padding: '40px 20px 80px',
+              display: 'flex',
+              justifyContent: 'center',
+              width: '100%',
+            }}
+          >
+            {/* Ohjevihje dokumentin yläpuolella */}
+            <div style={{ width: '210mm', maxWidth: '100%' }}>
+              <div style={{
+                marginBottom: '12px',
+                padding: '8px 16px',
+                background: 'rgba(249, 115, 22, 0.1)',
+                border: '1px solid rgba(249, 115, 22, 0.2)',
+                borderRadius: '8px',
+                fontSize: '12px',
+                color: 'rgba(249, 115, 22, 0.9)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <Pencil style={{ width: '12px', height: '12px', flexShrink: 0 }} />
+                Oranssi reunus = muokattava kappale. Klikkaa kappaletta aloittaaksesi muokkauksen.
+              </div>
+
+              {/* ✅ TÄYSIKOKO template — 1:1, ei skaalattuna */}
+              <CoverLetterTemplate
+                data={templateData}
+                isEditing={true}
+                isPdfPreview={false}
+                onChange={(newContent) => setContent(newContent)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TOOLBAR */}
       <div className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 shadow-sm">
@@ -563,9 +682,9 @@ export default function EditCoverLetterPage() {
                   </div>
                 </div>
 
-                {/* ✅ Font Size — NOW ACTUALLY AFFECTS TEMPLATE */}
+                {/* Font Size */}
                 <div>
-                  <label className="text-xs font-bold mb-2 block flex justify-between uppercase tracking-wider">
+                  <label className="text-xs font-bold mb-2 flex justify-between uppercase tracking-wider">
                     <span>Fonttikoko</span>
                     <span className="text-orange-500">{styleSettings.fontSize}pt</span>
                   </label>
@@ -585,9 +704,9 @@ export default function EditCoverLetterPage() {
                   </div>
                 </div>
 
-                {/* ✅ Line Height — NOW ACTUALLY AFFECTS TEMPLATE */}
+                {/* Line Height */}
                 <div>
-                  <label className="text-xs font-bold mb-2 block flex justify-between uppercase tracking-wider">
+                  <label className="text-xs font-bold mb-2 flex justify-between uppercase tracking-wider">
                     <span>Riviväli</span>
                     <span className="text-orange-500">{styleSettings.lineHeight}</span>
                   </label>
@@ -644,7 +763,7 @@ export default function EditCoverLetterPage() {
                   </div>
                 </div>
 
-                {/* ✅ Quick presets for typography */}
+                {/* Quick presets */}
                 <div className="pt-3 border-t border-gray-100 dark:border-gray-800">
                   <p className="text-xs text-gray-500 mb-2 font-semibold">Pikaasetukset</p>
                   <div className="flex gap-2 flex-wrap">
@@ -683,7 +802,7 @@ export default function EditCoverLetterPage() {
           {/* PREVIEW & EDIT */}
           <div className="flex-1 space-y-4 sm:space-y-6">
             
-            {/* ✅ PREVIEW — Uses CoverLetterTemplate with live state data */}
+            {/* PREVIEW */}
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-800">
               <div className="relative flex items-center justify-center p-4 sm:p-6 bg-gray-50 dark:bg-black/20">
                 <div
@@ -692,7 +811,6 @@ export default function EditCoverLetterPage() {
                     transformOrigin: isMobile ? 'top center' : 'center',
                   }}
                 >
-                  {/* ✅ Page boundary indicator */}
                   <div style={{ position: 'relative' }}>
                     <div style={{ position: 'absolute', top: '297mm', left: '-10px', right: '-10px', zIndex: 20, pointerEvents: 'none' }}>
                       <div style={{ borderTop: '2px dashed #ef4444', position: 'relative' }}>
@@ -702,6 +820,7 @@ export default function EditCoverLetterPage() {
                       </div>
                     </div>
                     <CoverLetterContainer>
+                      {/* ✅ Preview ei ole editoitava — isEditing=false */}
                       <CoverLetterTemplate
                         data={templateData}
                         isEditing={false}
@@ -712,50 +831,17 @@ export default function EditCoverLetterPage() {
                 </div>
               </div>
               
-              {/* Edit button below preview */}
+              {/* ✅ UUSI: Muokkaa-nappi avaa fullscreen modalin */}
               <div className="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/60">
                 <button
-                  onClick={() => startEditing('content', content)}
-                  className="w-full px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+                  onClick={() => setIsEditingContent(true)}
+                  className="w-full px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 shadow-lg"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Klikkaa muokataksesi tekstiä
+                  <Pencil className="w-4 h-4" />
+                  ✏️ Muokkaa tekstiä — avaa muokkaustila
                 </button>
               </div>
             </div>
-
-            {/* ✅ EDIT TEXT FIELD (visible when editing) */}
-            {editingField === 'content' && (
-              <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden border-2 border-orange-400 dark:border-orange-600 p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-orange-600 dark:text-orange-400 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    Muokkaa hakukirjeen tekstiä
-                  </h3>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={cancelEditing}
-                      className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-gray-700"
-                    >
-                      Peruuta
-                    </button>
-                    <button
-                      onClick={() => saveField('content')}
-                      className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-bold hover:bg-green-600"
-                    >
-                      ✓ Valmis
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={tempValue}
-                  onChange={(e) => setTempValue(e.target.value)}
-                  rows={20}
-                  className="w-full px-4 py-3 bg-gray-50 dark:bg-black/20 border-2 border-gray-200 dark:border-gray-700 rounded-xl text-sm focus:border-orange-400 focus:outline-none"
-                  autoFocus
-                />
-              </div>
-            )}
 
             {/* ITERATIVE FEEDBACK */}
             <IterativeFeedback
@@ -779,9 +865,7 @@ export default function EditCoverLetterPage() {
                       className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-gray-800 rounded-xl"
                     >
                       <div className="flex items-start justify-between gap-4 mb-2">
-                        <p className="text-sm font-bold">
-                          Versio {iter.version}
-                        </p>
+                        <p className="text-sm font-bold">Versio {iter.version}</p>
                         <p className="text-xs text-gray-500">
                           {new Date(iter.timestamp).toLocaleString('fi-FI')}
                         </p>
@@ -789,9 +873,7 @@ export default function EditCoverLetterPage() {
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                         💬 <span className="italic">&quot;{iter.user_feedback}&quot;</span>
                       </p>
-                      <p className="text-xs text-gray-500">
-                        ✅ {iter.changes_made}
-                      </p>
+                      <p className="text-xs text-gray-500">✅ {iter.changes_made}</p>
                       {iter.affected_sections && (
                         <div className="mt-2 flex gap-2 flex-wrap">
                           {iter.affected_sections.map((section: string) => (
@@ -814,7 +896,7 @@ export default function EditCoverLetterPage() {
             <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
               <p className="text-sm font-bold text-orange-900 dark:text-orange-100 flex items-center gap-2">
                 <Eye className="w-4 h-4" />
-                Klikkaa &quot;Muokkaa tekstiä&quot; tai käytä AI-muokkausta · Säädä fonttikokoa ja riviväliä ⚙️ Muotoilu-paneelista
+                Klikkaa &quot;Muokkaa tekstiä&quot; avataksesi muokkaustilan · Säädä muotoilua ⚙️ Muotoilu-paneelista
               </p>
             </div>
           </div>

@@ -31,11 +31,14 @@ interface CoverLetterTemplateProps {
   data: CoverLetterData;
   isPdfPreview?: boolean;
   isEditing?: boolean;
+  onChange?: (newContent: string) => void;  // ← LISÄÄ TÄMÄ
 }
 
 export default function CoverLetterTemplate({ 
   data, 
-  isPdfPreview = false 
+  isPdfPreview = false,
+  isEditing = false,
+  onChange,           // ← LISÄÄ TÄMÄ
 }: CoverLetterTemplateProps) {
   
   const headerColor = data.headerColor || '#1a1a2e';
@@ -362,27 +365,45 @@ export default function CoverLetterTemplate({
           </div>
 
           {/* ✅ FIX: Content paragraphs use dynamic fontSize, lineHeight, textAlign */}
-          <div
-            style={{
-              lineHeight: bodyLineHeight,
-              fontSize: `${bodyFontSize}pt`,
-              fontFamily: "'Libre Baskerville', Georgia, serif",
-              color: '#334155',
-            }}
-          >
-            {paragraphs.map((paragraph, idx) => (
-              <p
-                key={idx}
-                style={{
-                  marginBottom: `${paragraphSpacing}px`,
-                  textAlign: bodyTextAlign,
-                }}
-              >
-                {paragraph}
-              </p>
-            ))}
-          </div>
-
+         {/* ✅ FIX: Content paragraphs use dynamic fontSize, lineHeight, textAlign */}
+<div
+  style={{
+    lineHeight: bodyLineHeight,
+    fontSize: `${bodyFontSize}pt`,
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    color: '#334155',
+  }}
+>
+  {paragraphs.map((paragraph, idx) => (
+    <p
+      key={idx}
+      contentEditable={isEditing}
+      suppressContentEditableWarning={true}
+      onBlur={(e) => {
+        if (isEditing && onChange) {
+          const allParas = Array.from(
+            e.currentTarget.parentElement?.querySelectorAll('p') || []
+          );
+          const newContent = allParas
+            .map(p => p.innerText)
+            .join('\n\n');
+          onChange(newContent);
+        }
+      }}
+      style={{
+        marginBottom: `${paragraphSpacing}px`,
+        textAlign: bodyTextAlign,
+        outline: isEditing ? '2px solid #f97316' : 'none',
+        borderRadius: isEditing ? '4px' : '0',
+        padding: isEditing ? '4px' : '0',
+        cursor: isEditing ? 'text' : 'default',
+        minHeight: isEditing ? '1.5em' : 'auto',
+      }}
+    >
+      {paragraph}
+    </p>
+  ))}
+</div>
           {/* Signature */}
           <div style={{ marginTop: '52px' }}>
             <div style={{
@@ -604,27 +625,45 @@ export default function CoverLetterTemplate({
           </div>
 
           {/* ✅ FIX: Content uses dynamic fontSize, lineHeight, textAlign */}
-          <div
-            style={{
-              lineHeight: bodyLineHeight,
-              fontSize: `${bodyFontSize}pt`,
-              fontFamily: "'Libre Baskerville', Georgia, serif",
-              color: '#334155',
-            }}
-          >
-            {paragraphs.map((paragraph, idx) => (
-              <p
-                key={idx}
-                style={{
-                  marginBottom: `${paragraphSpacing}px`,
-                  textAlign: bodyTextAlign,
-                }}
-              >
-                {paragraph}
-              </p>
-            ))}
-          </div>
-
+         {/* ✅ FIX: Content paragraphs use dynamic fontSize, lineHeight, textAlign */}
+<div
+  style={{
+    lineHeight: bodyLineHeight,
+    fontSize: `${bodyFontSize}pt`,
+    fontFamily: "'Libre Baskerville', Georgia, serif",
+    color: '#334155',
+  }}
+>
+  {paragraphs.map((paragraph, idx) => (
+    <p
+      key={idx}
+      contentEditable={isEditing}
+      suppressContentEditableWarning={true}
+      onBlur={(e) => {
+        if (isEditing && onChange) {
+          const allParas = Array.from(
+            e.currentTarget.parentElement?.querySelectorAll('p') || []
+          );
+          const newContent = allParas
+            .map(p => p.innerText)
+            .join('\n\n');
+          onChange(newContent);
+        }
+      }}
+      style={{
+        marginBottom: `${paragraphSpacing}px`,
+        textAlign: bodyTextAlign,
+        outline: isEditing ? '2px solid #f97316' : 'none',
+        borderRadius: isEditing ? '4px' : '0',
+        padding: isEditing ? '4px' : '0',
+        cursor: isEditing ? 'text' : 'default',
+        minHeight: isEditing ? '1.5em' : 'auto',
+      }}
+    >
+      {paragraph}
+    </p>
+  ))}
+</div>
           {/* Signature */}
           <div style={{ marginTop: '48px' }}>
             <div style={{

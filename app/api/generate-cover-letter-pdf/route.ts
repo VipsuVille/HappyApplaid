@@ -41,6 +41,16 @@ export async function POST(req: NextRequest) {
       timeout: 60000,
     });
 
+    
+await page.addStyleTag({
+  content: `
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+  `
+});
     // ✅ ODOTA KUVAT (TARKKA KOPIO CV:stä)
     await page.evaluate(() => {
       return Promise.all(
@@ -90,17 +100,13 @@ export async function POST(req: NextRequest) {
     console.log("🖨️ Generating PDF...");
 
     // ✅ PDF-ASETUKSET (TARKKA KOPIO CV:stä)
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: {
-        top: "0",
-        right: "0",
-        bottom: "0",
-        left: "0",
-      },
-      preferCSSPageSize: false,
-    });
+const pdfBuffer = await page.pdf({
+  format: "A4",
+  printBackground: true,
+  omitBackground: false,  // ✅ LISÄÄ TÄMÄ
+  margin: { top: "0", right: "0", bottom: "0", left: "0" },
+  preferCSSPageSize: false,
+});
 
     await browser.close();
 
