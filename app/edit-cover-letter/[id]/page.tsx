@@ -539,7 +539,7 @@ const handleFieldChange = (field: keyof typeof templateData, value: string) => {
               {/* ✅ TÄYSIKOKO template — 1:1, ei skaalattuna */}
     <CoverLetterTemplate
   data={templateData}
-  isEditing={false}
+  isEditing={true}
   isPdfPreview={false}
 />
             </div>
