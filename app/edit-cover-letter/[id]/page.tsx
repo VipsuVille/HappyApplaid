@@ -354,7 +354,30 @@ export default function EditCoverLetterPage() {
     setEditingField(null);
     setTempValue('');
   };
-
+const handleFieldChange = (field: keyof typeof templateData, value: string) => {
+  switch (field) {
+    case 'name':        setName(value); break;
+    case 'email':       setEmail(value); break;
+    case 'phone':       setPhone(value); break;
+    case 'location':    setLocation(value); break;
+    case 'jobTitle':    // tallenna letterData kautta jos tarvitaan
+      setLetterData(prev => prev ? {
+        ...prev,
+        content: { ...prev.content, job_title: value }
+      } : prev);
+      break;
+    case 'companyName':
+      setLetterData(prev => prev ? {
+        ...prev,
+        content: { ...prev.content, company_name: value }
+      } : prev);
+      break;
+    case 'headerColor':
+      setStyleSettings(prev => ({ ...prev, headerColor: value }));
+      break;
+    default: break;
+  }
+};
   const handleResetStyles = () => {
     setStyleSettings({
       headerColor: 'rgb(181, 152, 79)',
@@ -514,12 +537,11 @@ export default function EditCoverLetterPage() {
               </div>
 
               {/* ✅ TÄYSIKOKO template — 1:1, ei skaalattuna */}
-              <CoverLetterTemplate
-                data={templateData}
-                isEditing={true}
-                isPdfPreview={false}
-                onChange={(newContent) => setContent(newContent)}
-              />
+    <CoverLetterTemplate
+  data={templateData}
+  isEditing={false}
+  isPdfPreview={false}
+/>
             </div>
           </div>
         </div>
@@ -821,11 +843,13 @@ export default function EditCoverLetterPage() {
                     </div>
                     <CoverLetterContainer>
                       {/* ✅ Preview ei ole editoitava — isEditing=false */}
-                      <CoverLetterTemplate
-                        data={templateData}
-                        isEditing={false}
-                        isPdfPreview={false}
-                      />
+   <CoverLetterTemplate
+  data={templateData}
+  isEditing={true}
+  isPdfPreview={false}
+  onChange={(newContent) => setContent(newContent)}
+  onFieldChange={handleFieldChange}   // ← LISÄÄ TÄMÄ
+/>
                     </CoverLetterContainer>
                   </div>
                 </div>
