@@ -253,11 +253,27 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   }, [aiData]);
 
   // ── Parse skills ─────────────────────────────────────────────────
-  const skillCategories = useMemo((): { category: string; items: string[] }[] => {
-    if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
-      if (typeof data.skills[0] === "string") return [{ category: "Skills", items: data.skills as string[] }];
-      return data.skills as any;
+const skillCategories = useMemo((): { category: string; items: string[] }[] => {
+  if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
+    // Stringitaulukko → yksi kategoria
+    if (typeof data.skills[0] === "string") {
+      return [{ category: "Skills", items: data.skills as string[] }];
     }
+    // Objektitaulukko: voi olla joko {category, items} TAI {name, proficiency...}
+    const first: any = data.skills[0];
+    // Jos jo oikeassa kategoria-muodossa
+    if (first && Array.isArray(first.items)) {
+      return (data.skills as any[]).map((c: any) => ({
+        category: c.category || "Skills",
+        items: Array.isArray(c.items) ? c.items : [],
+      }));
+    }
+    // Muuten: profiili-skill-objektit ({name, proficiency, ...}) → yksi kategoria
+    const items = (data.skills as any[])
+      .map((s: any) => (typeof s === "string" ? s : s?.name || s?.skill || s?.title || ""))
+      .filter(Boolean);
+    return items.length ? [{ category: "Skills", items }] : [];
+  }
     const html = getAI("skills_section");
     if (!html) {
       const t = (data?.skills as any) ?? "";
