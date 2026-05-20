@@ -179,35 +179,52 @@ function processCV(cv: any): BaseCV {
   if (!cvData) cvData = {};
   if (!aiData) aiData = {};
 
-  // ✅ SKILLS → structured array (same as edit-cv)
-  if (typeof cvData.skills === 'string') {
-    try { cvData.skills = JSON.parse(cvData.skills); } catch { cvData.skills = cvData.skills.split(',').map((s: string) => s.trim()).filter(Boolean); }
-  }
-  if (!Array.isArray(cvData.skills) || cvData.skills.length === 0) {
-    const parsed = parseAISkillsToStructured(aiData);
-    if (parsed) cvData.skills = parsed;
-    else cvData.skills = [];
-  }
+  // Apufunktio varmistamaan, että data on validi taulukko
+  const ensureArray = (data: any, fallbackParser: () => any[] | null): any[] => {
+    if (!data) return fallbackParser() || [];
+    if (Array.isArray(data)) return data;
+    
+    if (typeof data === 'string') {
+      if (data.trim() === '' || data.includes('[object Object]')) {
+        return fallbackParser() || [];
+      }
+      try {
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        return data.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    return fallbackParser() || [];
+  };
 
-  // ✅ EXPERIENCE → structured array (same as edit-cv)
-  if (typeof cvData.experience === 'string') {
-    try { cvData.experience = JSON.parse(cvData.experience); } catch { cvData.experience = []; }
-  }
-  if (!Array.isArray(cvData.experience) || cvData.experience.length === 0) {
-    const parsed = parseAIExperienceToStructured(aiData);
-    if (parsed) cvData.experience = parsed;
-    else cvData.experience = [];
-  }
+  // ✅ 1. SKILLS TURVALLINEN PARSINTA
+  cvData.skills = ensureArray(cvData.skills, () => parseAISkillsToStructured(aiData));
 
-  // ✅ EDUCATION → structured array (same as edit-cv)
-  if (typeof cvData.education === 'string') {
-    try { cvData.education = JSON.parse(cvData.education); } catch { cvData.education = []; }
-  }
-  if (!Array.isArray(cvData.education) || cvData.education.length === 0) {
-    const parsed = parseAIEducationToStructured(aiData);
-    if (parsed) cvData.education = parsed;
-    else cvData.education = [];
-  }
+  // ✅ 2. EXPERIENCE TURVALLINEN PARSINTA
+  cvData.experience = ensureArray(cvData.experience, () => parseAIExperienceToStructured(aiData));
+
+  // ✅ 3. EDUCATION TURVALLINEN PARSINTA
+  cvData.education = ensureArray(cvData.education, () => parseAIEducationToStructured(aiData));
+
+  // ✅ 4. LANGUAGES TURVALLINEN PARSINTA (Estää [object Object] ja puuttuvat map-virheet)
+  cvData.languages = ensureArray(cvData.languages, () => {
+    // Jos aiData:ssa on kieliosio, parsi sieltä, muuten palauta oletus
+    const langHTML = aiData?.languages_section || aiData?.html?.languages_section;
+    if (langHTML && typeof langHTML === 'string') {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(langHTML, 'text/html');
+        const items: string[] = [];
+        doc.querySelectorAll('li').forEach(li => {
+          const t = li.textContent?.trim();
+          if (t) items.push(t);
+        });
+        if (items.length > 0) return items.map(l => ({ language: l, proficiency: '' }));
+      } catch {}
+    }
+    return [];
+  });
 
   // ✅ IMAGE PROCESSING
   const processImageUrl = (url: string | null | undefined): string => {
