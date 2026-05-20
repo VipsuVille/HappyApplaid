@@ -156,6 +156,10 @@ function parseAIEducationToStructured(aiData: any): any[] | null {
 // Ensures template gets consistent structured data
 // ════════════════════════════════════════════════════════════════
 
+// ════════════════════════════════════════════════════════════════
+// ✅ SUPER-SAFE PROCESS CV — Estää kaikki undefined/map virheet
+// ════════════════════════════════════════════════════════════════
+
 function processCV(cv: any): BaseCV {
   let cvData = cv.cv_data;
   let aiData = cv.ai_data;
@@ -179,37 +183,64 @@ function processCV(cv: any): BaseCV {
   if (!cvData) cvData = {};
   if (!aiData) aiData = {};
 
-  // Apufunktio varmistamaan, että data on validi taulukko
+  // ✅ SUPER SAFE ARRAY HELPER — NEVER returns undefined!
   const ensureArray = (data: any, fallbackParser: () => any[] | null): any[] => {
-    if (!data) return fallbackParser() || [];
-    if (Array.isArray(data)) return data;
-    
+    // 1. Null/undefined → try parser, then []
+    if (!data) {
+      const parsed = fallbackParser();
+      return Array.isArray(parsed) ? parsed : [];
+    }
+
+    // 2. Already array → return
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    // 3. String data
     if (typeof data === 'string') {
-      if (data.trim() === '' || data.includes('[object Object]')) {
-        return fallbackParser() || [];
+      const trimmed = data.trim();
+      
+      // Empty or broken → try parser
+      if (trimmed === '' || trimmed.includes('[object Object]')) {
+        const parsed = fallbackParser();
+        return Array.isArray(parsed) ? parsed : [];
       }
+
+      // Try JSON parse
       try {
-        const parsed = JSON.parse(data);
-        return Array.isArray(parsed) ? parsed : [parsed];
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && typeof parsed === 'object') return [parsed];
+        return [];
       } catch {
-        return data.split(',').map((s: string) => s.trim()).filter(Boolean);
+        // Fallback: split by comma
+        const items = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+        return items.length > 0 ? items : [];
       }
     }
-    return fallbackParser() || [];
+
+    // 4. Object → wrap in array or try parser
+    if (typeof data === 'object') {
+      const parsed = fallbackParser();
+      return Array.isArray(parsed) ? parsed : [];
+    }
+
+    // 5. Unknown type → try parser, then []
+    const parsed = fallbackParser();
+    return Array.isArray(parsed) ? parsed : [];
   };
 
-  // ✅ 1. SKILLS TURVALLINEN PARSINTA
+  // ✅ SKILLS — GUARANTEED ARRAY
   cvData.skills = ensureArray(cvData.skills, () => parseAISkillsToStructured(aiData));
 
-  // ✅ 2. EXPERIENCE TURVALLINEN PARSINTA
+  // ✅ EXPERIENCE — GUARANTEED ARRAY
   cvData.experience = ensureArray(cvData.experience, () => parseAIExperienceToStructured(aiData));
 
-  // ✅ 3. EDUCATION TURVALLINEN PARSINTA
+  // ✅ EDUCATION — GUARANTEED ARRAY
   cvData.education = ensureArray(cvData.education, () => parseAIEducationToStructured(aiData));
 
-  // ✅ 4. LANGUAGES TURVALLINEN PARSINTA (Estää [object Object] ja puuttuvat map-virheet)
+  // ✅ LANGUAGES — GUARANTEED ARRAY (Extra defensive!)
   cvData.languages = ensureArray(cvData.languages, () => {
-    // Jos aiData:ssa on kieliosio, parsi sieltä, muuten palauta oletus
     const langHTML = aiData?.languages_section || aiData?.html?.languages_section;
     if (langHTML && typeof langHTML === 'string') {
       try {
@@ -220,11 +251,19 @@ function processCV(cv: any): BaseCV {
           const t = li.textContent?.trim();
           if (t) items.push(t);
         });
-        if (items.length > 0) return items.map(l => ({ language: l, proficiency: '' }));
+        if (items.length > 0) {
+          return items.map(l => ({ language: l, proficiency: '' }));
+        }
       } catch {}
     }
-    return [];
+    return []; // ← NEVER return null!
   });
+
+  // ✅ FINAL SAFETY CHECK — Make absolutely sure these are arrays
+  cvData.skills = Array.isArray(cvData.skills) ? cvData.skills : [];
+  cvData.experience = Array.isArray(cvData.experience) ? cvData.experience : [];
+  cvData.education = Array.isArray(cvData.education) ? cvData.education : [];
+  cvData.languages = Array.isArray(cvData.languages) ? cvData.languages : [];
 
   // ✅ IMAGE PROCESSING
   const processImageUrl = (url: string | null | undefined): string => {
