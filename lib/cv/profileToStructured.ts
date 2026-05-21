@@ -33,3 +33,67 @@ export function mapProfileJobToStructured(job: any): StructuredExperience {
 export function experienceKey(company?: string, title?: string): string {
   return `${(company || "").trim().toLowerCase()}|${(title || "").trim().toLowerCase()}`;
 }
+
+/** Normalisoi vertailua varten: pienaakkoset, poista yhtiömuodot ja välimerkit */
+function normalizeForMatch(s?: string): string {
+  return (s || "")
+    .toLowerCase()
+    .replace(/\b(oy|oyj|ab|ltd|inc|ky|tmi)\b/g, "")
+    .replace(/[^\wäöå\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Onko tämä profiilin työ todennäköisesti jo CV:n työlistalla? */
+export function jobLikelyExists(
+  job: { company: string; title: string },
+  cvJobs: any[]
+): boolean {
+  const jc = normalizeForMatch(job.company);
+  const jt = normalizeForMatch(job.title);
+
+  return (cvJobs || []).some((e: any) => {
+    const ec = normalizeForMatch(e?.company);
+    const et = normalizeForMatch(e?.title || e?.position);
+
+    // Yritys täsmää (kumpi tahansa sisältää toisen) → osuma
+    if (jc && ec && (ec.includes(jc) || jc.includes(ec))) return true;
+    // Tai tehtävänimike täsmää selvästi
+    if (jt && et && (et.includes(jt) || jt.includes(et))) return true;
+    return false;
+  });
+}
+
+// ── PROJEKTIT (portfolioLinks) ──────────────────────────────────────
+
+export interface StructuredProject {
+  title: string;
+  description: string;
+  link: string;
+}
+
+/** Profiilin portfolioLinks-alkio → template-muoto */
+export function mapProfileProjectToStructured(p: any): StructuredProject {
+  return {
+    title: p?.title || p?.name || "Projekti",
+    description: p?.description || "",
+    link: p?.url || p?.link || "",
+  };
+}
+
+/** Onko projekti todennäköisesti jo CV:ssä? (otsikko tai linkki täsmää) */
+export function projectLikelyExists(
+  project: StructuredProject,
+  cvProjects: any[]
+): boolean {
+  const pt = normalizeForMatch(project.title);
+  const pl = (project.link || "").toLowerCase().replace(/\/+$/, "").trim();
+
+  return (cvProjects || []).some((e: any) => {
+    const et = normalizeForMatch(e?.title);
+    const el = (e?.link || "").toLowerCase().replace(/\/+$/, "").trim();
+    if (pt && et && (et.includes(pt) || pt.includes(et))) return true;
+    if (pl && el && pl === el) return true;
+    return false;
+  });
+}

@@ -197,7 +197,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   onContentChange, onUpdate, onDelete, profileImage, backgroundImage,
   fontScale: fontScaleProp, lineScale: lineScaleProp,
 }) => {
-  const [sectionOrder, setSectionOrder] = useState(["experience", "education", "languages"]);
+  const [sectionOrder, setSectionOrder] = useState(["experience", "projects", "education", "languages"]);
   const [skillsTop, setSkillsTop] = useState(0);
 
   // Use prop values when provided (controlled from parent), otherwise internal defaults
@@ -356,6 +356,7 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
         return Array.isArray(p) ? p.map((e: any) => ({ degree: e.degree || "Degree", institution: e.school || e.institution || "Institution", year: e.year || "", details: [e.whyThisField, e.specialization, e.proudestMoment, e.favoriteSubjects].filter(Boolean).map((t: string) => t.trim()) })) : [];
       } catch { return []; }
     }
+    
     const doc = new DOMParser().parseFromString(html, "text/html");
     const list: any[] = [];
     const eduDivs = doc.querySelectorAll(".education, .education-item");
@@ -395,7 +396,21 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
     }
     return list;
   }, [data?.education, getAI]);
-
+// ── Parse projects (portfolioLinks) ──────────────────────────────
+  const projects = useMemo(() => {
+    const raw = (data as any)?.projects ?? (data as any)?.portfolioLinks ?? (data as any)?.portfolio_links;
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((p: any) => p != null)
+        .map((p: any) => ({
+          title: p.title || p.name || "Projekti",
+          description: p.description || "",
+          link: p.url || p.link || "",
+        }))
+        .filter((p: any) => p.title || p.description || p.link);
+    }
+    return [];
+  }, [(data as any)?.projects, (data as any)?.portfolioLinks]);
   const name = data?.name || "Name";
   const cvTitle = data?.title || "Professional Title";
 
@@ -508,9 +523,34 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
       </section>
     );
   };
+  const renderProjects = () => {
+    if (projects.length === 0 && !isEditing) return null;
+    if (projects.length === 0) return null;
+    return (
+      <section style={{ marginBottom: fs("7mm") }}>
+        <h2 style={sH2}>Projects</h2>
+        {projects.map((proj: any, idx: number) => (
+          <DragItem key={`proj-${idx}`} index={idx} total={projects.length} isEditing={isEditing}
+            onMoveUp={() => onUpdate?.("projects", move(projects, idx, idx - 1))}
+            onMoveDown={() => onUpdate?.("projects", move(projects, idx, idx + 1))}
+            onDelete={() => onDelete?.("projects", idx)}
+            style={{ marginBottom: fs("5mm") }}
+          >
+            <h4 style={{ fontSize: fs("10.5pt"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
+              {E({ field: `projects.${idx}.title`, value: proj.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fs("10.5pt") } })}
+            </h4>
+            {(proj.description || isEditing) && E({ field: `projects.${idx}.description`, value: proj.description, tag: "p", multiline: true, placeholder: "Kuvaus", style: { fontSize: fs("9pt"), color: "#333", lineHeight: lh(1.6), fontWeight: 300, marginBottom: fs("1mm") } })}
+            {(proj.link || isEditing) && E({ field: `projects.${idx}.link`, value: proj.link, tag: "p", placeholder: "https://...", style: { fontSize: fs("8.5pt"), color: "#2563eb", lineHeight: lh(1.4) } })}
+          </DragItem>
+        ))}
+        {isEditing && <AddBtn label="+ Lisää projekti" onClick={() => onUpdate?.(`projects.${projects.length}`, { title: "Projektin nimi", description: "Lyhyt kuvaus", link: "" })} />}
+      </section>
+    );
+  };
 
-  const sectionMap: Record<string, () => React.ReactNode | null> = {
+const sectionMap: Record<string, () => React.ReactNode | null> = {
     experience: renderExperience,
+    projects: renderProjects,
     education: renderEducation,
     languages: renderLanguages,
   };

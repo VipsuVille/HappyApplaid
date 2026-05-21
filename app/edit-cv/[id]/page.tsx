@@ -15,19 +15,20 @@ import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
 import CVContainer from '@/components/cv/CVContainer';
 import { toast } from 'sonner';
-import { mapProfileJobToStructured, experienceKey, type StructuredExperience } from '@/lib/cv/profileToStructured';
+import { mapProfileJobToStructured, jobLikelyExists, mapProfileProjectToStructured, projectLikelyExists, type StructuredExperience, type StructuredProject, experienceKey } from '@/lib/cv/profileToStructured';
 interface BaseCV {
   id: string; user_id: string; title?: string; created_at: string;
   content?: any; cv_data: any; ai_data: any;
   profile_image?: string; background_image?: string; metadata?: any;
 }
 
+
 export default function EditCVPage() {
   const params = useParams();
   const router = useRouter();
   const { userId, getToken } = useAuth();
   const id = params?.id as string;
-
+const [profileProjects, setProfileProjects] = useState<StructuredProject[]>([]);
   const [cvData, setCvData] = useState<BaseCV | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -182,20 +183,22 @@ document.removeEventListener('visibilitychange', onVisibility);
     init();
 }, [id, userId, getToken, loadKey]);
 // ── Hae profiilin työkokemukset ehdotuksia varten ──────────────────
-  useEffect(() => {
-    const loadProfileJobs = async () => {
+useEffect(() => {
+    const loadProfileData = async () => {
       if (!userId) return;
       try {
         const res = await fetch(`/api/user-profile/${userId}`);
-        if (!res.ok) return; // 404 = ei profiilia, ei haittaa
+        if (!res.ok) return;
         const profile = await res.json();
         const jobs = Array.isArray(profile?.work_experience) ? profile.work_experience : [];
         setProfileJobs(jobs.map(mapProfileJobToStructured));
+        const ports = Array.isArray(profile?.portfolio_links) ? profile.portfolio_links : [];
+        setProfileProjects(ports.map(mapProfileProjectToStructured));
       } catch {
-        // Hiljainen epäonnistuminen — ehdotukset eivät ole kriittisiä
+        // hiljainen
       }
     };
-    loadProfileJobs();
+    loadProfileData();
   }, [userId]);
   // ── handleUpdate ───────────────────────────────────────────────────
   const handleUpdate = useCallback((field: string, value: any) => {
@@ -260,6 +263,13 @@ if (!isNaN(Number(last))) {
       : 0;
     handleUpdate(`experience.${len}`, job);
     toast.success(`Lisätty: ${job.title}${job.company ? ` — ${job.company}` : ''}`);
+  }, [cvData, handleUpdate]);
+  const handleAddProjectFromProfile = useCallback((proj: StructuredProject) => {
+    const len = Array.isArray(cvData?.cv_data?.projects)
+      ? cvData.cv_data.projects.length
+      : 0;
+    handleUpdate(`projects.${len}`, proj);
+    toast.success(`Lisätty projekti: ${proj.title}`);
   }, [cvData, handleUpdate]);
   // ── handleDelete ───────────────────────────────────────────────────
   const handleDelete = useCallback((field: string, index: number) => {
@@ -418,7 +428,14 @@ if (!isNaN(Number(last))) {
   );
 
   const missingJobs = profileJobs.filter(
-    (job) => !existingKeys.has(experienceKey(job.company, job.title))
+    (job) => !jobLikelyExists(job, currentExperience)
+  );
+  const currentProjects: any[] = Array.isArray(cvData?.cv_data?.projects)
+    ? cvData.cv_data.projects
+    : [];
+
+  const missingProjects = profileProjects.filter(
+    (proj) => !projectLikelyExists(proj, currentProjects)
   );
   // ── Scale ──────────────────────────────────────────────────────────
   const A4_PX = 794;
@@ -613,51 +630,91 @@ if (!isNaN(Number(last))) {
               </div>
             </div>
           </div>
-{/* Ehdotukset: profiilin työkokemukset joita CV:stä puuttuu */}
-        {isEditing && missingJobs.length > 0 && (
-          <div className="mb-6 p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-blue-200 dark:border-blue-900/40 rounded-2xl">
-            <div className="flex items-start gap-3 mb-3">
-              <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded-xl shrink-0">
-                <Briefcase className="w-4 h-4 text-blue-500" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-0.5">
-                  Profiilistasi löytyi työkokemuksia
-                </h4>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  Nämä eivät ole vielä tässä CV:ssä. Lisää haluamasi yhdellä klikkauksella.
-                </p>
-              </div>
-            </div>
+{/* Ehdotukset profiilista — koko leveys sidebarin ja previewn välissä */}
+          {isEditing && (missingJobs.length > 0 || missingProjects.length > 0) && (
+            <div className="lg:col-span-9 space-y-4">
 
-            {isCreative && (
-              <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400">
-                Huom: tämä luova pohja ei vielä näytä erikseen lisättyä työkokemusta. Lisäys tallentuu, mutta ei näy esikatselussa.
-              </div>
-            )}
-
-            <div className="space-y-2">
-              {missingJobs.map((job, idx) => (
-                <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                      {job.title}{job.company ? ` — ${job.company}` : ''}
-                    </p>
-                    {job.period && (
-                      <p className="text-xs text-gray-500 truncate">{job.period}</p>
-                    )}
+              {/* Työkokemukset */}
+              {missingJobs.length > 0 && (
+                <div className="p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-blue-200 dark:border-blue-900/40 rounded-2xl">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded-xl shrink-0">
+                      <Briefcase className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-0.5">
+                        Profiilistasi löytyi työkokemuksia
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Nämä eivät ole vielä tässä CV:ssä. Lisää haluamasi yhdellä klikkauksella.
+                      </p>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => handleAddJobFromProfile(job)}
-                    className="shrink-0 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Lisää
-                  </button>
+
+                  {isCreative && (
+                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400">
+                      Huom: tämä luova pohja ei vielä näytä erikseen lisättyä työkokemusta. Lisäys tallentuu, mutta ei näy esikatselussa.
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {missingJobs.map((job, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {job.title}{job.company ? ` — ${job.company}` : ''}
+                          </p>
+                          {job.period && <p className="text-xs text-gray-500 truncate">{job.period}</p>}
+                        </div>
+                        <button
+                          onClick={() => handleAddJobFromProfile(job)}
+                          className="shrink-0 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Lisää
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {/* Projektit */}
+              {missingProjects.length > 0 && (
+                <div className="p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-violet-200 dark:border-violet-900/40 rounded-2xl">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="bg-violet-500/10 border border-violet-500/20 p-2 rounded-xl shrink-0">
+                      <Sparkles className="w-4 h-4 text-violet-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-violet-600 dark:text-violet-400 mb-0.5">
+                        Profiilisi projektit
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Tarkista ettei projekti ole jo listassa ennen lisäystä.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {missingProjects.map((proj, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{proj.title}</p>
+                          {proj.link && <p className="text-xs text-violet-500 truncate">{proj.link}</p>}
+                        </div>
+                        <button
+                          onClick={() => handleAddProjectFromProfile(proj)}
+                          className="shrink-0 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Lisää
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
-          </div>
-        )}
+          )}
           {/* Preview */}
           <div className="lg:col-span-9">
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-4">

@@ -77,7 +77,7 @@ export async function GET(
       phone: profile.phone || "",
       job_title: profile.job_title || "",
       location: profile.location || "",
-      
+      portfolio_links: Array.isArray(profile.portfolio_links) ? profile.portfolio_links : [],  // ← TÄHÄN
       // ✅ ARRAYS (JSONB) - Varmista että ne ovat oikeasti arrayjä
       work_experience: Array.isArray(profile.work_experience) ? profile.work_experience : [],
       education: Array.isArray(profile.education) ? profile.education : [],
