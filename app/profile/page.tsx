@@ -139,7 +139,7 @@ interface SectionDef {
 }
 
 const SECTIONS: SectionDef[] = [
-  { id: "required", title: "Pakolliset tiedot", icon: Shield, required: true, hint: "Ilman näitä profiili ei ole valmis" },
+  { id: "required", title: "Perustiedot", icon: Shield, required: true, hint: "Yhteystiedot ja kieli — pakolliset" },
   { id: "experience", title: "Kokemus", icon: Briefcase, required: false, hint: "Työ & koulutus" },
   { id: "skills", title: "Taidot", icon: Award, required: false, hint: "Osaaminen & kielet" },
   { id: "projects", title: "Projektit", icon: FolderGit2, required: false, hint: "Vapaaehtoinen — useimmat voivat ohittaa" },
@@ -450,8 +450,8 @@ const EnhancedProfilePage: React.FC = () => {
           <Shield className="w-3.5 h-3.5 text-orange-400" />
           <span className="text-[11px] font-extrabold text-orange-300 uppercase tracking-widest">Pakolliset</span>
         </div>
-        <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>Pakolliset tiedot</h2>
-        <p className="text-gray-400 font-medium">Nämä tarvitaan jotta profiilisi on valmis. Tähdellä (*) merkityt ovat pakollisia.</p>
+        <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>Perustiedot</h2>
+        <p className="text-gray-400 font-medium">Nämä tarvitaan jotta profiilisi on valmis. Kaikki tähdellä (*) merkityt ovat pakollisia.</p>
       </div>
 
       {/* Profiilikuva */}
@@ -506,12 +506,12 @@ const EnhancedProfilePage: React.FC = () => {
 
       {/* KIELET — pakollinen vähintään 1 */}
       <div>
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
           <h3 className="text-lg font-bold text-gray-100 flex items-center gap-2">
             <div className="bg-blue-500/20 p-2 rounded-lg"><Languages className="w-5 h-5 text-blue-400" /></div>
             Kielitaito <span className="text-orange-400 text-xs">*</span>
           </h3>
-          <button onClick={() => addArrayItem("languages")} className={styles.buttonSecondary + " px-4 py-2 text-sm flex items-center gap-2"}>
+          <button onClick={() => addArrayItem("languages")} className={styles.buttonSecondary + " w-full sm:w-auto px-4 py-2 text-sm flex items-center justify-center gap-2"}>
             <Plus className="w-4 h-4" /> Lisää kieli
           </button>
         </div>
@@ -571,12 +571,12 @@ const EnhancedProfilePage: React.FC = () => {
 
       {/* TYÖKOKEMUS */}
       <div>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
           <h3 className="text-xl font-bold text-gray-100 flex items-center gap-2">
             <div className="bg-orange-500/20 p-2 rounded-lg"><Briefcase className="w-5 h-5 text-orange-400" /></div>
             Työkokemus
           </h3>
-          <button onClick={() => addArrayItem("workExperience")} className={styles.buttonSecondary + " px-4 py-2 text-sm flex items-center gap-2"}>
+          <button onClick={() => addArrayItem("workExperience")} className={styles.buttonSecondary + " w-full sm:w-auto px-4 py-2 text-sm flex items-center justify-center gap-2"}>
             <Plus className="w-4 h-4" /> Lisää työpaikka
           </button>
         </div>
@@ -651,12 +651,12 @@ const EnhancedProfilePage: React.FC = () => {
 
       {/* KOULUTUS */}
       <div>
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
           <h3 className="text-xl font-bold text-gray-100 flex items-center gap-2">
             <div className="bg-purple-500/20 p-2 rounded-lg"><GraduationCap className="w-5 h-5 text-purple-400" /></div>
             Koulutus
           </h3>
-          <button onClick={() => addArrayItem("education")} className={styles.buttonSecondary + " px-4 py-2 text-sm flex items-center gap-2"}>
+          <button onClick={() => addArrayItem("education")} className={styles.buttonSecondary + " w-full sm:w-auto px-4 py-2 text-sm flex items-center justify-center gap-2"}>
             <Plus className="w-4 h-4" /> Lisää koulutus
           </button>
         </div>
@@ -721,12 +721,12 @@ const EnhancedProfilePage: React.FC = () => {
           <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>Taidot</h2>
           <p className="text-gray-400 font-medium">Konkreettiset esimerkit vahvistavat osaamisesi. Vapaaehtoinen mutta suositeltu.</p>
         </div>
-        <div className="flex justify-between items-center mb-2">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-2">
           <h3 className="text-xl font-bold text-gray-100 flex items-center gap-2">
             <div className="bg-amber-500/20 p-2 rounded-lg"><Award className="w-5 h-5 text-amber-400" /></div>
             Taidot ja Osaaminen
           </h3>
-          <button onClick={() => addArrayItem("skills")} className={styles.buttonSecondary + " px-4 py-2 text-sm flex items-center gap-2"}>
+          <button onClick={() => addArrayItem("skills")} className={styles.buttonSecondary + " w-full sm:w-auto px-4 py-2 text-sm flex items-center justify-center gap-2"}>
             <Plus className="w-4 h-4" /> Lisää taito
           </button>
         </div>
@@ -800,12 +800,12 @@ const EnhancedProfilePage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
               <h3 className="text-lg font-bold text-gray-100 flex items-center gap-2">
                 <div className="bg-violet-500/20 p-2 rounded-lg"><FolderGit2 className="w-5 h-5 text-violet-400" /></div>
                 Omat projektit
               </h3>
-              <button onClick={() => addArrayItem("portfolioLinks")} className={styles.buttonSecondary + " px-4 py-2 text-sm flex items-center gap-2"}>
+              <button onClick={() => addArrayItem("portfolioLinks")} className={styles.buttonSecondary + " w-full sm:w-auto px-4 py-2 text-sm flex items-center justify-center gap-2"}>
                 <Plus className="w-4 h-4" /> Lisää projekti
               </button>
             </div>
@@ -996,14 +996,31 @@ const EnhancedProfilePage: React.FC = () => {
   const currentIndex = SECTIONS.findIndex(s => s.id === activeSection);
 
   return (
-    <div className={styles.wrapper + " pb-20"}>
+    <div className={styles.wrapper + " profile-page pb-20"}>
+      <style>{`
+        /* Estä textarea-tekstin leikkautuminen ja salli kasvu */
+        .profile-page textarea {
+          line-height: 1.5;
+          overflow-y: auto;
+          min-height: 90px;
+          field-sizing: content;
+        }
+        /* Mobiilissa hieman pienempi otsikkofontti, jottei rivit leikkaudu */
+        @media (max-width: 640px) {
+          .profile-page input,
+          .profile-page textarea,
+          .profile-page select {
+            font-size: 16px; /* estää iOS-zoomin ja pitää tekstin luettavana */
+          }
+        }
+      `}</style>
       {/* Background orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/8 to-gray-700/10 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-10">
+      <div className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 pt-6 sm:pt-10">
 
         {/* HEADER */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -1057,7 +1074,7 @@ const EnhancedProfilePage: React.FC = () => {
 
           {/* KESKIALUE */}
           <main className="flex-1 min-w-0">
-            <div className={`${styles.glassCard} p-5 md:p-8`}>
+            <div className={`${styles.glassCard} p-4 sm:p-6 md:p-8`}>
               {sectionRenderers[activeSection]()}
             </div>
 
