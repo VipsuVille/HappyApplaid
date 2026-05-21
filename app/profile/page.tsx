@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   User,
   Camera,
   X,
@@ -40,7 +42,7 @@ import { supabase } from "@/lib/supabase-client";
 // ════════════════════════════════════════════════════════════════
 
 const styles = {
-  wrapper: "min-h-screen bg-gradient-to-br from-[#121212] via-[#0e0e0e] to-[#1a1a1a] font-sans text-[#e7e3dc] selection:bg-amber-300/30 selection:text-white relative",
+  wrapper: "min-h-screen isolate bg-gradient-to-br from-[#121212] via-[#0e0e0e] to-[#1a1a1a] font-sans text-[#e7e3dc] selection:bg-amber-300/30 selection:text-white relative",
   glassCard: "backdrop-blur-2xl bg-[#1a1a1a]/70 border border-[#2a2a2a] rounded-3xl shadow-2xl shadow-black/50",
   glassPanel: "bg-[#1a1a1a]/50 backdrop-blur-md border border-[#2a2a2a] rounded-2xl",
   glassInput: "bg-black/40 backdrop-blur-sm border-2 border-[#2a2a2a] focus:border-orange-400/50 focus:ring-4 focus:ring-orange-300/10 shadow-inner transition-all outline-none rounded-xl text-[#e7e3dc] font-medium placeholder:text-gray-500",
@@ -217,6 +219,48 @@ const Collapsible: React.FC<{ title: string; subtitle?: string; children: React.
         <Plus className={`w-5 h-5 text-orange-400 shrink-0 transition-transform ${open ? "rotate-45" : ""}`} />
       </button>
       {open && <div className="px-5 pb-5 space-y-5">{children}</div>}
+    </div>
+  );
+};
+
+// Korttikohtainen collapse: aina näkyvä otsikkorivi + kutistuva sisältö.
+// Jokaisella kortilla oma open-tila. Otsikko näyttää täytetyn arvon tai oletuksen.
+const CollapsibleCard: React.FC<{
+  heading: string;
+  subheading?: string;
+  onDelete: () => void;
+  accent?: string;          // tailwind-väri esim "orange", "purple", "amber", "violet"
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}> = ({ heading, subheading, onDelete, accent = "orange", defaultOpen = true, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`${styles.glassPanel} overflow-hidden`}>
+      <div className="flex items-center gap-2 p-4 sm:p-5">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+          aria-expanded={open}
+        >
+          <div className="p-1.5 rounded-lg bg-orange-500/15 shrink-0">
+            {open
+              ? <ChevronUp className="w-4 h-4 text-orange-400" />
+              : <ChevronDown className="w-4 h-4 text-orange-400" />}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-100 truncate">{heading}</p>
+            {subheading && <p className="text-xs text-gray-500 truncate">{subheading}</p>}
+          </div>
+        </button>
+        <button
+          onClick={onDelete}
+          className={styles.buttonDelete + " px-2.5 py-1.5 flex items-center gap-1 text-xs shrink-0"}
+          title="Poista"
+        >
+          <Trash2 className="w-3 h-3" /> <span className="hidden sm:inline">Poista</span>
+        </button>
+      </div>
+      {open && <div className="px-4 sm:px-5 pb-5 pt-0">{children}</div>}
     </div>
   );
 };
@@ -452,6 +496,12 @@ const EnhancedProfilePage: React.FC = () => {
         </div>
         <h2 className={`text-2xl mb-2 ${styles.gradientHeading}`}>Perustiedot</h2>
         <p className="text-gray-400 font-medium">Nämä tarvitaan jotta profiilisi on valmis. Kaikki tähdellä (*) merkityt ovat pakollisia.</p>
+        <div className="mt-4 flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+          <AlertCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-blue-200">
+            <strong>Vain tämä osio on pakollinen.</strong> Kaikki muut osiot (Kokemus, Taidot, Projektit, Persoonallisuus) ovat vapaaehtoisia — mutta mitä enemmän täytät, sitä parempi CV ja hakukirje.
+          </p>
+        </div>
       </div>
 
       {/* Profiilikuva */}
@@ -588,13 +638,13 @@ const EnhancedProfilePage: React.FC = () => {
         ) : (
           <div className="space-y-6">
             {profileData.workExperience.map((work, index) => (
-              <div key={work.id} className={`${styles.glassPanel} p-6 md:p-8 relative group`}>
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => removeArrayItem("workExperience", work.id)} className={styles.buttonDelete + " px-3 py-1 flex items-center gap-1"}>
-                    <Trash2 className="w-3 h-3" /> Poista
-                  </button>
-                </div>
-                <h4 className="text-lg font-bold text-gray-100 mb-6 border-b border-gray-700/50 pb-2">Työpaikka {index + 1}</h4>
+              <CollapsibleCard
+                key={work.id}
+                heading={work.position || work.company ? `${work.position || "Uusi tehtävä"}${work.company ? ` — ${work.company}` : ""}` : `Työpaikka ${index + 1}`}
+                subheading={work.duration || undefined}
+                onDelete={() => removeArrayItem("workExperience", work.id)}
+                defaultOpen={!work.company && !work.position}
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
                     <label className={styles.label}>Yritys *</label>
@@ -643,7 +693,7 @@ const EnhancedProfilePage: React.FC = () => {
                     </details>
                   </div>
                 </div>
-              </div>
+              </CollapsibleCard>
             ))}
           </div>
         )}
@@ -668,13 +718,13 @@ const EnhancedProfilePage: React.FC = () => {
         ) : (
           <div className="space-y-6">
             {profileData.education.map((edu, index) => (
-              <div key={edu.id} className={`${styles.glassPanel} p-6 md:p-8 relative group`}>
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => removeArrayItem("education", edu.id)} className={styles.buttonDelete + " px-3 py-1 flex items-center gap-1"}>
-                    <Trash2 className="w-3 h-3" /> Poista
-                  </button>
-                </div>
-                <h4 className="text-lg font-bold text-gray-100 mb-6 border-b border-gray-700/50 pb-2">Koulutus {index + 1}</h4>
+              <CollapsibleCard
+                key={edu.id}
+                heading={edu.degree || edu.school ? `${edu.degree || "Uusi koulutus"}${edu.school ? ` — ${edu.school}` : ""}` : `Koulutus ${index + 1}`}
+                subheading={edu.year || undefined}
+                onDelete={() => removeArrayItem("education", edu.id)}
+                defaultOpen={!edu.school && !edu.degree}
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="md:col-span-2"><label className={styles.label}>Oppilaitos *</label><input type="text" value={edu.school} onChange={(e) => handleArrayItemChange("education", edu.id, "school", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="Koulun nimi" /></div>
                   <div className="md:col-span-2"><label className={styles.label}>Tutkinto *</label><input type="text" value={edu.degree} onChange={(e) => handleArrayItemChange("education", edu.id, "degree", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="Esim. Tradenomi" /></div>
@@ -704,7 +754,7 @@ const EnhancedProfilePage: React.FC = () => {
                     </details>
                   </div>
                 </div>
-              </div>
+              </CollapsibleCard>
             ))}
           </div>
         )}
@@ -737,11 +787,14 @@ const EnhancedProfilePage: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {skills.map((skill) => (
-              <div key={skill.id} className={`${styles.glassPanel} p-5 relative group`}>
-                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => removeArrayItem("skills", skill.id)} className={styles.buttonDelete + " px-2 py-1 flex items-center gap-1 text-xs"}><Trash2 className="w-3 h-3" /> Poista</button>
-                </div>
+            {skills.map((skill, index) => (
+              <CollapsibleCard
+                key={skill.id}
+                heading={skill.name || `Taito ${index + 1}`}
+                subheading={skill.proficiency ? `${"⭐".repeat(skill.proficiency)}` : undefined}
+                onDelete={() => removeArrayItem("skills", skill.id)}
+                defaultOpen={!skill.name}
+              >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-3"><label className={styles.label}>Taidon nimi *</label><input type="text" placeholder="esim. React, Asiakaspalvelu, Python" value={skill.name} onChange={(e) => handleArrayItemChange("skills", skill.id, "name", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} /></div>
                   <div>
@@ -757,7 +810,7 @@ const EnhancedProfilePage: React.FC = () => {
                   </div>
                   <div className="md:col-span-3"><label className="text-xs font-bold text-gray-400 uppercase">Vaikutus/Tulos (vapaaehtoinen)</label><input type="text" placeholder="esim. 'Säästin tiimin 10h/viikko'" value={skill.impact || ""} onChange={(e) => handleArrayItemChange("skills", skill.id, "impact", e.target.value)} className={`w-full p-2 ${styles.glassInput} text-sm`} /></div>
                 </div>
-              </div>
+              </CollapsibleCard>
             ))}
           </div>
         )}
@@ -818,11 +871,13 @@ const EnhancedProfilePage: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {profileData.portfolioLinks.map((proj, index) => (
-                  <div key={proj.id} className={`${styles.glassPanel} p-5 md:p-6 relative group`}>
-                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => removeArrayItem("portfolioLinks", proj.id)} className={styles.buttonDelete + " px-3 py-1 flex items-center gap-1"}><Trash2 className="w-3 h-3" /> Poista</button>
-                    </div>
-                    <h4 className="text-base font-bold text-gray-100 mb-4 border-b border-gray-700/50 pb-2">Projekti {index + 1}</h4>
+                  <CollapsibleCard
+                    key={proj.id}
+                    heading={proj.title || `Projekti ${index + 1}`}
+                    subheading={proj.url || undefined}
+                    onDelete={() => removeArrayItem("portfolioLinks", proj.id)}
+                    defaultOpen={!proj.title}
+                  >
                     <div className="space-y-4">
                       <div><label className={styles.label}>Projektin nimi *</label><input type="text" value={proj.title} onChange={(e) => handleArrayItemChange("portfolioLinks", proj.id, "title", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="esim. CV-generaattori" /></div>
                       <div><label className={styles.label}>Kuvaus</label><textarea rows={3} value={proj.description} onChange={(e) => handleArrayItemChange("portfolioLinks", proj.id, "description", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="Mitä projekti tekee, mitä teknologioita käytit, mikä oli roolisi" /></div>
@@ -834,7 +889,7 @@ const EnhancedProfilePage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </CollapsibleCard>
                 ))}
               </div>
             )}
@@ -961,9 +1016,13 @@ const EnhancedProfilePage: React.FC = () => {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className={`text-sm font-bold truncate ${isActive ? "text-orange-300" : "text-gray-200"}`}>{section.title}</span>
-                {section.required && (
+                {section.required ? (
                   <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md ${requiredDone ? "bg-green-500/20 text-green-300" : "bg-orange-500/20 text-orange-300"}`}>
-                    {requiredDone ? "✓" : "Pakollinen"}
+                    {requiredDone ? "✓ Valmis" : "Pakollinen"}
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-gray-500/15 text-gray-400">
+                    Valinnainen
                   </span>
                 )}
               </div>
@@ -1015,9 +1074,9 @@ const EnhancedProfilePage: React.FC = () => {
         }
       `}</style>
       {/* Background orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/8 to-gray-700/10 rounded-full blur-3xl" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ transform: 'translateZ(0)', willChange: 'transform', backfaceVisibility: 'hidden' }}>
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-amber-600/10 rounded-full blur-3xl" style={{ transform: 'translateZ(0)' }} />
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/8 to-gray-700/10 rounded-full blur-3xl" style={{ transform: 'translateZ(0)' }} />
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-3 sm:px-6 pt-6 sm:pt-10">
