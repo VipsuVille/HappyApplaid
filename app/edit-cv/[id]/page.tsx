@@ -6,7 +6,7 @@ import { useAuth } from '@clerk/nextjs';
 import {
   Save, ArrowLeft, Trash2, Download, Loader2,
   Upload, User, Image as ImageIconLucide, Sparkles,
-  Eye, Edit3, FileText, X, Camera, Undo2
+  Eye, Edit3, FileText, X, Camera, Undo2, Briefcase, Plus
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
@@ -15,7 +15,7 @@ import TechnicalCVTemplate from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
 import CVContainer from '@/components/cv/CVContainer';
 import { toast } from 'sonner';
-
+import { mapProfileJobToStructured, experienceKey, type StructuredExperience } from '@/lib/cv/profileToStructured';
 interface BaseCV {
   id: string; user_id: string; title?: string; created_at: string;
   content?: any; cv_data: any; ai_data: any;
@@ -37,7 +37,7 @@ export default function EditCVPage() {
   const [previewWidth, setPreviewWidth] = useState(0);
   const previewContainerRef = useRef<HTMLDivElement>(null);
 const [loadKey, setLoadKey] = useState(0);
-
+const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
   const [availableImages, setAvailableImages] = useState<{
@@ -181,7 +181,22 @@ document.removeEventListener('visibilitychange', onVisibility);
     };
     init();
 }, [id, userId, getToken, loadKey]);
-
+// ── Hae profiilin työkokemukset ehdotuksia varten ──────────────────
+  useEffect(() => {
+    const loadProfileJobs = async () => {
+      if (!userId) return;
+      try {
+        const res = await fetch(`/api/user-profile/${userId}`);
+        if (!res.ok) return; // 404 = ei profiilia, ei haittaa
+        const profile = await res.json();
+        const jobs = Array.isArray(profile?.work_experience) ? profile.work_experience : [];
+        setProfileJobs(jobs.map(mapProfileJobToStructured));
+      } catch {
+        // Hiljainen epäonnistuminen — ehdotukset eivät ole kriittisiä
+      }
+    };
+    loadProfileJobs();
+  }, [userId]);
   // ── handleUpdate ───────────────────────────────────────────────────
   const handleUpdate = useCallback((field: string, value: any) => {
     setCvData(prev => {
@@ -209,12 +224,15 @@ document.removeEventListener('visibilitychange', onVisibility);
           if (!nextIsIndex && Array.isArray(cur[p])) cur[p] = {};
           cur = cur[p];
         }
-        const last = parts[parts.length - 1];
-        if (!isNaN(Number(last))) {
-          const idx = Number(last);
-          if (Array.isArray(cur)) { while (cur.length <= idx) cur.push(undefined); cur[idx] = val; }
-        } else { cur[last] = val; }
-      };
+      const last = parts[parts.length - 1];
+if (!isNaN(Number(last))) {
+  const idx = Number(last);
+  if (Array.isArray(cur)) {
+    // Täytä reiät tyhjillä objekteilla, ei undefined-arvoilla
+    while (cur.length < idx) cur.push({});
+    cur[idx] = val;
+  }
+} else { cur[last] = val; }      };
 
       setAt(updated.cv_data, field, value);
       setAt(updated.content.cv_data, field, value);
@@ -235,7 +253,14 @@ document.removeEventListener('visibilitychange', onVisibility);
       return updated;
     });
   }, [pushHistory]);
-
+// ── Lisää profiilin työ CV:hen ─────────────────────────────────────
+  const handleAddJobFromProfile = useCallback((job: StructuredExperience) => {
+    const len = Array.isArray(cvData?.cv_data?.experience)
+      ? cvData.cv_data.experience.length
+      : 0;
+    handleUpdate(`experience.${len}`, job);
+    toast.success(`Lisätty: ${job.title}${job.company ? ` — ${job.company}` : ''}`);
+  }, [cvData, handleUpdate]);
   // ── handleDelete ───────────────────────────────────────────────────
   const handleDelete = useCallback((field: string, index: number) => {
     setCvData(prev => {
@@ -380,7 +405,21 @@ document.removeEventListener('visibilitychange', onVisibility);
       </CVContainer>
     );
   };
+// ── Mitkä profiilin työt puuttuvat CV:stä? ─────────────────────────
+  const cvType = cvData?.cv_data?.cvType || cvData?.ai_data?.cv_type || cvData?.metadata?.cv_type || 'simple';
+  const isCreative = cvType === 'creative';
 
+  const currentExperience: any[] = Array.isArray(cvData?.cv_data?.experience)
+    ? cvData.cv_data.experience
+    : [];
+
+  const existingKeys = new Set(
+    currentExperience.map((e: any) => experienceKey(e?.company, e?.title || e?.position))
+  );
+
+  const missingJobs = profileJobs.filter(
+    (job) => !existingKeys.has(experienceKey(job.company, job.title))
+  );
   // ── Scale ──────────────────────────────────────────────────────────
   const A4_PX = 794;
   const scale = isMobile ? 0.42 : previewWidth > 0 ? Math.min(1, (previewWidth - 32) / A4_PX) : 0.78;
@@ -574,7 +613,51 @@ document.removeEventListener('visibilitychange', onVisibility);
               </div>
             </div>
           </div>
+{/* Ehdotukset: profiilin työkokemukset joita CV:stä puuttuu */}
+        {isEditing && missingJobs.length > 0 && (
+          <div className="mb-6 p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-blue-200 dark:border-blue-900/40 rounded-2xl">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded-xl shrink-0">
+                <Briefcase className="w-4 h-4 text-blue-500" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-0.5">
+                  Profiilistasi löytyi työkokemuksia
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Nämä eivät ole vielä tässä CV:ssä. Lisää haluamasi yhdellä klikkauksella.
+                </p>
+              </div>
+            </div>
 
+            {isCreative && (
+              <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400">
+                Huom: tämä luova pohja ei vielä näytä erikseen lisättyä työkokemusta. Lisäys tallentuu, mutta ei näy esikatselussa.
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {missingJobs.map((job, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      {job.title}{job.company ? ` — ${job.company}` : ''}
+                    </p>
+                    {job.period && (
+                      <p className="text-xs text-gray-500 truncate">{job.period}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleAddJobFromProfile(job)}
+                    className="shrink-0 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Lisää
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
           {/* Preview */}
           <div className="lg:col-span-9">
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-4">

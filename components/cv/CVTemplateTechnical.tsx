@@ -294,8 +294,8 @@ const skillCategories = useMemo((): { category: string; items: string[] }[] => {
 
   // ── Parse experience ─────────────────────────────────────────────
   const workExperience = useMemo(() => {
-    if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0)
-      return data.experience.map((e: any) => ({
+if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0)
+  return data.experience.filter((e: any) => e != null).map((e: any) => ({
         title: e.title || e.position || "Position", company: e.company || "Company", period: e.period || e.duration || "",
         bullets: Array.isArray(e.bullets) ? e.bullets : Array.isArray(e.achievements) ? e.achievements : [e.description].filter(Boolean),
       }));
@@ -342,8 +342,8 @@ const skillCategories = useMemo((): { category: string; items: string[] }[] => {
 
   // ── Parse education ──────────────────────────────────────────────
   const education = useMemo(() => {
-    if (data?.education && Array.isArray(data.education) && data.education.length > 0)
-      return data.education.map((e: any) => ({
+if (data?.education && Array.isArray(data.education) && data.education.length > 0)
+  return data.education.filter((e: any) => e != null).map((e: any) => ({
         degree: e.degree || "Degree", institution: e.institution || e.school || "Institution",
         year: e.year || e.period || "", details: Array.isArray(e.details) ? e.details : [e.description].filter(Boolean),
       }));
