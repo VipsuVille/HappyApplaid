@@ -111,7 +111,8 @@ export async function GET() {
       education: Array.isArray(dbProfile.education) ? dbProfile.education : [],
       workExperience: Array.isArray(dbProfile.work_experience) ? dbProfile.work_experience : [],
       languages: Array.isArray(dbProfile.languages) ? dbProfile.languages : [],
-
+      portfolioLinks: Array.isArray(dbProfile.portfolio_links) ? dbProfile.portfolio_links : [],
+      noProjects: dbProfile.no_projects ?? false,
       skills: (() => {
   if (!dbProfile.skills) return [];
   if (Array.isArray(dbProfile.skills)) return dbProfile.skills;

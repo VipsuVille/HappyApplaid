@@ -41,7 +41,8 @@ export interface DBProfileData {
   work_experience: any[] | null;
   certificates: any[] | null;
   languages: any[] | null;
-
+  portfolio_links?: any[] | null;
+  no_projects?: boolean | null;
   skills: string | null;
   technical_skills: string | null;
   soft_skills: string | null;
@@ -114,7 +115,9 @@ export function transformUIToDB(
     education: uiProfile.education || [],
     work_experience: uiProfile.workExperience || [],
     languages: uiProfile.languages || [],
-
+ // ✅ Projektit (portfolioLinks) + ei-projekteja-lippu
+    portfolio_links: (uiProfile as any).portfolioLinks || [],
+    no_projects: (uiProfile as any).noProjects ?? false,
     skills: uiProfile.skills || null,
 
     // ✅ NORMALISOITU

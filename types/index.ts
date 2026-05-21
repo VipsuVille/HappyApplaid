@@ -40,6 +40,12 @@ export interface LanguageItem {
   language: string;
   level: string;
 }
+export interface PortfolioItem {
+  id: number;
+  title: string;
+  url: string;
+  description?: string;
+}
 
 // ProfileData interface - TÄYDELLINEN
 export interface ProfileData {
@@ -79,6 +85,8 @@ export interface ProfileData {
 
   languages: LanguageItem[];
   skills: string;
+    portfolioLinks?: PortfolioItem[];
+  noProjects?: boolean;
 }
 
 // Apufunktio: muuntaa ProfileData -> API-muotoon
