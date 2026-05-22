@@ -1,708 +1,938 @@
-"use client";
-import React, {
-  useState, useRef, useCallback, useEffect, useMemo
-} from "react";
-import { UserFormData, AIData, EditMode } from "@/types";
+'use client';
 
-// ══════════════════════════════════════════════════════════════════════
-//  PER-OSIO / PER-PALSTA SKAALAT
-//  Tallennetaan cv_data.sectionScales ja cv_data.columnScales yhtenä
-//  objektina. Tie-B-yhteensopiva: siirtyy sellaisenaan muokkausmoottoriin.
-// ══════════════════════════════════════════════════════════════════════
-export interface SectionScale { fontScale: number; gap: number; hidden: boolean; }
-export type SectionScales = Record<string, SectionScale>;
-export interface ColumnScales { left: number; right: number; }
-const DEFAULT_SECTION_SCALE: SectionScale = { fontScale: 1, gap: 1, hidden: false };
-
-interface TechnicalCVTemplateProps {
-  data: UserFormData;
-  aiData: AIData;
-  isEditing: boolean;
-  showEditControls?: boolean;
-  editMode?: EditMode | null;
-  onContentChange?: (field: keyof UserFormData, value: any) => void;
-  onUpdate?: (field: string, value: any) => void;
-  onDelete?: (field: string, index: number) => void;
-  profileImage?: string;
-  backgroundImage?: string;
-  fontScale?: number;
-  lineScale?: number;
-  sectionScales?: SectionScales;
-  columnScales?: ColumnScales;
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@clerk/nextjs';
+import {
+  Save, ArrowLeft, Trash2, Download, Loader2,
+  Upload, User, Image as ImageIconLucide, Sparkles,
+  Eye, Edit3, FileText, X, Camera, Undo2, Briefcase, Plus
+} from 'lucide-react';
+import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
+import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
+import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
+import TechnicalCVTemplate, { type SectionScales, type ColumnScales } from '@/components/cv/CVTemplateTechnical';
+import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
+import CVContainer from '@/components/cv/CVContainer';
+import { toast } from 'sonner';
+import { mapProfileJobToStructured, jobLikelyExists, mapProfileProjectToStructured, projectLikelyExists, type StructuredExperience, type StructuredProject, experienceKey } from '@/lib/cv/profileToStructured';
+interface BaseCV {
+  id: string; user_id: string; title?: string; created_at: string;
+  content?: any; cv_data: any; ai_data: any;
+  profile_image?: string; background_image?: string; metadata?: any;
 }
 
-// ══════════════════════════════════════════════════════════════════════
-//  INLINE EDITOR  — uncontrolled so cursor never jumps
-// ══════════════════════════════════════════════════════════════════════
-interface InlineEditorProps {
-  field: string;
-  value: string;
-  multiline?: boolean;
-  placeholder?: string;
-  isEditing: boolean;
-  style?: React.CSSProperties;
-  className?: string;
-  tag?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "div";
-  onCommit: (field: string, value: string) => void;
-}
 
-const InlineEditor = React.memo(function InlineEditor({
-  field, value, multiline = false, placeholder,
-  isEditing, style, className, tag: Tag = "span", onCommit,
-}: InlineEditorProps) {
-  const [active, setActive] = useState(false);
-  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
-  const savedValue = useRef(value);
+export default function EditCVPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { userId, getToken } = useAuth();
+  const id = params?.id as string;
+const [profileProjects, setProfileProjects] = useState<StructuredProject[]>([]);
+  const [cvData, setCvData] = useState<BaseCV | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(0);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+const [loadKey, setLoadKey] = useState(0);
+const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showBgModal, setShowBgModal] = useState(false);
+  const [availableImages, setAvailableImages] = useState<{
+    profileImages: UserImage[]; backgroundImages: UserImage[];
+  }>({ profileImages: [], backgroundImages: [] });
 
-  useEffect(() => {
-    if (!active) savedValue.current = value;
-  }, [value, active]);
+  // ── Typography controls ────────────────────────────────────────────
+  const [fontScale, setFontScale] = useState(1.0);
+  const [lineScale, setLineScale] = useState(1.0);
 
-  const activate = useCallback(() => {
-    if (!isEditing) return;
-    savedValue.current = value;
-    setActive(true);
-  }, [isEditing, value]);
+  // ── Per-osio / per-palsta tilankäyttö ──────────────────────────────
+  const [sectionScales, setSectionScales] = useState<SectionScales>({});
+  const [columnScales, setColumnScales] = useState<ColumnScales>({ left: 1, right: 1 });
 
-  const commit = useCallback(() => {
-    const v = inputRef.current?.value ?? savedValue.current;
-    onCommit(field, v);
-    setActive(false);
-  }, [field, onCommit]);
+  // Osiot joita voi säätää (tunniste + näyttönimi)
+  const SECTION_DEFS: { id: string; label: string; column: 'left' | 'right' }[] = [
+    { id: 'experience', label: 'Työkokemus', column: 'right' },
+    { id: 'education', label: 'Koulutus', column: 'right' },
+    { id: 'projects', label: 'Projektit', column: 'right' },
+    { id: 'languages', label: 'Kielet', column: 'right' },
+    { id: 'skills', label: 'Taidot (vasen palsta)', column: 'left' },
+  ];
 
-  const cancel = useCallback(() => {
-    if (inputRef.current) inputRef.current.value = savedValue.current;
-    setActive(false);
+  // ── Undo history ───────────────────────────────────────────────────
+  const historyRef = useRef<string[]>([]);
+  const MAX_HISTORY = 50;
+
+  const pushHistory = useCallback((data: BaseCV) => {
+    const snap = JSON.stringify(data);
+    const h = historyRef.current;
+    if (h.length && h[h.length - 1] === snap) return;
+    h.push(snap);
+    if (h.length > MAX_HISTORY) h.shift();
+  }, []);
+
+  const undo = useCallback(() => {
+    const h = historyRef.current;
+    if (!h.length) { toast.info('Ei enempää kumottavaa'); return; }
+    const prev = h.pop()!;
+    try {
+      const parsed = JSON.parse(prev);
+      setCvData(parsed);
+      setFontScale(parsed.cv_data?.fontScale ?? 1.0);
+      setLineScale(parsed.cv_data?.lineScale ?? 1.0);
+      setSectionScales(parsed.cv_data?.sectionScales ?? {});
+      setColumnScales(parsed.cv_data?.columnScales ?? { left: 1, right: 1 });
+      toast.success('Kumottu!');
+    } catch { toast.error('Kumoaminen epäonnistui'); }
   }, []);
 
   useEffect(() => {
-    if (active && inputRef.current) {
-      inputRef.current.focus();
-      try { inputRef.current.select(); } catch {}
-    }
-  }, [active]);
-
-  const inputStyle: React.CSSProperties = {
-    ...style,
-    display: "block", width: "100%",
-    background: "rgba(249,115,22,0.07)",
-    border: "2px solid rgba(249,115,22,0.55)",
-    borderRadius: "4px", padding: "2px 5px", outline: "none",
-    boxSizing: "border-box",
-    resize: multiline ? "vertical" : "none",
-    minHeight: multiline ? "52px" : undefined,
-    fontFamily: (style?.fontFamily as string) ?? "inherit",
-    fontSize: (style?.fontSize as string) ?? "inherit",
-    fontWeight: (style?.fontWeight as string | number) ?? "inherit",
-    color: (style?.color as string) ?? "inherit",
-    lineHeight: (style?.lineHeight as string | number) ?? "inherit",
-  };
-
-  if (isEditing && active) {
-    const onKey = (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); cancel(); }
-      if (e.key === "Enter" && !multiline) { e.preventDefault(); commit(); }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && isEditing) { e.preventDefault(); undo(); }
     };
-    return multiline
-      ? <textarea ref={inputRef as any} defaultValue={value} style={inputStyle} onBlur={commit} onKeyDown={onKey} />
-      : <input ref={inputRef as any} type="text" defaultValue={value} style={inputStyle} onBlur={commit} onKeyDown={onKey} />;
-  }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, isEditing]);
 
-  return (
-    <Tag
-      onClick={activate}
-      style={{ ...style, ...(isEditing ? { cursor: "text", borderRadius: "3px" } : {}) }}
-      className={`${className ?? ""} ${isEditing ? "editable-hover" : ""}`}
-    >
-      {value || (isEditing ? (placeholder ?? "") : "")}
-    </Tag>
-  );
-});
-
-// ══════════════════════════════════════════════════════════════════════
-//  DRAG ITEM  — ▲ ▼ reorder + ✕ delete for any list item
-// ══════════════════════════════════════════════════════════════════════
-interface DragItemProps {
-  index: number; total: number; isEditing: boolean;
-  onMoveUp: () => void; onMoveDown: () => void; onDelete: () => void;
-  children: React.ReactNode; style?: React.CSSProperties;
-}
-const DragItem: React.FC<DragItemProps> = ({
-  index, total, isEditing, onMoveUp, onMoveDown, onDelete, children, style,
-}) => {
-  if (!isEditing) return <div style={style}>{children}</div>;
-  return (
-    <div style={{ ...style, position: "relative", paddingLeft: "18px", paddingRight: "20px" }}>
-      <div style={{ position: "absolute", left: "0px", top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: "1px", zIndex: 15 }}>
-        <button onClick={onMoveUp} disabled={index === 0} title="Ylös" style={arrowStyle(index === 0)}>▲</button>
-        <button onClick={onMoveDown} disabled={index === total - 1} title="Alas" style={arrowStyle(index === total - 1)}>▼</button>
-      </div>
-      <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Poista"
-        style={{ position: "absolute", right: "0px", top: "50%", transform: "translateY(-50%)", background: "#ef4444", color: "white", border: "none", borderRadius: "50%", width: "16px", height: "16px", cursor: "pointer", fontSize: "9px", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 15, padding: 0, boxShadow: "0 1px 3px rgba(0,0,0,.3)" }}>
-        ✕
-      </button>
-      {children}
-    </div>
-  );
+  // ── Responsive ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const update = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (previewContainerRef.current) setPreviewWidth(previewContainerRef.current.offsetWidth);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+useEffect(() => {
+const onFocus = () => setLoadKey(k => k + 1);
+window.addEventListener('focus', onFocus);
+const onVisibility = () => {
+if (document.visibilityState === 'visible') setLoadKey(k => k + 1);
 };
-const arrowStyle = (disabled: boolean): React.CSSProperties => ({
-  background: disabled ? "rgba(249,115,22,0.15)" : "rgba(249,115,22,0.8)",
-  color: "white", border: "none", borderRadius: "3px",
-  width: "14px", height: "13px", cursor: disabled ? "default" : "pointer",
-  fontSize: "7px", display: "flex", alignItems: "center", justifyContent: "center",
-  padding: 0, opacity: disabled ? 0.35 : 1,
-});
-
-// ══════════════════════════════════════════════════════════════════════
-//  SECTION WRAP  — ↑ ↓ for whole sections
-// ══════════════════════════════════════════════════════════════════════
-interface SectionWrapProps {
-  label: string; index: number; total: number; isEditing: boolean;
-  onMoveUp: () => void; onMoveDown: () => void; children: React.ReactNode;
-}
-const SectionWrap: React.FC<SectionWrapProps> = ({
-  label, index, total, isEditing, onMoveUp, onMoveDown, children,
-}) => {
-  if (!isEditing) return <>{children}</>;
-  return (
-    <div style={{ position: "relative", marginBottom: "2px" }}>
-      <div style={{ position: "absolute", top: "0px", right: "0px", display: "flex", alignItems: "center", gap: "3px", zIndex: 20 }}>
-        <span style={{ fontSize: "7.5px", color: "rgba(249,115,22,.65)", fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase" }}>{label}</span>
-        <button onClick={onMoveUp} disabled={index === 0} title="Siirrä osio ylös" style={sectionArrowStyle(index === 0)}>↑</button>
-        <button onClick={onMoveDown} disabled={index === total - 1} title="Siirrä osio alas" style={sectionArrowStyle(index === total - 1)}>↓</button>
-      </div>
-      <div style={{ outline: "1px dashed rgba(249,115,22,.18)", borderRadius: "4px", padding: "4px 4px 4px 2px" }}>
-        {children}
-      </div>
-    </div>
-  );
+document.addEventListener('visibilitychange', onVisibility);
+return () => {
+window.removeEventListener('focus', onFocus);
+document.removeEventListener('visibilitychange', onVisibility);
 };
-const sectionArrowStyle = (disabled: boolean): React.CSSProperties => ({
-  background: disabled ? "rgba(249,115,22,.12)" : "rgba(249,115,22,.75)",
-  color: "white", border: "none", borderRadius: "3px",
-  width: "15px", height: "15px", cursor: disabled ? "default" : "pointer",
-  fontSize: "9px", display: "flex", alignItems: "center", justifyContent: "center",
-  padding: 0, opacity: disabled ? 0.3 : 1,
-});
+}, []);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (previewContainerRef.current) setPreviewWidth(previewContainerRef.current.offsetWidth);
+    }, 120);
+    return () => clearTimeout(t);
+  }, [cvData, isEditing]);
 
-const AddBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
-  <div onClick={onClick}
-    style={{ padding: "3mm", border: "2px dashed #f97316", borderRadius: "4px", textAlign: "center", color: "#f97316", cursor: "pointer", fontSize: "9pt", marginTop: "3mm" }}
-    onMouseEnter={e => (e.currentTarget.style.background = "rgba(249,115,22,.05)")}
-    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-  >{label}</div>
-);
-
-// ══════════════════════════════════════════════════════════════════════
-//  MAIN TEMPLATE
-// ══════════════════════════════════════════════════════════════════════
-const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
-  data, aiData, isEditing, showEditControls, editMode,
-  onContentChange, onUpdate, onDelete, profileImage, backgroundImage,
-  fontScale: fontScaleProp, lineScale: lineScaleProp,
-  sectionScales: sectionScalesProp, columnScales: columnScalesProp,
-}) => {
-  const [sectionOrder, setSectionOrder] = useState(["experience", "projects", "education", "languages"]);
-  const [skillsTop, setSkillsTop] = useState(0);
-
-  const fontScale = fontScaleProp ?? (data as any)?.fontScale ?? 1.0;
-  const lineScale = lineScaleProp ?? (data as any)?.lineScale ?? 1.0;
-
-  // Per-osio ja per-palsta skaalat
-  const sectionScales: SectionScales =
-    sectionScalesProp ?? (data as any)?.sectionScales ?? {};
-  const columnScales: ColumnScales =
-    columnScalesProp ?? (data as any)?.columnScales ?? { left: 1, right: 1 };
-
-  const getSec = (id: string): SectionScale => ({
-    ...DEFAULT_SECTION_SCALE,
-    ...(sectionScales[id] || {}),
-  });
-
-  // Efektiivinen fonttiskaala: globaali × palsta × osio
-  const fsFor = (sectionId: string, column: "left" | "right") => {
-    const sec = getSec(sectionId);
-    const col = column === "left" ? columnScales.left : columnScales.right;
-    return fontScale * (col ?? 1) * (sec.fontScale ?? 1);
-  };
-
-  const scaleVal = (base: string, mult: number): string => {
-    const match = base.match(/^([\d.]+)(pt|mm|px|em|rem)$/);
-    if (!match) return base;
-    return `${(parseFloat(match[1]) * mult).toFixed(2)}${match[2]}`;
-  };
-
-  // fs() = globaali skaala (säilytetty taaksepäin-yhteensopivuus otsikoille yms.)
-  const fs = (base: string): string => scaleVal(base, fontScale);
-  // fsS() = osio- ja palstakohtainen skaala
-  const fsS = (base: string, sectionId: string, column: "left" | "right"): string =>
-    scaleVal(base, fsFor(sectionId, column));
-  const lh = (base: number): number => parseFloat((base * lineScale).toFixed(3));
-
-  // Osioväli: section gap kerrotaan osion gap-skaalalla
-  const sectionGap = (sectionId: string): string =>
-    scaleVal("7mm", fontScale * (getSec(sectionId).gap ?? 1));
-
-  const handleCommit = useCallback((field: string, val: string) => {
-    onUpdate?.(field, val);
-  }, [onUpdate]);
-
-  const move = <T,>(arr: T[], from: number, to: number): T[] => {
-    if (to < 0 || to >= arr.length) return arr;
-    const n = [...arr]; const [x] = n.splice(from, 1); n.splice(to, 0, x); return n;
-  };
-
-  const moveSec = (i: number, dir: -1 | 1) =>
-    setSectionOrder(prev => move(prev, i, i + dir));
-
-  // ── Image helpers ────────────────────────────────────────────────
-  const isValidImg = (s?: string | null) => {
-    if (!s) return false;
-    const t = s.trim();
-    return t && !t.includes("cv_files/default") && (t.startsWith("http") || t.startsWith("data:image"));
-  };
-  const profileImg = useMemo(() => {
-    for (const s of [profileImage, (data as any)?.profile_image, data?.profileImage, (data as any)?.photo, aiData?.profile_image])
-      if (isValidImg(s)) return s!.trim();
-    return null;
-  }, [profileImage, data, aiData]);
-  const bgImage = useMemo(() => {
-    for (const s of [backgroundImage, (data as any)?.background_image, data?.backgroundImage, aiData?.background_image, aiData?.background_image_url])
-      if (isValidImg(s)) return s!.trim();
-    return null;
-  }, [backgroundImage, data, aiData]);
-
-  // ── AI content ───────────────────────────────────────────────────
-  const getAI = useCallback((field: keyof AIData): string => {
-    let c: any = aiData?.[field];
-    if (!c && aiData?.html) c = (aiData.html as any)[field];
-    if (typeof c === "string" && c.trim().length > 20 && !c.toLowerCase().includes("error generating")) return c;
-    return "";
-  }, [aiData]);
-
-  // ── Parse skills ─────────────────────────────────────────────────
-  const skillCategories = useMemo((): { category: string; items: string[] }[] => {
-    if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
-      if (typeof data.skills[0] === "string") {
-        return [{ category: "Skills", items: data.skills as string[] }];
-      }
-      const first: any = data.skills[0];
-      if (first && Array.isArray(first.items)) {
-        return (data.skills as any[]).map((c: any) => ({
-          category: c.category || "Skills",
-          items: Array.isArray(c.items) ? c.items : [],
-        }));
-      }
-      const items = (data.skills as any[])
-        .map((s: any) => (typeof s === "string" ? s : s?.name || s?.skill || s?.title || ""))
-        .filter(Boolean);
-      return items.length ? [{ category: "Skills", items }] : [];
-    }
-    const html = getAI("skills_section");
-    if (!html) {
-      const t = (data?.skills as any) ?? "";
-      if (typeof t !== "string") return [];
-      return [{ category: "Skills", items: t.split(",").map((s: string) => s.trim()).filter(Boolean) }];
-    }
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const cats: { category: string; items: string[] }[] = [];
-    doc.querySelectorAll("h3,h4,strong").forEach(h => {
-      const cat = h.textContent?.trim() || "Skills"; const items: string[] = [];
-      let nx = h.nextElementSibling;
-      while (nx?.tagName === "UL") { nx.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) items.push(t); }); nx = nx.nextElementSibling; }
-      if (items.length) cats.push({ category: cat, items });
-    });
-    if (!cats.length) { const lines = html.replace(/<[^>]+>/g, "").split("\n").filter(l => l.trim()); if (lines.length) cats.push({ category: "Skills", items: lines }); }
-    return cats;
-  }, [data?.skills, getAI]);
-
-  // ── Parse experience ─────────────────────────────────────────────
-  const workExperience = useMemo(() => {
-    if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0)
-      return data.experience.filter((e: any) => e != null).map((e: any) => ({
-        title: e.title || e.position || "Position", company: e.company || "Company", period: e.period || e.duration || "",
-        bullets: Array.isArray(e.bullets) ? e.bullets : Array.isArray(e.achievements) ? e.achievements : [e.description].filter(Boolean),
-      }));
-    const html = getAI("experience_section");
-    if (!html) {
+  // ── Load CV ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const init = async () => {
+      if (!userId || !id) return;
       try {
-        const raw = data?.work_experience || (data as any)?.workExperience;
-        if (!raw) return [];
-        const p = typeof raw === "string" ? JSON.parse(raw) : raw;
-        return Array.isArray(p) ? p.map((j: any) => ({ title: j.position || "Position", company: j.company || "Company", period: j.duration || "", bullets: [j.description, j.biggestAchievement, j.whatYouLearned, j.howYourStrengthShowed].filter(Boolean).map((t: string) => t.trim()) })) : [];
-      } catch { return []; }
-    }
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const jobs: any[] = [];
-    doc.querySelectorAll(".job, .work-item, .experience-item").forEach(jobDiv => {
-      const h4 = jobDiv.querySelector("h4");
-      const titleText = h4?.textContent?.trim() || "";
-      const [title, company] = titleText.split(" - ").map((s: string) => s.trim());
-      const dateEl = jobDiv.querySelector('.date, p[class*="date"]');
-      const period = dateEl?.textContent?.trim() || "";
-      const bullets: string[] = [];
-      jobDiv.querySelectorAll("ul li").forEach(li => { const t = li.textContent?.trim(); if (t) bullets.push(t); });
-      if (title || company) jobs.push({ title: title || "Position", company: company || "Company", period, bullets });
-    });
-    if (jobs.length === 0) {
-      doc.querySelectorAll("h4").forEach(h4 => {
-        const titleText = h4.textContent?.trim() || "";
-        const [title, company] = titleText.split(" - ").map((s: string) => s.trim());
-        let period = "";
-        let nx: Element | null = h4.nextElementSibling;
-        if (nx !== null && (nx.tagName === "P" || (nx as HTMLElement).classList?.contains("date"))) {
-          period = nx.textContent?.trim() || "";
-          nx = nx.nextElementSibling;
+        const token = await getToken({ template: 'supabase' });
+        if (!token) throw new Error('No token');
+        const { data: rawData, error } = await fetchCVById(id, userId, token);
+        if (error) throw error;
+        const data = rawData as any;
+        if (!data) return;
+
+        let cvDataParsed = data.cv_data;
+        let aiDataParsed = data.ai_data;
+        if (!cvDataParsed && data.content) {
+          try {
+            const p = typeof data.content === 'string' ? JSON.parse(data.content) : data.content;
+            cvDataParsed = p.cv_data || {}; aiDataParsed = p.ai_data || {};
+          } catch { cvDataParsed = data.content?.cv_data || {}; aiDataParsed = data.content?.ai_data || {}; }
         }
-        const bullets: string[] = [];
-        if (nx !== null && nx.tagName === "UL") {
-          nx.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) bullets.push(t); });
-        }
-        if (title || company) jobs.push({ title: title || "Position", company: company || "Company", period, bullets });
-      });
-    }
-    return jobs;
-  }, [data?.experience, (data as any)?.work_experience, getAI]);
 
-  // ── Parse education ──────────────────────────────────────────────
-  const education = useMemo(() => {
-    if (data?.education && Array.isArray(data.education) && data.education.length > 0)
-      return data.education.filter((e: any) => e != null).map((e: any) => ({
-        degree: e.degree || "Degree", institution: e.institution || e.school || "Institution",
-        year: e.year || e.period || "", details: Array.isArray(e.details) ? e.details : [e.description].filter(Boolean),
-      }));
-    const html = getAI("education_section");
-    if (!html) {
-      try {
-        const raw = data?.education || (data as any)?.education_history;
-        if (!raw) return [];
-        const p = typeof raw === "string" ? JSON.parse(raw) : raw;
-        return Array.isArray(p) ? p.map((e: any) => ({ degree: e.degree || "Degree", institution: e.school || e.institution || "Institution", year: e.year || "", details: [e.whyThisField, e.specialization, e.proudestMoment, e.favoriteSubjects].filter(Boolean).map((t: string) => t.trim()) })) : [];
-      } catch { return []; }
-    }
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const list: any[] = [];
-    const eduDivs = doc.querySelectorAll(".education, .education-item");
-    if (eduDivs.length > 0) {
-      eduDivs.forEach(eduDiv => {
-        const h4 = eduDiv.querySelector("h4");
-        const degree = h4?.textContent?.trim() || "";
-        let institution = "", year = "";
-        eduDiv.querySelectorAll("p").forEach((p, idx) => {
-          const text = p.textContent?.trim() || "";
-          if (idx === 0) institution = text;
-          if (p.classList.contains("date") || text.match(/\d{4}/)) year = text;
-        });
-        const details: string[] = [];
-        eduDiv.querySelectorAll("ul li").forEach(li => { const t = li.textContent?.trim(); if (t) details.push(t); });
-        if (degree) list.push({ degree, institution, year, details });
-      });
-    } else {
-      doc.querySelectorAll("h4").forEach(h4 => {
-        const degree = h4.textContent?.trim() || "";
-        let institution = "", year = "";
-        const details: string[] = [];
-        let nx: Element | null = h4.nextElementSibling;
-        if (nx !== null && nx.tagName === "P") {
-          institution = nx.textContent?.trim() || "";
-          nx = nx.nextElementSibling;
-        }
-        if (nx !== null && nx.tagName === "P" && nx.textContent?.match(/\d{4}/)) {
-          year = nx.textContent.trim();
-          nx = nx.nextElementSibling;
-        }
-        if (nx !== null && nx.tagName === "UL") {
-          nx.querySelectorAll("li").forEach(li => { const t = li.textContent?.trim(); if (t) details.push(t); });
-        }
-        if (degree) list.push({ degree, institution, year, details });
-      });
-    }
-    return list;
-  }, [data?.education, getAI]);
-
-  // ── Parse projects (portfolioLinks) ──────────────────────────────
-  const projects = useMemo(() => {
-    const raw = (data as any)?.projects ?? (data as any)?.portfolioLinks ?? (data as any)?.portfolio_links;
-    if (Array.isArray(raw)) {
-      return raw
-        .filter((p: any) => p != null)
-        .map((p: any) => ({
-          title: p.title || p.name || "Projekti",
-          description: p.description || "",
-          link: p.url || p.link || "",
-        }))
-        .filter((p: any) => p.title || p.description || p.link);
-    }
-    return [];
-  }, [(data as any)?.projects, (data as any)?.portfolioLinks]);
-
-  const name = data?.name || "Name";
-  const cvTitle = data?.title || "Professional Title";
-
-  const E = (props: Omit<InlineEditorProps, "isEditing" | "onCommit">) => (
-    <InlineEditor {...props} isEditing={isEditing} onCommit={handleCommit} />
-  );
-
-  // ── Section heading style (käyttää osiokohtaista skaalaa) ─────────
-  const sH2For = (sectionId: string): React.CSSProperties => ({
-    fontSize: fsS("11.5pt", sectionId, "right"), fontWeight: 600, textTransform: "uppercase",
-    borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm",
-    letterSpacing: ".12em", fontFamily: "'Inter',sans-serif", color: "#1a1a1a",
-  });
-
-  // ══════════════════════════════════════════════════════════════════
-  //  SECTION RENDERERS
-  // ══════════════════════════════════════════════════════════════════
-  const renderExperience = () => {
-    if (getSec("experience").hidden) return null;
-    return (
-    <section style={{ marginBottom: sectionGap("experience") }}>
-      <h2 style={sH2For("experience")}>Work Experience</h2>
-      {workExperience.map((job: any, idx: number) => (
-        <DragItem key={`exp-${idx}`} index={idx} total={workExperience.length} isEditing={isEditing}
-          onMoveUp={() => onUpdate?.("experience", move(workExperience, idx, idx - 1))}
-          onMoveDown={() => onUpdate?.("experience", move(workExperience, idx, idx + 1))}
-          onDelete={() => onDelete?.("experience", idx)}
-          style={{ marginBottom: fsS("5.5mm", "experience", "right") }}
-        >
-          <h4 style={{ fontSize: fsS("10.5pt", "experience", "right"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
-            {E({ field: `experience.${idx}.title`, value: job.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fsS("10.5pt", "experience", "right") } })}
-            <span style={{ fontWeight: 400, color: "#555" }}> — </span>
-            {E({ field: `experience.${idx}.company`, value: job.company, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fsS("10.5pt", "experience", "right") } })}
-          </h4>
-          {(job.period || isEditing) && E({ field: `experience.${idx}.period`, value: job.period, tag: "p", placeholder: "Ajanjakso", style: { fontSize: fsS("8.5pt", "experience", "right"), color: "#666", fontStyle: "italic", marginBottom: fs("2mm"), fontWeight: 300, lineHeight: lh(1.4) } })}
-          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fsS("9pt", "experience", "right"), lineHeight: lh(1.6), fontWeight: 300 }}>
-            {job.bullets.map((b: string, bi: number) => (
-              <DragItem key={`exp-${idx}-b-${bi}`} index={bi} total={job.bullets.length} isEditing={isEditing}
-                onMoveUp={() => onUpdate?.(`experience.${idx}.bullets`, move(job.bullets, bi, bi - 1))}
-                onMoveDown={() => onUpdate?.(`experience.${idx}.bullets`, move(job.bullets, bi, bi + 1))}
-                onDelete={() => onDelete?.(`experience.${idx}.bullets`, bi)}
-                style={{ marginBottom: fs("1.5mm") }}
-              >
-                <li style={{ color: "#333", listStyle: "disc" }}>
-                  {E({ field: `experience.${idx}.bullets.${bi}`, value: b, multiline: true, style: { color: "#333", fontSize: fsS("9pt", "experience", "right"), lineHeight: lh(1.6) } })}
-                </li>
-              </DragItem>
-            ))}
-            {isEditing && (
-              <li style={{ color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: .7, listStyle: "none", marginTop: "2mm" }}
-                onClick={() => onUpdate?.(`experience.${idx}.bullets.${job.bullets.length}`, "Uusi kuvaus")}>
-                + Lisää kohta…
-              </li>
-            )}
-          </ul>
-        </DragItem>
-      ))}
-      {isEditing && <AddBtn label="+ Lisää työkokemus" onClick={() => onUpdate?.(`experience.${workExperience.length}`, { title: "Uusi tehtävä", company: "Yritys", period: "2024 – nyt", bullets: ["Kuvaus"] })} />}
-    </section>
-    );
-  };
-
-  const renderEducation = () => {
-    if (getSec("education").hidden) return null;
-    return (
-    <section style={{ marginBottom: sectionGap("education") }}>
-      <h2 style={sH2For("education")}>Education</h2>
-      {education.map((edu: any, idx: number) => (
-        <DragItem key={`edu-${idx}`} index={idx} total={education.length} isEditing={isEditing}
-          onMoveUp={() => onUpdate?.("education", move(education, idx, idx - 1))}
-          onMoveDown={() => onUpdate?.("education", move(education, idx, idx + 1))}
-          onDelete={() => onDelete?.("education", idx)}
-          style={{ marginBottom: fsS("5mm", "education", "right") }}
-        >
-          {E({ field: `education.${idx}.degree`, value: edu.degree, tag: "h4", style: { fontSize: fsS("10pt", "education", "right"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) } })}
-          {(edu.institution || isEditing) && E({ field: `education.${idx}.institution`, value: edu.institution, tag: "p", placeholder: "Oppilaitos", style: { fontSize: fsS("9pt", "education", "right"), margin: "1mm 0", fontWeight: 400, color: "#444", lineHeight: lh(1.4) } })}
-          {(edu.year || isEditing) && E({ field: `education.${idx}.year`, value: edu.year, tag: "p", placeholder: "2020 – 2024", style: { fontSize: fsS("8.5pt", "education", "right"), color: "#666", fontStyle: "italic", margin: "1mm 0", fontWeight: 300, lineHeight: lh(1.3) } })}
-          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fsS("8.5pt", "education", "right"), lineHeight: lh(1.6), fontWeight: 300 }}>
-            {edu.details.map((d: string, di: number) => (
-              <DragItem key={`edu-${idx}-d-${di}`} index={di} total={edu.details.length} isEditing={isEditing}
-                onMoveUp={() => onUpdate?.(`education.${idx}.details`, move(edu.details, di, di - 1))}
-                onMoveDown={() => onUpdate?.(`education.${idx}.details`, move(edu.details, di, di + 1))}
-                onDelete={() => onDelete?.(`education.${idx}.details`, di)}
-                style={{ marginBottom: fs("1mm") }}
-              >
-                <li style={{ color: "#333", listStyle: "disc" }}>
-                  {E({ field: `education.${idx}.details.${di}`, value: d, multiline: true, style: { color: "#333", fontSize: fsS("8.5pt", "education", "right"), lineHeight: lh(1.5) } })}
-                </li>
-              </DragItem>
-            ))}
-            {isEditing && (
-              <li style={{ color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: .7, listStyle: "none", marginTop: "2mm" }}
-                onClick={() => onUpdate?.(`education.${idx}.details.${edu.details.length}`, "Lisätieto")}>
-                + Lisää lisätieto…
-              </li>
-            )}
-          </ul>
-        </DragItem>
-      ))}
-      {isEditing && <AddBtn label="+ Lisää koulutus" onClick={() => onUpdate?.(`education.${education.length}`, { degree: "Tutkinto", institution: "Oppilaitos", year: "2020 – 2024", details: [] })} />}
-    </section>
-    );
-  };
-
-  const renderLanguages = () => {
-    if (getSec("languages").hidden) return null;
-    const html = getAI("languages_section");
-    if (!html) return null;
-    return (
-      <section style={{ marginBottom: sectionGap("languages") }}>
-        <h2 style={sH2For("languages")}>Languages</h2>
-        <div style={{ fontSize: fsS("9.5pt", "languages", "right"), lineHeight: lh(1.6), color: "#333", fontWeight: 300 }} dangerouslySetInnerHTML={{ __html: html }} />
-      </section>
-    );
-  };
-
-  const renderProjects = () => {
-    if (getSec("projects").hidden) return null;
-    if (projects.length === 0 && !isEditing) return null;
-    if (projects.length === 0) return null;
-    return (
-      <section style={{ marginBottom: sectionGap("projects") }}>
-        <h2 style={sH2For("projects")}>Projects</h2>
-        {projects.map((proj: any, idx: number) => (
-          <DragItem key={`proj-${idx}`} index={idx} total={projects.length} isEditing={isEditing}
-            onMoveUp={() => onUpdate?.("projects", move(projects, idx, idx - 1))}
-            onMoveDown={() => onUpdate?.("projects", move(projects, idx, idx + 1))}
-            onDelete={() => onDelete?.("projects", idx)}
-            style={{ marginBottom: fsS("5mm", "projects", "right") }}
-          >
-            <h4 style={{ fontSize: fsS("10.5pt", "projects", "right"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
-              {E({ field: `projects.${idx}.title`, value: proj.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fsS("10.5pt", "projects", "right") } })}
-            </h4>
-            {(proj.description || isEditing) && E({ field: `projects.${idx}.description`, value: proj.description, tag: "p", multiline: true, placeholder: "Kuvaus", style: { fontSize: fsS("9pt", "projects", "right"), color: "#333", lineHeight: lh(1.6), fontWeight: 300, marginBottom: fs("1mm") } })}
-            {(proj.link || isEditing) && E({ field: `projects.${idx}.link`, value: proj.link, tag: "p", placeholder: "https://...", style: { fontSize: fsS("8.5pt", "projects", "right"), color: "#2563eb", lineHeight: lh(1.4) } })}
-          </DragItem>
-        ))}
-        {isEditing && <AddBtn label="+ Lisää projekti" onClick={() => onUpdate?.(`projects.${projects.length}`, { title: "Projektin nimi", description: "Lyhyt kuvaus", link: "" })} />}
-      </section>
-    );
-  };
-
-  const sectionMap: Record<string, () => React.ReactNode | null> = {
-    experience: renderExperience,
-    projects: renderProjects,
-    education: renderEducation,
-    languages: renderLanguages,
-  };
-
-  // ══════════════════════════════════════════════════════════════════
-  //  RENDER
-  // ══════════════════════════════════════════════════════════════════
-  const skillsHidden = getSec("skills").hidden;
-  return (
-    <div style={{ width: "210mm", minHeight: "297mm", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", position: "relative", background: "white" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-      <style>{`.editable-hover:hover { outline: 2px dashed rgba(249,115,22,.45) !important; background: rgba(249,115,22,.04) !important; border-radius: 3px !important; }`}</style>
-
-      {/* LEFT COLUMN */}
-      <div style={{ position: "absolute", left: 0, top: 0, width: "70mm", minHeight: "297mm", background: "linear-gradient(180deg,#1a1a1a 0%,#2d2d2d 100%)", color: "white" }}>
-        {/* Photo */}
-        <div style={{ width: "100%", height: "85mm", overflow: "hidden" }}>
-          {profileImg
-            ? <img src={profileImg} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "contrast(1.05) brightness(.95)" }} />
-            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48pt", fontWeight: 300, background: "linear-gradient(135deg,#4a4a4a,#2a2a2a)", letterSpacing: ".05em" }}>
-              {name.substring(0, 2).toUpperCase()}
-            </div>
+        for (const k of ['experience', 'education']) {
+          if (typeof cvDataParsed?.[k] === 'string') {
+            try { cvDataParsed[k] = JSON.parse(cvDataParsed[k]); } catch { cvDataParsed[k] = []; }
           }
-        </div>
+          if (!Array.isArray(cvDataParsed?.[k])) cvDataParsed[k] = [];
+        }
+        if (typeof cvDataParsed?.skills === 'string') {
+          try { cvDataParsed.skills = JSON.parse(cvDataParsed.skills); }
+          catch { cvDataParsed.skills = cvDataParsed.skills.split(',').map((s: string) => s.trim()).filter(Boolean); }
+        }
+        if (!Array.isArray(cvDataParsed?.skills)) cvDataParsed.skills = [];
 
-        {/* Skills position controls (showEditControls mode) */}
-        {isEditing && showEditControls && editMode === "content" && (
-          <div style={{ position: "fixed", right: "1.5rem", top: "50%", transform: "translateY(-50%)", zIndex: 50, background: "white", padding: "8px", borderRadius: "12px", boxShadow: "0 4px 24px rgba(0,0,0,.15)", display: "flex", flexDirection: "column", gap: "4px" }}>
-            <button onClick={() => setSkillsTop(v => Math.max(-20, v - 5))} style={{ padding: "4px 8px", background: "#1a1a1a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "11px" }}>↑ Up</button>
-            <button onClick={() => setSkillsTop(v => Math.min(40, v + 5))} style={{ padding: "4px 8px", background: "#1a1a1a", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "11px" }}>↓ Down</button>
-          </div>
-        )}
+        const processImg = (url?: string | null): string => {
+          if (!url?.trim()) return '';
+          const t = url.trim();
+          if (t.startsWith('data:image') || t.startsWith('http')) return t;
+          if (t.includes('/')) return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${t}`;
+          return '';
+        };
 
-        {/* Skills */}
-        {!skillsHidden && (skillCategories.length > 0 || isEditing) && (
-          <div style={{ padding: "7mm 8mm", position: "relative", top: `${skillsTop}mm` }}>
-            <h2 style={{ fontSize: fsS("13pt", "skills", "left"), fontWeight: 600, textTransform: "uppercase", letterSpacing: ".18em", borderBottom: "1.5px solid rgba(255,255,255,.25)", paddingBottom: "3.5mm", marginBottom: "5mm" }}>
-              Skills
-            </h2>
-            {skillCategories.map((cat: any, ci: number) => (
-              <div key={ci} style={{ marginBottom: fsS("4.5mm", "skills", "left") }}>
-                {skillCategories.length > 1 && E({ field: `skills.${ci}.category`, value: cat.category, tag: "h3", style: { fontSize: fsS("9.5pt", "skills", "left"), fontWeight: 600, marginBottom: "2mm", color: "#f0c674", letterSpacing: ".03em" } })}
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: fsS("8.5pt", "skills", "left"), lineHeight: lh(1.65), fontWeight: 300 }}>
-                  {cat.items.map((skill: string, si: number) => (
-                    <DragItem key={`sk-${ci}-${si}`} index={si} total={cat.items.length} isEditing={isEditing}
-                      onMoveUp={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si - 1) } : c); onUpdate?.("skills", newCats); }}
-                      onMoveDown={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si + 1) } : c); onUpdate?.("skills", newCats); }}
-                      onDelete={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: c.items.filter((_: any, j: number) => j !== si) } : c); onUpdate?.("skills", newCats); }}
-                      style={{ marginBottom: fsS("2mm", "skills", "left"), paddingLeft: "4mm", position: "relative" }}
-                    >
-                      <li style={{ listStyle: "none", color: "rgba(255,255,255,.92)" }}>
-                        <span style={{ position: "absolute", left: 0, color: "#f0c674", fontSize: "10pt" }}>•</span>
-                        {E({ field: `skills.${ci}.items.${si}`, value: skill, style: { color: "rgba(255,255,255,.92)", fontSize: fsS("8.5pt", "skills", "left") } })}
-                      </li>
-                    </DragItem>
-                  ))}
-                  {isEditing && (
-                    <li style={{ paddingLeft: "4mm", color: "#f0c674", cursor: "pointer", fontStyle: "italic", opacity: .7, marginBottom: "2mm", listStyle: "none" }}
-                      onClick={() => {
-                        const newCats = skillCategories.map((c: any, i: number) =>
-                          i === ci ? { ...c, items: [...c.items, "Uusi taito"] } : c);
-                        onUpdate?.("skills", newCats);
-                      }}>
-                      + Lisää taito…
-                    </li>
-                  )}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
+        const profileImage = processImg(data.profile_image || cvDataParsed?.profileImage || aiDataParsed?.profile_image || cvDataParsed?.photo);
+        const backgroundImage = processImg(data.background_image || cvDataParsed?.backgroundImage || aiDataParsed?.background_image);
+
+        cvDataParsed.profileImage = profileImage;
+        cvDataParsed.backgroundImage = backgroundImage;
+        if (aiDataParsed) { aiDataParsed.profile_image = profileImage; aiDataParsed.background_image = backgroundImage; }
+
+        setFontScale(cvDataParsed.fontScale ?? 1.0);
+        setLineScale(cvDataParsed.lineScale ?? 1.0);
+        setSectionScales(cvDataParsed.sectionScales ?? {});
+        setColumnScales(cvDataParsed.columnScales ?? { left: 1, right: 1 });
+
+        const processed: BaseCV = {
+          ...data, cv_data: cvDataParsed, ai_data: aiDataParsed,
+          content: { ...(data.content || {}), cv_data: cvDataParsed, ai_data: aiDataParsed },
+        };
+        setCvData(processed);
+        historyRef.current = [];
+
+        const images = await getAllAvailableImagesAction();
+        setAvailableImages(images);
+      } catch (err) {
+        console.error('Load error:', err);
+        toast.error('CV:n lataaminen epäonnistui');
+      } finally { setIsLoading(false); }
+    };
+    init();
+}, [id, userId, getToken, loadKey]);
+useEffect(() => {
+    const loadProfileData = async () => {
+      if (!userId) return;
+      try {
+        const res = await fetch(`/api/user-profile/${userId}`);
+        if (!res.ok) return;
+        const profile = await res.json();
+        const jobs = Array.isArray(profile?.work_experience) ? profile.work_experience : [];
+        setProfileJobs(jobs.map(mapProfileJobToStructured));
+        const ports = Array.isArray(profile?.portfolio_links) ? profile.portfolio_links : [];
+        setProfileProjects(ports.map(mapProfileProjectToStructured));
+      } catch {
+      }
+    };
+    loadProfileData();
+  }, [userId]);
+  // ── handleUpdate ───────────────────────────────────────────────────
+  const handleUpdate = useCallback((field: string, value: any) => {
+    setCvData(prev => {
+      if (!prev) return prev;
+      pushHistory(prev);
+      const updated = JSON.parse(JSON.stringify(prev));
+      if (!updated.cv_data) updated.cv_data = {};
+      if (!updated.content) updated.content = {};
+      if (!updated.content.cv_data) updated.content.cv_data = {};
+
+      const setAt = (root: any, path: string, val: any) => {
+        const parts = path.split('.');
+        if (parts.length === 1) { root[parts[0]] = val; return; }
+        let cur = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const p = parts[i];
+          const nextIsIndex = !isNaN(Number(parts[i + 1]));
+          if (cur[p] === undefined || cur[p] === null) {
+            cur[p] = nextIsIndex ? [] : {};
+          } else if (typeof cur[p] === 'string') {
+            try { const parsed = JSON.parse(cur[p]); cur[p] = typeof parsed === 'object' ? parsed : (nextIsIndex ? [] : {}); }
+            catch { cur[p] = nextIsIndex ? [] : {}; }
+          }
+          if (nextIsIndex && !Array.isArray(cur[p])) cur[p] = [];
+          if (!nextIsIndex && Array.isArray(cur[p])) cur[p] = {};
+          cur = cur[p];
+        }
+      const last = parts[parts.length - 1];
+if (!isNaN(Number(last))) {
+  const idx = Number(last);
+  if (Array.isArray(cur)) {
+    while (cur.length < idx) cur.push({});
+    cur[idx] = val;
+  }
+} else { cur[last] = val; }      };
+
+      setAt(updated.cv_data, field, value);
+      setAt(updated.content.cv_data, field, value);
+
+      if (field === 'profileImage') {
+        updated.cv_data.profileImage = value;
+        updated.content.cv_data.profileImage = value;
+        if (updated.ai_data) updated.ai_data.profile_image = value;
+        if (updated.content.ai_data) updated.content.ai_data.profile_image = value;
+      }
+      if (field === 'backgroundImage') {
+        updated.cv_data.backgroundImage = value;
+        updated.content.cv_data.backgroundImage = value;
+        if (updated.ai_data) updated.ai_data.background_image = value;
+        if (updated.content.ai_data) updated.content.ai_data.background_image = value;
+      }
+
+      return updated;
+    });
+  }, [pushHistory]);
+  const handleAddJobFromProfile = useCallback((job: StructuredExperience) => {
+    const len = Array.isArray(cvData?.cv_data?.experience)
+      ? cvData.cv_data.experience.length
+      : 0;
+    handleUpdate(`experience.${len}`, job);
+    toast.success(`Lisätty: ${job.title}${job.company ? ` — ${job.company}` : ''}`);
+  }, [cvData, handleUpdate]);
+  const handleAddProjectFromProfile = useCallback((proj: StructuredProject) => {
+    const len = Array.isArray(cvData?.cv_data?.projects)
+      ? cvData.cv_data.projects.length
+      : 0;
+    handleUpdate(`projects.${len}`, proj);
+    toast.success(`Lisätty projekti: ${proj.title}`);
+  }, [cvData, handleUpdate]);
+  // ── handleDelete ───────────────────────────────────────────────────
+  const handleDelete = useCallback((field: string, index: number) => {
+    setCvData(prev => {
+      if (!prev) return prev;
+      pushHistory(prev);
+      const updated = JSON.parse(JSON.stringify(prev));
+      if (!updated.cv_data) updated.cv_data = {};
+      if (!updated.content) updated.content = {};
+      if (!updated.content.cv_data) updated.content.cv_data = {};
+
+      const spliceAt = (root: any) => {
+        const parts = field.split('.');
+        let cur = root;
+        for (const p of parts) {
+          if (cur && typeof cur === 'object' && p in cur) cur = cur[p];
+          else return;
+        }
+        if (Array.isArray(cur) && index >= 0 && index < cur.length) cur.splice(index, 1);
+      };
+
+      spliceAt(updated.cv_data);
+      spliceAt(updated.content.cv_data);
+      return updated;
+    });
+    toast.success('Poistettu!');
+  }, [pushHistory]);
+
+  // ── Image handlers ─────────────────────────────────────────────────
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'profileImage' | 'backgroundImage') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('Max 5 MB'); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      handleUpdate(type, reader.result as string);
+      setShowProfileModal(false); setShowBgModal(false);
+      toast.success('Kuva ladattu!');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSelectImage = (img: UserImage, type: 'profileImage' | 'backgroundImage') => {
+    handleUpdate(type, img.signedUrl || '');
+    setShowProfileModal(false); setShowBgModal(false);
+    toast.success('Kuva valittu!');
+  };
+
+  const updateFontScale = useCallback((val: number) => {
+    setFontScale(val);
+    handleUpdate('fontScale', val);
+  }, [handleUpdate]);
+
+  const updateLineScale = useCallback((val: number) => {
+    setLineScale(val);
+    handleUpdate('lineScale', val);
+  }, [handleUpdate]);
+
+  // ── Per-osio / per-palsta säätö ────────────────────────────────────
+  const updateSectionScale = useCallback((sectionId: string, key: 'fontScale' | 'gap', val: number) => {
+    setSectionScales(prev => {
+      const next = {
+        ...prev,
+        [sectionId]: {
+          fontScale: prev[sectionId]?.fontScale ?? 1,
+          gap: prev[sectionId]?.gap ?? 1,
+          hidden: prev[sectionId]?.hidden ?? false,
+          [key]: val,
+        },
+      };
+      handleUpdate('sectionScales', next);
+      return next;
+    });
+  }, [handleUpdate]);
+
+  const toggleSectionHidden = useCallback((sectionId: string) => {
+    setSectionScales(prev => {
+      const cur = prev[sectionId] ?? { fontScale: 1, gap: 1, hidden: false };
+      const next = { ...prev, [sectionId]: { ...cur, hidden: !cur.hidden } };
+      handleUpdate('sectionScales', next);
+      return next;
+    });
+  }, [handleUpdate]);
+
+  const updateColumnScale = useCallback((col: 'left' | 'right', val: number) => {
+    setColumnScales(prev => {
+      const next = { ...prev, [col]: val };
+      handleUpdate('columnScales', next);
+      return next;
+    });
+  }, [handleUpdate]);
+
+  const resetSectionScales = useCallback(() => {
+    setSectionScales({});
+    setColumnScales({ left: 1, right: 1 });
+    handleUpdate('sectionScales', {});
+    handleUpdate('columnScales', { left: 1, right: 1 });
+  }, [handleUpdate]);
+
+  // ── Save ───────────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!cvData || !userId) return;
+    setIsSaving(true);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No token');
+
+      const final = {
+        ...(cvData.cv_data || cvData.content?.cv_data || {}),
+        fontScale,
+        lineScale,
+        sectionScales,
+        columnScales,
+      };
+
+      await updateCV(id, {
+        content: { cv_data: final, ai_data: cvData.ai_data || {} },
+        profile_image: final.profileImage || '',
+        background_image: final.backgroundImage || '',
+      }, token);
+
+      toast.success('✅ CV tallennettu!');
+      setIsEditing(false);
+    } catch (err) { console.error(err); toast.error('Tallennus epäonnistui'); }
+    finally { setIsSaving(false); }
+  };
+
+  // ── PDF ────────────────────────────────────────────────────────────
+  const handleDownloadPDF = async () => {
+    if (!cvData || !userId) return;
+
+    setIsDownloading(true);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (token) {
+        const final = {
+          ...(cvData.cv_data || cvData.content?.cv_data || {}),
+          fontScale,
+          lineScale,
+          sectionScales,
+          columnScales,
+        };
+        await updateCV(id, {
+          content: { cv_data: final, ai_data: cvData.ai_data || {} },
+          profile_image: final.profileImage || '',
+          background_image: final.backgroundImage || '',
+        }, token);
+      }
+
+      const res = await fetch(`/api/cvs/${id}/pdf`);
+      if (!res.ok) throw new Error('PDF failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `CV_${cvData.title || 'cv'}.pdf`;
+      document.body.appendChild(a); a.click(); URL.revokeObjectURL(url); a.remove();
+      toast.success('PDF ladattu!');
+    } catch { toast.error('PDF:n luonti epäonnistui'); }
+    finally { setIsDownloading(false); }
+  };
+
+  // ── Delete CV ──────────────────────────────────────────────────────
+  const handleDeleteCV = async () => {
+    if (!confirm('Poista tämä CV?')) return;
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token || !userId) return;
+      await deleteCV(id, userId, token);
+      toast.success('Poistettu'); router.push('/my-cvs');
+    } catch { toast.error('Poisto epäonnistui'); }
+  };
+
+  // ── Template render ────────────────────────────────────────────────
+  const renderTemplate = () => {
+    if (!cvData) return null;
+    const cvd = cvData.cv_data || cvData.content?.cv_data || {};
+    const aid = cvData.ai_data || cvData.content?.ai_data || {};
+    const type = cvd?.cvType || aid?.cv_type || cvData.metadata?.cv_type || 'simple';
+    const Comp: any = type === 'technical' ? TechnicalCVTemplate : type === 'creative' ? CreativeCVTemplate : SimpleCVTemplate;
+    return (
+      <CVContainer>
+        <Comp data={cvd} aiData={aid} isEditing={isEditing}
+          onUpdate={handleUpdate} onDelete={handleDelete}
+          showEditControls={false} editMode={null}
+          fontScale={fontScale} lineScale={lineScale}
+          sectionScales={sectionScales} columnScales={columnScales} />
+      </CVContainer>
+    );
+  };
+  const cvType = cvData?.cv_data?.cvType || cvData?.ai_data?.cv_type || cvData?.metadata?.cv_type || 'simple';
+  const isCreative = cvType === 'creative';
+
+  const currentExperience: any[] = Array.isArray(cvData?.cv_data?.experience)
+    ? cvData.cv_data.experience
+    : [];
+
+  const existingKeys = new Set(
+    currentExperience.map((e: any) => experienceKey(e?.company, e?.title || e?.position))
+  );
+
+  const missingJobs = profileJobs.filter(
+    (job) => !jobLikelyExists(job, currentExperience)
+  );
+  const currentProjects: any[] = Array.isArray(cvData?.cv_data?.projects)
+    ? cvData.cv_data.projects
+    : [];
+
+  const missingProjects = profileProjects.filter(
+    (proj) => !projectLikelyExists(proj, currentProjects)
+  );
+  // ── Scale ──────────────────────────────────────────────────────────
+  const A4_PX = 794;
+  const scale = isMobile ? 0.42 : previewWidth > 0 ? Math.min(1, (previewWidth - 32) / A4_PX) : 0.78;
+
+  if (isLoading || !cvData) return (
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
+      <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
+      <p className="text-xs font-bold tracking-[0.2em] text-gray-500 uppercase">Ladataan...</p>
+    </div>
+  );
+
+  const currentProfile = cvData.cv_data?.profileImage || cvData.ai_data?.profile_image || '';
+  const currentBg = cvData.cv_data?.backgroundImage || cvData.ai_data?.background_image || '';
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc]">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]" />
       </div>
 
-      {/* RIGHT COLUMN */}
-      <div style={{ marginLeft: "70mm", width: "140mm", minHeight: "297mm" }}>
-        {/* Banner */}
-        <div style={{ height: "85mm", position: "relative", backgroundImage: bgImage ? `url(${bgImage})` : "linear-gradient(135deg,#2c3e50,#34495e)", backgroundSize: "cover", backgroundPosition: "center", color: "white" }}>
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(0,0,0,.5),rgba(0,0,0,.35))" }} />
-          <div style={{ position: "relative", zIndex: 10, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "10mm" }}>
-            {E({ field: "name", value: name, tag: "h1", style: { fontSize: "30pt", fontWeight: 700, marginBottom: "2mm", fontFamily: "'Playfair Display',serif", letterSpacing: ".02em", textShadow: "2px 2px 4px rgba(0,0,0,.3)", color: "white" } })}
-            {E({ field: "title", value: cvTitle, tag: "p", style: { fontSize: "13pt", marginTop: "2mm", marginBottom: "4mm", fontWeight: 400, letterSpacing: ".08em", textTransform: "uppercase", opacity: .95, color: "white" } })}
-            <div style={{ marginTop: "4mm", fontSize: "8.5pt", opacity: .92, display: "flex", gap: "7mm", flexWrap: "wrap", justifyContent: "center", fontWeight: 300 }}>
-              {(data?.email || isEditing) && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "2mm" }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
-                  {E({ field: "email", value: data.email || "", placeholder: "email@example.com", style: { color: "white", fontSize: "8.5pt" } })}
-                </span>
+      {/* TOP BAR */}
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <button onClick={() => router.push('/my-cvs')} className="p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex-shrink-0">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <FileText className="w-4 h-4 text-orange-500 flex-shrink-0" />
+            <h1 className="text-sm sm:text-lg font-black truncate">{cvData.title || cvData.cv_data?.name || 'Nimetön CV'}</h1>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isEditing && (
+              <button onClick={undo} title="Kumoa (Ctrl+Z)" className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center justify-center">
+                <Undo2 className="w-4 h-4" />
+              </button>
+            )}
+            {!isEditing
+              ? <button onClick={() => setIsEditing(true)} className="px-3 sm:px-4 h-9 sm:h-11 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white rounded-xl flex items-center gap-2 shadow-lg text-xs sm:text-sm font-bold">
+                <Edit3 className="w-3 h-3 sm:w-4 sm:h-4" /><span className="hidden sm:inline">Muokkaa</span>
+              </button>
+              : <>
+                <button onClick={() => setIsEditing(false)} className="px-3 h-9 sm:h-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 text-xs sm:text-sm font-semibold flex items-center gap-1">
+                  <Eye className="w-3 h-3 sm:w-4 sm:h-4" /><span className="hidden sm:inline">Esikatsele</span>
+                </button>
+                <button onClick={handleSave} disabled={isSaving} className="px-3 sm:px-4 h-9 sm:h-11 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl flex items-center gap-2 shadow-lg disabled:opacity-50 text-xs sm:text-sm font-bold">
+                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3 sm:w-4 sm:h-4" />}
+                  <span className="hidden sm:inline">Tallenna</span>
+                </button>
+              </>
+            }
+            <button onClick={handleDownloadPDF} disabled={isDownloading} className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center">
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> : <Download className="w-4 h-4" />}
+            </button>
+            <button onClick={handleDeleteCV} className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center">
+              <Trash2 className="w-4 h-4 text-red-500" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {isEditing && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 border-2 border-orange-200 dark:border-orange-800 rounded-2xl">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-bold text-orange-600 dark:text-orange-400 mb-1">✏️ Muokkaustila</h4>
+                <p className="text-xs text-gray-700 dark:text-gray-300">
+                  Klikkaa tekstiä muokataksesi · <strong>▲▼</strong> järjestelee · <strong>✕</strong> poistaa · <strong>Ctrl+Z</strong> kumoaa
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
+          {/* Sidebar */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Profile image */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-orange-500/10 border border-orange-500/20 p-2 rounded-xl"><User className="w-4 h-4 text-orange-500" /></div>
+                <h3 className="text-sm font-black uppercase tracking-wider">Profiilikuva</h3>
+              </div>
+              <div className={`relative w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden border-4 border-orange-500/20 shadow-lg bg-gray-100 dark:bg-gray-800 ${isEditing ? 'cursor-pointer group' : ''}`}
+                onClick={() => isEditing && setShowProfileModal(true)}>
+                {currentProfile
+                  ? <><img src={currentProfile} alt="Profile" className="w-full h-full object-cover" />{isEditing && <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-8 h-8 text-white" /></div>}</>
+                  : <div className="w-full h-full flex items-center justify-center"><User className="w-12 h-12 text-gray-400" /></div>}
+              </div>
+              {isEditing && (
+                <button onClick={() => setShowProfileModal(true)} className="w-full px-4 py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
+                  <Camera className="w-4 h-4" /> Vaihda kuva
+                </button>
               )}
-              {(data?.phone || isEditing) && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "2mm" }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-                  {E({ field: "phone", value: data.phone || "", placeholder: "+358 40 123 4567", style: { color: "white", fontSize: "8.5pt" } })}
-                </span>
+            </div>
+
+            {/* Background image */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl"><ImageIconLucide className="w-4 h-4 text-amber-500" /></div>
+                <h3 className="text-sm font-black uppercase tracking-wider">Taustakuva</h3>
+              </div>
+              {currentBg && (
+                <div className={`relative w-full aspect-video mb-4 rounded-xl overflow-hidden border-2 border-amber-500/20 ${isEditing ? 'cursor-pointer group' : ''}`}
+                  onClick={() => isEditing && setShowBgModal(true)}>
+                  <img src={currentBg} alt="Background" className="w-full h-full object-cover" />
+                  {isEditing && <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Camera className="w-8 h-8 text-white" /></div>}
+                </div>
               )}
-              {(data?.location || isEditing) && (
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "2mm" }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>
-                  {E({ field: "location", value: data.location || "", placeholder: "Helsinki", style: { color: "white", fontSize: "8.5pt" } })}
-                </span>
+              {isEditing && (
+                <button onClick={() => setShowBgModal(true)} className="w-full px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 dark:text-amber-400 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2">
+                  <Camera className="w-4 h-4" /> Vaihda taustakuva
+                </button>
               )}
+            </div>
+
+            {/* Typography controls */}
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-violet-500/10 border border-violet-500/20 p-2 rounded-xl">
+                  <svg className="w-4 h-4 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 7V4h16v3M9 20h6M12 4v16" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-black uppercase tracking-wider">Typografia</h3>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Tiivistä sisältö yhdelle sivulle</p>
+
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Fonttikoko</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-mono text-violet-600 dark:text-violet-400 w-10 text-right">{Math.round(fontScale * 100)}%</span>
+                    <button onClick={() => updateFontScale(1.0)} title="Palauta oletukseksi"
+                      className="text-xs text-gray-400 hover:text-violet-500 transition-colors ml-1">↺</button>
+                  </div>
+                </div>
+                <input type="range" min="70" max="115" step="1"
+                  value={Math.round(fontScale * 100)}
+                  onChange={e => updateFontScale(Number(e.target.value) / 100)}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: '#8b5cf6' }}
+                />
+                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                  <span>70%</span><span>Oletus (100%)</span><span>115%</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Riviväli</label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-mono text-violet-600 dark:text-violet-400 w-10 text-right">{Math.round(lineScale * 100)}%</span>
+                    <button onClick={() => updateLineScale(1.0)} title="Palauta oletukseksi"
+                      className="text-xs text-gray-400 hover:text-violet-500 transition-colors ml-1">↺</button>
+                  </div>
+                </div>
+                <input type="range" min="70" max="130" step="1"
+                  value={Math.round(lineScale * 100)}
+                  onChange={e => updateLineScale(Number(e.target.value) / 100)}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: '#8b5cf6' }}
+                />
+                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                  <span>Tiivis</span><span>Oletus</span><span>Väljä</span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <p className="text-xs text-gray-500 mb-2 font-semibold">Pikaasetukset</p>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => { updateFontScale(0.85); updateLineScale(0.82); }}
+                    className="text-xs px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg font-semibold transition-colors">
+                    Kompakti
+                  </button>
+                  <button onClick={() => { updateFontScale(1.0); updateLineScale(1.0); }}
+                    className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg font-semibold transition-colors">
+                    Oletus
+                  </button>
+                  <button onClick={() => { updateFontScale(1.08); updateLineScale(1.15); }}
+                    className="text-xs px-3 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-lg font-semibold transition-colors">
+                    Väljä
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Osioiden tilankäyttö — vain technical-templatelle */}
+            {isEditing && cvType === 'technical' && (
+              <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-teal-500/10 border border-teal-500/20 p-2 rounded-xl">
+                      <svg className="w-4 h-4 text-teal-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="18" height="7" rx="1" /><rect x="3" y="14" width="18" height="7" rx="1" />
+                      </svg>
+                    </div>
+                    <h3 className="text-sm font-black uppercase tracking-wider">Osioiden tila</h3>
+                  </div>
+                  <button onClick={resetSectionScales} title="Palauta kaikki oletuksiksi"
+                    className="text-xs text-gray-400 hover:text-teal-500 transition-colors">↺ Nollaa</button>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Säädä kuinka paljon tilaa kukin osio vie</p>
+
+                {/* Palstakohtainen säätö */}
+                <div className="mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
+                  <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Palstat</p>
+                  {([
+                    { col: 'left' as const, label: 'Vasen (taidot)' },
+                    { col: 'right' as const, label: 'Oikea (sisältö)' },
+                  ]).map(({ col, label }) => (
+                    <div key={col} className="mb-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">{label}</label>
+                        <span className="text-xs font-mono text-teal-600 dark:text-teal-400">{Math.round((columnScales[col] ?? 1) * 100)}%</span>
+                      </div>
+                      <input type="range" min="70" max="120" step="1"
+                        value={Math.round((columnScales[col] ?? 1) * 100)}
+                        onChange={e => updateColumnScale(col, Number(e.target.value) / 100)}
+                        className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                        style={{ accentColor: '#14b8a6' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Osiokohtainen säätö */}
+                <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Osiot</p>
+                <div className="space-y-4">
+                  {SECTION_DEFS.map(({ id: sid, label }) => {
+                    const sec = sectionScales[sid] ?? { fontScale: 1, gap: 1, hidden: false };
+                    return (
+                      <div key={sid} className={`p-3 rounded-xl border ${sec.hidden ? 'border-gray-200 dark:border-gray-800 opacity-60' : 'border-teal-500/20 bg-teal-500/[0.03]'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{label}</span>
+                          <button onClick={() => toggleSectionHidden(sid)}
+                            className={`text-[10px] font-bold uppercase px-2 py-1 rounded-md transition-colors ${sec.hidden ? 'bg-gray-200 dark:bg-gray-700 text-gray-500' : 'bg-teal-500/15 text-teal-600 dark:text-teal-400'}`}>
+                            {sec.hidden ? 'Piilotettu' : 'Näkyvissä'}
+                          </button>
+                        </div>
+                        {!sec.hidden && (
+                          <>
+                            <div className="mb-2">
+                              <div className="flex items-center justify-between mb-0.5">
+                                <label className="text-[11px] text-gray-500">Fonttikoko</label>
+                                <span className="text-[11px] font-mono text-teal-600 dark:text-teal-400">{Math.round((sec.fontScale ?? 1) * 100)}%</span>
+                              </div>
+                              <input type="range" min="70" max="120" step="1"
+                                value={Math.round((sec.fontScale ?? 1) * 100)}
+                                onChange={e => updateSectionScale(sid, 'fontScale', Number(e.target.value) / 100)}
+                                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                                style={{ accentColor: '#14b8a6' }}
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <label className="text-[11px] text-gray-500">Väli osion jälkeen</label>
+                                <span className="text-[11px] font-mono text-teal-600 dark:text-teal-400">{Math.round((sec.gap ?? 1) * 100)}%</span>
+                              </div>
+                              <input type="range" min="30" max="180" step="5"
+                                value={Math.round((sec.gap ?? 1) * 100)}
+                                onChange={e => updateSectionScale(sid, 'gap', Number(e.target.value) / 100)}
+                                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                                style={{ accentColor: '#14b8a6' }}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+{/* Ehdotukset profiilista — koko leveys sidebarin ja previewn välissä */}
+          {isEditing && (missingJobs.length > 0 || missingProjects.length > 0) && (
+            <div className="lg:col-span-9 space-y-4">
+
+              {/* Työkokemukset */}
+              {missingJobs.length > 0 && (
+                <div className="p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-blue-200 dark:border-blue-900/40 rounded-2xl">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded-xl shrink-0">
+                      <Briefcase className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-0.5">
+                        Profiilistasi löytyi työkokemuksia
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Nämä eivät ole vielä tässä CV:ssä. Lisää haluamasi yhdellä klikkauksella.
+                      </p>
+                    </div>
+                  </div>
+
+                  {isCreative && (
+                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400">
+                      Huom: tämä luova pohja ei vielä näytä erikseen lisättyä työkokemusta. Lisäys tallentuu, mutta ei näy esikatselussa.
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    {missingJobs.map((job, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {job.title}{job.company ? ` — ${job.company}` : ''}
+                          </p>
+                          {job.period && <p className="text-xs text-gray-500 truncate">{job.period}</p>}
+                        </div>
+                        <button
+                          onClick={() => handleAddJobFromProfile(job)}
+                          className="shrink-0 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Lisää
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Projektit */}
+              {missingProjects.length > 0 && (
+                <div className="p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-violet-200 dark:border-violet-900/40 rounded-2xl">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="bg-violet-500/10 border border-violet-500/20 p-2 rounded-xl shrink-0">
+                      <Sparkles className="w-4 h-4 text-violet-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-violet-600 dark:text-violet-400 mb-0.5">
+                        Profiilisi projektit
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Tarkista ettei projekti ole jo listassa ennen lisäystä.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {missingProjects.map((proj, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{proj.title}</p>
+                          {proj.link && <p className="text-xs text-violet-500 truncate">{proj.link}</p>}
+                        </div>
+                        <button
+                          onClick={() => handleAddProjectFromProfile(proj)}
+                          className="shrink-0 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Lisää
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+          {/* Preview */}
+          <div className="lg:col-span-9">
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-4">
+              <div className="flex items-center justify-between mb-3 px-2">
+                <span className="text-xs text-gray-400 font-mono">{Math.round(scale * 100)}% · A4</span>
+                {isEditing && <span className="text-xs text-orange-500 font-semibold">▲▼ järjestele · ✕ poista · klikkaa muokkaa</span>}
+              </div>
+
+              <div ref={previewContainerRef} className="relative bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800" style={{ overflowX: 'hidden', overflowY: 'auto' }}>
+                <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', marginBottom: `calc(${scale * 100}% - 100%)` }}>
+                  {[1, 2].map(p => (
+                    <div key={p} style={{ position: 'absolute', top: `${p * 297}mm`, left: 0, right: 0, zIndex: 30, pointerEvents: 'none' }}>
+                      <div style={{ borderTop: `2px dashed ${p === 1 ? '#ef4444' : '#3b82f6'}`, position: 'relative' }}>
+                        <span style={{ position: 'absolute', top: '-11px', right: '8px', background: p === 1 ? '#ef4444' : '#3b82f6', color: 'white', fontSize: '10px', padding: '1px 8px', borderRadius: '4px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {p === 1 ? '↑ Sivu 1 · Sivu 2 ↓' : 'Sivu 3 ↓'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className={`bg-white shadow-2xl ${isEditing ? 'ring-2 ring-orange-400/30' : ''}`} style={{ width: '210mm', minHeight: '297mm' }}>
+                    {renderTemplate()}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Sections */}
-        <div style={{ padding: "9mm 10mm", fontSize: fs("9.5pt"), lineHeight: lh(1.55), fontWeight: 300 }}>
-          {sectionOrder.map((id, si) => {
-            const render = sectionMap[id]; if (!render) return null;
-            const node = render(); if (!node) return null;
-            return (
-              <SectionWrap key={id} label={id} index={si} total={sectionOrder.length} isEditing={isEditing}
-                onMoveUp={() => moveSec(si, -1)}
-                onMoveDown={() => moveSec(si, 1)}
-              >
-                {node}
-              </SectionWrap>
-            );
-          })}
-        </div>
       </div>
+
+      {/* Modal: Profile image */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold flex items-center gap-2"><User className="w-6 h-6 text-orange-500" />Profiilikuva</h3>
+              <button onClick={() => setShowProfileModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-orange-500/10 hover:bg-orange-500/20 border-2 border-dashed border-orange-500/30 text-orange-600 rounded-xl text-sm font-bold mb-6">
+                <Upload className="w-5 h-5" />Lataa uusi kuva
+                <input type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'profileImage')} />
+              </label>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+                {availableImages.profileImages.map(img => (
+                  <button key={img.id} onClick={() => handleSelectImage(img, 'profileImage')}
+                    className={`aspect-square rounded-xl overflow-hidden border-2 transition-all relative ${currentProfile === img.signedUrl ? 'border-orange-500 ring-4 ring-orange-500/30 scale-95' : 'border-gray-200 hover:border-orange-300 hover:scale-105'}`}>
+                    <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                    {img.is_ai_generated && <div className="absolute bottom-1 right-1 bg-purple-500 rounded-lg p-1"><Sparkles className="w-3 h-3 text-white" /></div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Background image */}
+      {showBgModal && (
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+              <h3 className="text-xl font-bold flex items-center gap-2"><ImageIconLucide className="w-6 h-6 text-amber-500" />Taustakuva</h3>
+              <button onClick={() => setShowBgModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <label className="cursor-pointer w-full flex items-center justify-center gap-2 px-6 py-4 bg-amber-500/10 hover:bg-amber-500/20 border-2 border-dashed border-amber-500/30 text-amber-600 rounded-xl text-sm font-bold mb-6">
+                <Upload className="w-5 h-5" />Lataa uusi taustakuva
+                <input type="file" className="hidden" accept="image/*" onChange={e => handleImageUpload(e, 'backgroundImage')} />
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {availableImages.backgroundImages.map(img => (
+                  <button key={img.id} onClick={() => handleSelectImage(img, 'backgroundImage')}
+                    className={`aspect-video rounded-xl overflow-hidden border-2 transition-all relative ${currentBg === img.signedUrl ? 'border-amber-500 ring-4 ring-amber-500/30 scale-95' : 'border-gray-200 hover:border-amber-300 hover:scale-105'}`}>
+                    <img src={img.signedUrl} alt="" className="w-full h-full object-cover" />
+                    {img.is_ai_generated && <div className="absolute top-2 right-2 bg-purple-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1"><Sparkles className="w-3 h-3" /> AI</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default TechnicalCVTemplate;
+}
