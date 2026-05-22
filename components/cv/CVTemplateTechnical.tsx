@@ -4,6 +4,16 @@ import React, {
 } from "react";
 import { UserFormData, AIData, EditMode } from "@/types";
 
+// ══════════════════════════════════════════════════════════════════════
+//  PER-OSIO / PER-PALSTA SKAALAT
+//  Tallennetaan cv_data.sectionScales ja cv_data.columnScales yhtenä
+//  objektina. Tie-B-yhteensopiva: siirtyy sellaisenaan muokkausmoottoriin.
+// ══════════════════════════════════════════════════════════════════════
+export interface SectionScale { fontScale: number; gap: number; hidden: boolean; }
+export type SectionScales = Record<string, SectionScale>;
+export interface ColumnScales { left: number; right: number; }
+const DEFAULT_SECTION_SCALE: SectionScale = { fontScale: 1, gap: 1, hidden: false };
+
 interface TechnicalCVTemplateProps {
   data: UserFormData;
   aiData: AIData;
@@ -17,16 +27,12 @@ interface TechnicalCVTemplateProps {
   backgroundImage?: string;
   fontScale?: number;
   lineScale?: number;
+  sectionScales?: SectionScales;
+  columnScales?: ColumnScales;
 }
 
 // ══════════════════════════════════════════════════════════════════════
 //  INLINE EDITOR  — uncontrolled so cursor never jumps
-//
-//  The key insight: a controlled <input value={state}> re-renders every
-//  keystroke → React diffs → cursor position resets.
-//  An uncontrolled <input defaultValue={…}> only reads the initial value
-//  once; afterwards the DOM owns the value and cursor is stable.
-//  We flush to parent state only on blur / Enter.
 // ══════════════════════════════════════════════════════════════════════
 interface InlineEditorProps {
   field: string;
@@ -48,7 +54,6 @@ const InlineEditor = React.memo(function InlineEditor({
   const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const savedValue = useRef(value);
 
-  // when value prop changes while NOT active, update our saved ref
   useEffect(() => {
     if (!active) savedValue.current = value;
   }, [value, active]);
@@ -180,7 +185,6 @@ const sectionArrowStyle = (disabled: boolean): React.CSSProperties => ({
   padding: 0, opacity: disabled ? 0.3 : 1,
 });
 
-
 const AddBtn: React.FC<{ label: string; onClick: () => void }> = ({ label, onClick }) => (
   <div onClick={onClick}
     style={{ padding: "3mm", border: "2px dashed #f97316", borderRadius: "4px", textAlign: "center", color: "#f97316", cursor: "pointer", fontSize: "9pt", marginTop: "3mm" }}
@@ -196,29 +200,53 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   data, aiData, isEditing, showEditControls, editMode,
   onContentChange, onUpdate, onDelete, profileImage, backgroundImage,
   fontScale: fontScaleProp, lineScale: lineScaleProp,
+  sectionScales: sectionScalesProp, columnScales: columnScalesProp,
 }) => {
   const [sectionOrder, setSectionOrder] = useState(["experience", "projects", "education", "languages"]);
   const [skillsTop, setSkillsTop] = useState(0);
 
-  // Use prop values when provided (controlled from parent), otherwise internal defaults
-   const fontScale = fontScaleProp ?? (data as any)?.fontScale ?? 1.0;
+  const fontScale = fontScaleProp ?? (data as any)?.fontScale ?? 1.0;
   const lineScale = lineScaleProp ?? (data as any)?.lineScale ?? 1.0;
 
-  // Scale a pt/mm value by fontScale
-  const fs = (base: string): string => {
+  // Per-osio ja per-palsta skaalat
+  const sectionScales: SectionScales =
+    sectionScalesProp ?? (data as any)?.sectionScales ?? {};
+  const columnScales: ColumnScales =
+    columnScalesProp ?? (data as any)?.columnScales ?? { left: 1, right: 1 };
+
+  const getSec = (id: string): SectionScale => ({
+    ...DEFAULT_SECTION_SCALE,
+    ...(sectionScales[id] || {}),
+  });
+
+  // Efektiivinen fonttiskaala: globaali × palsta × osio
+  const fsFor = (sectionId: string, column: "left" | "right") => {
+    const sec = getSec(sectionId);
+    const col = column === "left" ? columnScales.left : columnScales.right;
+    return fontScale * (col ?? 1) * (sec.fontScale ?? 1);
+  };
+
+  const scaleVal = (base: string, mult: number): string => {
     const match = base.match(/^([\d.]+)(pt|mm|px|em|rem)$/);
     if (!match) return base;
-    return `${(parseFloat(match[1]) * fontScale).toFixed(2)}${match[2]}`;
+    return `${(parseFloat(match[1]) * mult).toFixed(2)}${match[2]}`;
   };
-  // Scale a unitless line-height number
+
+  // fs() = globaali skaala (säilytetty taaksepäin-yhteensopivuus otsikoille yms.)
+  const fs = (base: string): string => scaleVal(base, fontScale);
+  // fsS() = osio- ja palstakohtainen skaala
+  const fsS = (base: string, sectionId: string, column: "left" | "right"): string =>
+    scaleVal(base, fsFor(sectionId, column));
   const lh = (base: number): number => parseFloat((base * lineScale).toFixed(3));
 
-  // stable commit — only recreated if onUpdate reference changes
+  // Osioväli: section gap kerrotaan osion gap-skaalalla
+  const sectionGap = (sectionId: string): string =>
+    scaleVal("7mm", fontScale * (getSec(sectionId).gap ?? 1));
+
   const handleCommit = useCallback((field: string, val: string) => {
     onUpdate?.(field, val);
   }, [onUpdate]);
 
-  // move helper (pure)
   const move = <T,>(arr: T[], from: number, to: number): T[] => {
     if (to < 0 || to >= arr.length) return arr;
     const n = [...arr]; const [x] = n.splice(from, 1); n.splice(to, 0, x); return n;
@@ -253,27 +281,23 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   }, [aiData]);
 
   // ── Parse skills ─────────────────────────────────────────────────
-const skillCategories = useMemo((): { category: string; items: string[] }[] => {
-  if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
-    // Stringitaulukko → yksi kategoria
-    if (typeof data.skills[0] === "string") {
-      return [{ category: "Skills", items: data.skills as string[] }];
+  const skillCategories = useMemo((): { category: string; items: string[] }[] => {
+    if (data?.skills && Array.isArray(data.skills) && data.skills.length > 0) {
+      if (typeof data.skills[0] === "string") {
+        return [{ category: "Skills", items: data.skills as string[] }];
+      }
+      const first: any = data.skills[0];
+      if (first && Array.isArray(first.items)) {
+        return (data.skills as any[]).map((c: any) => ({
+          category: c.category || "Skills",
+          items: Array.isArray(c.items) ? c.items : [],
+        }));
+      }
+      const items = (data.skills as any[])
+        .map((s: any) => (typeof s === "string" ? s : s?.name || s?.skill || s?.title || ""))
+        .filter(Boolean);
+      return items.length ? [{ category: "Skills", items }] : [];
     }
-    // Objektitaulukko: voi olla joko {category, items} TAI {name, proficiency...}
-    const first: any = data.skills[0];
-    // Jos jo oikeassa kategoria-muodossa
-    if (first && Array.isArray(first.items)) {
-      return (data.skills as any[]).map((c: any) => ({
-        category: c.category || "Skills",
-        items: Array.isArray(c.items) ? c.items : [],
-      }));
-    }
-    // Muuten: profiili-skill-objektit ({name, proficiency, ...}) → yksi kategoria
-    const items = (data.skills as any[])
-      .map((s: any) => (typeof s === "string" ? s : s?.name || s?.skill || s?.title || ""))
-      .filter(Boolean);
-    return items.length ? [{ category: "Skills", items }] : [];
-  }
     const html = getAI("skills_section");
     if (!html) {
       const t = (data?.skills as any) ?? "";
@@ -294,8 +318,8 @@ const skillCategories = useMemo((): { category: string; items: string[] }[] => {
 
   // ── Parse experience ─────────────────────────────────────────────
   const workExperience = useMemo(() => {
-if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0)
-  return data.experience.filter((e: any) => e != null).map((e: any) => ({
+    if (data?.experience && Array.isArray(data.experience) && data.experience.length > 0)
+      return data.experience.filter((e: any) => e != null).map((e: any) => ({
         title: e.title || e.position || "Position", company: e.company || "Company", period: e.period || e.duration || "",
         bullets: Array.isArray(e.bullets) ? e.bullets : Array.isArray(e.achievements) ? e.achievements : [e.description].filter(Boolean),
       }));
@@ -342,8 +366,8 @@ if (data?.experience && Array.isArray(data.experience) && data.experience.length
 
   // ── Parse education ──────────────────────────────────────────────
   const education = useMemo(() => {
-if (data?.education && Array.isArray(data.education) && data.education.length > 0)
-  return data.education.filter((e: any) => e != null).map((e: any) => ({
+    if (data?.education && Array.isArray(data.education) && data.education.length > 0)
+      return data.education.filter((e: any) => e != null).map((e: any) => ({
         degree: e.degree || "Degree", institution: e.institution || e.school || "Institution",
         year: e.year || e.period || "", details: Array.isArray(e.details) ? e.details : [e.description].filter(Boolean),
       }));
@@ -356,7 +380,6 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
         return Array.isArray(p) ? p.map((e: any) => ({ degree: e.degree || "Degree", institution: e.school || e.institution || "Institution", year: e.year || "", details: [e.whyThisField, e.specialization, e.proudestMoment, e.favoriteSubjects].filter(Boolean).map((t: string) => t.trim()) })) : [];
       } catch { return []; }
     }
-    
     const doc = new DOMParser().parseFromString(html, "text/html");
     const list: any[] = [];
     const eduDivs = doc.querySelectorAll(".education, .education-item");
@@ -396,7 +419,8 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
     }
     return list;
   }, [data?.education, getAI]);
-// ── Parse projects (portfolioLinks) ──────────────────────────────
+
+  // ── Parse projects (portfolioLinks) ──────────────────────────────
   const projects = useMemo(() => {
     const raw = (data as any)?.projects ?? (data as any)?.portfolioLinks ?? (data as any)?.portfolio_links;
     if (Array.isArray(raw)) {
@@ -411,44 +435,43 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
     }
     return [];
   }, [(data as any)?.projects, (data as any)?.portfolioLinks]);
+
   const name = data?.name || "Name";
   const cvTitle = data?.title || "Professional Title";
 
-  // ── E shorthand ──────────────────────────────────────────────────
-  // InlineEditor with isEditing + onCommit already bound
-  // Using a render function (not a component) so it doesn't create new
-  // component type on each render → no unmount/remount
   const E = (props: Omit<InlineEditorProps, "isEditing" | "onCommit">) => (
     <InlineEditor {...props} isEditing={isEditing} onCommit={handleCommit} />
   );
 
-  // ── Section heading style (uses fs() for scaling) ───────────────
-  const sH2: React.CSSProperties = {
-    fontSize: fs("11.5pt"), fontWeight: 600, textTransform: "uppercase",
+  // ── Section heading style (käyttää osiokohtaista skaalaa) ─────────
+  const sH2For = (sectionId: string): React.CSSProperties => ({
+    fontSize: fsS("11.5pt", sectionId, "right"), fontWeight: 600, textTransform: "uppercase",
     borderBottom: "2px solid #1a1a1a", paddingBottom: "2mm", marginBottom: "4mm",
     letterSpacing: ".12em", fontFamily: "'Inter',sans-serif", color: "#1a1a1a",
-  };
+  });
 
   // ══════════════════════════════════════════════════════════════════
   //  SECTION RENDERERS
   // ══════════════════════════════════════════════════════════════════
-  const renderExperience = () => (
-    <section style={{ marginBottom: fs("7mm") }}>
-      <h2 style={sH2}>Work Experience</h2>
+  const renderExperience = () => {
+    if (getSec("experience").hidden) return null;
+    return (
+    <section style={{ marginBottom: sectionGap("experience") }}>
+      <h2 style={sH2For("experience")}>Work Experience</h2>
       {workExperience.map((job: any, idx: number) => (
         <DragItem key={`exp-${idx}`} index={idx} total={workExperience.length} isEditing={isEditing}
           onMoveUp={() => onUpdate?.("experience", move(workExperience, idx, idx - 1))}
           onMoveDown={() => onUpdate?.("experience", move(workExperience, idx, idx + 1))}
           onDelete={() => onDelete?.("experience", idx)}
-          style={{ marginBottom: fs("5.5mm") }}
+          style={{ marginBottom: fsS("5.5mm", "experience", "right") }}
         >
-          <h4 style={{ fontSize: fs("10.5pt"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
-            {E({ field: `experience.${idx}.title`, value: job.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fs("10.5pt") } })}
+          <h4 style={{ fontSize: fsS("10.5pt", "experience", "right"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
+            {E({ field: `experience.${idx}.title`, value: job.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fsS("10.5pt", "experience", "right") } })}
             <span style={{ fontWeight: 400, color: "#555" }}> — </span>
-            {E({ field: `experience.${idx}.company`, value: job.company, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fs("10.5pt") } })}
+            {E({ field: `experience.${idx}.company`, value: job.company, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fsS("10.5pt", "experience", "right") } })}
           </h4>
-          {(job.period || isEditing) && E({ field: `experience.${idx}.period`, value: job.period, tag: "p", placeholder: "Ajanjakso", style: { fontSize: fs("8.5pt"), color: "#666", fontStyle: "italic", marginBottom: fs("2mm"), fontWeight: 300, lineHeight: lh(1.4) } })}
-          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fs("9pt"), lineHeight: lh(1.6), fontWeight: 300 }}>
+          {(job.period || isEditing) && E({ field: `experience.${idx}.period`, value: job.period, tag: "p", placeholder: "Ajanjakso", style: { fontSize: fsS("8.5pt", "experience", "right"), color: "#666", fontStyle: "italic", marginBottom: fs("2mm"), fontWeight: 300, lineHeight: lh(1.4) } })}
+          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fsS("9pt", "experience", "right"), lineHeight: lh(1.6), fontWeight: 300 }}>
             {job.bullets.map((b: string, bi: number) => (
               <DragItem key={`exp-${idx}-b-${bi}`} index={bi} total={job.bullets.length} isEditing={isEditing}
                 onMoveUp={() => onUpdate?.(`experience.${idx}.bullets`, move(job.bullets, bi, bi - 1))}
@@ -457,7 +480,7 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
                 style={{ marginBottom: fs("1.5mm") }}
               >
                 <li style={{ color: "#333", listStyle: "disc" }}>
-                  {E({ field: `experience.${idx}.bullets.${bi}`, value: b, multiline: true, style: { color: "#333", fontSize: fs("9pt"), lineHeight: lh(1.6) } })}
+                  {E({ field: `experience.${idx}.bullets.${bi}`, value: b, multiline: true, style: { color: "#333", fontSize: fsS("9pt", "experience", "right"), lineHeight: lh(1.6) } })}
                 </li>
               </DragItem>
             ))}
@@ -472,22 +495,25 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
       ))}
       {isEditing && <AddBtn label="+ Lisää työkokemus" onClick={() => onUpdate?.(`experience.${workExperience.length}`, { title: "Uusi tehtävä", company: "Yritys", period: "2024 – nyt", bullets: ["Kuvaus"] })} />}
     </section>
-  );
+    );
+  };
 
-  const renderEducation = () => (
-    <section style={{ marginBottom: fs("7mm") }}>
-      <h2 style={sH2}>Education</h2>
+  const renderEducation = () => {
+    if (getSec("education").hidden) return null;
+    return (
+    <section style={{ marginBottom: sectionGap("education") }}>
+      <h2 style={sH2For("education")}>Education</h2>
       {education.map((edu: any, idx: number) => (
         <DragItem key={`edu-${idx}`} index={idx} total={education.length} isEditing={isEditing}
           onMoveUp={() => onUpdate?.("education", move(education, idx, idx - 1))}
           onMoveDown={() => onUpdate?.("education", move(education, idx, idx + 1))}
           onDelete={() => onDelete?.("education", idx)}
-          style={{ marginBottom: fs("5mm") }}
+          style={{ marginBottom: fsS("5mm", "education", "right") }}
         >
-          {E({ field: `education.${idx}.degree`, value: edu.degree, tag: "h4", style: { fontSize: fs("10pt"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) } })}
-          {(edu.institution || isEditing) && E({ field: `education.${idx}.institution`, value: edu.institution, tag: "p", placeholder: "Oppilaitos", style: { fontSize: fs("9pt"), margin: "1mm 0", fontWeight: 400, color: "#444", lineHeight: lh(1.4) } })}
-          {(edu.year || isEditing) && E({ field: `education.${idx}.year`, value: edu.year, tag: "p", placeholder: "2020 – 2024", style: { fontSize: fs("8.5pt"), color: "#666", fontStyle: "italic", margin: "1mm 0", fontWeight: 300, lineHeight: lh(1.3) } })}
-          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fs("8.5pt"), lineHeight: lh(1.6), fontWeight: 300 }}>
+          {E({ field: `education.${idx}.degree`, value: edu.degree, tag: "h4", style: { fontSize: fsS("10pt", "education", "right"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) } })}
+          {(edu.institution || isEditing) && E({ field: `education.${idx}.institution`, value: edu.institution, tag: "p", placeholder: "Oppilaitos", style: { fontSize: fsS("9pt", "education", "right"), margin: "1mm 0", fontWeight: 400, color: "#444", lineHeight: lh(1.4) } })}
+          {(edu.year || isEditing) && E({ field: `education.${idx}.year`, value: edu.year, tag: "p", placeholder: "2020 – 2024", style: { fontSize: fsS("8.5pt", "education", "right"), color: "#666", fontStyle: "italic", margin: "1mm 0", fontWeight: 300, lineHeight: lh(1.3) } })}
+          <ul style={{ marginTop: fs("2mm"), paddingLeft: "5mm", fontSize: fsS("8.5pt", "education", "right"), lineHeight: lh(1.6), fontWeight: 300 }}>
             {edu.details.map((d: string, di: number) => (
               <DragItem key={`edu-${idx}-d-${di}`} index={di} total={edu.details.length} isEditing={isEditing}
                 onMoveUp={() => onUpdate?.(`education.${idx}.details`, move(edu.details, di, di - 1))}
@@ -496,7 +522,7 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
                 style={{ marginBottom: fs("1mm") }}
               >
                 <li style={{ color: "#333", listStyle: "disc" }}>
-                  {E({ field: `education.${idx}.details.${di}`, value: d, multiline: true, style: { color: "#333", fontSize: fs("8.5pt"), lineHeight: lh(1.5) } })}
+                  {E({ field: `education.${idx}.details.${di}`, value: d, multiline: true, style: { color: "#333", fontSize: fsS("8.5pt", "education", "right"), lineHeight: lh(1.5) } })}
                 </li>
               </DragItem>
             ))}
@@ -511,36 +537,40 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
       ))}
       {isEditing && <AddBtn label="+ Lisää koulutus" onClick={() => onUpdate?.(`education.${education.length}`, { degree: "Tutkinto", institution: "Oppilaitos", year: "2020 – 2024", details: [] })} />}
     </section>
-  );
+    );
+  };
 
   const renderLanguages = () => {
+    if (getSec("languages").hidden) return null;
     const html = getAI("languages_section");
     if (!html) return null;
     return (
-      <section style={{ marginBottom: fs("7mm") }}>
-        <h2 style={sH2}>Languages</h2>
-        <div style={{ fontSize: fs("9.5pt"), lineHeight: lh(1.6), color: "#333", fontWeight: 300 }} dangerouslySetInnerHTML={{ __html: html }} />
+      <section style={{ marginBottom: sectionGap("languages") }}>
+        <h2 style={sH2For("languages")}>Languages</h2>
+        <div style={{ fontSize: fsS("9.5pt", "languages", "right"), lineHeight: lh(1.6), color: "#333", fontWeight: 300 }} dangerouslySetInnerHTML={{ __html: html }} />
       </section>
     );
   };
+
   const renderProjects = () => {
+    if (getSec("projects").hidden) return null;
     if (projects.length === 0 && !isEditing) return null;
     if (projects.length === 0) return null;
     return (
-      <section style={{ marginBottom: fs("7mm") }}>
-        <h2 style={sH2}>Projects</h2>
+      <section style={{ marginBottom: sectionGap("projects") }}>
+        <h2 style={sH2For("projects")}>Projects</h2>
         {projects.map((proj: any, idx: number) => (
           <DragItem key={`proj-${idx}`} index={idx} total={projects.length} isEditing={isEditing}
             onMoveUp={() => onUpdate?.("projects", move(projects, idx, idx - 1))}
             onMoveDown={() => onUpdate?.("projects", move(projects, idx, idx + 1))}
             onDelete={() => onDelete?.("projects", idx)}
-            style={{ marginBottom: fs("5mm") }}
+            style={{ marginBottom: fsS("5mm", "projects", "right") }}
           >
-            <h4 style={{ fontSize: fs("10.5pt"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
-              {E({ field: `projects.${idx}.title`, value: proj.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fs("10.5pt") } })}
+            <h4 style={{ fontSize: fsS("10.5pt", "projects", "right"), fontWeight: 600, marginBottom: "1mm", color: "#1a1a1a", lineHeight: lh(1.3) }}>
+              {E({ field: `projects.${idx}.title`, value: proj.title, style: { fontWeight: 600, color: "#1a1a1a", fontSize: fsS("10.5pt", "projects", "right") } })}
             </h4>
-            {(proj.description || isEditing) && E({ field: `projects.${idx}.description`, value: proj.description, tag: "p", multiline: true, placeholder: "Kuvaus", style: { fontSize: fs("9pt"), color: "#333", lineHeight: lh(1.6), fontWeight: 300, marginBottom: fs("1mm") } })}
-            {(proj.link || isEditing) && E({ field: `projects.${idx}.link`, value: proj.link, tag: "p", placeholder: "https://...", style: { fontSize: fs("8.5pt"), color: "#2563eb", lineHeight: lh(1.4) } })}
+            {(proj.description || isEditing) && E({ field: `projects.${idx}.description`, value: proj.description, tag: "p", multiline: true, placeholder: "Kuvaus", style: { fontSize: fsS("9pt", "projects", "right"), color: "#333", lineHeight: lh(1.6), fontWeight: 300, marginBottom: fs("1mm") } })}
+            {(proj.link || isEditing) && E({ field: `projects.${idx}.link`, value: proj.link, tag: "p", placeholder: "https://...", style: { fontSize: fsS("8.5pt", "projects", "right"), color: "#2563eb", lineHeight: lh(1.4) } })}
           </DragItem>
         ))}
         {isEditing && <AddBtn label="+ Lisää projekti" onClick={() => onUpdate?.(`projects.${projects.length}`, { title: "Projektin nimi", description: "Lyhyt kuvaus", link: "" })} />}
@@ -548,7 +578,7 @@ if (data?.education && Array.isArray(data.education) && data.education.length > 
     );
   };
 
-const sectionMap: Record<string, () => React.ReactNode | null> = {
+  const sectionMap: Record<string, () => React.ReactNode | null> = {
     experience: renderExperience,
     projects: renderProjects,
     education: renderEducation,
@@ -558,6 +588,7 @@ const sectionMap: Record<string, () => React.ReactNode | null> = {
   // ══════════════════════════════════════════════════════════════════
   //  RENDER
   // ══════════════════════════════════════════════════════════════════
+  const skillsHidden = getSec("skills").hidden;
   return (
     <div style={{ width: "210mm", minHeight: "297mm", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", position: "relative", background: "white" }}>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
@@ -584,25 +615,25 @@ const sectionMap: Record<string, () => React.ReactNode | null> = {
         )}
 
         {/* Skills */}
-        {(skillCategories.length > 0 || isEditing) && (
+        {!skillsHidden && (skillCategories.length > 0 || isEditing) && (
           <div style={{ padding: "7mm 8mm", position: "relative", top: `${skillsTop}mm` }}>
-            <h2 style={{ fontSize: fs("13pt"), fontWeight: 600, textTransform: "uppercase", letterSpacing: ".18em", borderBottom: "1.5px solid rgba(255,255,255,.25)", paddingBottom: "3.5mm", marginBottom: "5mm" }}>
+            <h2 style={{ fontSize: fsS("13pt", "skills", "left"), fontWeight: 600, textTransform: "uppercase", letterSpacing: ".18em", borderBottom: "1.5px solid rgba(255,255,255,.25)", paddingBottom: "3.5mm", marginBottom: "5mm" }}>
               Skills
             </h2>
             {skillCategories.map((cat: any, ci: number) => (
-              <div key={ci} style={{ marginBottom: fs("4.5mm") }}>
-                {skillCategories.length > 1 && E({ field: `skills.${ci}.category`, value: cat.category, tag: "h3", style: { fontSize: fs("9.5pt"), fontWeight: 600, marginBottom: "2mm", color: "#f0c674", letterSpacing: ".03em" } })}
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: fs("8.5pt"), lineHeight: lh(1.65), fontWeight: 300 }}>
+              <div key={ci} style={{ marginBottom: fsS("4.5mm", "skills", "left") }}>
+                {skillCategories.length > 1 && E({ field: `skills.${ci}.category`, value: cat.category, tag: "h3", style: { fontSize: fsS("9.5pt", "skills", "left"), fontWeight: 600, marginBottom: "2mm", color: "#f0c674", letterSpacing: ".03em" } })}
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: fsS("8.5pt", "skills", "left"), lineHeight: lh(1.65), fontWeight: 300 }}>
                   {cat.items.map((skill: string, si: number) => (
                     <DragItem key={`sk-${ci}-${si}`} index={si} total={cat.items.length} isEditing={isEditing}
                       onMoveUp={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si - 1) } : c); onUpdate?.("skills", newCats); }}
                       onMoveDown={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: move(c.items, si, si + 1) } : c); onUpdate?.("skills", newCats); }}
                       onDelete={() => { const newCats = skillCategories.map((c: any, i: number) => i === ci ? { ...c, items: c.items.filter((_: any, j: number) => j !== si) } : c); onUpdate?.("skills", newCats); }}
-                      style={{ marginBottom: fs("2mm"), paddingLeft: "4mm", position: "relative" }}
+                      style={{ marginBottom: fsS("2mm", "skills", "left"), paddingLeft: "4mm", position: "relative" }}
                     >
                       <li style={{ listStyle: "none", color: "rgba(255,255,255,.92)" }}>
                         <span style={{ position: "absolute", left: 0, color: "#f0c674", fontSize: "10pt" }}>•</span>
-                        {E({ field: `skills.${ci}.items.${si}`, value: skill, style: { color: "rgba(255,255,255,.92)", fontSize: fs("8.5pt") } })}
+                        {E({ field: `skills.${ci}.items.${si}`, value: skill, style: { color: "rgba(255,255,255,.92)", fontSize: fsS("8.5pt", "skills", "left") } })}
                       </li>
                     </DragItem>
                   ))}
