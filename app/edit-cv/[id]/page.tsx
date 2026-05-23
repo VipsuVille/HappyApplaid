@@ -135,6 +135,20 @@ document.removeEventListener('visibilitychange', onVisibility);
     return () => clearTimeout(t);
   }, [cvData, isEditing]);
 
+  // ── Esikatselumodaali: takaisin-painike sulkee (mobiili) ───────────
+  useEffect(() => {
+    if (!showPreviewModal) return;
+    window.history.pushState({ previewModal: true }, '');
+    const onPop = () => setShowPreviewModal(false);
+    window.addEventListener('popstate', onPop);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      if (window.history.state?.previewModal) {
+        window.history.back();
+      }
+    };
+  }, [showPreviewModal]);
+
   // ── A4-mahtuvuusmittari: mittaa CV-sisällön todellinen korkeus ──────
   // scrollHeight antaa sisällön korkeuden pikseleinä ENNEN scale-transformia.
   useEffect(() => {
@@ -1139,12 +1153,23 @@ if (!isNaN(Number(last))) {
 
       {/* Esikatselu-bongahdus: koko CV puhtaana (ei edit-merkkejä).
           Klikkaus taustaan sulkee. Itse CV:tä klikatessa ei sulje. */}
-      {showPreviewModal && (
+      {showPreviewModal && (() => {
+        const previewScale = isMobile
+          ? Math.min((typeof window !== 'undefined' ? window.innerWidth - 32 : 360) / 794, 0.45)
+          : Math.min(0.85, (typeof window !== 'undefined' ? window.innerHeight - 100 : 900) / 1122.5);
+        // A4 = 794px × 1122.5px (96dpi). Skaalatut mitat wräpperille:
+        const wrapW = 794 * previewScale;
+        const wrapH = 1122.5 * previewScale;
+        return (
         <div
           className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-auto"
           onClick={() => setShowPreviewModal(false)}
         >
-          <div className="relative my-auto" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="relative my-auto"
+            style={{ width: `${wrapW}px`, height: `${wrapH}px` }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Sulkunappi */}
             <button
               onClick={() => setShowPreviewModal(false)}
@@ -1153,12 +1178,12 @@ if (!isNaN(Number(last))) {
             >
               <X className="w-5 h-5" />
             </button>
-            {/* A4 puhtaana, skaalattuna ruutuun */}
+            {/* A4 puhtaana, skaalattuna — wräpperi rajaa todellisen koon */}
             <div
               style={{
                 width: '210mm',
-                transform: `scale(${isMobile ? 0.42 : Math.min(0.85, (typeof window !== 'undefined' ? window.innerHeight - 80 : 900) / 1122.5)})`,
-                transformOrigin: 'top center',
+                transform: `scale(${previewScale})`,
+                transformOrigin: 'top left',
               }}
             >
               <div className="bg-white shadow-2xl" style={{ width: '210mm', minHeight: '297mm' }}>
@@ -1170,7 +1195,8 @@ if (!isNaN(Number(last))) {
             Klikkaa mistä tahansa sulkeaksesi · tämä on tulostusasu
           </p>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
