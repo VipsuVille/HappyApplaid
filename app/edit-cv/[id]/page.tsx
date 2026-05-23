@@ -11,7 +11,7 @@ import {
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
-import TechnicalCVTemplate, { type SectionScales, type ColumnScales } from '@/components/cv/CVTemplateTechnical';
+import TechnicalCVTemplate, { type SectionScales, type ColumnScales, type LayoutConfig } from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
 import CVContainer from '@/components/cv/CVContainer';
 import { toast } from 'sonner';
@@ -55,6 +55,7 @@ const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
   // ── Per-osio / per-palsta tilankäyttö ──────────────────────────────
   const [sectionScales, setSectionScales] = useState<SectionScales>({});
   const [columnScales, setColumnScales] = useState<ColumnScales>({ left: 1, right: 1 });
+  const [layout, setLayout] = useState<LayoutConfig>({ leftColumnMm: 70, bannerHeightMm: 85 });
 
   // Osiot joita voi säätää (tunniste + näyttönimi)
   const SECTION_DEFS: { id: string; label: string; column: 'left' | 'right' }[] = [
@@ -88,6 +89,7 @@ const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
       setLineScale(parsed.cv_data?.lineScale ?? 1.0);
       setSectionScales(parsed.cv_data?.sectionScales ?? {});
       setColumnScales(parsed.cv_data?.columnScales ?? { left: 1, right: 1 });
+      setLayout(parsed.cv_data?.layout ?? { leftColumnMm: 70, bannerHeightMm: 85 });
       toast.success('Kumottu!');
     } catch { toast.error('Kumoaminen epäonnistui'); }
   }, []);
@@ -140,7 +142,7 @@ document.removeEventListener('visibilitychange', onVisibility);
     // Pieni viive jotta DOM ehtii renderöityä uusilla skaaloilla
     const t = setTimeout(measure, 150);
     return () => clearTimeout(t);
-  }, [cvData, fontScale, lineScale, sectionScales, columnScales, isEditing]);
+  }, [cvData, fontScale, lineScale, sectionScales, columnScales, layout, isEditing]);
 
   // ── Load CV ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -194,6 +196,7 @@ document.removeEventListener('visibilitychange', onVisibility);
         setLineScale(cvDataParsed.lineScale ?? 1.0);
         setSectionScales(cvDataParsed.sectionScales ?? {});
         setColumnScales(cvDataParsed.columnScales ?? { left: 1, right: 1 });
+        setLayout(cvDataParsed.layout ?? { leftColumnMm: 70, bannerHeightMm: 85 });
 
         const processed: BaseCV = {
           ...data, cv_data: cvDataParsed, ai_data: aiDataParsed,
@@ -387,11 +390,21 @@ if (!isNaN(Number(last))) {
     });
   }, [handleUpdate]);
 
+  const updateLayout = useCallback((key: 'leftColumnMm' | 'bannerHeightMm', val: number) => {
+    setLayout(prev => {
+      const next = { ...prev, [key]: val };
+      handleUpdate('layout', next);
+      return next;
+    });
+  }, [handleUpdate]);
+
   const resetSectionScales = useCallback(() => {
     setSectionScales({});
     setColumnScales({ left: 1, right: 1 });
+    setLayout({ leftColumnMm: 70, bannerHeightMm: 85 });
     handleUpdate('sectionScales', {});
     handleUpdate('columnScales', { left: 1, right: 1 });
+    handleUpdate('layout', { leftColumnMm: 70, bannerHeightMm: 85 });
   }, [handleUpdate]);
 
   // ── Save ───────────────────────────────────────────────────────────
@@ -408,6 +421,7 @@ if (!isNaN(Number(last))) {
         lineScale,
         sectionScales,
         columnScales,
+        layout,
       };
 
       await updateCV(id, {
@@ -436,6 +450,7 @@ if (!isNaN(Number(last))) {
           lineScale,
           sectionScales,
           columnScales,
+          layout,
         };
         await updateCV(id, {
           content: { cv_data: final, ai_data: cvData.ai_data || {} },
@@ -479,7 +494,8 @@ if (!isNaN(Number(last))) {
           onUpdate={handleUpdate} onDelete={handleDelete}
           showEditControls={false} editMode={null}
           fontScale={fontScale} lineScale={lineScale}
-          sectionScales={sectionScales} columnScales={columnScales} />
+          sectionScales={sectionScales} columnScales={columnScales}
+          layout={layout} />
       </CVContainer>
     );
   };
@@ -721,9 +737,44 @@ if (!isNaN(Number(last))) {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Säädä kuinka paljon tilaa kukin osio vie</p>
 
-                {/* Palstakohtainen säätö */}
+                {/* Palstojen mitat: leveys + bannerin korkeus */}
                 <div className="mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
-                  <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Palstat</p>
+                  <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Asettelu</p>
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Vasemman palstan leveys</label>
+                      <span className="text-xs font-mono text-teal-600 dark:text-teal-400">{layout.leftColumnMm}mm</span>
+                    </div>
+                    <input type="range" min="50" max="95" step="1"
+                      value={layout.leftColumnMm}
+                      onChange={e => updateLayout('leftColumnMm', Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: '#14b8a6' }}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>Kapea</span><span>Leveä (kuva + taidot)</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Yläbannerin korkeus</label>
+                      <span className="text-xs font-mono text-teal-600 dark:text-teal-400">{layout.bannerHeightMm}mm</span>
+                    </div>
+                    <input type="range" min="50" max="120" step="1"
+                      value={layout.bannerHeightMm}
+                      onChange={e => updateLayout('bannerHeightMm', Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: '#14b8a6' }}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>Matala</span><span>Korkea (kuva + nimi)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Palstakohtainen fonttiskaala */}
+                <div className="mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
+                  <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Palstojen fonttikoko</p>
                   {([
                     { col: 'left' as const, label: 'Vasen (taidot)' },
                     { col: 'right' as const, label: 'Oikea (sisältö)' },

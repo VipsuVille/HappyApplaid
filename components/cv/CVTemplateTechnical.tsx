@@ -14,6 +14,11 @@ export type SectionScales = Record<string, SectionScale>;
 export interface ColumnScales { left: number; right: number; }
 const DEFAULT_SECTION_SCALE: SectionScale = { fontScale: 1, gap: 1, hidden: false };
 
+// Palstojen mitat (mm). Oikea palsta lasketaan: 210 - leftColumnMm.
+export interface LayoutConfig { leftColumnMm: number; bannerHeightMm: number; }
+const DEFAULT_LAYOUT: LayoutConfig = { leftColumnMm: 70, bannerHeightMm: 85 };
+const PAGE_WIDTH_MM = 210;
+
 interface TechnicalCVTemplateProps {
   data: UserFormData;
   aiData: AIData;
@@ -29,6 +34,7 @@ interface TechnicalCVTemplateProps {
   lineScale?: number;
   sectionScales?: SectionScales;
   columnScales?: ColumnScales;
+  layout?: LayoutConfig;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -201,6 +207,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
   onContentChange, onUpdate, onDelete, profileImage, backgroundImage,
   fontScale: fontScaleProp, lineScale: lineScaleProp,
   sectionScales: sectionScalesProp, columnScales: columnScalesProp,
+  layout: layoutProp,
 }) => {
   const [sectionOrder, setSectionOrder] = useState(["experience", "projects", "education", "languages"]);
   const [skillsTop, setSkillsTop] = useState(0);
@@ -213,6 +220,16 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
     sectionScalesProp ?? (data as any)?.sectionScales ?? {};
   const columnScales: ColumnScales =
     columnScalesProp ?? (data as any)?.columnScales ?? { left: 1, right: 1 };
+
+  // Palstamitat: vasen palsta + banneri säädettävissä, oikea lasketaan
+  const layout: LayoutConfig = {
+    ...DEFAULT_LAYOUT,
+    ...((data as any)?.layout || {}),
+    ...(layoutProp || {}),
+  };
+  const leftMm = layout.leftColumnMm;
+  const rightMm = PAGE_WIDTH_MM - leftMm;
+  const bannerMm = layout.bannerHeightMm;
 
   const getSec = (id: string): SectionScale => ({
     ...DEFAULT_SECTION_SCALE,
@@ -595,9 +612,9 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       <style>{`.editable-hover:hover { outline: 2px dashed rgba(249,115,22,.45) !important; background: rgba(249,115,22,.04) !important; border-radius: 3px !important; }`}</style>
 
       {/* LEFT COLUMN */}
-      <div style={{ position: "absolute", left: 0, top: 0, width: "70mm", minHeight: "297mm", background: "linear-gradient(180deg,#1a1a1a 0%,#2d2d2d 100%)", color: "white" }}>
+      <div style={{ position: "absolute", left: 0, top: 0, width: `${leftMm}mm`, minHeight: "297mm", background: "linear-gradient(180deg,#1a1a1a 0%,#2d2d2d 100%)", color: "white" }}>
         {/* Photo */}
-        <div style={{ width: "100%", height: "85mm", overflow: "hidden" }}>
+        <div style={{ width: "100%", height: `${bannerMm}mm`, overflow: "hidden" }}>
           {profileImg
             ? <img src={profileImg} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "contrast(1.05) brightness(.95)" }} />
             : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48pt", fontWeight: 300, background: "linear-gradient(135deg,#4a4a4a,#2a2a2a)", letterSpacing: ".05em" }}>
@@ -655,9 +672,9 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = ({
       </div>
 
       {/* RIGHT COLUMN */}
-      <div style={{ marginLeft: "70mm", width: "140mm", minHeight: "297mm" }}>
+      <div style={{ marginLeft: `${leftMm}mm`, width: `${rightMm}mm`, minHeight: "297mm" }}>
         {/* Banner */}
-        <div style={{ height: "85mm", position: "relative", backgroundImage: bgImage ? `url(${bgImage})` : "linear-gradient(135deg,#2c3e50,#34495e)", backgroundSize: "cover", backgroundPosition: "center", color: "white" }}>
+        <div style={{ height: `${bannerMm}mm`, position: "relative", backgroundImage: bgImage ? `url(${bgImage})` : "linear-gradient(135deg,#2c3e50,#34495e)", backgroundSize: "cover", backgroundPosition: "center", color: "white" }}>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(0,0,0,.5),rgba(0,0,0,.35))" }} />
           <div style={{ position: "relative", zIndex: 10, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "10mm" }}>
             {E({ field: "name", value: name, tag: "h1", style: { fontSize: "30pt", fontWeight: 700, marginBottom: "2mm", fontFamily: "'Playfair Display',serif", letterSpacing: ".02em", textShadow: "2px 2px 4px rgba(0,0,0,.3)", color: "white" } })}
