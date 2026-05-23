@@ -37,6 +37,9 @@ const [profileProjects, setProfileProjects] = useState<StructuredProject[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(0);
   const previewContainerRef = useRef<HTMLDivElement>(null);
+  // A4-mittaus: viittaus CV-sisältöön + mitattu korkeus
+  const cvInnerRef = useRef<HTMLDivElement>(null);
+  const [contentHeightPx, setContentHeightPx] = useState(0);
 const [loadKey, setLoadKey] = useState(0);
 const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -125,6 +128,19 @@ document.removeEventListener('visibilitychange', onVisibility);
     }, 120);
     return () => clearTimeout(t);
   }, [cvData, isEditing]);
+
+  // ── A4-mahtuvuusmittari: mittaa CV-sisällön todellinen korkeus ──────
+  // scrollHeight antaa sisällön korkeuden pikseleinä ENNEN scale-transformia.
+  useEffect(() => {
+    const measure = () => {
+      if (cvInnerRef.current) {
+        setContentHeightPx(cvInnerRef.current.scrollHeight);
+      }
+    };
+    // Pieni viive jotta DOM ehtii renderöityä uusilla skaaloilla
+    const t = setTimeout(measure, 150);
+    return () => clearTimeout(t);
+  }, [cvData, fontScale, lineScale, sectionScales, columnScales, isEditing]);
 
   // ── Load CV ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -492,6 +508,16 @@ if (!isNaN(Number(last))) {
   const A4_PX = 794;
   const scale = isMobile ? 0.42 : previewWidth > 0 ? Math.min(1, (previewWidth - 32) / A4_PX) : 0.78;
 
+  // ── A4-mahtuvuus ────────────────────────────────────────────────────
+  // Yksi A4 = 297mm. Selaimessa 1mm ≈ 3.7795px → 297mm ≈ 1122.5px.
+  const A4_HEIGHT_PX = 1122.5;
+  // Pieni toleranssi (n. 1 %) jotta rajatapaus ei vilku turhaan
+  const TOLERANCE = A4_HEIGHT_PX * 0.01;
+  const pages = contentHeightPx > 0 ? contentHeightPx / A4_HEIGHT_PX : 1;
+  const fitsOnePage = contentHeightPx > 0 && contentHeightPx <= (A4_HEIGHT_PX + TOLERANCE);
+  // Kuinka monta prosenttia yli/ali yhden sivun
+  const fillPercent = contentHeightPx > 0 ? Math.round((contentHeightPx / A4_HEIGHT_PX) * 100) : 0;
+
   if (isLoading || !cvData) return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex flex-col items-center justify-center">
       <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
@@ -779,6 +805,50 @@ if (!isNaN(Number(last))) {
                 {isEditing && <span className="text-xs text-orange-500 font-semibold">▲▼ järjestele · ✕ poista · klikkaa muokkaa</span>}
               </div>
 
+              {/* A4-mahtuvuusmittari */}
+              {contentHeightPx > 0 && (
+                <div className={`mx-2 mb-3 px-3 py-2 rounded-xl border flex items-center gap-3 ${
+                  fitsOnePage
+                    ? 'bg-green-500/10 border-green-500/30'
+                    : pages <= 1.15
+                      ? 'bg-amber-500/10 border-amber-500/30'
+                      : 'bg-red-500/10 border-red-500/30'
+                }`}>
+                  <div className="shrink-0">
+                    {fitsOnePage ? (
+                      <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center text-green-600 dark:text-green-400 text-sm font-bold">✓</div>
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 text-sm font-bold">!</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold ${
+                      fitsOnePage ? 'text-green-700 dark:text-green-400' : pages <= 1.15 ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400'
+                    }`}>
+                      {fitsOnePage
+                        ? 'Mahtuu yhdelle A4-sivulle'
+                        : pages <= 1.15
+                          ? 'Hieman yli yhden sivun'
+                          : `Sisältö vie ~${Math.ceil(pages)} sivua`}
+                    </p>
+                    {!fitsOnePage && (
+                      <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5">
+                        Pienennä fonttia, rivivälejä tai osioiden tilaa saadaksesi yhdelle sivulle.
+                      </p>
+                    )}
+                    {/* Täyttöpalkki: kuinka täynnä A4 on */}
+                    <div className="mt-1.5 w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${
+                        fitsOnePage ? 'bg-green-500' : pages <= 1.15 ? 'bg-amber-500' : 'bg-red-500'
+                      }`} style={{ width: `${Math.min(100, fillPercent)}%` }} />
+                    </div>
+                  </div>
+                  <span className={`shrink-0 text-xs font-mono font-bold ${
+                    fitsOnePage ? 'text-green-600 dark:text-green-400' : pages <= 1.15 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+                  }`}>{fillPercent}%</span>
+                </div>
+              )}
+
               <div ref={previewContainerRef} className="relative bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800" style={{ overflowX: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 8rem)' }}>
                 <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', marginBottom: `calc(${scale * 100}% - 100%)` }}>
                   {[1, 2].map(p => (
@@ -790,7 +860,7 @@ if (!isNaN(Number(last))) {
                       </div>
                     </div>
                   ))}
-                  <div className={`bg-white shadow-2xl ${isEditing ? 'ring-2 ring-orange-400/30' : ''}`} style={{ width: '210mm', minHeight: '297mm' }}>
+                  <div ref={cvInnerRef} className={`bg-white shadow-2xl ${isEditing ? 'ring-2 ring-orange-400/30' : ''}`} style={{ width: '210mm', minHeight: '297mm' }}>
                     {renderTemplate()}
                   </div>
                 </div>
