@@ -44,6 +44,10 @@ const [loadKey, setLoadKey] = useState(0);
 const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
+  // Vaihe 3: esikatselu-bongahdus + mobiilivälilehti
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
+  const [showMiniPreview, setShowMiniPreview] = useState(true);
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[]; backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
@@ -482,15 +486,16 @@ if (!isNaN(Number(last))) {
   };
 
   // ── Template render ────────────────────────────────────────────────
-  const renderTemplate = () => {
+  const renderTemplate = (editingOverride?: boolean) => {
     if (!cvData) return null;
     const cvd = cvData.cv_data || cvData.content?.cv_data || {};
     const aid = cvData.ai_data || cvData.content?.ai_data || {};
     const type = cvd?.cvType || aid?.cv_type || cvData.metadata?.cv_type || 'simple';
     const Comp: any = type === 'technical' ? TechnicalCVTemplate : type === 'creative' ? CreativeCVTemplate : SimpleCVTemplate;
+    const editing = editingOverride ?? isEditing;
     return (
       <CVContainer>
-        <Comp data={cvd} aiData={aid} isEditing={isEditing}
+        <Comp data={cvd} aiData={aid} isEditing={editing}
           onUpdate={handleUpdate} onDelete={handleDelete}
           showEditControls={false} editMode={null}
           fontScale={fontScale} lineScale={lineScale}
@@ -581,6 +586,9 @@ if (!isNaN(Number(last))) {
                 </button>
               </>
             }
+            <button onClick={() => setShowPreviewModal(true)} title="Esikatsele tulostusasu" className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center">
+              <Eye className="w-4 h-4 text-blue-500" />
+            </button>
             <button onClick={handleDownloadPDF} disabled={isDownloading} className="p-2 h-9 sm:h-11 w-9 sm:w-11 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center justify-center">
               {isDownloading ? <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> : <Download className="w-4 h-4" />}
             </button>
@@ -607,9 +615,35 @@ if (!isNaN(Number(last))) {
           </div>
         )}
 
+        {/* Mobiilivälilehdet: Muokkaa / Esikatselu (vain mobiili, vain muokkaustila) */}
+        {isEditing && (
+          <div className="lg:hidden mb-4 flex gap-2 p-1 bg-gray-100 dark:bg-gray-900 rounded-2xl">
+            <button
+              onClick={() => setMobileTab('edit')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                mobileTab === 'edit'
+                  ? 'bg-white dark:bg-gray-800 text-orange-600 dark:text-orange-400 shadow'
+                  : 'text-gray-500'
+              }`}
+            >
+              <Edit3 className="w-4 h-4" /> Muokkaa
+            </button>
+            <button
+              onClick={() => setMobileTab('preview')}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                mobileTab === 'preview'
+                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow'
+                  : 'text-gray-500'
+              }`}
+            >
+              <Eye className="w-4 h-4" /> Esikatselu
+            </button>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
           {/* Sidebar — desktopissa vasemmalla (order-2), mobiilissa previewn jälkeen (order-2) */}
-          <div className="lg:col-span-3 space-y-4 order-2 lg:order-1">
+          <div className={`lg:col-span-3 space-y-4 order-2 lg:order-1 ${isEditing && mobileTab === 'preview' ? 'hidden lg:block' : ''}`}>
             {/* Profile image */}
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -846,7 +880,7 @@ if (!isNaN(Number(last))) {
 
           {/* OIKEA SARAKE: preview (sticky) + ehdotukset.
               Mobiilissa ensin (order-1), desktopissa oikealla (order-2). */}
-          <div className="lg:col-span-9 order-1 lg:order-2 space-y-4">
+          <div className={`lg:col-span-9 order-1 lg:order-2 space-y-4 ${isEditing && mobileTab === 'edit' ? 'hidden lg:block' : ''}`}>
 
           {/* Preview — sticky, pysyy näkyvissä kun säätimet vierivät */}
           <div className="lg:sticky lg:top-24 self-start">
@@ -1059,6 +1093,82 @@ if (!isNaN(Number(last))) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+      {/* Mobiili-pikkukuva: kelluva pieni CV oikeassa alakulmassa muokatessa.
+          Näkyy vain mobiilissa, muokkaus-välilehdellä, ja jos käyttäjä ei ole sulkenut. */}
+      {isEditing && mobileTab === 'edit' && showMiniPreview && (
+        <div className="lg:hidden fixed bottom-4 right-4 z-[90]">
+          <div className="relative">
+            <button
+              onClick={() => setShowMiniPreview(false)}
+              className="absolute -top-2 -left-2 z-10 bg-gray-800 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg text-xs"
+              title="Piilota pikkukuva"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setShowPreviewModal(true)}
+              className="block rounded-xl overflow-hidden border-2 border-orange-400/60 shadow-2xl bg-white"
+              style={{ width: '90px', height: '127px' }}
+              title="Avaa esikatselu"
+            >
+              <div style={{ width: '210mm', transform: 'scale(0.114)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                <div className="bg-white" style={{ width: '210mm', minHeight: '297mm' }}>
+                  {renderTemplate(false)}
+                </div>
+              </div>
+            </button>
+            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+              Esikatselu
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Pieni "näytä pikkukuva" -nappi jos suljettu */}
+      {isEditing && mobileTab === 'edit' && !showMiniPreview && (
+        <button
+          onClick={() => setShowMiniPreview(true)}
+          className="lg:hidden fixed bottom-4 right-4 z-[90] bg-orange-500 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-2xl"
+          title="Näytä pikkukuva"
+        >
+          <Eye className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Esikatselu-bongahdus: koko CV puhtaana (ei edit-merkkejä).
+          Klikkaus taustaan sulkee. Itse CV:tä klikatessa ei sulje. */}
+      {showPreviewModal && (
+        <div
+          className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-auto"
+          onClick={() => setShowPreviewModal(false)}
+        >
+          <div className="relative my-auto" onClick={(e) => e.stopPropagation()}>
+            {/* Sulkunappi */}
+            <button
+              onClick={() => setShowPreviewModal(false)}
+              className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-10 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-full w-9 h-9 flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
+              title="Sulje"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {/* A4 puhtaana, skaalattuna ruutuun */}
+            <div
+              style={{
+                width: '210mm',
+                transform: `scale(${isMobile ? 0.42 : Math.min(0.85, (typeof window !== 'undefined' ? window.innerHeight - 80 : 900) / 1122.5)})`,
+                transformOrigin: 'top center',
+              }}
+            >
+              <div className="bg-white shadow-2xl" style={{ width: '210mm', minHeight: '297mm' }}>
+                {renderTemplate(false)}
+              </div>
+            </div>
+          </div>
+          <p className="fixed bottom-4 left-0 right-0 text-center text-white/70 text-xs pointer-events-none">
+            Klikkaa mistä tahansa sulkeaksesi · tämä on tulostusasu
+          </p>
         </div>
       )}
     </div>
