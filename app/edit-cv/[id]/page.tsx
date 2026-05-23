@@ -566,8 +566,8 @@ if (!isNaN(Number(last))) {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
-          {/* Sidebar */}
-          <div className="lg:col-span-3 space-y-4">
+          {/* Sidebar — desktopissa vasemmalla (order-2), mobiilissa previewn jälkeen (order-2) */}
+          <div className="lg:col-span-3 space-y-4 order-2 lg:order-1">
             {/* Profile image */}
             <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
               <div className="flex items-center gap-2 mb-4">
@@ -766,9 +766,41 @@ if (!isNaN(Number(last))) {
               </div>
             )}
           </div>
-{/* Ehdotukset profiilista — koko leveys sidebarin ja previewn välissä */}
+
+          {/* OIKEA SARAKE: preview (sticky) + ehdotukset.
+              Mobiilissa ensin (order-1), desktopissa oikealla (order-2). */}
+          <div className="lg:col-span-9 order-1 lg:order-2 space-y-4">
+
+          {/* Preview — sticky, pysyy näkyvissä kun säätimet vierivät */}
+          <div className="lg:sticky lg:top-24 self-start">
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-4">
+              <div className="flex items-center justify-between mb-3 px-2">
+                <span className="text-xs text-gray-400 font-mono">{Math.round(scale * 100)}% · A4</span>
+                {isEditing && <span className="text-xs text-orange-500 font-semibold">▲▼ järjestele · ✕ poista · klikkaa muokkaa</span>}
+              </div>
+
+              <div ref={previewContainerRef} className="relative bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800" style={{ overflowX: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 8rem)' }}>
+                <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', marginBottom: `calc(${scale * 100}% - 100%)` }}>
+                  {[1, 2].map(p => (
+                    <div key={p} style={{ position: 'absolute', top: `${p * 297}mm`, left: 0, right: 0, zIndex: 30, pointerEvents: 'none' }}>
+                      <div style={{ borderTop: `2px dashed ${p === 1 ? '#ef4444' : '#3b82f6'}`, position: 'relative' }}>
+                        <span style={{ position: 'absolute', top: '-11px', right: '8px', background: p === 1 ? '#ef4444' : '#3b82f6', color: 'white', fontSize: '10px', padding: '1px 8px', borderRadius: '4px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {p === 1 ? '↑ Sivu 1 · Sivu 2 ↓' : 'Sivu 3 ↓'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className={`bg-white shadow-2xl ${isEditing ? 'ring-2 ring-orange-400/30' : ''}`} style={{ width: '210mm', minHeight: '297mm' }}>
+                    {renderTemplate()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Ehdotukset profiilista (näkyy previewn alla) */}
           {isEditing && (missingJobs.length > 0 || missingProjects.length > 0) && (
-            <div className="lg:col-span-9 space-y-4">
+            <div className="space-y-4">
 
               {/* Työkokemukset */}
               {missingJobs.length > 0 && (
@@ -851,32 +883,7 @@ if (!isNaN(Number(last))) {
 
             </div>
           )}
-          {/* Preview */}
-          <div className="lg:col-span-9">
-            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-4">
-              <div className="flex items-center justify-between mb-3 px-2">
-                <span className="text-xs text-gray-400 font-mono">{Math.round(scale * 100)}% · A4</span>
-                {isEditing && <span className="text-xs text-orange-500 font-semibold">▲▼ järjestele · ✕ poista · klikkaa muokkaa</span>}
-              </div>
-
-              <div ref={previewContainerRef} className="relative bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800" style={{ overflowX: 'hidden', overflowY: 'auto' }}>
-                <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', marginBottom: `calc(${scale * 100}% - 100%)` }}>
-                  {[1, 2].map(p => (
-                    <div key={p} style={{ position: 'absolute', top: `${p * 297}mm`, left: 0, right: 0, zIndex: 30, pointerEvents: 'none' }}>
-                      <div style={{ borderTop: `2px dashed ${p === 1 ? '#ef4444' : '#3b82f6'}`, position: 'relative' }}>
-                        <span style={{ position: 'absolute', top: '-11px', right: '8px', background: p === 1 ? '#ef4444' : '#3b82f6', color: 'white', fontSize: '10px', padding: '1px 8px', borderRadius: '4px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                          {p === 1 ? '↑ Sivu 1 · Sivu 2 ↓' : 'Sivu 3 ↓'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  <div className={`bg-white shadow-2xl ${isEditing ? 'ring-2 ring-orange-400/30' : ''}`} style={{ width: '210mm', minHeight: '297mm' }}>
-                    {renderTemplate()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          </div>{/* /oikea sarake */}
         </div>
       </div>
 
