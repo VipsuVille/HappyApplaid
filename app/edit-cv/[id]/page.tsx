@@ -48,6 +48,8 @@ const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
   const [showMiniPreview, setShowMiniPreview] = useState(true);
+  // Ehdotusten pudotusvalikot (työ / projektit)
+  const [openSuggest, setOpenSuggest] = useState<null | 'jobs' | 'projects'>(null);
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[]; backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
@@ -967,86 +969,84 @@ if (!isNaN(Number(last))) {
             </div>
           </div>
 
-          {/* Ehdotukset profiilista (näkyy previewn alla) */}
+          {/* Ehdotukset profiilista — kompaktit plus-napit (näkyy previewn yläpuolella) */}
           {isEditing && (missingJobs.length > 0 || missingProjects.length > 0) && (
-            <div className="space-y-4">
+            <div className="flex flex-wrap items-start gap-2">
 
-              {/* Työkokemukset */}
+              {/* Työkokemus + */}
               {missingJobs.length > 0 && (
-                <div className="p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-blue-200 dark:border-blue-900/40 rounded-2xl">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded-xl shrink-0">
-                      <Briefcase className="w-4 h-4 text-blue-500" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-blue-600 dark:text-blue-400 mb-0.5">
-                        Profiilistasi löytyi työkokemuksia
-                      </h4>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Nämä eivät ole vielä tässä CV:ssä. Lisää haluamasi yhdellä klikkauksella.
-                      </p>
-                    </div>
-                  </div>
-
-                  {isCreative && (
-                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-700 dark:text-amber-400">
-                      Huom: tämä luova pohja ei vielä näytä erikseen lisättyä työkokemusta. Lisäys tallentuu, mutta ei näy esikatselussa.
+                <div className="relative">
+                  <button
+                    onClick={() => setOpenSuggest(openSuggest === 'jobs' ? null : 'jobs')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      openSuggest === 'jobs'
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20'
+                    }`}
+                  >
+                    <Briefcase className="w-3.5 h-3.5" />
+                    Työkokemus
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-500/20 text-[10px]">{missingJobs.length}</span>
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  {openSuggest === 'jobs' && (
+                    <div className="absolute left-0 top-full mt-1 z-30 w-72 max-w-[80vw] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-2 max-h-72 overflow-y-auto">
+                      <p className="text-[11px] text-gray-500 px-2 py-1">Profiilistasi löytyi, ei vielä CV:ssä:</p>
+                      {isCreative && (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-400 px-2 py-1">Huom: luova pohja ei näytä erikseen lisättyä työkokemusta esikatselussa.</p>
+                      )}
+                      {missingJobs.map((job, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => { handleAddJobFromProfile(job); }}
+                          className="w-full flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-blue-500/10 text-left transition-colors"
+                        >
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-gray-900 dark:text-white truncate">{job.title}{job.company ? ` — ${job.company}` : ''}</span>
+                            {job.period && <span className="block text-xs text-gray-500 truncate">{job.period}</span>}
+                          </span>
+                          <Plus className="w-4 h-4 text-blue-500 shrink-0" />
+                        </button>
+                      ))}
                     </div>
                   )}
-
-                  <div className="space-y-2">
-                    {missingJobs.map((job, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                            {job.title}{job.company ? ` — ${job.company}` : ''}
-                          </p>
-                          {job.period && <p className="text-xs text-gray-500 truncate">{job.period}</p>}
-                        </div>
-                        <button
-                          onClick={() => handleAddJobFromProfile(job)}
-                          className="shrink-0 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
-                        >
-                          <Plus className="w-3.5 h-3.5" /> Lisää
-                        </button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )}
 
-              {/* Projektit */}
+              {/* Projektit + */}
               {missingProjects.length > 0 && (
-                <div className="p-4 bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-violet-200 dark:border-violet-900/40 rounded-2xl">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="bg-violet-500/10 border border-violet-500/20 p-2 rounded-xl shrink-0">
-                      <Sparkles className="w-4 h-4 text-violet-500" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-violet-600 dark:text-violet-400 mb-0.5">
-                        Profiilisi projektit
-                      </h4>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Tarkista ettei projekti ole jo listassa ennen lisäystä.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    {missingProjects.map((proj, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-3 p-3 bg-gray-50 dark:bg-black/30 rounded-xl border border-gray-100 dark:border-gray-800">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{proj.title}</p>
-                          {proj.link && <p className="text-xs text-violet-500 truncate">{proj.link}</p>}
-                        </div>
+                <div className="relative">
+                  <button
+                    onClick={() => setOpenSuggest(openSuggest === 'projects' ? null : 'projects')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+                      openSuggest === 'projects'
+                        ? 'bg-violet-500 text-white border-violet-500'
+                        : 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/20'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Projektit
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-violet-500/20 text-[10px]">{missingProjects.length}</span>
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  {openSuggest === 'projects' && (
+                    <div className="absolute left-0 top-full mt-1 z-30 w-72 max-w-[80vw] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-2 max-h-72 overflow-y-auto">
+                      <p className="text-[11px] text-gray-500 px-2 py-1">Profiilisi projektit, ei vielä CV:ssä:</p>
+                      {missingProjects.map((proj, idx) => (
                         <button
-                          onClick={() => handleAddProjectFromProfile(proj)}
-                          className="shrink-0 px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                          key={idx}
+                          onClick={() => { handleAddProjectFromProfile(proj); }}
+                          className="w-full flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-violet-500/10 text-left transition-colors"
                         >
-                          <Plus className="w-3.5 h-3.5" /> Lisää
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-gray-900 dark:text-white truncate">{proj.title}</span>
+                            {proj.link && <span className="block text-xs text-violet-500 truncate">{proj.link}</span>}
+                          </span>
+                          <Plus className="w-4 h-4 text-violet-500 shrink-0" />
                         </button>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

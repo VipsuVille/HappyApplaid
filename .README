@@ -1,1035 +1,123 @@
-CV & Cover Letter Generator - Täydellinen dokumentaatio
-📋 Yleiskatsaus
-CV & Cover Letter Generator on moderni, AI-pohjainen työkalu joka auttaa käyttäjiä luomaan ammattitasoisia CV:itä ja hakukirjeitä. Järjestelmä käyttää OpenAI:n GPT-4o-mini-mallia sisällön generointiin ja tarjoaa monipuoliset ATS-optimointi- ja muokkaustyökalut.
+# HappyApplAid
 
-⭐ Pääominaisuudet
-✅ AI-pohjainen sisällön luonti - GPT-4o-mini generoi persoonallisia hakukirjeitä
-✅ ATS-optimointi - Realistinen keyword matching ja ATS-pisteytys
-✅ WYSIWYG-muokkaus - Inline editing suoraan esikatselussa
-✅ PDF-vienti - Puppeteer-pohjainen PDF-generointi
-✅ RAG-tuki - Pinecone vektoritietokanta asiantuntijavinkkeihin
-✅ Tietoturva - Clerk-autentikointi + Supabase RLS
-✅ Privacy-first - Henkilötiedot eivät koskaan mene AI:lle
+> AI-avusteinen CV- ja hakukirjegeneraattori, joka rakentaa työnhakijalle selkeän, totuudenmukaisen kuvan itsestään profiilin tietojen pohjalta.
 
-🏗️ Arkkitehtuuri
-Tech Stack
-Frontend:
-
-Next.js 15 (App Router)
-React 19
-TypeScript
-Tailwind CSS
-shadcn/ui komponentit
-
-Backend:
-
-Next.js API Routes
-OpenAI GPT-4o-mini
-LangChain (AI-ketjutus)
-
-Tietokannat:
-
-Supabase (PostgreSQL)
-Pinecone (vektorihaku)
-
-Autentikointi:
-
-Clerk (JWT-pohjaiset tokenit)
-
-Tiedostojen tallennus:
-
-Supabase Storage
-
-PDF-generointi:
-
-Puppeteer + Chromium
-
-Tietoturva-arkkitehtuuri
-┌──────────────┐
-│   Browser    │
-│  (Frontend)  │
-└──────┬───────┘
-       │ JWT Token (Clerk)
-       ▼
-┌──────────────┐
-│ Middleware   │ ← Tarkistaa: Authorization header exists
-└──────┬───────┘
-       │ Token + User ID
-       ▼
-┌──────────────┐
-│  API Route   │ ← Dekoodaa JWT → Clerk User ID
-└──────┬───────┘
-       │ user_id check
-       ▼
-┌──────────────┐
-│  Supabase    │ ← Query: WHERE user_id = 'clerk_id'
-│   (No RLS)   │   (Backend enforced security)
-└──────────────┘
-Tietoturvaperiaatteet:
-✅ Middleware: Tarkistaa että Authorization header on olemassa
-✅ API Route: Dekoodaa JWT → Clerk User ID → Supabase query
-✅ Backend enforcement: .eq('user_id', clerkUserId) jokaisessa kyselyssä
-✅ NO RLS: Supabase RLS pois päältä (yksinkertaisempi, toimii JWT:n kanssa)
-✅ Privacy: Henkilötiedot (nimi, email, puhelin) eivät koskaan mene AI:lle
-
-🎨 Käyttöliittymä
-1. CV Generator
-┌─────────────────────────────────────────────────────┐
-│  [Luo CV]                                           │
-│                                                     │
-│  Tyyli: [Simple] [Technical] [Creative]            │
-│                                                     │
-│  📝 Perustiedot                                     │
-│     - Nimi, yhteystiedot (EI AI:lle)              │
-│     - Koulutus, työkokemus (→ AI:lle)             │
-│     - Taidot, kielet                               │
-│                                                     │
-│  🎭 Persoonallisuus (→ AI:lle)                     │
-│     - Työskentelytyyli                             │
-│     - Ongelmanratkaisu                             │
-│     - Vahvuudet                                     │
-│                                                     │
-│  💡 Tarinat (→ AI:lle)                             │
-│     - Paras projekti                               │
-│     - Opittu virheestä                             │
-│     - Tavoitteet                                    │
-│                                                     │
-│  [🤖 Luo CV AI:lla] [💾 Tallenna luonnos]         │
-└─────────────────────────────────────────────────────┘
-CV-tyylit:
-TyyliKuvausKäyttötarkoitusSimpleRento, persoonallinen, pitkä tekstiStartup, luova alaTechnicalAmmattimainen, listamainen, tekninenIT, insinööriCreativeDynaaminen, visuaalinen, sekoitusDesign, markkinointi
-2. Cover Letter Generator
-┌─────────────────────────────────────────────────────┐
-│  [Luo hakukirje]                                    │
-│                                                     │
-│  Tyyppi: [General] [ATS-V1] [ATS-V2]              │
-│                                                     │
-│  📋 Työpaikkailmoitus                               │
-│  ┌─────────────────────────────────────────────┐  │
-│  │ [Liitä työpaikkailmoitus tähän...]          │  │
-│  │                                              │  │
-│  └─────────────────────────────────────────────┘  │
-│                                                     │
-│  🔍 ATS-optimointi                                 │
-│     [✓] Keyword extraction                         │
-│     [✓] Experience gap analysis                    │
-│     [✓] Guardian validation                        │
-│                                                     │
-│  [🤖 Luo hakukirje]                                │
-└─────────────────────────────────────────────────────┘
-Generaattorityypit:
-TyyppiOptimointiPrivacyKäyttötapausGeneralEi ATS✅ 100%Pienet yritykset, ihminen lukeeATS-V1Perus keyword✅ 100%Keskikokoiset yrityksetATS-V2Iteratiivinen, synonym✅ 100%Isot yritykset (Fortune 500)
-3. Edit-sivu (3-kolumni)
-┌──────────────────────────────────────────────────────────────┐
-│  [←] Hakukirje              [PDF] [Tallenna] [Muokkaa]       │
-└──────────────────────────────────────────────────────────────┘
-
-┌─────────────┬───────────────────────────┬─────────────┐
-│             │                           │             │
-│ ATS PISTEET │   HAKUKIRJE (A4)         │  SIVUPALKKI │
-│             │                           │             │
-│  ┌────────┐ │ ┌──────────────────────┐ │ 🎨 Muotoilu │
-│  │  67%   │ │ │ [Klikkaa muokataksesi│ │             │
-│  │  🟡    │ │ │  tekstiä suoraan]    │ │ Väri: ███   │
-│  └────────┘ │ │                      │ │ Layout: Top │
-│             │ │  Maija Meikäläinen   │ │ Sidebar: On │
-│ 🤖 ATS 85%  │ │  maija@outlook.com   │ │             │
-│ 🌍 Suomi OK │ │  123 456 789         │ │ ✏️ Tekstit  │
-│             │ │                      │ │             │
-│ ⚠️ Puuttuu: │ │  Hei,                │ │ Nimi: ...   │
-│             │ │                      │ │ Email: ...  │
-│ [TypeScript]│ │  Olen innostunut...  │ │ Sisältö:... │
-│ ↑ Klikkaa!  │ │                      │ │             │
-│             │ │  [Inline editing]    │ │ 💡 Vinkit   │
-│ ✅ Löydetty:│ │                      │ │             │
-│ React ✓     │ │  Ystävällisin...     │ │ - Lisää     │
-│ Python ✓    │ │                      │ │   keyword X │
-│             │ │  Maija Meikäläinen   │ │ - Tarkista  │
-│             │ └──────────────────────┘ │   kieli     │
-└─────────────┴───────────────────────────┴─────────────┘
-  25%              50%                      25%
-Inline editing:
-✅ Klikkaa nimeä → Muokkaa suoraan
-✅ Klikkaa sisältöä → Textarea aukeaa
-✅ Klikkaa nimikirjoitusta → Muokkaa
-✅ Enter → Tallenna, Escape → Peruuta
-4. My Cover Letters (Grid)
-┌────────────────────────────────────────────────────┐
-│  Omat hakukirjeet                    [+ Luo uusi] │
-│                                                    │
-│  Näkymä: [Pieni] [Keskikokoinen] [Iso]           │
-│          [Carousel (mobile)] [Grid]               │
-│                                                    │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-│  │ Preview │  │ Preview │  │ Preview │          │
-│  │  [A4]   │  │  [A4]   │  │  [A4]   │          │
-│  │         │  │         │  │         │          │
-│  │ 🟢 RAG  │  │ 🔵 ATS  │  │         │          │
-│  │ ATS:85% │  │ ATS:72% │  │         │          │
-│  │         │  │         │  │         │          │
-│  │[Lataa]  │  │[Lataa]  │  │[Lataa]  │          │
-│  │[Muokkaa]│  │[Muokkaa]│  │[Muokkaa]│          │
-│  └─────────┘  └─────────┘  └─────────┘          │
-└────────────────────────────────────────────────────┘
-Grid-koot:
-
-Small: 700px / 0.60 scale (4 kirjettä rinnakkain)
-Medium: 900px / 0.78 scale (3 kirjettä)
-Large: 1100px / 0.95 scale (2 kirjettä)
-Mobile: Carousel-näkymä + swipe-tuki
-
-
-🤖 AI-generaattorit
-1. General Cover Letter Generator
-Käyttötarkoitus: Yleinen hakukirje, ei ATS-optimointia
-typescriptgenerateGeneralCoverLetterSafely({
-  // 🔒 PRIVACY: Ei henkilötietoja!
-  // name: NEVER sent to AI
-  // email: NEVER sent to AI
-  
-  // ✅ Anonymisoitu data:
-  workExperience: "Sairaanhoitaja 7 vuotta, opiskellut ohjelmointia 1 vuosi",
-  education: "Sairaanhoitaja AMK",
-  skills: "React, TypeScript, Node.js, potilastyö",
-  
-  // ✅ Persoonallisuus (AI:lle):
-  workingStyle: "Tarkka ja empaattinen",
-  problemSolving: "Systemaattinen lähestymistapa",
-  uniqueStrength: "Yhdistän teknisen osaamisen ihmisläheisyyteen",
-  
-  // ✅ Tarinat:
-  bestProjectExample: "Kehitin potilastietojärjestelmän prototyypin...",
-  failureLesson: "Opin että testaus on kriittistä terveydenhuollossa...",
-  
-  // Asetukset:
-  language: "finnish",
-  style: "professional",
-  enableRAG: true // Pinecone hakee vinkkejä
-})
-Prompt-strategia:
-
-Experience level detection → Adaptoituu automaattisesti (entry/mid/senior)
-Truth scale 3-4 → Luonnollinen mutta totuudenmukainen
-300-400 sanaa → Lyhyt ja ytimekäs
-NO personal data → Ei nimeä, emailia, puhelinta
-
-2. ATS-V1 Generator (Basic)
-Käyttötarkoitus: Perustason ATS-optimointi
-typescriptgenerateATSCoverLetterV1({
-  jobDescription: "Looking for React developer...",
-  
-  // ✅ Keyword strategy:
-  // - Ekstraktoi 10-15 avainsanaa
-  // - Käytä luonnollisesti JOS kokemus on
-  // - Jos EI kokemusta → "Vaikka ei kokemusta X:stä, ..."
-  
-  // ✅ Guardian validation:
-  // - Tarkistaa ettei valehtelua
-  // - Ground truth extraction
-  // - Approve/reject
-})
-Ominaisuudet:
-✅ Keyword extraction (AI)
-✅ Missing keyword integration ("Vaikka ei kokemusta...")
-✅ Guardian validation
-⚠️ EI synonyymi-matchingia (realistinen)
-3. ATS-V2 Generator (Advanced)
-Käyttötarkoitus: Edistynyt ATS-optimointi, iteratiivinen
-typescriptgenerateATSCoverLetterV2({
-  jobDescription: "Senior React Developer...",
-  
-  // ✅ Iterative optimization:
-  // 1. Generate initial (target: 75%)
-  // 2. Analyze score
-  // 3. If < 75%, regenerate with missing keywords
-  // 4. Max 3 iterations
-  
-  // ✅ Language detection:
-  // - Tunnistaa ilmoituksen kielen
-  // - Varoittaa jos ristiriita
-})
-Ominaisuudet:
-✅ Deep keyword extraction (3 kategoriaa: critical, important, bonus)
-✅ Iteratiivinen generointi (max 3 kierrosta)
-✅ Kielentunnistus + varoitus
-✅ Synonym matching (AI-pohjainen)
-✅ ATS-score (0-100%)
-Experience Gap Analyzer
-Käyttötarkoitus: Tunnistaa puutteet käyttäjän kokemuksessa
-typescriptanalyzeExperienceGap({
-  jobDescription: "5+ years React, TypeScript...",
-  userProfile: {
-    workExperience: "1 year React self-study",
-    yearsOfExperience: 1
-  }
-})
-
-// Vastaus:
-{
-  hasGap: true,
-  severity: "high",
-  passLikelihood: 45, // %
-  missingExperiences: [
-    {
-      skill: "Professional React experience",
-      required: true,
-      impact: "critical",
-      explanation: "Job requires 5+ years, you have 1 year self-study"
-    }
-  ],
-  recommendations: [
-    "Korosta henkilökohtaisia projektejasi",
-    "Mainitse sairaanhoitajan tausta (systemaattisuus, tarkkuus)"
-  ]
-}
-Käyttö:
-✅ Näytetään ennen generointia
-✅ Käyttäjä voi päättää jatkaako
-✅ Follow-up kysymykset jos aukkoja
-
-🛡️ Master Guardian (Totuuden vartija)
-Tarkoitus: Varmistaa että AI ei valehtele käyttäjän puolesta
-typescript// STEP 1: Extract ground truth
-const groundTruth = await extractGroundTruthAI(userProfile);
-
-// Ground truth sisältää:
-{
-  technicalSkills: ["React", "TypeScript", "Basic Python"],
-  softSkills: ["Empatia", "Yhteistyökyky", "Tarkkuus"],
-  education: ["Sairaanhoitaja AMK"],
-  workHistory: ["Sairaanhoitaja, Oulun yliopistollinen sairaala, 2016-2023"],
-  cannotClaim: ["5 years professional coding", "Computer Science degree"],
-  approvedViolations: {
-    skills: ["Node.js"], // OK vaikka ei ole CV:ssä
-    education: [],
-    experience: []
-  }
-}
-
-// STEP 2: Validate generated content
-const validation = await masterGuardianValidatorV2(
-  generatedContent,
-  groundTruth,
-  'generation'
-);
-
-// Vastaus:
-{
-  approved: true,
-  riskLevel: "safe",
-  violations: {
-    fabricatedSkills: [],
-    fabricatedEducation: [],
-    fabricatedExperience: []
-  },
-  recommendation: "Content is truthful and accurate"
-}
-Oppiva järjestelmä:
-✅ Tallentaa käyttäjän hyväksynnät user_responses tauluun
-✅ Seuraavalla kerralla ei varoita samoista asioista
-✅ Context: 'cv_validation', 'cover_letter_validation'
-
-📊 ATS-optimointi (Realistinen)
-Keyword Matching (Täsmällinen)
-typescript// ❌ VANHA (väärä):
-"problem-solving" matchaa "ongelmanratkaisu" ✓
-
-// ✅ UUSI (oikea, realistinen):
-"problem-solving" EI matchaa "ongelmanratkaisu" ✗
-
-// Syy: Oikeat ATS-järjestelmät eivät ymmärrä synonyymejä!
-Miksi realistinen?
-
-ATS-järjestelmät (Workday, Greenhouse, Lever) käyttävät exact matching
-Ne eivät ymmärrä synonyymejä tai käännöksiä
-Esim: "React" ≠ "React-kehitys", "React framework"
-
-ATS-pisteiden laskenta
-typescript// Kaava:
-score = (täsmälliset_matchit / kaikki_avainsanat) * 100
-
-// Esimerkki:
-Job posting: "React, TypeScript, Node.js, Docker"
-Cover letter: "React, TypeScript, ohjelmointi, pilvialustat"
-
-Löydetty: 2 (React, TypeScript)
-Kaikki: 4
-Pisteet: (2/4) * 100 = 50%
-
-⚠️ Varoitus: "Node.js ja Docker puuttuvat!"
-ATS-käytön tunnistus
-typescriptdetectATSUsage(jobDescription)
-
-// Indikaattorit että ATS KÄYTÖSSÄ:
-- "Apply through our portal"
-- "Workday", "Greenhouse", "Lever", "Taleo"
-- ISO yritys (Fortune 500)
-- Teknologia-ala
-- "Upload your resume to our system"
-
-// Indikaattorit että ATS EI käytössä:
-- "Email your application to john@startup.com"
-- Pieni yritys (< 50 työntekijää)
-- Epämuodollinen ilmoitus
-- LinkedIn Easy Apply
-Vastaus:
-json{
-  "usesATS": true,
-  "confidence": 0.85,
-  "reasoning": "Large company, mentions 'Apply through Workday portal'",
-  "recommendation": "Optimoi hakukirje täsmällisillä avainsanoilla"
-}
-Kielentunnistus
-typescriptdetectLanguageSimple(text)
-
-// Tunnistaa:
-- Suomi: "olen", "että", "työssä"
-- Englanti: "I am", "with", "experience"
-- Ruotsi: "jag är", "med", "erfarenhet"
-
-// Jos ristiriita:
-{
-  languageMismatch: true,
-  jobLanguage: "english",
-  letterLanguage: "finnish",
-  warningMessage: "⚠️ KRIITTINEN: Ilmoitus englanniksi, hakukirje suomeksi. ATS hylkää todennäköisesti!"
-}
-```
+**Live:** [happyapplaid.com](https://happyapplaid.com)
+**Tekijä:** Ville Skog · portfolioprojekti
 
 ---
 
-## 💾 Tallennuslogiikka
+## Mikä tämä on
 
-### Cover Letter Save Flow
-```
-1. FRONTEND (edit-cover-letter/page.tsx)
-   ├─ Käyttäjä klikkaa "Tallenna"
-   ├─ Kerää data: content, ai_data, style settings
-   └─ POST /api/cover-letters/[id]
-         ├─ Headers: Authorization: Bearer <JWT>
-         └─ Body: { content: {...}, ai_data: {...} }
+HappyApplAid auttaa työnhakijaa tuottamaan kaksi asiaa: ammattimaisen, yhdelle A4-sivulle taittuvan CV:n, ja persoonallisen hakukirjeen. Idea ei ole vain täyttää lomaketta, vaan ymmärtää käyttäjää — hänen vahvuuksiaan, ajatusmaailmaansa ja tavoitteitaan — ja kertoa niistä käyttäjän omalla äänellä.
 
-2. MIDDLEWARE (middleware.ts)
-   ├─ Tarkistaa: req.headers.get('authorization')
-   ├─ Jos puuttuu → 401 Unauthorized
-   └─ Jos OK → next()
-
-3. API ROUTE (/api/cover-letters/[id]/route.ts)
-   ├─ Dekoodaa JWT token:
-   │  ├─ token.split('.')[1] → Base64 payload
-   │  ├─ Buffer.from(payload, 'base64')
-   │  └─ payload.sub → Clerk User ID
-   │
-   ├─ Supabase query:
-   │  await supabase
-   │    .from('cover_letters')
-   │    .update({ content, ai_data })
-   │    .eq('id', letterId)
-   │    .eq('user_id', clerkUserId) // ✅ SECURITY!
-   │
-   └─ Return: 200 OK + updated letter
-
-4. SUPABASE
-   ├─ RLS: DISABLED (yksinkertaisempi)
-   ├─ Security: Backend enforced (.eq('user_id'))
-   └─ Table: cover_letters
-        ├─ id (uuid)
-        ├─ user_id (text, Clerk ID)
-        ├─ content (jsonb)
-        ├─ ai_data (jsonb)
-        └─ created_at, updated_at
-Miksi ei RLS?
-✅ Yksinkertaisempi: Ei tarvitse syncata Clerk → Supabase
-✅ Toimii JWT:n kanssa: Clerk JWT ei automaattisesti toimi Supabase RLS:n kanssa
-✅ Backend enforcement: API route tarkistaa user_id
-✅ Sama turvallisuus: .eq('user_id', clerkUserId) jokaisessa kyselyssä
-Data Structure
-typescript// cover_letters table
-{
-  id: "uuid",
-  user_id: "user_2abc...", // Clerk User ID
-  title: "Hakukirje - Accenture",
-  language: "finnish",
-  
-  content: {
-    // 🔒 PRIVACY: Stored separately, not sent to AI
-    contactInfo: {
-      name: "Maija Meikäläinen",
-      email: "maija@outlook.com",
-      phone: "123 456 789",
-      location: "Helsinki, Finland"
-    },
-    
-    // ✅ Body (generated by AI, no personal data)
-    body: "Hei,\n\nOlen innostunut...",
-    
-    // ✅ Signature (editable)
-    signature: "Maija Meikäläinen",
-    
-    // ✅ Style settings
-    headerColor: "rgb(181, 152, 79)",
-    headerLayout: "top",
-    sidebarContent: "contact",
-    
-    // Job context
-    job_title: "Fullstack Developer",
-    company_name: "Accenture",
-    job_description: "We are looking for..."
-  },
-  
-  ai_data: {
-    // AI-generated data (backup)
-    style: "professional",
-    key_highlights: ["React", "TypeScript", "Empatia"],
-    type: "ats-v2",
-    
-    // ATS-specific (if applicable)
-    ats_score: 85,
-    ats_analysis: {
-      keywordMatch: 85,
-      exactMatches: ["React", "TypeScript"],
-      missing: ["Docker"]
-    },
-    
-    // RAG usage
-    rag_used: true,
-    
-    // Guardian validation
-    guardian_report: {
-      approved: true,
-      riskLevel: "safe"
-    }
-  },
-  
-  created_at: "2026-02-02T10:00:00Z",
-  updated_at: "2026-02-02T10:30:00Z"
-}
-```
+Käyttäjä täyttää kerran kattavan profiilin. Sen pohjalta sovellus voi koostaa useita eri CV-versioita ja hakukirjeitä eri tarkoituksiin ilman että tietoja tarvitsee syöttää uudelleen.
 
 ---
 
-## 🔒 Privacy & Security
+## Teknologiat
 
-### Privacy Layers
-```
-┌─────────────────────────────────────────────────────┐
-│ LAYER 1: Frontend Collection                        │
-│ ✅ Collects: name, email, phone, location          │
-│ ✅ Stores: Supabase (user_id checked)              │
-└─────────────────────────────────────────────────────┘
-                     ▼
-┌─────────────────────────────────────────────────────┐
-│ LAYER 2: AI Prompt (PRIVACY WALL)                   │
-│ ❌ NEVER sent to AI:                                │
-│    - Full name                                       │
-│    - Email address                                   │
-│    - Phone number                                    │
-│    - Home address                                    │
-│                                                      │
-│ ✅ Sent to AI (anonymized):                         │
-│    - Work experience (without personal identifiers) │
-│    - Skills                                          │
-│    - Education                                       │
-│    - Personality traits                              │
-│    - Stories (anonymized)                            │
-└─────────────────────────────────────────────────────┘
-                     ▼
-┌─────────────────────────────────────────────────────┐
-│ LAYER 3: Template Assembly                          │
-│ ✅ AI generates body text (no personal data)       │
-│ ✅ Template adds:                                    │
-│    - Name (from content.contactInfo.name)           │
-│    - Email (from content.contactInfo.email)         │
-│    - Phone (from content.contactInfo.phone)         │
-│    - Signature                                       │
-└─────────────────────────────────────────────────────┘
-```
-
-### Security Checklist
-
-- [x] **Middleware:** Tarkistaa Authorization header
-- [x] **JWT decode:** Ekstraktoi Clerk User ID
-- [x] **user_id check:** Jokaisessa Supabase kyselyssä
-- [x] **NO RLS:** Backend enforced security (yksinkertaisempi)
-- [x] **Privacy prompts:** AI ei koskaan saa henkilötietoja
-- [x] **CORS:** Next.js default CORS (same-origin)
-- [x] **Rate limiting:** Voidaan lisätä tarvittaessa (Vercel Edge)
-- [x] **Input validation:** Zod schemas API routeissa
+| Kerros | Teknologia |
+|--------|-----------|
+| Framework | Next.js (App Router), React, TypeScript |
+| Tyylit | Tailwind CSS |
+| Tietokanta | Supabase (Postgres) |
+| Autentikointi | Clerk |
+| Maksut | Stripe |
+| AI | LangChain + GPT-4o-mini |
 
 ---
 
-## 📄 PDF-generointi
+## Arkkitehtuurin ydin
 
-### PDF Generation Flow
-```
-1. USER: Klikkaa "Lataa PDF"
+### Datamalli
 
-2. FRONTEND: POST /api/generate-cover-letter-pdf
-   Body: { letterId: "abc-123" }
+Käyttäjän tiedot elävät kahdessa kerroksessa:
 
-3. API ROUTE:
-   ├─ Käynnistää Puppeteer + Chromium
-   ├─ Navigoi: /cover-letter-preview/[id]?pdf=true
-   ├─ Odottaa: networkidle0 (kaikki latautunut)
-   ├─ Renderöi: A4, printBackground: true
-   └─ Palauttaa: PDF blob
+- **Profiili** (`user_profiles`-taulu) — pysyvä, kattava kuva käyttäjästä. Täytetään kerran, käytetään moneen kertaan.
+- **CV-dokumentit** — kukin CV koostetaan profiilista. CV:n sisältö on `cv_data`-objektissa (strukturoitu: `experience`, `education`, `skills`, `projects`, `languages`) ja valinnainen `ai_data` (AI:n tuottama sisältö).
 
-4. PREVIEW PAGE (/cover-letter-preview/[id]):
-   ├─ Lataa data Supabasesta
-   ├─ Renderöi CoverLetterTemplate
-   ├─ ?pdf=true → Optimoi PDF:lle:
-   │  ├─ Piilottaa debug-elementit
-   │  ├─ Varmistaa kuvien latauksen
-   │  └─ Optimoi fontit
-   └─ Return: HTML
+Tärkeä periaate: **CV ja profiili ovat erillisiä.** CV on profiilista koostettu valikoima. Kun käyttäjä poistaa kohteen CV:stä, se säilyy profiilissa ja sen voi lisätä takaisin.
 
-5. PUPPETEER:
-   ├─ Ottaa screenshotin (A4)
-   ├─ PDF settings:
-   │  ├─ format: "A4"
-   │  ├─ printBackground: true
-   │  ├─ margin: { top: 0, bottom: 0 }
-   │  └─ preferCSSPageSize: false
-   └─ Return: PDF buffer
+### CV-templatet
 
-6. FRONTEND:
-   ├─ Saa PDF blobin
-   ├─ Luo download link
-   └─ Lataa: hakukirje_Accenture.pdf
-Puppeteer Configuration (Vercel):
-typescriptconst browser = await puppeteer.launch({
-  args: chromium.args,
-  executablePath: await chromium.executablePath(),
-  headless: true, // Serverless
-});
-Optimoinnit:
-✅ Odottaa kuvien latauksen (background-image, <img>)
-✅ 5 sekunnin viive varmuuden vuoksi
-✅ printBackground: true (headerit näkyvät)
-✅ A4-optimoitu (210mm x 297mm)
+Kolme tyyppiä (`cvType`): `simple`, `technical`, `creative`. Aiemmin jokainen template sisälsi sekä ulkoasun että muokkauslogiikan sekoitettuna, mikä teki ylläpidosta raskasta. Tämä korjataan parhaillaan (ks. "Tie B" alla).
 
-🔍 RAG (Retrieval-Augmented Generation)
-Pinecone Vector Database
-Tarkoitus: Asiantuntijavinkit hakukirjeiden ja CV:iden luontiin
-typescript// Knowledge base:
-- "10 vinkkiä hakukirjeen kirjoittamiseen"
-- "CV:n rakenne 2024"
-- "ATS-optimoinnin perusteet"
-- "Miten korostaa vahvuuksia"
-Käyttö:
-typescriptconst context = await buildAIContext({
-  jobDescription: "React developer...",
-  userProfile: { skills: "React, TypeScript" },
-  enableRAG: true,
-  contentType: 'cover_letter'
-});
+### Muokkausnäkymä (`edit-cv`)
 
-// Pinecone query:
-// 1. Vektoroi kysely (OpenAI embeddings)
-// 2. Hae top 3 relevanttia dokumenttia
-// 3. Lisää kontekstiin:
+CV:tä muokataan suoraan esikatselussa: klikkaa tekstiä, järjestele osioita (▲▼), poista (✕), lisää uutta. Lisäksi säädinpaneeli tarjoaa:
 
-// AI prompt:
-`You are a cover letter writer.
+- **Typografia** — globaali fonttikoko ja riviväli
+- **Osioiden tila** — osio- ja palstakohtainen fonttikoko, välistys, näkyvyys
+- **Asettelu** — palstojen leveys ja yläbannerin korkeus (Technical)
+- **A4-mahtuvuusmittari** — mittaa sisällön todellisen korkeuden ja kertoo mahtuuko se yhdelle sivulle (ei pakota, vaan ohjaa pienentämään)
 
-**EXPERT INSIGHTS:**
-${ragContext}
-
-Create a cover letter for...`
-```
-
-**Hyödyt:**
-
-✅ Parempi laatu (asiantuntijavinkit)  
-✅ Ajantasainen tieto (päivitetään säännöllisesti)  
-✅ Kontekstuaalinen (relevantti juuri tälle hakemukselle)
+Mobiilissa: esikatselu/muokkaa-välilehdet, kelluva pikkukuva, ja koko CV:n esikatselu-bongahdus puhtaana tulostusasuna.
 
 ---
 
-## 🎯 Käyttötapaukset
-
-### 1. Ensimmäinen hakukirje (Career changer)
-```
-Käyttäjä:
-- Entinen sairaanhoitaja
-- 1 vuosi ohjelmointiopintoja
-- Epävarma mitä kirjoittaa
-
-Järjestelmä:
-→ Tunnistaa experience level = "career_change"
-→ Adaptoi prompt:
-   "Korosta transferable skills (tarkkuus, empatia)"
-   "Näytä motivaatio ja oppimiskyky"
-   "Mainitse sairaanhoitajan tausta vahvuutena"
-→ Generoi 300-sanaisen hakukirjeen joka:
-   ✅ Korostaa potentiaalia
-   ✅ Näyttää innostuksen
-   ✅ Yhdistää terveydenhuollon taustan tech-alaan
-```
-
-### 2. ATS-optimoitu hakemus (Tech position)
-```
-Käyttäjä:
-- 1 vuosi ohjelmointikokemusta
-- Hakee juniorikehittäjän paikkaa (uses ATS)
-- Työpaikkailmoitus täynnä avainsanoja
-
-Järjestelmä:
-→ Tunnistaa: usesATS = true
-→ Ekstraktoi 15 kriittistä avainsanaa
-→ Experience gap analysis:
-   ⚠️ "Puuttuu: Professional experience, Docker"
-→ Kysyy follow-up:
-   "Oletko käyttänyt Reactia projekteissa?"
-→ Generoi ATS-V2:
-   ✅ Iteratiivinen (3 kierrosta)
-   ✅ Target: 75%+ ATS-score
-   ✅ Integroi avainsanat luonnollisesti
-→ Guardian check:
-   ✅ Ei väärennetä kokemusta
-   ✅ Approved
-```
-
-### 3. Kansainvälinen hakemus (International)
-```
-Käyttäjä:
-- 8 vuotta sairaanhoitajakokemusta + 1 vuosi ohjelmointi
-- Hakee ulkomaille (englanninkielinen ilmoitus)
-- Tarvitsee ammattimaisen hakukirjeen
-
-Järjestelmä:
-→ Kielentunnistus:
-   Job: English
-   User CV: Finnish
-   ⚠️ Language mismatch warning
-→ Ehdottaa: "Luodaanko hakukirje englanniksi?"
-→ Generoi professional-tyylillä:
-   ✅ Korostaa unique background (healthcare + tech)
-   ✅ Visuaalisesti näyttävä
-   ✅ Englanninkielinen, ammattimainen
-→ ATS-score: 78% (hyvä!)
-→ Tallenna + PDF-lataus
-
-🐛 Yleiset ongelmat ja ratkaisut
-1. "401 Unauthorized" tallennettaessa
-Syy: JWT token puuttuu tai virheellinen
-Ratkaisu:
-typescript// Tarkista frontend:
-const token = await getToken({ template: 'supabase' });
-console.log('Token:', token ? 'OK' : 'MISSING');
-
-// Tarkista backend (API route):
-const authHeader = req.headers.get('authorization');
-console.log('Auth header:', authHeader);
-
-// Tarkista middleware:
-if (!authHeader?.startsWith('Bearer ')) {
-  return NextResponse.json({ error: 'No token' }, { status: 401 });
-}
-2. "Hakukirje näyttää 'Hakija' nimen sijasta"
-Syy: Data extraction priority väärä
-Ratkaisu:
-typescript// Oikea prioriteetti:
-const name = letter.content?.contactInfo?.name ||  // 1. Saved (editissä)
-             letter.ai_data?.name ||               // 2. Original AI
-             letter.content?.name ||               // 3. Old format
-             'Hakija';                             // 4. Fallback
-3. "ATS-pisteet 0% vaikka avainsanoja on"
-Syy: Eri kieli ilmoituksessa ja hakukirjeessä
-Ratkaisu:
-typescript// Tarkista kielentunnistus:
-const jobLang = detectLanguageSimple(jobDescription);
-const letterLang = detectLanguageSimple(coverLetterText);
-
-if (jobLang !== letterLang) {
-  // ⚠️ Varoita käyttäjää!
-  alert(`Job is in ${jobLang}, letter is in ${letterLang}`);
-}
-4. "PDF ei näytä oikein"
-Syy: Background-image ei latautunut
-Ratkaisu:
-typescript// Odota KAIKKI kuvat:
-await page.evaluate(() => {
-  return Promise.all(
-    Array.from(document.images)
-      .filter(img => !img.complete)
-      .map(img => new Promise(resolve => {
-        img.onload = img.onerror = resolve;
-      }))
-  );
-});
-
-// + 5 sekunnin viive:
-await new Promise(resolve => setTimeout(resolve, 5000));
-5. "Inline editing ei toimi"
-Syy: isEditMode false tai mobile-tila
-Ratkaisu:
-typescript// Varmista että:
-- isEditMode === true
-- !isMobile (inline editing vain desktopilla)
-- onClick handler on asetettu
-
-// Esim:
-{isEditMode && !isMobile && (
-  <div onClick={() => setIsEditingContent(true)}>
-    {content}
-  </div>
-)}
-
-📈 Suorituskyky
-API Response Times
-EndpointAvg TimeMax Time/api/cover-letters (list)150ms500ms/api/cover-letters/[id] (get)100ms300ms/api/cover-letters/[id] (update)200ms800ms/api/generate-cover-letter15s30s/api/generate-cover-letter-pdf8s20s/api/analyze-ats-realistic2s5s
-Optimointitoimenpiteet
-✅ Caching: Pinecone query results (5 min TTL)
-✅ Lazy loading: Images, PDFs
-✅ Debounce: ATS-analysis (2 sekunnin viive)
-✅ Pagination: My cover letters (20/page)
-✅ Incremental static regeneration: Preview pages
-⏳ TODO: Redis cache for keyword extraction
-
-🚀 Deployment (Vercel)
-Environment Variables
-bash# .env.production
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
-CLERK_SECRET_KEY=sk_live_...
-
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
-
-OPENAI_API_KEY=sk-...
-
-PINECONE_API_KEY=pcsk_...
-PINECONE_INDEX=cover-letter-knowledge
-PINECONE_ENVIRONMENT=us-west1-gcp
-
-NEXT_PUBLIC_SITE_URL=https://yourcvapp.com
-Vercel Settings
-json{
-  "buildCommand": "next build",
-  "outputDirectory": ".next",
-  "framework": "nextjs",
-  "regions": ["arn1"], // EU region
-  "functions": {
-    "api/**/*.ts": {
-      "maxDuration": 60, // PDF generation
-      "memory": 1024
-    }
-  }
-}
-Build Checklist
-
- All environment variables set
- Puppeteer dependencies (@sparticuz/chromium)
- API routes have proper error handling
- CORS configured
- Rate limiting (Vercel Edge Middleware)
- Database indexes (Supabase)
- Backup strategy (Supabase automatic)
-
-
-📚 API Reference
-POST /api/generate-cover-letter
-Request:
-json{
-  "type": "ats-v2",
-  "name": "NEVER SENT TO AI",
-  "email": "NEVER SENT TO AI",
-  "jobDescription": "We are looking for...",
-  "workExperience": "Sairaanhoitaja 7v, React-opinnot 1v",
-  "education": "Sairaanhoitaja AMK",
-  "skills": "React, TypeScript, Empatia",
-  "language": "finnish",
-  "enableRAG": true,
-  "guardianValidation": true
-}
-Response:
-json{
-  "success": true,
-  "coverLetterId": "abc-123",
-  "title": "Application - Accenture",
-  "atsScore": 85,
-  "atsAnalysis": {
-    "exactMatches": ["React", "TypeScript"],
-    "missing": ["Docker"],
-    "keywordMatch": 85
-  }
-}
-PATCH /api/cover-letters/[id]
-Request:
-json{
-  "content": {
-    "contactInfo": {
-      "name": "Maija Meikäläinen",
-      "email": "maija@outlook.com",
-      "phone": "123 456 789"
-    },
-    "body": "Hei,\n\nOlen innostunut...",
-    "signature": "Maija Meikäläinen",
-    "headerColor": "#B59850",
-    "headerLayout": "top"
-  }
-}
-Response:
-json{
-  "success": true,
-  "coverLetter": {
-    "id": "abc-123",
-    "content": {...},
-    "updated_at": "2026-02-02T10:30:00Z"
-  }
-}
-POST /api/analyze-ats-realistic
-Request:
-json{
-  "jobDescription": "React, TypeScript, Docker",
-  "coverLetterText": "React and TypeScript experience",
-  "language": "english"
-}
-Response:
-json{
-  "score": 67,
-  "exactMatches": ["React", "TypeScript"],
-  "missingKeywords": ["Docker"],
-  "languageMatch": true,
-  "recommendations": [
-    "Add Docker to your letter",
-    "Use exact terms from job posting"
-  ]
-}
-
-🎓 Best Practices
-For Developers
-
-Always check privacy:
-
-Henkilötiedot eivät koskaan AI:lle
-Dekoodaa JWT ennen Supabase-kyselyä
-.eq('user_id', clerkUserId) jokaisessa kyselyssä
-
-
-Error handling:
-
-typescripttry {
-  // API call
-} catch (error) {
-  console.error('[COMPONENT] Error:', error);
-  toast.error('Toiminto epäonnistui');
-}
-
-Loading states:
-
-Näytä spinner pitkissä operaatioissa
-Disable nappeja latauksen aikana
-Progress indicator PDF-generoinnissa
-
-
-Optimistic updates:
-
-typescript// Update UI immediately
-setEditedName(newName);
-
-// Then save
-await handleSave();
-For Users
-
-ATS-optimointi:
-
-Kirjoita SAMALLA KIELELLÄ kuin ilmoitus
-Käytä TÄSMÄLLISIÄ termejä (ei synonyymejä)
-Tavoite: 75%+ ATS-score
-
-
-Sisällön laatu:
-
-Älä toista CV:tä
-Kerro MIKSI haluat juuri tämän työn
-Konkreettiset esimerkit
-
-
-Tietoturva:
-
-Älä jaa salasanoja
-Tarkista että olet kirjautuneena (Clerk)
-Varmista että tallennukset onnistuvat
-
-
-
-
-🔮 Tulevaisuus (Roadmap)
-Q1 2026
-
- Versiohistoria - Palauta vanhoja versioita
- Batch operations - Muokkaa useita kirjeitä kerralla
- A/B testing - Testaa kahta versiota
- Analytics - Seuraa hakukirjeiden suoriutumista
-
-Q2 2026
-
- AI-powered improvements - "Paranna hakukirje" -nappi
- ATS simulator - Näytä miltä ATS näkee
- Keyword heatmap - Visualisoi avainsanat
- Multi-language - Automaattinen käännös
-
-Q3 2026
-
- Integration: LinkedIn - Tuo tiedot LinkedInistä
- Integration: Job boards - Hae suoraan Duunitorilta
- Collaboration - Jaa kirje rekrytoijan kanssa
- AI interview prep - Harjoittele haastattelua
-
-
-📞 Yhteystiedot
-Kehittäjä:
-Maija Meikäläinen
-📧 maija@outlook.com
-📱 123 456 789
-Dokumentaatio:
-
-API Docs: /docs/api
-User Guide: /docs/guide
-
-
-✅ Tarkistuslista käyttöönottoon
-Pre-launch
-
- Kaikki API-reitit testattu
- Privacy audit tehty (ei PII AI:lle)
- Security audit (JWT, user_id checks)
- Load testing (100+ concurrent users)
- Error monitoring (Sentry/Datadog)
- Backup strategy dokumentoitu
-
-Launch
-
- Environment variables asetettu
- Database migrations ajettu
- DNS configured
- SSL certificate active
- Monitoring dashboards set up
-
-Post-launch
-
- User feedback -lomake
- Analytics tracking
- A/B testing setup
- Documentation ajantasalla
- Changelog ylläpidetty
-
-
-🎉 Kiitokset
-Kiitos kaikille teknologioille jotka mahdollistivat tämän projektin:
-
-OpenAI - GPT-4o-mini malli
-Anthropic - Claude (dokumentaation luontiin)
-Vercel - Hosting platform
-Supabase - Database & Storage
-Clerk - Authentication
-Pinecone - Vector database
-shadcn - UI components
-
-
-Versio: 2.0.0
-Päivitetty: 2.2.2026
-Kehittäjä: Maija Meikäläinen
-Onnea työnhakuun! 🚀
+## Hakukirje (Cover Letter)
+
+Hakukirjepuoli on oma kokonaisuutensa, jossa on kolme tasoa:
+
+### 1. General — "Kuka minä olen"
+Persoonallisuusvetoinen esittely. Ottaa profiilin tiedot ja luo minä-muotoisen kerronnan, jossa sovellus "puhuu kuin olisi käyttäjä" ja esittelee hänet. Adaptiivinen kokemustason mukaan (aloittelija / keskitaso / kokenut), kolme kappaletta (lähestymistapa, motivaatio, suunta). Ei toista CV:tä, ei mainitse nimeä tekstissä. Tämä taso toimii.
+
+### 2. Job-specific (perus)
+Kohdennettu tiettyyn työpaikkaan työpaikkailmoituksen pohjalta. Avainsanatietoinen. *Keskeneräinen.*
+
+### 3. ATS-optimoitu
+Maksimoi läpäisyn rekrytointijärjestelmissä (ATS): avainsanojen tunnistus, synonyymit, ATS-pisteytys. Premium-taso. *Keskeneräinen.*
+
+Generointi on suunniteltu kysymään käyttäjältä tarkentavia lisäkysymyksiä jos profiilissa on puutteita, ja "Guardian"-validointi pyrkii pitämään tekstin totuudenmukaisena.
+
+---
+
+## Tie B — meneillään oleva refaktorointi
+
+Suuri rakenteellinen uudistus, joka erottaa muokkauslogiikan ulkoasusta. Tavoite: kaikki templatet (ja tulevat uudet) käyttävät yhtä yhteistä muokkausmoottoria, jolloin sama bugi ei tarvitse korjausta moneen kertaan ja uusi template on vain "skin".
+
+**Kolme kerrosta:**
+
+1. **Data** (`cv_data`) — ainoa totuuden lähde. Ei muutu.
+2. **Moottori** (`lib/cv/engine/`) — `useCVEngine`-hook + jaetut komponentit. Sisältää parserit, skaalafunktiot, kuvanhaun, muokkausapurit. Ei tiedä miltä CV näyttää. **Ei vaadi `ai_data`:a** — tämä mahdollistaa ilmaisen ei-AI-polun.
+3. **Skin** (template) — pelkkä ulkoasu: värit, asettelu, otsikkotyylit.
+
+**Vaiheet:**
+
+- ✅ **Vaihe 1:** Moottori eristetty, Technical-template kirjoitettu skiniksi sen päälle (~708 → ~343 riviä). Toimii identtisesti kuin ennen.
+- 🔜 **Vaihe 2:** SimpleCV skiniksi (saa projektit, tilankäytön, layoutin, toimivan muokkauksen).
+- ⬜ **Vaihe 3:** Ilmainen ei-AI-polku — tyhjä CV-pohja, jonka käyttäjä täyttää itse. Nolla AI-kuluja.
+- ⬜ **Vaihe 4:** Creative skiniksi.
+- ⬜ **Vaihe 5:** Monisivuisuus — pitkä CV taittuu siististi usealle sivulle samalla teemalla toistamatta otsikkotietoja.
+
+---
+
+## Tehty tähän mennessä
+
+- Profiilisivun uudistus: sivupalkkinavigointi, osiot (perustiedot, kokemus, taidot, projektit, persoonallisuus), korttikohtainen kokoontaitto, projektien tallennus, "ei projekteja" -logiikka, pakollisten kenttien selkeä merkintä, mobiilikorjaukset.
+- Per-osio ja per-palsta tilankäytön säädöt, tallennettuna `cv_data`:an.
+- Palstojen leveys- ja bannerin korkeussäätö (Technical).
+- A4-mahtuvuusmittari + CVContainer-korjaus (ei enää piilota ylivuotanutta sisältöä).
+- Sticky-preview desktopissa, mobiilin välilehdet + pikkukuva + esikatselumodaali (takaisin-painike sulkee).
+- Profiiliehdotukset: iso paneeli korvattu hillityillä plus-napeilla joiden alta aukeaa lista.
+- Tie B vaihe 1: moottori + Technical-skin.
+
+---
+
+## Tekemättä (tietoisesti myöhemmäksi)
+
+- **Tie B vaiheet 2–5** (SimpleCV, ilmainen polku, Creative, monisivuisuus).
+- **Hakukirje V1 & V2** loppuun (job-specific ja ATS-optimoitu).
+- **Persoonallisuuskorttien kokoontaitto** profiilisivulla (muut kortit jo taittuvat).
+- **Tulostuksen monisivupäätös:** `globals.css` `@media print` pakottaa `height: 297mm` — päätä leikkaako vai salliiko monisivun.
+- **Siivous:** turhat `app/profile/utils/`-tiedostot (vanha wizard), kaksi päällekkäistä `ProfileData`-tyyppiä.
+- **Pieni hiomis:** ehdotusvalikko ei sulkeudu ulkopuolen klikkauksesta.
+
+---
+
+## Suunnitteluperiaatteita
+
+- **A4 ohjataan, ei pakoteta.** Mittari kertoo käyttäjälle milloin sisältö ylittää sivun; käyttäjä pienentää itse. Sisältöä ei koskaan leikata piiloon näkymättä.
+- **Mobiilimuokkaus tapahtuu lomakkeilla, ei skaalatulla CV:llä.** A4 ei mahdu luettavana puhelimen ruudulle (fysiikkaa), joten pieni näyttö nojaa säätimiin; suora CV:llä-muokkaus on desktop-ominaisuus.
+- **Template takaa laadun.** Käyttäjälle ei anneta täysin vapaata "hiekkalaatikkoa", koska se rikkoisi tulostuksen ja hämmentäisi tavallista työnhakijaa; muokkaus tapahtuu templaten rajoissa.

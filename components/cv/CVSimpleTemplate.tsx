@@ -1,397 +1,303 @@
 "use client";
-import React, { useState } from "react";
+// components/cv/CVSimpleTemplate.tsx
+// ════════════════════════════════════════════════════════════════════
+//  SIMPLE CV — TIE B SKIN
+//  Ohut ulkoasu moottorin (useCVEngine) päällä.
+//  Säilyttää nykyisen indigo/violetti-ilmeen täsmälleen.
+//  Uutta vs. vanha: projektit, fontScale/lineScale/sectionScales,
+//  kursori-stabiili InlineEditor, headerin korkeuden säätö,
+//  monisivuvalmius (break-inside: avoid).
+// ════════════════════════════════════════════════════════════════════
+
+import React from "react";
 import { UserFormData, AIData, EditMode } from "@/types";
+import { useCVEngine } from "@/lib/cv/engine/useCVEngine";
+import {
+  InlineEditor, AddBtn, EDITABLE_HOVER_CSS,
+  type InlineEditorProps,
+} from "@/lib/cv/engine/components";
+import {
+  type SectionScales, type ColumnScales, type LayoutConfig,
+} from "@/lib/cv/engine/types";
+
+export type { SectionScales, ColumnScales, LayoutConfig };
 
 interface SimpleCVTemplateProps {
   data: UserFormData;
   aiData: AIData;
   isEditing: boolean;
-  showEditControls: boolean;
-  editMode: EditMode | null;
+  showEditControls?: boolean;
+  editMode?: EditMode | null;
   onContentChange?: (field: keyof UserFormData, value: any) => void;
   onUpdate?: (field: string, value: any) => void;
   onDelete?: (field: string, index: number) => void;
+  profileImage?: string;
+  backgroundImage?: string;
+  fontScale?: number;
+  lineScale?: number;
+  sectionScales?: SectionScales;
+  columnScales?: ColumnScales;
+  layout?: LayoutConfig;
 }
 
-const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = ({
-  data,
-  aiData,
-  isEditing,
-  onContentChange,
-  onUpdate,
-  onDelete,
-}) => {
-  // ═══════════════════════════════════════════════════════════
-  // CLICK-TO-EDIT STATE
-  // ═══════════════════════════════════════════════════════════
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [tempValue, setTempValue] = useState<string>("");
+const SimpleCVTemplate: React.FC<SimpleCVTemplateProps> = (props) => {
+  const { isEditing, onUpdate, onDelete } = props;
 
-  const startEditing = (field: string, currentValue: string) => {
-    if (!isEditing) return;
-    setEditingField(field);
-    setTempValue(currentValue);
-  };
+  const eng = useCVEngine({
+    data: props.data,
+    aiData: props.aiData,
+    isEditing: props.isEditing,
+    onUpdate: props.onUpdate,
+    onDelete: props.onDelete,
+    profileImage: props.profileImage,
+    backgroundImage: props.backgroundImage,
+    fontScale: props.fontScale,
+    lineScale: props.lineScale,
+    sectionScales: props.sectionScales,
+    columnScales: props.columnScales,
+    layout: props.layout,
+  });
 
-  const cancelEditing = () => {
-    setEditingField(null);
-    setTempValue("");
-  };
+  const {
+    fs, fsS, lh, getSec, sectionGap, move, commit,
+    bannerMm,
+    profileImg, bgImage, getAI,
+    skillCategories, workExperience, education, projects, name, cvTitle,
+  } = eng;
 
-  const saveField = (field: string) => {
-    if (onUpdate && tempValue !== undefined) {
-      onUpdate(field, tempValue);
-    }
-    setEditingField(null);
-    setTempValue("");
-  };
+  // Headerin korkeus: layout.bannerHeightMm (oletus 70mm Simple-tyylille)
+  const headerMm = (props.layout?.bannerHeightMm ?? (props.data as any)?.layout?.bannerHeightMm ?? 70);
 
-  const handleKeyDown = (e: React.KeyboardEvent, field: string, multiline: boolean = false) => {
-    if (e.key === "Escape") cancelEditing();
-    if (e.key === "Enter" && !multiline) { e.preventDefault(); saveField(field); }
-  };
+  // E = InlineEditor jolla isEditing + onCommit valmiiksi sidottu.
+  // Simple käyttää sinistä aksenttia editointikehykseen (oranssin sijaan).
+  const E = (p: Omit<InlineEditorProps, "isEditing" | "onCommit">) => (
+    <InlineEditor {...p} isEditing={isEditing} onCommit={commit} accentColor="rgba(59,130,246" />
+  );
 
-  const handleDeleteItem = (field: string, index: number) => {
-    if (onDelete) onDelete(field, index);
-  };
+  // Osio-otsikko (sininen, harvennettu — kuten alkuperäinen)
+  const H2: React.FC<{ children: React.ReactNode; sectionId: string }> = ({ children, sectionId }) => (
+    <h2 style={{
+      color: "#2563eb", fontSize: fsS("12px", sectionId, "right"), fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: fs("18px"),
+      borderBottom: "1px solid #e5e7eb", paddingBottom: fs("8px"),
+    }}>{children}</h2>
+  );
 
-  // ═══════════════════════════════════════════════════════════
-  // IMAGE HANDLING
-  // ═══════════════════════════════════════════════════════════
-  const isValidImage = (src?: string | null) => {
-    if (!src) return false;
-    const s = String(src).trim();
-    return s !== "" && !s.includes("cv_files/default") &&
-      (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:image"));
-  };
-
-  const getProfileImage = (): string | null => {
-    const sources = [(data as any)?.profile_image, data?.profileImage, (data as any)?.photo, aiData?.profile_image, (aiData?.html as any)?.profile_image];
-    for (const src of sources) {
-      if (!isValidImage(src)) continue;
-      const srcStr = String(src).trim();
-      if (srcStr.startsWith("http") && srcStr.includes("data:image")) continue;
-      return srcStr;
-    }
-    return null;
-  };
-
-  const getBackgroundImage = (): string | null => {
-    const sources = [(data as any)?.background_image, data?.backgroundImage, aiData?.background_image, aiData?.background_image_url, (aiData?.html as any)?.background_image];
-    for (const src of sources) {
-      if (!isValidImage(src)) continue;
-      const srcStr = String(src).trim();
-      if (srcStr.startsWith("http") && srcStr.includes("data:image")) continue;
-      return srcStr;
-    }
-    return null;
-  };
-
-  const profileImg = getProfileImage();
-  const bgImage = getBackgroundImage();
-  const name = data?.name || "Nimi";
-  const title = data?.title || "Ammattinimike";
-
-  // ═══════════════════════════════════════════════════════════
-  // AI CONTENT
-  // ═══════════════════════════════════════════════════════════
-  const getAIContent = (field: keyof AIData): string => {
-    let content = aiData?.[field];
-    if (!content && aiData?.html) content = aiData.html[field as keyof typeof aiData.html];
-    if (typeof content === "string" && content.trim()) {
-      if (content.toLowerCase().includes("error generating")) return "";
-      if (content.trim().length < 20) return "";
-      return content;
-    }
-    return "";
-  };
-
-  // ═══════════════════════════════════════════════════════════
-  // EditableText + DeleteBtn components
-  // ═══════════════════════════════════════════════════════════
-  const EditableText = ({ field, value, style, className, tag: Tag = "span", multiline = false, placeholder }: {
-    field: string; value: string; style?: React.CSSProperties; className?: string;
-    tag?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "li" | "div"; multiline?: boolean; placeholder?: string;
-  }) => {
-    const isActive = editingField === field;
-    if (isEditing && isActive) {
-      const inputStyle: React.CSSProperties = {
-        ...style, width: "100%", background: "rgba(249,115,22,0.08)",
-        border: "2px solid rgba(249,115,22,0.5)", borderRadius: "4px", padding: "4px 6px",
-        outline: "none", boxSizing: "border-box" as const, fontFamily: "inherit",
-        resize: multiline ? ("vertical" as const) : ("none" as const), color: "#1a202c",
-      };
-      if (multiline) {
-        return <textarea value={tempValue} onChange={e => setTempValue(e.target.value)} onBlur={() => saveField(field)}
-          onKeyDown={e => handleKeyDown(e, field, true)} style={{ ...inputStyle, minHeight: "60px" }} className={className} autoFocus />;
-      }
-      return <input type="text" value={tempValue} onChange={e => setTempValue(e.target.value)} onBlur={() => saveField(field)}
-        onKeyDown={e => handleKeyDown(e, field, false)} style={inputStyle} className={className} autoFocus />;
-    }
-    const displayValue = value || "";
-    if (!displayValue && !isEditing) return null;
-    return (
-      <Tag onClick={() => startEditing(field, value)}
-        style={{ ...style, ...(isEditing ? { cursor: "pointer", borderRadius: "4px", transition: "background 0.15s" } : {}) }}
-        className={`${className || ""} ${isEditing ? "editable-field" : ""}`}>
-        {displayValue || placeholder || "..."}
-      </Tag>
+  // Pieni poistonappi (säilyttää alkuperäisen tyylin)
+  const Del: React.FC<{ onClick: () => void; title?: string }> = ({ onClick, title }) =>
+    !isEditing ? null : (
+      <button onClick={e => { e.stopPropagation(); onClick(); }} title={title || "Poista"}
+        style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: "50%", width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "10px", color: "#ef4444", flexShrink: 0, marginLeft: "4px", padding: 0 }}>
+        ✕
+      </button>
     );
-  };
 
-  const DeleteBtn = ({ onClick, title: t }: { onClick: () => void; title?: string }) => {
-    if (!isEditing) return null;
-    return (
-      <button onClick={e => { e.stopPropagation(); onClick(); }} title={t || "Poista"}
-        className="delete-btn"
-        style={{
-          background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: "50%",
-          width: "18px", height: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", fontSize: "10px", color: "#ef4444", flexShrink: 0, marginLeft: "4px", padding: 0,
-        }}>✕</button>
-    );
-  };
-
-  // ═══════════════════════════════════════════════════════════
-  // PARSE DATA (experience, education, skills from structured data)
-  // ═══════════════════════════════════════════════════════════
-  const experience = Array.isArray(data?.experience) ? data.experience : [];
-  const education = Array.isArray(data?.education) ? data.education : [];
-  const skills = Array.isArray(data?.skills) ? data.skills : [];
-
-  const hasStructuredExperience = experience.length > 0;
-  const hasStructuredEducation = education.length > 0;
-  const hasStructuredSkills = skills.length > 0;
+  const personalDesc = getAI("personal_description");
+  const langHtml = getAI("languages_section");
+  const avoidBreak: React.CSSProperties = { breakInside: "avoid", pageBreakInside: "avoid" };
 
   return (
     <div
       className="cv-paper bg-white mx-auto relative overflow-visible shadow-2xl"
-      style={{
-        width: "210mm",
-        minHeight: "297mm",
-        fontFamily: "'Inter', 'Helvetica', sans-serif",
-        color: "#1a202c",
-      }}
+      style={{ width: "210mm", minHeight: "297mm", fontFamily: "'Inter','Helvetica',sans-serif", color: "#1a202c" }}
     >
       <style>{`
-        .editable-field:hover { outline: 2px dashed rgba(249,115,22,0.4) !important; background: rgba(249,115,22,0.04) !important; }
-        .delete-btn:hover { background: rgba(239,68,68,0.3) !important; }
+        ${EDITABLE_HOVER_CSS}
+        .cv-paper section { break-inside: avoid; page-break-inside: avoid; }
+        .cv-paper .cv-item { break-inside: avoid; page-break-inside: avoid; }
       `}</style>
 
-      {/* 1. HEADER & BACKGROUND IMAGE */}
-      <div className="relative bg-indigo-900" style={{ height: "70mm" }}>
-        {bgImage ? (
-          <img src={bgImage} className="absolute inset-0 w-full h-full object-cover" alt=""
-            onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-        ) : (
-          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, #1e40af 0%, #7e22ce 100%)" }} />
-        )}
+      {/* 1. HEADER + BACKGROUND */}
+      <div className="relative bg-indigo-900" style={{ height: `${headerMm}mm` }}>
+        {bgImage
+          ? <img src={bgImage} className="absolute inset-0 w-full h-full object-cover" alt="" onError={e => { e.currentTarget.style.display = "none"; }} />
+          : <div className="absolute inset-0" style={{ background: "linear-gradient(135deg,#1e40af 0%,#7e22ce 100%)" }} />}
         <div className="absolute inset-0 bg-black/20" />
 
-        {/* NAME AND TITLE */}
-        <div className="absolute bottom-10 left-12 text-white z-10">
-          <EditableText field="name" value={name} tag="h1"
-            style={{ fontSize: "42px", fontWeight: 800, letterSpacing: "-0.02em", textShadow: "2px 2px 4px rgba(0,0,0,0.3)", color: "white", display: "block", marginBottom: "8px" }} />
-          <EditableText field="title" value={title} tag="p"
-            style={{ fontSize: "20px", opacity: 0.95, fontWeight: 300, color: "white", display: "block" }} />
+        <div className="absolute bottom-10 left-12 z-10" style={{ color: "white" }}>
+          {E({ field: "name", value: name, tag: "h1", style: { fontSize: fs("42px"), fontWeight: 800, letterSpacing: "-0.02em", textShadow: "2px 2px 4px rgba(0,0,0,0.3)", color: "white", display: "block", marginBottom: "8px" } })}
+          {E({ field: "title", value: cvTitle, tag: "p", style: { fontSize: fs("20px"), opacity: 0.95, fontWeight: 300, color: "white", display: "block" } })}
         </div>
 
-        {/* PROFILE IMAGE */}
-        <div className="absolute -bottom-10 right-12 z-20 w-[50mm] h-[50mm] rounded-full border-[6px] border-white overflow-hidden shadow-xl bg-gray-100">
-          {profileImg ? (
-            <img src={profileImg} className="w-full h-full object-cover" alt="Profiili"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl font-bold bg-gray-200">
-              {name.substring(0, 2).toUpperCase()}
-            </div>
-          )}
+        <div className="absolute -bottom-10 right-12 z-20 rounded-full border-[6px] border-white overflow-hidden shadow-xl bg-gray-100"
+          style={{ width: "50mm", height: "50mm" }}>
+          {profileImg
+            ? <img src={profileImg} className="w-full h-full object-cover" alt="Profiili" onError={e => { e.currentTarget.style.display = "none"; }} />
+            : <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold bg-gray-200" style={{ fontSize: "36px" }}>{name.substring(0, 2).toUpperCase()}</div>}
         </div>
       </div>
 
-      {/* 2. CONTACT INFORMATION BAR */}
-      <div className="bg-[#1a202c] text-white py-4 px-12 mt-0 flex items-center gap-8 text-sm flex-wrap">
-        {(data?.phone || isEditing) && (
+      {/* 2. CONTACT BAR */}
+      <div className="bg-[#1a202c] text-white py-4 px-12 flex items-center gap-8 flex-wrap" style={{ fontSize: fs("14px") }}>
+        {(props.data?.phone || isEditing) && (
           <div className="flex items-center gap-2">
-            <span className="opacity-60 text-xs uppercase">Puh:</span>
-            <EditableText field="phone" value={data?.phone || ""} placeholder="+358..." style={{ color: "white" }} />
+            <span className="opacity-60 uppercase" style={{ fontSize: fs("12px") }}>Puh:</span>
+            {E({ field: "phone", value: props.data?.phone || "", placeholder: "+358...", style: { color: "white" } })}
           </div>
         )}
-        {(data?.email || isEditing) && (
+        {(props.data?.email || isEditing) && (
           <div className="flex items-center gap-2">
-            <span className="opacity-60 text-xs uppercase">Email:</span>
-            <EditableText field="email" value={data?.email || ""} placeholder="email@example.com" style={{ color: "white" }} />
+            <span className="opacity-60 uppercase" style={{ fontSize: fs("12px") }}>Email:</span>
+            {E({ field: "email", value: props.data?.email || "", placeholder: "email@example.com", style: { color: "white" } })}
           </div>
         )}
-        {(data?.location || isEditing) && (
+        {(props.data?.location || isEditing) && (
           <div className="flex items-center gap-2">
-            <span className="opacity-60 text-xs uppercase">Sijainti:</span>
-            <EditableText field="location" value={data?.location || ""} placeholder="Helsinki" style={{ color: "white" }} />
+            <span className="opacity-60 uppercase" style={{ fontSize: fs("12px") }}>Sijainti:</span>
+            {E({ field: "location", value: props.data?.location || "", placeholder: "Helsinki", style: { color: "white" } })}
           </div>
         )}
       </div>
 
-      {/* 3. CONTENT AREA */}
-      <div className="px-12 py-16 grid grid-cols-12 gap-12">
-        <div className="col-span-12 flex flex-col gap-10">
-          
-          {/* PROFILE DESCRIPTION */}
-          {getAIContent("personal_description") && (
-            <section>
-              <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-4">Profiili</h2>
-              <p className="text-gray-700 leading-relaxed text-lg italic border-l-4 border-blue-100 pl-6">
-                {getAIContent("personal_description")}
-              </p>
-            </section>
-          )}
+      {/* 3. CONTENT */}
+      <div className="px-12 py-16 flex flex-col" style={{ gap: fs("40px") }}>
 
-          <div className="grid grid-cols-1 gap-12">
-            
-            {/* STRUCTURED WORK EXPERIENCE */}
-            {(hasStructuredExperience || isEditing) && (
-              <section>
-                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Työkokemus</h2>
-                {experience.map((exp: any, idx: number) => (
-                  <div key={idx} className="mb-6 relative">
-                    {isEditing && <div className="absolute top-0 right-0"><DeleteBtn onClick={() => handleDeleteItem("experience", idx)} title="Poista työkokemus" /></div>}
-                    <h4 className="font-semibold text-gray-900" style={{ paddingRight: isEditing ? "24px" : "0" }}>
-                      <EditableText field={`experience.${idx}.title`} value={exp.title || exp.position || ""} style={{ fontWeight: 600 }} />
-                      {(exp.company || isEditing) && (
-                        <> — <EditableText field={`experience.${idx}.company`} value={exp.company || ""} style={{ fontWeight: 400, color: "#555" }} /></>
-                      )}
-                    </h4>
-                    {(exp.period || exp.duration || isEditing) && (
-                      <EditableText field={`experience.${idx}.period`} value={exp.period || exp.duration || ""} tag="p" placeholder="Ajanjakso"
-                        style={{ fontSize: "13px", color: "#666", fontStyle: "italic", marginBottom: "4px" }} />
-                    )}
-                    {(Array.isArray(exp.bullets) && exp.bullets.length > 0 || isEditing) && (
-                      <ul className="mt-2 ml-5 text-gray-700" style={{ listStyleType: "disc", fontSize: "14px", lineHeight: "1.6" }}>
-                        {(exp.bullets || []).map((bullet: string, bIdx: number) => (
-                          <li key={bIdx} style={{ display: "flex", alignItems: "flex-start", marginBottom: "4px" }}>
-                            <span style={{ flex: 1 }}><EditableText field={`experience.${idx}.bullets.${bIdx}`} value={bullet} multiline style={{ fontSize: "14px" }} /></span>
-                            <DeleteBtn onClick={() => handleDeleteItem(`experience.${idx}.bullets`, bIdx)} />
-                          </li>
-                        ))}
-                        {isEditing && <li onClick={() => onUpdate?.(`experience.${idx}.bullets.${(exp.bullets || []).length}`, "Uusi kuvaus")}
-                          style={{ color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: 0.7, fontSize: "14px" }}>+ Lisää kohta...</li>}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-                {isEditing && (
-                  <div onClick={() => onUpdate?.(`experience.${experience.length}`, { title: "Uusi tehtävä", company: "Yritys", period: "2024 - Nykyinen", bullets: ["Kuvaus tehtävästä"] })}
-                    className="p-3 border-2 border-dashed border-orange-400 rounded-lg text-center text-orange-500 cursor-pointer text-sm font-semibold hover:bg-orange-50 transition-colors">
-                    + Lisää työkokemus
-                  </div>
-                )}
-              </section>
-            )}
-
-            {/* AI-generated experience (fallback) */}
-            {!hasStructuredExperience && !isEditing && getAIContent("experience_section") && (
-              <section>
-                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Työkokemus</h2>
-                <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: getAIContent("experience_section") }} />
-              </section>
-            )}
-
-            <div className="grid grid-cols-2 gap-12">
-              
-              {/* STRUCTURED EDUCATION */}
-              {(hasStructuredEducation || isEditing) ? (
-                <section>
-                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Koulutus</h2>
-                  {education.map((edu: any, idx: number) => (
-                    <div key={idx} className="mb-4 relative">
-                      {isEditing && <div className="absolute top-0 right-0"><DeleteBtn onClick={() => handleDeleteItem("education", idx)} title="Poista koulutus" /></div>}
-                      <EditableText field={`education.${idx}.degree`} value={edu.degree || ""} tag="h4"
-                        style={{ fontWeight: 600, fontSize: "14px", paddingRight: isEditing ? "24px" : "0" }} />
-                      {(edu.institution || edu.school || isEditing) && (
-                        <EditableText field={`education.${idx}.institution`} value={edu.institution || edu.school || ""} tag="p" placeholder="Oppilaitos"
-                          style={{ fontSize: "13px", color: "#444" }} />
-                      )}
-                      {(edu.year || edu.period || isEditing) && (
-                        <EditableText field={`education.${idx}.year`} value={edu.year || edu.period || ""} tag="p" placeholder="2020 - 2024"
-                          style={{ fontSize: "12px", color: "#666", fontStyle: "italic" }} />
-                      )}
-                      {(Array.isArray(edu.details) && edu.details.length > 0) && (
-                        <ul className="mt-1 ml-4 text-gray-600" style={{ listStyleType: "disc", fontSize: "13px" }}>
-                          {edu.details.map((detail: string, dIdx: number) => (
-                            <li key={dIdx} style={{ display: "flex", alignItems: "flex-start" }}>
-                              <span style={{ flex: 1 }}><EditableText field={`education.${idx}.details.${dIdx}`} value={detail} style={{ fontSize: "13px" }} /></span>
-                              <DeleteBtn onClick={() => handleDeleteItem(`education.${idx}.details`, dIdx)} />
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                  {isEditing && (
-                    <div onClick={() => onUpdate?.(`education.${education.length}`, { degree: "Uusi tutkinto", institution: "Oppilaitos", year: "2020 - 2024", details: [] })}
-                      className="p-2 border-2 border-dashed border-orange-400 rounded-lg text-center text-orange-500 cursor-pointer text-xs font-semibold hover:bg-orange-50 transition-colors">
-                      + Lisää koulutus
-                    </div>
-                  )}
-                </section>
-              ) : (
-                getAIContent("education_section") && (
-                  <section>
-                    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Koulutus</h2>
-                    <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: getAIContent("education_section") }} />
-                  </section>
-                )
-              )}
-
-              {/* STRUCTURED SKILLS */}
-              {(hasStructuredSkills || isEditing) ? (
-                <section>
-                  <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Osaaminen</h2>
-                  <ul style={{ listStyleType: "none", padding: 0 }}>
-                    {skills.map((skill: any, idx: number) => {
-                      const skillText = typeof skill === "string" ? skill : skill?.name || skill?.category || "";
-                      return (
-                        <li key={idx} style={{ display: "flex", alignItems: "center", marginBottom: "6px", fontSize: "14px" }}>
-                          <span style={{ color: "#3b82f6", marginRight: "8px" }}>•</span>
-                          <span style={{ flex: 1 }}>
-                            <EditableText field={`skills.${idx}`} value={skillText} style={{ fontSize: "14px" }} />
-                          </span>
-                          <DeleteBtn onClick={() => handleDeleteItem("skills", idx)} title="Poista taito" />
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {isEditing && (
-                    <div onClick={() => onUpdate?.(`skills.${skills.length}`, "Uusi taito")}
-                      className="mt-2 p-2 border-2 border-dashed border-orange-400 rounded-lg text-center text-orange-500 cursor-pointer text-xs font-semibold hover:bg-orange-50 transition-colors">
-                      + Lisää taito
-                    </div>
-                  )}
-                </section>
-              ) : (
-                getAIContent("skills_section") && (
-                  <section>
-                    <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Osaaminen</h2>
-                    <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: getAIContent("skills_section") }} />
-                  </section>
-                )
-              )}
-            </div>
-
-            {/* LANGUAGES */}
-            {getAIContent("languages_section") && (
-              <section>
-                <h2 className="text-blue-600 text-xs font-bold uppercase tracking-[0.2em] mb-6 border-b pb-2">Kielet</h2>
-                <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: getAIContent("languages_section") }} />
-              </section>
-            )}
-          </div>
-
-          {/* SIGNATURE */}
-          <div className="mt-8 border-t pt-8">
-            <p className="text-4xl text-blue-700 opacity-80" style={{ fontFamily: "'Brush Script MT', cursive" }}>
-              {name}
+        {/* PROFILE DESCRIPTION */}
+        {personalDesc && !getSec("profile").hidden && (
+          <section style={avoidBreak}>
+            <H2 sectionId="profile">Profiili</H2>
+            <p style={{ color: "#374151", lineHeight: lh(1.7), fontSize: fsS("18px", "profile", "right"), fontStyle: "italic", borderLeft: "4px solid #dbeafe", paddingLeft: "24px" }}>
+              {personalDesc}
             </p>
-          </div>
+          </section>
+        )}
+
+        {/* WORK EXPERIENCE */}
+        {(workExperience.length > 0 || isEditing) && !getSec("experience").hidden && (
+          <section style={{ marginBottom: sectionGap("experience") }}>
+            <H2 sectionId="experience">Työkokemus</H2>
+            {workExperience.map((exp, idx) => (
+              <div key={idx} className="cv-item" style={{ marginBottom: fsS("24px", "experience", "right"), position: "relative", ...avoidBreak }}>
+                {isEditing && <div style={{ position: "absolute", top: 0, right: 0 }}><Del onClick={() => onDelete?.("experience", idx)} title="Poista työkokemus" /></div>}
+                <h4 style={{ fontWeight: 600, color: "#111827", paddingRight: isEditing ? "24px" : 0, fontSize: fsS("15px", "experience", "right") }}>
+                  {E({ field: `experience.${idx}.title`, value: exp.title, style: { fontWeight: 600, fontSize: fsS("15px", "experience", "right") } })}
+                  {(exp.company || isEditing) && <> — {E({ field: `experience.${idx}.company`, value: exp.company, style: { fontWeight: 400, color: "#555", fontSize: fsS("15px", "experience", "right") } })}</>}
+                </h4>
+                {(exp.period || isEditing) && E({ field: `experience.${idx}.period`, value: exp.period, tag: "p", placeholder: "Ajanjakso", style: { fontSize: fsS("13px", "experience", "right"), color: "#666", fontStyle: "italic", marginBottom: "4px" } })}
+                <ul className="mt-2 ml-5" style={{ listStyleType: "disc", fontSize: fsS("14px", "experience", "right"), lineHeight: lh(1.6), color: "#374151" }}>
+                  {exp.bullets.map((b, bi) => (
+                    <li key={bi} style={{ display: "flex", alignItems: "flex-start", marginBottom: "4px" }}>
+                      <span style={{ flex: 1 }}>{E({ field: `experience.${idx}.bullets.${bi}`, value: b, multiline: true, style: { fontSize: fsS("14px", "experience", "right"), lineHeight: lh(1.6) } })}</span>
+                      <Del onClick={() => onDelete?.(`experience.${idx}.bullets`, bi)} />
+                    </li>
+                  ))}
+                  {isEditing && <li onClick={() => onUpdate?.(`experience.${idx}.bullets.${exp.bullets.length}`, "Uusi kuvaus")} style={{ color: "#f97316", cursor: "pointer", fontStyle: "italic", opacity: 0.7, fontSize: fs("14px"), listStyle: "none" }}>+ Lisää kohta…</li>}
+                </ul>
+              </div>
+            ))}
+            {isEditing && <AddBtn label="+ Lisää työkokemus" onClick={() => onUpdate?.(`experience.${workExperience.length}`, { title: "Uusi tehtävä", company: "Yritys", period: "2024 – Nykyinen", bullets: ["Kuvaus tehtävästä"] })} />}
+          </section>
+        )}
+
+        {/* AI experience fallback */}
+        {workExperience.length === 0 && !isEditing && getAI("experience_section") && (
+          <section style={avoidBreak}>
+            <H2 sectionId="experience">Työkokemus</H2>
+            <div style={{ color: "#1f2937", fontSize: fs("14px"), lineHeight: lh(1.6) }} dangerouslySetInnerHTML={{ __html: getAI("experience_section") }} />
+          </section>
+        )}
+
+        {/* PROJECTS (uusi!) */}
+        {(projects.length > 0 || isEditing) && !getSec("projects").hidden && (
+          <section style={{ marginBottom: sectionGap("projects") }}>
+            <H2 sectionId="projects">Projektit</H2>
+            {projects.map((proj, idx) => (
+              <div key={idx} className="cv-item" style={{ marginBottom: fsS("18px", "projects", "right"), position: "relative", ...avoidBreak }}>
+                {isEditing && <div style={{ position: "absolute", top: 0, right: 0 }}><Del onClick={() => onDelete?.("projects", idx)} title="Poista projekti" /></div>}
+                <h4 style={{ fontWeight: 600, color: "#111827", paddingRight: isEditing ? "24px" : 0, fontSize: fsS("15px", "projects", "right") }}>
+                  {E({ field: `projects.${idx}.title`, value: proj.title, style: { fontWeight: 600, fontSize: fsS("15px", "projects", "right") } })}
+                </h4>
+                {(proj.description || isEditing) && E({ field: `projects.${idx}.description`, value: proj.description, tag: "p", multiline: true, placeholder: "Kuvaus", style: { fontSize: fsS("14px", "projects", "right"), color: "#374151", lineHeight: lh(1.6), marginTop: "2px" } })}
+                {(proj.link || isEditing) && E({ field: `projects.${idx}.link`, value: proj.link, tag: "p", placeholder: "https://...", style: { fontSize: fsS("13px", "projects", "right"), color: "#2563eb", marginTop: "2px" } })}
+              </div>
+            ))}
+            {isEditing && <AddBtn label="+ Lisää projekti" onClick={() => onUpdate?.(`projects.${projects.length}`, { title: "Projektin nimi", description: "Lyhyt kuvaus", link: "" })} />}
+          </section>
+        )}
+
+        {/* EDUCATION + SKILLS rinnakkain */}
+        <div className="grid grid-cols-2" style={{ gap: fs("48px") }}>
+          {/* EDUCATION */}
+          {(education.length > 0 || isEditing) && !getSec("education").hidden ? (
+            <section style={avoidBreak}>
+              <H2 sectionId="education">Koulutus</H2>
+              {education.map((edu, idx) => (
+                <div key={idx} className="cv-item" style={{ marginBottom: fsS("16px", "education", "right"), position: "relative", ...avoidBreak }}>
+                  {isEditing && <div style={{ position: "absolute", top: 0, right: 0 }}><Del onClick={() => onDelete?.("education", idx)} title="Poista koulutus" /></div>}
+                  {E({ field: `education.${idx}.degree`, value: edu.degree, tag: "h4", style: { fontWeight: 600, fontSize: fsS("14px", "education", "right"), paddingRight: isEditing ? "24px" : 0 } })}
+                  {(edu.institution || isEditing) && E({ field: `education.${idx}.institution`, value: edu.institution, tag: "p", placeholder: "Oppilaitos", style: { fontSize: fsS("13px", "education", "right"), color: "#444" } })}
+                  {(edu.year || isEditing) && E({ field: `education.${idx}.year`, value: edu.year, tag: "p", placeholder: "2020 – 2024", style: { fontSize: fsS("12px", "education", "right"), color: "#666", fontStyle: "italic" } })}
+                  {edu.details.length > 0 && (
+                    <ul className="mt-1 ml-4" style={{ listStyleType: "disc", fontSize: fsS("13px", "education", "right"), color: "#4b5563" }}>
+                      {edu.details.map((d, di) => (
+                        <li key={di} style={{ display: "flex", alignItems: "flex-start" }}>
+                          <span style={{ flex: 1 }}>{E({ field: `education.${idx}.details.${di}`, value: d, style: { fontSize: fsS("13px", "education", "right") } })}</span>
+                          <Del onClick={() => onDelete?.(`education.${idx}.details`, di)} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+              {isEditing && <AddBtn label="+ Lisää koulutus" onClick={() => onUpdate?.(`education.${education.length}`, { degree: "Uusi tutkinto", institution: "Oppilaitos", year: "2020 – 2024", details: [] })} />}
+            </section>
+          ) : (!isEditing && getAI("education_section") && (
+            <section style={avoidBreak}>
+              <H2 sectionId="education">Koulutus</H2>
+              <div style={{ color: "#1f2937", fontSize: fs("13px") }} dangerouslySetInnerHTML={{ __html: getAI("education_section") }} />
+            </section>
+          ))}
+
+          {/* SKILLS */}
+          {(skillCategories.length > 0 || isEditing) && !getSec("skills").hidden ? (
+            <section style={avoidBreak}>
+              <H2 sectionId="skills">Osaaminen</H2>
+              {skillCategories.map((cat, ci) => (
+                <div key={ci} style={{ marginBottom: fs("8px") }}>
+                  {skillCategories.length > 1 && E({ field: `skills.${ci}.category`, value: cat.category, tag: "h4", style: { fontSize: fsS("13px", "skills", "right"), fontWeight: 600, color: "#2563eb", marginBottom: "4px" } })}
+                  <ul style={{ listStyleType: "none", padding: 0 }}>
+                    {cat.items.map((skill, si) => (
+                      <li key={si} style={{ display: "flex", alignItems: "center", marginBottom: "6px", fontSize: fsS("14px", "skills", "right") }}>
+                        <span style={{ color: "#3b82f6", marginRight: "8px" }}>•</span>
+                        <span style={{ flex: 1 }}>{E({ field: `skills.${ci}.items.${si}`, value: skill, style: { fontSize: fsS("14px", "skills", "right") } })}</span>
+                        <Del onClick={() => {
+                          const newCats = skillCategories.map((c, i) => i === ci ? { ...c, items: c.items.filter((_, j) => j !== si) } : c);
+                          onUpdate?.("skills", newCats);
+                        }} title="Poista taito" />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {isEditing && <AddBtn label="+ Lisää taito" onClick={() => {
+                const first = skillCategories[0];
+                if (first) {
+                  const newCats = skillCategories.map((c, i) => i === 0 ? { ...c, items: [...c.items, "Uusi taito"] } : c);
+                  onUpdate?.("skills", newCats);
+                } else {
+                  onUpdate?.("skills", [{ category: "Skills", items: ["Uusi taito"] }]);
+                }
+              }} />}
+            </section>
+          ) : (!isEditing && getAI("skills_section") && (
+            <section style={avoidBreak}>
+              <H2 sectionId="skills">Osaaminen</H2>
+              <div style={{ color: "#1f2937", fontSize: fs("13px") }} dangerouslySetInnerHTML={{ __html: getAI("skills_section") }} />
+            </section>
+          ))}
+        </div>
+
+        {/* LANGUAGES */}
+        {langHtml && !getSec("languages").hidden && (
+          <section style={avoidBreak}>
+            <H2 sectionId="languages">Kielet</H2>
+            <div style={{ color: "#1f2937", fontSize: fs("14px") }} dangerouslySetInnerHTML={{ __html: langHtml }} />
+          </section>
+        )}
+
+        {/* SIGNATURE */}
+        <div className="mt-8 border-t pt-8" style={avoidBreak}>
+          <p style={{ fontSize: fs("36px"), color: "#1d4ed8", opacity: 0.8, fontFamily: "'Brush Script MT',cursive" }}>{name}</p>
         </div>
       </div>
     </div>
