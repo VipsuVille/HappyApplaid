@@ -279,11 +279,29 @@ useEffect(() => {
           if (cur[p] === undefined || cur[p] === null) {
             cur[p] = nextIsIndex ? [] : {};
           } else if (typeof cur[p] === 'string') {
-            try { const parsed = JSON.parse(cur[p]); cur[p] = typeof parsed === 'object' ? parsed : (nextIsIndex ? [] : {}); }
+            // String → yritä parsia JSON:ksi; säilytä data jos mahdollista
+            try { const parsed = JSON.parse(cur[p]); cur[p] = (parsed && typeof parsed === 'object') ? parsed : (nextIsIndex ? [] : {}); }
             catch { cur[p] = nextIsIndex ? [] : {}; }
           }
-          if (nextIsIndex && !Array.isArray(cur[p])) cur[p] = [];
-          if (!nextIsIndex && Array.isArray(cur[p])) cur[p] = {};
+          // ── KRIITTINEN: ÄLÄ tuhoa olemassa olevaa dataa. Muunna se. ──
+          if (nextIsIndex && !Array.isArray(cur[p]) && typeof cur[p] === 'object') {
+            // Objekti jossa numeroavaimet → taulukko (säilyttää sisällön)
+            const keys = Object.keys(cur[p]);
+            const allNumeric = keys.length > 0 && keys.every(k => !isNaN(Number(k)));
+            if (allNumeric) {
+              const arr: any[] = [];
+              keys.map(Number).sort((a, b) => a - b).forEach(n => { arr[n] = cur[p][n]; });
+              cur[p] = arr;
+            } else {
+              // Tyhjä objekti → turvallista tehdä taulukko
+              cur[p] = [];
+            }
+          }
+          if (!nextIsIndex && Array.isArray(cur[p])) {
+            // Taulukko mutta seuraava on nimetty avain → muunna objektiksi vain jos tyhjä
+            if (cur[p].length === 0) cur[p] = {};
+            // (jos taulukossa on dataa, jätetään se — nimetty avain lisätään taulukko-objektiin)
+          }
           cur = cur[p];
         }
       const last = parts[parts.length - 1];
@@ -292,8 +310,10 @@ if (!isNaN(Number(last))) {
   if (Array.isArray(cur)) {
     while (cur.length < idx) cur.push({});
     cur[idx] = val;
+  } else if (cur && typeof cur === 'object') {
+    cur[last] = val;
   }
-} else { cur[last] = val; }      };
+} else { if (cur && typeof cur === 'object') cur[last] = val; }      };
 
       setAt(updated.cv_data, field, value);
       setAt(updated.content.cv_data, field, value);
