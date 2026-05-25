@@ -7,7 +7,7 @@
 //  EI vaadi ai_data:a toimiakseen — mahdollistaa ilmaisen ei-AI-polun.
 // ════════════════════════════════════════════════════════════════════
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect, useRef } from "react";
 import type { AIData } from "@/types";
 import {
   type CVEngineConfig,
@@ -260,6 +260,40 @@ export function useCVEngine(config: CVEngineConfig) {
 
   const name = data?.name || "Name";
   const cvTitle = data?.title || "Professional Title";
+
+  // ── MATERIALISOINTI (Tie B -bugikorjaus) ────────────────────────────
+  // Ongelma: jos opinnot/kokemus tulevat AI-HTML:stä (ei strukturoituna
+  // cv_data-taulukkona), yhden kentän muokkaus loi vajaan taulukon ja
+  // muu data katosi (parseri vaihtoi lähteen HTML:stä vajaaseen taulukkoon).
+  // Korjaus: kun muokkaus alkaa, kirjoitetaan TÄYSI parsittu data cv_dataan
+  // KERRAN, jos sitä ei vielä ole strukturoituna. Sen jälkeen muokkaus
+  // kohdistuu täyteen dataan eikä mikään katoa.
+  const materializedRef = useRef(false);
+  useEffect(() => {
+    if (!isEditing || !onUpdate) return;
+    if (materializedRef.current) return;
+
+    const cvd: any = data || {};
+    const needsExp = !Array.isArray(cvd.experience) && workExperience.length > 0;
+    const needsEdu = !Array.isArray(cvd.education) && education.length > 0;
+    const needsSkills = !Array.isArray(cvd.skills) && skillCategories.length > 0;
+
+    if (needsExp || needsEdu || needsSkills) {
+      materializedRef.current = true;
+      if (needsExp) onUpdate("experience", workExperience.map(j => ({
+        title: j.title, company: j.company, period: j.period, bullets: [...j.bullets],
+      })));
+      if (needsEdu) onUpdate("education", education.map(e => ({
+        degree: e.degree, institution: e.institution, year: e.year, details: [...e.details],
+      })));
+      if (needsSkills) onUpdate("skills", skillCategories.map(c => ({
+        category: c.category, items: [...c.items],
+      })));
+    } else {
+      // Data on jo strukturoitu — ei tarvetta materialisoida
+      materializedRef.current = true;
+    }
+  }, [isEditing, onUpdate, data, workExperience, education, skillCategories]);
 
   return {
     // raaka konfiguraatio
