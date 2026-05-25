@@ -11,6 +11,10 @@ export interface SectionScale {
   fontScale: number;
   gap: number;
   hidden: boolean;
+  /** Lohkon vaakasijainti (Simple-tyylinen vapaa asettelu). Valinnainen. */
+  align?: "left" | "right" | "full";
+  /** Lohkon leveys prosentteina sisältöalueesta (esim. 50). Valinnainen. */
+  widthPct?: number;
 }
 export type SectionScales = Record<string, SectionScale>;
 export interface ColumnScales {

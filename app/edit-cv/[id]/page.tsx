@@ -72,6 +72,15 @@ const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
     { id: 'skills', label: 'Taidot (vasen palsta)', column: 'left' },
   ];
 
+  // Simple-templaten lohkot (kertova rakenne, vapaa asettelu)
+  const SIMPLE_BLOCK_DEFS: { id: string; label: string; column: 'left' | 'right' }[] = [
+    { id: 'photo', label: 'Profiilikuvan koko', column: 'right' },
+    { id: 'main', label: 'Pääkertomus', column: 'right' },
+    { id: 'intro', label: 'Esittely', column: 'right' },
+    { id: 'strengths', label: 'Vahvuudet', column: 'right' },
+    { id: 'goals', label: 'Tavoitteet', column: 'right' },
+  ];
+
   // ── Undo history ───────────────────────────────────────────────────
   const historyRef = useRef<string[]>([]);
   const MAX_HISTORY = 50;
@@ -377,17 +386,21 @@ if (!isNaN(Number(last))) {
   }, [handleUpdate]);
 
   // ── Per-osio / per-palsta säätö ────────────────────────────────────
-  const updateSectionScale = useCallback((sectionId: string, key: 'fontScale' | 'gap', val: number) => {
+  const updateSectionScale = useCallback((sectionId: string, key: 'fontScale' | 'gap' | 'widthPct', val: number) => {
     setSectionScales(prev => {
-      const next = {
-        ...prev,
-        [sectionId]: {
-          fontScale: prev[sectionId]?.fontScale ?? 1,
-          gap: prev[sectionId]?.gap ?? 1,
-          hidden: prev[sectionId]?.hidden ?? false,
-          [key]: val,
-        },
-      };
+      const cur = prev[sectionId] ?? { fontScale: 1, gap: 1, hidden: false };
+      const next = { ...prev, [sectionId]: { ...cur, [key]: val } };
+      handleUpdate('sectionScales', next);
+      return next;
+    });
+  }, [handleUpdate]);
+
+  const updateSectionAlign = useCallback((sectionId: string, align: 'left' | 'right' | 'full') => {
+    setSectionScales(prev => {
+      const cur = prev[sectionId] ?? { fontScale: 1, gap: 1, hidden: false };
+      // Kun valitaan full, leveys 100%; muuten oletus 50% jos ei vielä asetettu
+      const widthPct = align === 'full' ? 100 : (cur.widthPct && cur.widthPct < 100 ? cur.widthPct : 50);
+      const next = { ...prev, [sectionId]: { ...cur, align, widthPct } };
       handleUpdate('sectionScales', next);
       return next;
     });
@@ -770,8 +783,8 @@ if (!isNaN(Number(last))) {
               </div>
             </div>
 
-            {/* Osioiden tilankäyttö — vain technical-templatelle */}
-            {isEditing && cvType === 'technical' && (
+            {/* Osioiden tilankäyttö — technical ja simple */}
+            {isEditing && (cvType === 'technical' || cvType === 'simple') && (
               <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -787,9 +800,10 @@ if (!isNaN(Number(last))) {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Säädä kuinka paljon tilaa kukin osio vie</p>
 
-                {/* Palstojen mitat: leveys + bannerin korkeus */}
+                {/* Palstojen mitat: leveys (vain technical) + bannerin korkeus (molemmat) */}
                 <div className="mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
                   <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Asettelu</p>
+                  {cvType === 'technical' && (
                   <div className="mb-3">
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Vasemman palstan leveys</label>
@@ -805,6 +819,7 @@ if (!isNaN(Number(last))) {
                       <span>Kapea</span><span>Leveä (kuva + taidot)</span>
                     </div>
                   </div>
+                  )}
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Yläbannerin korkeus</label>
@@ -822,7 +837,8 @@ if (!isNaN(Number(last))) {
                   </div>
                 </div>
 
-                {/* Palstakohtainen fonttiskaala */}
+                {/* Palstakohtainen fonttiskaala — vain technical */}
+                {cvType === 'technical' && (
                 <div className="mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
                   <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Palstojen fonttikoko</p>
                   {([
@@ -843,12 +859,14 @@ if (!isNaN(Number(last))) {
                     </div>
                   ))}
                 </div>
+                )}
 
                 {/* Osiokohtainen säätö */}
-                <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">Osiot</p>
+                <p className="text-xs font-bold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wide">{cvType === 'simple' ? 'Lohkot' : 'Osiot'}</p>
                 <div className="space-y-4">
-                  {SECTION_DEFS.map(({ id: sid, label }) => {
+                  {(cvType === 'simple' ? SIMPLE_BLOCK_DEFS : SECTION_DEFS).map(({ id: sid, label }) => {
                     const sec = sectionScales[sid] ?? { fontScale: 1, gap: 1, hidden: false };
+                    const isSimpleBlock = cvType === 'simple' && sid !== 'photo';
                     return (
                       <div key={sid} className={`p-3 rounded-xl border ${sec.hidden ? 'border-gray-200 dark:border-gray-800 opacity-60' : 'border-teal-500/20 bg-teal-500/[0.03]'}`}>
                         <div className="flex items-center justify-between mb-2">
@@ -862,16 +880,17 @@ if (!isNaN(Number(last))) {
                           <>
                             <div className="mb-2">
                               <div className="flex items-center justify-between mb-0.5">
-                                <label className="text-[11px] text-gray-500">Fonttikoko</label>
+                                <label className="text-[11px] text-gray-500">{sid === 'photo' ? 'Kuvan koko' : 'Fonttikoko'}</label>
                                 <span className="text-[11px] font-mono text-teal-600 dark:text-teal-400">{Math.round((sec.fontScale ?? 1) * 100)}%</span>
                               </div>
-                              <input type="range" min="70" max="120" step="1"
+                              <input type="range" min={sid === 'photo' ? 50 : 70} max={sid === 'photo' ? 160 : 120} step="1"
                                 value={Math.round((sec.fontScale ?? 1) * 100)}
                                 onChange={e => updateSectionScale(sid, 'fontScale', Number(e.target.value) / 100)}
                                 className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
                                 style={{ accentColor: '#14b8a6' }}
                               />
                             </div>
+                            {sid !== 'photo' && (
                             <div>
                               <div className="flex items-center justify-between mb-0.5">
                                 <label className="text-[11px] text-gray-500">Väli osion jälkeen</label>
@@ -884,6 +903,44 @@ if (!isNaN(Number(last))) {
                                 style={{ accentColor: '#14b8a6' }}
                               />
                             </div>
+                            )}
+
+                            {/* Sijainti + leveys — vain Simplen tekstilohkoille */}
+                            {isSimpleBlock && (
+                              <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                                <label className="text-[11px] text-gray-500 block mb-1">Sijainti</label>
+                                <div className="flex gap-1 mb-2">
+                                  {([
+                                    { v: 'full' as const, t: 'Täysi' },
+                                    { v: 'left' as const, t: 'Vasen' },
+                                    { v: 'right' as const, t: 'Oikea' },
+                                  ]).map(({ v, t }) => (
+                                    <button key={v} onClick={() => updateSectionAlign(sid, v)}
+                                      className={`flex-1 text-[10px] font-bold py-1 rounded-md transition-colors ${
+                                        (sec.align ?? 'full') === v
+                                          ? 'bg-teal-500 text-white'
+                                          : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:bg-teal-500/15'
+                                      }`}>
+                                      {t}
+                                    </button>
+                                  ))}
+                                </div>
+                                {(sec.align ?? 'full') !== 'full' && (
+                                  <div>
+                                    <div className="flex items-center justify-between mb-0.5">
+                                      <label className="text-[11px] text-gray-500">Leveys</label>
+                                      <span className="text-[11px] font-mono text-teal-600 dark:text-teal-400">{sec.widthPct ?? 50}%</span>
+                                    </div>
+                                    <input type="range" min="30" max="100" step="5"
+                                      value={sec.widthPct ?? 50}
+                                      onChange={e => updateSectionScale(sid, 'widthPct', Number(e.target.value))}
+                                      className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                                      style={{ accentColor: '#14b8a6' }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </>
                         )}
                       </div>
