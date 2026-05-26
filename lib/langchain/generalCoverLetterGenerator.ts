@@ -22,7 +22,11 @@ interface CoverLetterInput {
   jobTitle?: string;
   companyName?: string;
   jobPosting?: string;
-  
+
+  // ✅ AVOIN HAKEMUS — tieto firmasta
+  companyMotivation?: string;   // käyttäjän oma näkemys: "miksi juuri tämä firma"
+  companyAboutText?: string;    // firman "about us" -teksti (käyttäjä liittää)
+
   // Profile Data (for context)
   workExperience?: string;
   education?: string;
@@ -237,6 +241,34 @@ do it. If they provide context about location or availability, integrate it
 naturally.
 
 # ═══════════════════════════════════════════════════════════════
+# 🏢 COMPANY CONTEXT — OPEN APPLICATION
+# ═══════════════════════════════════════════════════════════════
+
+The applicant is sending an OPEN application to a specific company.
+Use the company context below to make the letter feel SPECIFIC to this
+company, not generic.
+
+**WHY THIS COMPANY (applicant's own words):**
+{companyMotivation}
+
+**ABOUT THE COMPANY (from their website / applicant's research):**
+{companyAboutText}
+
+**HOW TO USE THIS:**
+- Weave the applicant's genuine interest into the letter naturally
+- Connect their motivation to the company's actual focus
+- Reference the company's values or work ONLY if stated above
+
+**ABSOLUTE RULE — TRUTH:**
+- NEVER invent facts about the company.
+- If the company context above is empty or vague, do NOT make up details
+  about what the company does, its values, or its achievements.
+- Only state things about the company that appear in the context above
+  OR that the applicant explicitly wrote.
+- A genuine "I'm drawn to your focus on X" (where X is stated) beats
+  a fabricated "your industry-leading innovation in Y".
+
+# ═══════════════════════════════════════════════════════════════
 # QUALITY CHECKS
 # ═══════════════════════════════════════════════════════════════
 
@@ -430,6 +462,10 @@ export async function generateGeneralCoverLetter(
       language: input.language || 'finnish',
       style: input.style || 'professional',
       additionalNotes: input.additionalNotes || 'None',
+      companyMotivation: input.companyMotivation?.trim() || 'Not provided',
+      companyAboutText: input.companyAboutText?.trim()
+        ? input.companyAboutText.substring(0, 1500)
+        : 'Not provided',
 
       // Profile data
       workExperience: input.workExperience || 'Building experience',

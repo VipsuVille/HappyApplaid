@@ -42,6 +42,8 @@ interface GeneralCoverLetterRequest extends BaseCoverLetterRequest {
   jobTitle?: string;
   companyName?: string;
   jobPosting?: string;
+  companyMotivation?: string;
+  companyAboutText?: string;
   workExperience?: string;
   education?: string;
   skills?: string;
@@ -224,6 +226,8 @@ export async function POST(request: NextRequest) {
           jobTitle: generalBody.jobTitle,
           companyName: generalBody.companyName,
           jobPosting: generalBody.jobPosting,
+          companyMotivation: generalBody.companyMotivation,
+          companyAboutText: generalBody.companyAboutText,
           workExperience: generalBody.workExperience,
           education: generalBody.education,
           skills: generalBody.skills,

@@ -35,6 +35,11 @@ export default function CreateCoverLetterPage() {
   const [jobPosting, setJobPosting] = useState("");
   const [targetIndustry, setTargetIndustry] = useState("");
   const [targetRole, setTargetRole] = useState("");
+
+  // ✅ AVOIN HAKEMUS — firma-konteksti
+  const [openAppCompany, setOpenAppCompany] = useState("");        // yrityksen nimi
+  const [companyMotivation, setCompanyMotivation] = useState("");  // "miksi tämä firma"
+  const [companyAboutText, setCompanyAboutText] = useState("");    // about us -teksti
   
   const [letterLanguage, setLetterLanguage] = useState<LetterLanguage>("finnish");
   const [letterStyle, setLetterStyle] = useState<LetterStyle>("formal");
@@ -308,6 +313,10 @@ export default function CreateCoverLetterPage() {
         ...(letterType === 'general' && {
           targetIndustry,
           targetRole,
+          companyName: openAppCompany.trim() || undefined,
+          jobTitle: targetRole.trim() || undefined,
+          companyMotivation: companyMotivation.trim() || undefined,
+          companyAboutText: companyAboutText.trim() || undefined,
         }),
         
         language: letterLanguage,
@@ -664,24 +673,89 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
               </>
             )}
 
-            {/* GENERAL: Target fields */}
+            {/* GENERAL: avoin hakemus tietylle firmalle */}
             {letterType === 'general' && (
               <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10 space-y-6">
-                <h3 className="text-xl font-bold text-white">Target (Optional)</h3>
-                <input
-                  type="text"
-                  value={targetIndustry}
-                  onChange={(e) => setTargetIndustry(e.target.value)}
-                  placeholder={t.targetIndustryPlaceholder}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50"
-                />
-                <input
-                  type="text"
-                  value={targetRole}
-                  onChange={(e) => setTargetRole(e.target.value)}
-                  placeholder={t.targetRolePlaceholder}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50"
-                />
+                <div className="flex items-center gap-3 mb-2">
+                  <Briefcase className="w-10 h-10 p-2 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30" />
+                  <div>
+                    <h3 className="text-xl font-bold text-white">
+                      {isFinnish ? 'Kohdeyritys (vapaaehtoinen)' : 'Target company (optional)'}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {isFinnish
+                        ? 'Tee avoimesta hakemuksesta yksilöllinen juuri tälle yritykselle'
+                        : 'Make your open application specific to this company'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Yrityksen nimi + ala/rooli */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <input
+                    type="text"
+                    value={openAppCompany}
+                    onChange={(e) => setOpenAppCompany(e.target.value)}
+                    placeholder={isFinnish ? 'Yritys, esim. Nokia' : 'Company, e.g. Nokia'}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50"
+                  />
+                  <input
+                    type="text"
+                    value={targetRole}
+                    onChange={(e) => setTargetRole(e.target.value)}
+                    placeholder={t.targetRolePlaceholder}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50"
+                  />
+                </div>
+
+                {/* Miksi juuri tämä firma — käyttäjän oma näkemys */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 mb-2">
+                    {isFinnish ? 'Miksi juuri tämä yritys?' : 'Why this company?'}
+                  </label>
+                  <textarea
+                    value={companyMotivation}
+                    onChange={(e) => setCompanyMotivation(e.target.value)}
+                    placeholder={isFinnish
+                      ? 'Esim. "Olen seurannut heidän kestävyystyötään" tai "Ystäväni töissä siellä kehui kulttuuria". Omin sanoin — tämä tekee kirjeestä aidon.'
+                      : 'E.g. "I\'ve followed their sustainability work". In your own words — this makes the letter genuine.'}
+                    className="w-full h-24 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none placeholder:text-gray-600"
+                  />
+                </div>
+
+                {/* About us -teksti */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 mb-2">
+                    {isFinnish ? 'Tietoa yrityksestä (vapaaehtoinen)' : 'About the company (optional)'}
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {isFinnish
+                      ? 'Liitä yrityksen "Tietoa meistä" -teksti nettisivuilta. AI käyttää sitä tehdäkseen kirjeestä osuvan.'
+                      : 'Paste the company\'s "About us" text. AI uses it to make the letter relevant.'}
+                  </p>
+                  <textarea
+                    value={companyAboutText}
+                    onChange={(e) => setCompanyAboutText(e.target.value)}
+                    placeholder={isFinnish ? 'Liitä yrityksen esittelyteksti tähän…' : 'Paste the company description here…'}
+                    className="w-full h-28 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none placeholder:text-gray-600"
+                    maxLength={2000}
+                  />
+                </div>
+
+                {/* AI-faktantarkistus — paikka valmiina, kytketään myöhemmin web-haulla */}
+                <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl flex items-start gap-3">
+                  <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-blue-200/70">
+                    <p className="font-bold text-blue-300 mb-1">
+                      {isFinnish ? 'AI-faktantarkistus (tulossa)' : 'AI fact-check (coming soon)'}
+                    </p>
+                    <p>
+                      {isFinnish
+                        ? 'Pian: maksavat käyttäjät voivat antaa AI:n tarkistaa väitteet yrityksestä. Toistaiseksi kirjoita itse — se on aidoin tapa. Vinkki: automaattihaku toimii parhaiten suurilla, tunnetuilla yrityksillä.'
+                        : 'Soon: paid users can let AI verify claims about the company. For now, write it yourself — the most genuine way.'}
+                    </p>
+                  </div>
+                </div>
               </section>
             )}
 
