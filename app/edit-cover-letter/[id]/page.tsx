@@ -1,6 +1,6 @@
 'use client';
 // edit-cover-letter/[id]/page.tsx
-// ✅ CANVA-TYYLINEN EDITORI — kontekstuaalinen toolbar, kaikki samalla sivulla
+// ✅ CANVA-TYYLINEN EDITORI + ENGINE-KYTKENTÄ
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -8,13 +8,15 @@ import { useAuth } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import {
   Save, ArrowLeft, Trash2, Download, Loader2,
-  FileText, Sparkles, Bold, Italic, AlignLeft, 
-  AlignCenter, AlignJustify, Minus, Plus, Type, 
-  Palette, CheckCircle, ZoomIn, ZoomOut
+  RotateCcw, Clock, FileText, Sparkles,
+  Bold, Italic, AlignLeft, AlignCenter, AlignJustify,
+  Minus, Plus, Type, Palette, ChevronDown,
+  CheckCircle, Undo, Redo, ZoomIn, ZoomOut,
+  GripVertical,
 } from 'lucide-react';
 
-// ✅ Korjattu import-polku (Isot kirjaimet kohdallaan Verceliä varten)
-import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
+// ✅ Engine-pohjainen renderöinti (korjattu case)
+import CoverLetterRenderer from '@/lib/cover-letter/CoverLetterRenderer';
 import type { CLStyle, CLContactInfo } from '@/lib/cover-letter/engine/types';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import IterativeFeedback from '@/components/IterativeFeedback';
@@ -69,7 +71,6 @@ export default function EditCoverLetterPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [latestChanges, setLatestChanges] = useState('');
 
-  // Content osavaltiot
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -91,16 +92,20 @@ export default function EditCoverLetterPage() {
     textColor: '#1a1a1a',
   });
 
-  // Floating toolbar
   const [toolbar, setToolbar] = useState<ToolbarPos>({
     x: 0, y: 0, visible: false, hasSelection: false
   });
+  const [activeAlign, setActiveAlign] = useState<'left' | 'center' | 'justify'>('justify');
   const editorRef = useRef<HTMLDivElement>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
 
+  // ✅ Väliseinä — vasemman osuus pääalueesta (0..1)
+  const [leftRatio, setLeftRatio] = useState(0.75);
+  const [isDragging, setIsDragging] = useState(false);
+  const mainAreaRef = useRef<HTMLDivElement>(null);
+
   const iterationCost = plan_type === 'premium' ? 30 : 50;
 
-  // ── Load ──────────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       if (!userId || !id) { setIsLoading(false); return; }
@@ -128,7 +133,8 @@ export default function EditCoverLetterPage() {
             fontSize: l.content?.fontSize || 11,
             lineHeight: l.content?.lineHeight || 1.8,
             textAlign: l.content?.textAlign || 'justify',
-            templateStyle: l.content?.templateStyle || 'modern-top',
+            templateStyle: l.content?.templateStyle
+              || (l.content?.headerLayout === 'left' ? 'modern-left' : 'modern-top'),
             signatureStyle: l.content?.signatureStyle || 'script',
             fontFamily: l.content?.fontFamily || 'serif',
             textColor: l.content?.textColor || '#1a1a1a',
@@ -142,33 +148,16 @@ export default function EditCoverLetterPage() {
     };
     load();
   }, [id, userId, getToken]);
-const handleFieldChange = (field: string, value: string) => {
-  switch (field) {
-    case 'name': setName(value); break;
-    case 'email': setEmail(value); break;
-    case 'phone': setPhone(value); break;
-    case 'location': setLocation(value); break;
-    case 'headerColor': setStyleSettings(p => ({ ...p, headerColor: value })); break;
-    case 'jobTitle':
-      setLetterData(p => p ? { ...p, content: { ...p.content, job_title: value } } : p);
-      break;
-    case 'companyName':
-      setLetterData(p => p ? { ...p, content: { ...p.content, company_name: value } } : p);
-      break;
-  }
-};
-  // ── Selection → floating toolbar ─────────────────────────────
+
   const handleSelectionChange = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) {
       setToolbar(t => ({ ...t, visible: false }));
       return;
     }
-
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     const editorRect = editorRef.current?.getBoundingClientRect();
-
     const container = range.commonAncestorContainer;
     const isInEditor = editorRef.current?.contains(container as Node);
 
@@ -176,9 +165,7 @@ const handleFieldChange = (field: string, value: string) => {
       setToolbar(t => ({ ...t, visible: false }));
       return;
     }
-
     const hasSelection = sel.toString().length > 0;
-
     if (hasSelection) {
       setToolbar({
         x: rect.left - editorRect.left + rect.width / 2,
@@ -201,15 +188,38 @@ const handleFieldChange = (field: string, value: string) => {
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [handleSelectionChange]);
 
+  // ✅ Raahauslogiikka väliseinälle
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMove = (e: MouseEvent) => {
+      if (!mainAreaRef.current) return;
+      const rect = mainAreaRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const ratio = Math.max(0.4, Math.min(0.9, x / rect.width));
+      setLeftRatio(ratio);
+    };
+    const handleUp = () => setIsDragging(false);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+    };
+  }, [isDragging]);
+
   const execCmd = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
   };
 
   const applyAlign = (align: 'left' | 'center' | 'justify') => {
+    setActiveAlign(align);
     setStyleSettings(prev => ({ ...prev, textAlign: align }));
   };
 
-  // ── Save ──────────────────────────────────────────────────────
   const buildContent = () => ({
     ...letterData?.content,
     contactInfo: { name, email, phone, location },
@@ -289,6 +299,22 @@ const handleFieldChange = (field: string, value: string) => {
     }
   };
 
+  const handleFieldChange = (field: string, value: string) => {
+    switch (field) {
+      case 'name': setName(value); break;
+      case 'email': setEmail(value); break;
+      case 'phone': setPhone(value); break;
+      case 'location': setLocation(value); break;
+      case 'headerColor': setStyleSettings(p => ({ ...p, headerColor: value })); break;
+      case 'jobTitle':
+        setLetterData(p => p ? { ...p, content: { ...p.content, job_title: value } } : p);
+        break;
+      case 'companyName':
+        setLetterData(p => p ? { ...p, content: { ...p.content, company_name: value } } : p);
+        break;
+    }
+  };
+
   const handleIterationSuccess = (newContent: string, summary: string) => {
     setContent(newContent);
     setLatestChanges(summary);
@@ -306,12 +332,44 @@ const handleFieldChange = (field: string, value: string) => {
     );
   }
 
+  // ✅ Engine lukee tämän raw-objektin (nykyinen tallennusmuoto + engine-kentät)
+  const engineRaw = {
+    title: letterData.title,
+    content: {
+      body: content,
+      contactInfo: { name, email, phone, location },
+      job_title: letterData.content?.job_title,
+      company_name: letterData.content?.company_name,
+      language: letterData.content?.language || 'finnish',
+      headerColor: styleSettings.headerColor,
+      accentColor: styleSettings.headerColor,
+      templateStyle: styleSettings.templateStyle,
+      fontSize: styleSettings.fontSize,
+      lineHeight: styleSettings.lineHeight,
+      textAlign: styleSettings.textAlign,
+      fontFamily: styleSettings.fontFamily,
+      textColor: styleSettings.textColor,
+      signatureStyle: styleSettings.signatureStyle,
+      showDate: true,
+      divider: {
+        direction: (styleSettings.templateStyle === 'modern-left' ? 'vertical'
+                   : 'horizontal') as 'vertical' | 'horizontal' | 'none',
+        sizeMm: styleSettings.templateStyle === 'modern-left' ? 74 : 70,
+      },
+    },
+    ai_data: {
+      job_title: letterData.ai_data?.job_title,
+      company_name: letterData.ai_data?.company_name,
+      key_highlights: letterData.ai_data?.key_highlights || [],
+    },
+  };
+
   const scaleValue = zoom / 100;
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1e1e', color: '#e8e3dc', fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* ══ TOP TOOLBAR — Canva-tyylinen ══════════════════════════ */}
+      {/* ══ TOP TOOLBAR ══════════════════════════ */}
       <div style={{
         height: '56px',
         background: '#2a2a2a',
@@ -323,7 +381,6 @@ const handleFieldChange = (field: string, value: string) => {
         flexShrink: 0,
         zIndex: 50,
       }}>
-        {/* Left: Back + title */}
         <button
           onClick={() => router.push('/my-cover-letters')}
           style={{ padding: '6px', borderRadius: '8px', background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
@@ -336,16 +393,14 @@ const handleFieldChange = (field: string, value: string) => {
         <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
         <FileText size={16} style={{ color: '#f97316' }} />
-        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e0dbd4', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e0dbd4', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {letterData.title}
         </span>
 
         <div style={{ flex: 1 }} />
 
-        {/* Center: Typography controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
 
-          {/* Font size */}
           <div style={{ display: 'flex', alignItems: 'center', background: '#333', borderRadius: '8px', overflow: 'hidden' }}>
             <button
               onClick={() => setStyleSettings(p => ({ ...p, fontSize: Math.max(8, p.fontSize - 0.5) }))}
@@ -362,7 +417,6 @@ const handleFieldChange = (field: string, value: string) => {
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
-          {/* Alignment */}
           {(['left', 'center', 'justify'] as const).map(align => (
             <button
               key={align}
@@ -380,33 +434,31 @@ const handleFieldChange = (field: string, value: string) => {
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
-          {/* Line height */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Type size={14} style={{ color: '#888' }} />
             <input
               type="range" min="1.1" max="2.5" step="0.05"
               value={styleSettings.lineHeight}
               onChange={e => setStyleSettings(p => ({ ...p, lineHeight: parseFloat(e.target.value) }))}
-              style={{ width: '60px', accentColor: '#f97316' }}
+              style={{ width: '70px', accentColor: '#f97316' }}
               title={`Riviväli: ${styleSettings.lineHeight}`}
             />
-            <span style={{ fontSize: '11px', color: '#888', minWidth: '24px' }}>{styleSettings.lineHeight.toFixed(1)}</span>
+            <span style={{ fontSize: '11px', color: '#888', minWidth: '28px' }}>{styleSettings.lineHeight.toFixed(1)}</span>
           </div>
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
-          {/* Header color */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Palette size={14} style={{ color: '#888' }} />
             <div
               onClick={() => colorInputRef.current?.click()}
               style={{
-                width: '24px', height: '24px', borderRadius: '6px',
+                width: '28px', height: '28px', borderRadius: '6px',
                 background: styleSettings.headerColor,
                 border: '2px solid #555', cursor: 'pointer',
                 boxShadow: '0 0 0 1px rgba(255,255,255,0.1)',
               }}
-              title="Brändiväri"
+              title="Korostusväri"
             />
             <input
               ref={colorInputRef}
@@ -419,7 +471,7 @@ const handleFieldChange = (field: string, value: string) => {
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
-          {/* Template (skini) */}
+          {/* ✅ Template (skini) */}
           <select
             value={styleSettings.templateStyle}
             onChange={e => setStyleSettings(p => ({ ...p, templateStyle: e.target.value }))}
@@ -434,25 +486,25 @@ const handleFieldChange = (field: string, value: string) => {
             <option value="classic">Klassinen</option>
           </select>
 
-          {/* Allekirjoitustyyli */}
+          {/* ✅ Allekirjoitustyyli */}
           <select
             value={styleSettings.signatureStyle}
-            onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as any }))}
+            onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as 'script' | 'print' | 'bold' }))}
             style={{
               padding: '6px 10px', borderRadius: '6px', border: '1px solid #444',
               background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
             }}
             title="Allekirjoitustyyli"
           >
-            <option value="script">Allekirjoitus · käsiala</option>
-            <option value="print">Allekirjoitus · painettu</option>
-            <option value="bold">Allekirjoitus · korostettu</option>
+            <option value="script">Allek. · käsiala</option>
+            <option value="print">Allek. · painettu</option>
+            <option value="bold">Allek. · korostettu</option>
           </select>
 
-          {/* Fontti */}
+          {/* ✅ Fontti */}
           <select
             value={styleSettings.fontFamily}
-            onChange={e => setStyleSettings(p => ({ ...p, fontFamily: e.target.value as any }))}
+            onChange={e => setStyleSettings(p => ({ ...p, fontFamily: e.target.value as 'serif' | 'sans' | 'classic' | 'modern' }))}
             style={{
               padding: '6px 10px', borderRadius: '6px', border: '1px solid #444',
               background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
@@ -468,10 +520,8 @@ const handleFieldChange = (field: string, value: string) => {
 
         <div style={{ flex: 1 }} />
 
-        {/* Right: Zoom + actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
-          {/* Zoom */}
           <div style={{ display: 'flex', alignItems: 'center', background: '#333', borderRadius: '8px', overflow: 'hidden' }}>
             <button
               onClick={() => setZoom(z => Math.max(40, z - 10))}
@@ -530,21 +580,20 @@ const handleFieldChange = (field: string, value: string) => {
       </div>
 
       {/* ══ MAIN AREA ═════════════════════════════════════════════ */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div ref={mainAreaRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
 
-        {/* ── Canvas area ── */}
         <div
           style={{
-            flex: 1,
+            width: `${leftRatio * 100}%`,
             overflow: 'auto',
             background: '#1e1e1e',
             display: 'flex',
             justifyContent: 'center',
             padding: '32px 24px',
             position: 'relative',
+            transition: isDragging ? 'none' : 'width 0.05s linear',
           }}
         >
-          {/* Floating toolbar */}
           {toolbar.visible && (
             <div
               style={{
@@ -593,7 +642,6 @@ const handleFieldChange = (field: string, value: string) => {
             </div>
           )}
 
-          {/* Document Container */}
           <div
             ref={editorRef}
             style={{
@@ -616,42 +664,70 @@ const handleFieldChange = (field: string, value: string) => {
                 </div>
               </div>
 
- <CoverLetterContainer>
-  {/* ✅ KORJATTU: style-proppi poistettu ja upotettu raw-objektin sisään */}
-  <CoverLetterRenderer
-    raw={{
-      contactInfo: { name, email, phone, location },
-      body: content,
-      jobTitle: letterData.content?.job_title || letterData.ai_data?.job_title || '',
-      companyName: letterData.content?.company_name || letterData.ai_data?.company_name || '',
-      keyHighlights: letterData.ai_data?.key_highlights || [],
-      style: styleSettings // Tyylit siirretty tänne raw-datan sisälle!
-    } as any}
-    isEditing={true}
-    onBodyChange={setContent}
-    onContactChange={(field: any, value: string) => {
-      if (field === 'name') setName(value);
-      if (field === 'email') setEmail(value);
-      if (field === 'phone') setPhone(value);
-      if (field === 'location') setLocation(value);
-    }}
-    onFieldChange={(field: string, value: string) => handleFieldChange(field, value)}
-    onStyleChange={(newStyle) => setStyleSettings(p => ({ ...p, ...newStyle }))}
-  />
-</CoverLetterContainer>
+              {/* ✅ ENGINE-KYTKENTÄ — oikeat proppinimet */}
+              <CoverLetterContainer>
+                <CoverLetterRenderer
+                  raw={engineRaw}
+                  isEditing={true}
+                  onContactChange={(field, value) => {
+                    if (field === 'name') setName(value);
+                    else if (field === 'email') setEmail(value);
+                    else if (field === 'phone') setPhone(value);
+                    else if (field === 'location') setLocation(value);
+                  }}
+                  onBodyChange={setContent}
+                  onFieldChange={(field, value) => handleFieldChange(field, value)}
+                  onStyleChange={(patch) => {
+                    setStyleSettings(prev => ({
+                      ...prev,
+                      ...(patch.accentColor ? { headerColor: patch.accentColor } : {}),
+                      ...(patch.templateStyle ? { templateStyle: patch.templateStyle } : {}),
+                      ...(patch.signatureStyle ? { signatureStyle: patch.signatureStyle } : {}),
+                      ...(patch.text?.fontFamily ? { fontFamily: patch.text.fontFamily } : {}),
+                      ...(patch.text?.fontSize ? { fontSize: patch.text.fontSize } : {}),
+                      ...(patch.text?.lineHeight ? { lineHeight: patch.text.lineHeight } : {}),
+                      ...(patch.text?.textAlign ? { textAlign: patch.text.textAlign } : {}),
+                      ...(patch.text?.textColor ? { textColor: patch.text.textColor } : {}),
+                    }));
+                  }}
+                />
+              </CoverLetterContainer>
             </div>
           </div>
         </div>
 
-        {/* ── Right panel: AI + history ── */}
+        {/* ✅ Raahattava väliseinä */}
+        <div
+          onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
+          style={{
+            width: '8px',
+            background: isDragging ? '#f97316' : '#2a2a2a',
+            borderLeft: '1px solid #333',
+            borderRight: '1px solid #333',
+            cursor: 'col-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            transition: isDragging ? 'none' : 'background 0.15s',
+            zIndex: 10,
+          }}
+          title="Raahaa muuttaaksesi paneelin kokoa"
+          onMouseEnter={(e) => { if (!isDragging) e.currentTarget.style.background = '#3a3a3a'; }}
+          onMouseLeave={(e) => { if (!isDragging) e.currentTarget.style.background = '#2a2a2a'; }}
+        >
+          <GripVertical size={14} style={{ color: isDragging ? '#fff' : '#666', pointerEvents: 'none' }} />
+        </div>
+
         <div style={{
-          width: '300px',
+          width: `${(1 - leftRatio) * 100}%`,
           background: '#252525',
-          borderLeft: '1px solid #333',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           flexShrink: 0,
+          minWidth: '200px',
+          transition: isDragging ? 'none' : 'width 0.05s linear',
         }}>
           <div style={{ display: 'flex', borderBottom: '1px solid #333' }}>
             <button
@@ -724,7 +800,11 @@ const handleFieldChange = (field: string, value: string) => {
             )}
           </div>
 
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #333', background: '#1e1e1e' }}>
+          <div style={{
+            padding: '12px 16px',
+            borderTop: '1px solid #333',
+            background: '#1e1e1e',
+          }}>
             <p style={{ fontSize: '11px', color: '#555', margin: 0, lineHeight: '1.5' }}>
               💡 Klikkaa tekstiä muokataksesi · Valitse teksti muotoiluun · Monogrammi = väri
             </p>
