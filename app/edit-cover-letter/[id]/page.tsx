@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 // ✅ Engine-pohjainen renderöinti (korjattu case)
-import CoverLetterRenderer from '@/lib/cover-letter/CoverLetterRenderer';
+import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
 import type { CLStyle, CLContactInfo } from '@/lib/cover-letter/engine/types';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import IterativeFeedback from '@/components/IterativeFeedback';
