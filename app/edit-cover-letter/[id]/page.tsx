@@ -8,13 +8,14 @@ import { useAuth } from '@clerk/nextjs';
 import { toast } from 'sonner';
 import {
   Save, ArrowLeft, Trash2, Download, Loader2,
-  RotateCcw, Clock, FileText, Sparkles,
-  Bold, Italic, AlignLeft, AlignCenter, AlignJustify,
-  Minus, Plus, Type, Palette, ChevronDown,
-  CheckCircle, Undo, Redo, ZoomIn, ZoomOut
+  FileText, Sparkles, Bold, Italic, AlignLeft, 
+  AlignCenter, AlignJustify, Minus, Plus, Type, 
+  Palette, CheckCircle, ZoomIn, ZoomOut
 } from 'lucide-react';
 
-import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
+// ✅ Korjattu import-polku (Isot kirjaimet kohdallaan Verceliä varten)
+import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
+import type { CLStyle, CLContactInfo } from '@/lib/cover-letter/engine/types';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import IterativeFeedback from '@/components/IterativeFeedback';
 import { useTokens } from '@/hooks/useTokens';
@@ -38,9 +39,12 @@ interface StyleSettings {
   letterSpacing: number;
   paragraphSpacing: number;
   textAlign: 'left' | 'justify' | 'center';
+  templateStyle: string;
+  signatureStyle: 'script' | 'print' | 'bold';
+  fontFamily: 'serif' | 'sans' | 'classic' | 'modern';
+  textColor: string;
 }
 
-// Toolbar position
 interface ToolbarPos {
   x: number;
   y: number;
@@ -65,7 +69,7 @@ export default function EditCoverLetterPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [latestChanges, setLatestChanges] = useState('');
 
-  // Content
+  // Content osavaltiot
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -81,14 +85,16 @@ export default function EditCoverLetterPage() {
     letterSpacing: 0,
     paragraphSpacing: 16,
     textAlign: 'justify',
+    templateStyle: 'modern-top',
+    signatureStyle: 'script',
+    fontFamily: 'serif',
+    textColor: '#1a1a1a',
   });
 
   // Floating toolbar
   const [toolbar, setToolbar] = useState<ToolbarPos>({
     x: 0, y: 0, visible: false, hasSelection: false
   });
-  const [activeFontSize, setActiveFontSize] = useState(11);
-  const [activeAlign, setActiveAlign] = useState<'left' | 'center' | 'justify'>('justify');
   const editorRef = useRef<HTMLDivElement>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
 
@@ -122,6 +128,10 @@ export default function EditCoverLetterPage() {
             fontSize: l.content?.fontSize || 11,
             lineHeight: l.content?.lineHeight || 1.8,
             textAlign: l.content?.textAlign || 'justify',
+            templateStyle: l.content?.templateStyle || 'modern-top',
+            signatureStyle: l.content?.signatureStyle || 'script',
+            fontFamily: l.content?.fontFamily || 'serif',
+            textColor: l.content?.textColor || '#1a1a1a',
           }));
         }
       } catch (e) {
@@ -132,7 +142,21 @@ export default function EditCoverLetterPage() {
     };
     load();
   }, [id, userId, getToken]);
-
+const handleFieldChange = (field: string, value: string) => {
+  switch (field) {
+    case 'name': setName(value); break;
+    case 'email': setEmail(value); break;
+    case 'phone': setPhone(value); break;
+    case 'location': setLocation(value); break;
+    case 'headerColor': setStyleSettings(p => ({ ...p, headerColor: value })); break;
+    case 'jobTitle':
+      setLetterData(p => p ? { ...p, content: { ...p.content, job_title: value } } : p);
+      break;
+    case 'companyName':
+      setLetterData(p => p ? { ...p, content: { ...p.content, company_name: value } } : p);
+      break;
+  }
+};
   // ── Selection → floating toolbar ─────────────────────────────
   const handleSelectionChange = useCallback(() => {
     const sel = window.getSelection();
@@ -145,7 +169,6 @@ export default function EditCoverLetterPage() {
     const rect = range.getBoundingClientRect();
     const editorRect = editorRef.current?.getBoundingClientRect();
 
-    // Check if selection is inside our editor
     const container = range.commonAncestorContainer;
     const isInEditor = editorRef.current?.contains(container as Node);
 
@@ -164,7 +187,6 @@ export default function EditCoverLetterPage() {
         hasSelection: true,
       });
     } else {
-      // Show minimal toolbar at cursor without selection
       setToolbar({
         x: rect.left - editorRect.left,
         y: rect.top - editorRect.top - 8,
@@ -179,31 +201,11 @@ export default function EditCoverLetterPage() {
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [handleSelectionChange]);
 
-  // ── Exec command helpers ──────────────────────────────────────
   const execCmd = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
   };
 
-  const applyFontSize = (size: number) => {
-    setActiveFontSize(size);
-    // Update global fontSize for full doc or selection
-    if (window.getSelection()?.toString()) {
-      execCmd('fontSize', '3');
-      // Replace with actual size via span
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        const span = document.createElement('span');
-        span.style.fontSize = `${size}pt`;
-        range.surroundContents(span);
-      }
-    } else {
-      setStyleSettings(prev => ({ ...prev, fontSize: size }));
-    }
-  };
-
   const applyAlign = (align: 'left' | 'center' | 'justify') => {
-    setActiveAlign(align);
     setStyleSettings(prev => ({ ...prev, textAlign: align }));
   };
 
@@ -287,22 +289,6 @@ export default function EditCoverLetterPage() {
     }
   };
 
-  const handleFieldChange = (field: string, value: string) => {
-    switch (field) {
-      case 'name': setName(value); break;
-      case 'email': setEmail(value); break;
-      case 'phone': setPhone(value); break;
-      case 'location': setLocation(value); break;
-      case 'headerColor': setStyleSettings(p => ({ ...p, headerColor: value })); break;
-      case 'jobTitle':
-        setLetterData(p => p ? { ...p, content: { ...p.content, job_title: value } } : p);
-        break;
-      case 'companyName':
-        setLetterData(p => p ? { ...p, content: { ...p.content, company_name: value } } : p);
-        break;
-    }
-  };
-
   const handleIterationSuccess = (newContent: string, summary: string) => {
     setContent(newContent);
     setLatestChanges(summary);
@@ -319,17 +305,6 @@ export default function EditCoverLetterPage() {
       </div>
     );
   }
-
-  const templateData = {
-    name, email, phone, location, content,
-    jobTitle: letterData.content?.job_title || letterData.ai_data?.job_title || '',
-    companyName: letterData.content?.company_name || letterData.ai_data?.company_name || '',
-    title: letterData.title,
-    keyHighlights: letterData.ai_data?.key_highlights || [],
-    language: letterData.content?.language || 'finnish',
-    style: (letterData.content?.style || 'professional') as 'professional' | 'casual' | 'creative',
-    ...styleSettings,
-  };
 
   const scaleValue = zoom / 100;
 
@@ -361,13 +336,13 @@ export default function EditCoverLetterPage() {
         <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
         <FileText size={16} style={{ color: '#f97316' }} />
-        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e0dbd4', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e0dbd4', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {letterData.title}
         </span>
 
         <div style={{ flex: 1 }} />
 
-        {/* Center: Typography controls — always visible */}
+        {/* Center: Typography controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
 
           {/* Font size */}
@@ -412,26 +387,26 @@ export default function EditCoverLetterPage() {
               type="range" min="1.1" max="2.5" step="0.05"
               value={styleSettings.lineHeight}
               onChange={e => setStyleSettings(p => ({ ...p, lineHeight: parseFloat(e.target.value) }))}
-              style={{ width: '70px', accentColor: '#f97316' }}
+              style={{ width: '60px', accentColor: '#f97316' }}
               title={`Riviväli: ${styleSettings.lineHeight}`}
             />
-            <span style={{ fontSize: '11px', color: '#888', minWidth: '28px' }}>{styleSettings.lineHeight.toFixed(1)}</span>
+            <span style={{ fontSize: '11px', color: '#888', minWidth: '24px' }}>{styleSettings.lineHeight.toFixed(1)}</span>
           </div>
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
           {/* Header color */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginRight: '4px' }}>
             <Palette size={14} style={{ color: '#888' }} />
             <div
               onClick={() => colorInputRef.current?.click()}
               style={{
-                width: '28px', height: '28px', borderRadius: '6px',
+                width: '24px', height: '24px', borderRadius: '6px',
                 background: styleSettings.headerColor,
                 border: '2px solid #555', cursor: 'pointer',
                 boxShadow: '0 0 0 1px rgba(255,255,255,0.1)',
               }}
-              title="Header-väri"
+              title="Brändiväri"
             />
             <input
               ref={colorInputRef}
@@ -444,17 +419,51 @@ export default function EditCoverLetterPage() {
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
-          {/* Layout toggle */}
-          <button
-            onClick={() => setStyleSettings(p => ({ ...p, headerLayout: p.headerLayout === 'top' ? 'left' : 'top' }))}
+          {/* Template (skini) */}
+          <select
+            value={styleSettings.templateStyle}
+            onChange={e => setStyleSettings(p => ({ ...p, templateStyle: e.target.value }))}
             style={{
-              padding: '5px 10px', borderRadius: '6px', border: '1px solid #444',
-              background: '#333', color: '#ccc', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
+              padding: '6px 10px', borderRadius: '6px', border: '1px solid #444',
+              background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
             }}
-            title="Vaihda asettelu"
+            title="Valitse pohja"
           >
-            {styleSettings.headerLayout === 'top' ? '☰ Yläosa' : '▋ Vasen'}
-          </button>
+            <option value="modern-top">Moderni · banneri</option>
+            <option value="modern-left">Moderni · sivupalsta</option>
+            <option value="classic">Klassinen</option>
+          </select>
+
+          {/* Allekirjoitustyyli */}
+          <select
+            value={styleSettings.signatureStyle}
+            onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as any }))}
+            style={{
+              padding: '6px 10px', borderRadius: '6px', border: '1px solid #444',
+              background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
+            }}
+            title="Allekirjoitustyyli"
+          >
+            <option value="script">Allekirjoitus · käsiala</option>
+            <option value="print">Allekirjoitus · painettu</option>
+            <option value="bold">Allekirjoitus · korostettu</option>
+          </select>
+
+          {/* Fontti */}
+          <select
+            value={styleSettings.fontFamily}
+            onChange={e => setStyleSettings(p => ({ ...p, fontFamily: e.target.value as any }))}
+            style={{
+              padding: '6px 10px', borderRadius: '6px', border: '1px solid #444',
+              background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
+            }}
+            title="Fontti"
+          >
+            <option value="serif">Fontti · Serif</option>
+            <option value="sans">Fontti · Sans</option>
+            <option value="classic">Fontti · Klassinen</option>
+            <option value="modern">Fontti · Moderni</option>
+          </select>
         </div>
 
         <div style={{ flex: 1 }} />
@@ -535,7 +544,7 @@ export default function EditCoverLetterPage() {
             position: 'relative',
           }}
         >
-          {/* Floating toolbar — appears on selection */}
+          {/* Floating toolbar */}
           {toolbar.visible && (
             <div
               style={{
@@ -572,7 +581,6 @@ export default function EditCoverLetterPage() {
                 </>
               )}
 
-              {/* Font size mini */}
               <button
                 onMouseDown={e => { e.preventDefault(); setStyleSettings(p => ({ ...p, fontSize: Math.max(8, p.fontSize - 0.5) })); }}
                 style={{ padding: '4px 6px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#aaa', cursor: 'pointer' }}
@@ -585,7 +593,7 @@ export default function EditCoverLetterPage() {
             </div>
           )}
 
-          {/* Document */}
+          {/* Document Container */}
           <div
             ref={editorRef}
             style={{
@@ -594,7 +602,6 @@ export default function EditCoverLetterPage() {
               marginBottom: `calc(${(scaleValue - 1) * 297}mm)`,
             }}
           >
-            {/* Page break indicator */}
             <div style={{ position: 'relative' }}>
               <div style={{
                 position: 'absolute', top: '297mm', left: '-20px', right: '-20px',
@@ -609,15 +616,29 @@ export default function EditCoverLetterPage() {
                 </div>
               </div>
 
-              <CoverLetterContainer>
-                <CoverLetterTemplate
-                  data={templateData}
-                  isEditing={true}
-                  isPdfPreview={false}
-                  onChange={setContent}
-                  onFieldChange={handleFieldChange as any}
-                />
-              </CoverLetterContainer>
+ <CoverLetterContainer>
+  {/* ✅ KORJATTU: style-proppi poistettu ja upotettu raw-objektin sisään */}
+  <CoverLetterRenderer
+    raw={{
+      contactInfo: { name, email, phone, location },
+      body: content,
+      jobTitle: letterData.content?.job_title || letterData.ai_data?.job_title || '',
+      companyName: letterData.content?.company_name || letterData.ai_data?.company_name || '',
+      keyHighlights: letterData.ai_data?.key_highlights || [],
+      style: styleSettings // Tyylit siirretty tänne raw-datan sisälle!
+    } as any}
+    isEditing={true}
+    onBodyChange={setContent}
+    onContactChange={(field: any, value: string) => {
+      if (field === 'name') setName(value);
+      if (field === 'email') setEmail(value);
+      if (field === 'phone') setPhone(value);
+      if (field === 'location') setLocation(value);
+    }}
+    onFieldChange={(field: string, value: string) => handleFieldChange(field, value)}
+    onStyleChange={(newStyle) => setStyleSettings(p => ({ ...p, ...newStyle }))}
+  />
+</CoverLetterContainer>
             </div>
           </div>
         </div>
@@ -632,7 +653,6 @@ export default function EditCoverLetterPage() {
           overflow: 'hidden',
           flexShrink: 0,
         }}>
-          {/* Panel tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid #333' }}>
             <button
               style={{
@@ -704,12 +724,7 @@ export default function EditCoverLetterPage() {
             )}
           </div>
 
-          {/* Bottom hint */}
-          <div style={{
-            padding: '12px 16px',
-            borderTop: '1px solid #333',
-            background: '#1e1e1e',
-          }}>
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #333', background: '#1e1e1e' }}>
             <p style={{ fontSize: '11px', color: '#555', margin: 0, lineHeight: '1.5' }}>
               💡 Klikkaa tekstiä muokataksesi · Valitse teksti muotoiluun · Monogrammi = väri
             </p>
