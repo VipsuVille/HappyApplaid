@@ -1,51 +1,139 @@
-// lib/cover-letter/CoverLetterRenderer.tsx
-// ✅ Yhdistää enginen + skinit. Tämä on se mitä edit-sivu kutsuu.
-// Korvaa vanhan <CoverLetterTemplate> -kutsun. Lukee nykyisen datan, ei migraatiota.
+'use client';
 
 import React from 'react';
+import type { CLRawRecord } from './engine/types';
 import { useCoverLetterEngine } from './engine/useCoverLetterEngine';
-import type { CLRawRecord, CLContactInfo, CLStyle } from './engine/types';
-
 import ModernTop from './skins/ModernTop';
 import ModernLeft from './skins/ModernLeft';
-import Classic from './skins/Classic';
-
-// Skinirekisteri — uuden pohjan lisääminen: tee skini + lisää tähän yksi rivi.
-const SKINS: Record<string, React.ComponentType<{ engine: ReturnType<typeof useCoverLetterEngine> }>> = {
-  'modern-top': ModernTop,
-  'modern-left': ModernLeft,
-  'classic': Classic,
-};
+import CreativeWave from './skins/CreativeWave'; // <-- Uusi tuonti
+import {
+  EditableText,
+  EditableParagraphs,
+  Signature,
+  ContactRow,
+  DateRow,
+  BackgroundLayer,
+} from './engine/components';
 
 interface CoverLetterRendererProps {
   raw: CLRawRecord;
-  isEditing?: boolean;
-  // Muutoskäsittelijät — sivu päättää miten tallentaa (sama logiikka kuin nyt)
-  onContactChange?: (field: keyof CLContactInfo, value: string) => void;
+  isEditing: boolean;
+  onContactChange?: (field: any, value: string) => void;
   onBodyChange?: (newBody: string) => void;
   onFieldChange?: (field: 'jobTitle' | 'companyName' | 'title', value: string) => void;
-  onStyleChange?: (patch: Partial<CLStyle>) => void;
+  onStyleChange?: (patch: any) => void;
 }
 
+/**
+ * KLASSINEN SKIN (classic)
+ */
+function ClassicSkin({ engine }: { engine: any }) {
+  const { data, fontStack, updateField } = engine;
+  const accent = data.style.accentColor;
+
+  return (
+    <div
+      className="cover-letter-paper bg-white mx-auto relative"
+      style={{
+        width: '210mm',
+        minHeight: '297mm',
+        fontFamily: fontStack('classic'),
+        color: data.style.text.textColor,
+        overflow: 'hidden',
+        padding: '56px 56px 56px',
+      }}
+    >
+      <BackgroundLayer engine={engine} />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '6px',
+          background: accent,
+          WebkitPrintColorAdjust: 'exact',
+          printColorAdjust: 'exact',
+        }}
+      />
+      <div style={{ marginBottom: '40px', position: 'relative', zIndex: 1 }}>
+        <EditableText
+          engine={engine}
+          as="h1"
+          value={data.contact.name}
+          onCommit={(v) => engine.updateContact('name', v)}
+          style={{
+            fontSize: '28px',
+            fontWeight: 700,
+            color: '#111827',
+            fontFamily: fontStack('classic'),
+            letterSpacing: '-0.5px',
+            margin: '0 0 4px',
+          }}
+          placeholder="Nimi"
+        />
+        {(data.jobTitle || data.companyName) && (
+          <p style={{ margin: '0 0 20px', fontSize: '11pt', color: '#4b5563' }}>
+            <EditableText
+              engine={engine}
+              value={data.jobTitle || ''}
+              onCommit={(v) => updateField('jobTitle', v)}
+              placeholder="Titteli"
+            />
+            {data.jobTitle && data.companyName ? '  |  ' : ''}
+            <EditableText
+              engine={engine}
+              value={data.companyName || ''}
+              onCommit={(v) => updateField('companyName', v)}
+              placeholder="Yritys"
+            />
+          </p>
+        )}
+        <div style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '16px' }}>
+          <ContactRow engine={engine} onDark={false} />
+        </div>
+      </div>
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <DateRow engine={engine} />
+        <EditableParagraphs engine={engine} />
+        <Signature engine={engine} marginTop={56} closing="Kunnioittaen" />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PÄÄRENDERÖIJÄ
+ */
 export default function CoverLetterRenderer({
   raw,
-  isEditing = false,
+  isEditing,
   onContactChange,
   onBodyChange,
   onFieldChange,
   onStyleChange,
 }: CoverLetterRendererProps) {
   const engine = useCoverLetterEngine({
-    raw, isEditing, onContactChange, onBodyChange, onFieldChange, onStyleChange,
+    raw,
+    isEditing,
+    onContactChange,
+    onBodyChange,
+    onFieldChange,
+    onStyleChange,
   });
 
-  const SkinComponent = SKINS[engine.data.style.templateStyle] || ModernTop;
-  return <SkinComponent engine={engine} />;
-}
+  const { templateStyle } = engine.data.style;
 
-// Apu: lista käytettävissä olevista skineistä (editorin valitsinta varten)
-export const AVAILABLE_SKINS: { id: string; label: string }[] = [
-  { id: 'modern-top', label: 'Moderni (banneri)' },
-  { id: 'modern-left', label: 'Moderni (sivupalsta)' },
-  { id: 'classic', label: 'Klassinen' },
-];
+  // Reititetään valinnan mukaan oikealle pohjalle
+  switch (templateStyle) {
+    case 'creative-wave':
+      return <CreativeWave engine={engine} />; // <-- Kytketty renderöintiin
+    case 'modern-left':
+      return <ModernLeft engine={engine} />;
+    case 'classic':
+      return <ClassicSkin engine={engine} />;
+    case 'modern-top':
+    default:
+      return <ModernTop engine={engine} />;
+  }
+}

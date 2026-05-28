@@ -29,7 +29,7 @@ export default function CreateCoverLetterPage() {
   const router = useRouter();
   const { user, isLoaded: userLoaded } = useUser();
   const { language } = useLanguage();
-  
+  const [templateStyle, setTemplateStyle] = useState<string>("modern-top");  
   const [letterType, setLetterType] = useState<LetterType>("job_specific");
   const [letterVersion, setLetterVersion] = useState<LetterVersion>("v1");
   const [jobPosting, setJobPosting] = useState("");
@@ -76,9 +76,9 @@ export default function CreateCoverLetterPage() {
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
   const profileValidation = useMemo(() => {
-  if (!profileData) return null;
-  return validateProfile(profileData);
-}, [profileData]);
+    if (!profileData) return null;
+    return validateProfile(profileData);
+  }, [profileData]);
 
   const t = {
     en: {
@@ -90,7 +90,8 @@ export default function CreateCoverLetterPage() {
       sectionType: "1. Letter type",
       sectionLanguage: "2. Language & Style",
       sectionOptimization: "3. ATS Optimization (Premium)",
-      sectionAdditionalNotes: "4. Additional Notes (Optional)", // ✅ UUSI
+      sectionAdditionalNotes: "4. Additional Notes (Optional)", 
+      sectionTemplate: "5. Visual Template", // ✅ LISÄTTY
       jobSpecific: "Job-Specific",
       jobSpecificDesc: "Tailored for a job posting",
       general: "General Introduction",
@@ -108,11 +109,11 @@ export default function CreateCoverLetterPage() {
       styleFormalDesc: "Professional and polished",
       styleCasual: "Casual",
       styleCasualDesc: "Conversational but credible",
-      additionalNotesLabel: "Want to add something specific?", // ✅ UUSI
-      additionalNotesPlaceholder: "E.g. 'I want to emphasize my project management skills and mention I'm ready to start immediately.'", // ✅ UUSI
-      additionalNotesHelp: "These instructions will be given to AI when writing your letter.", // ✅ UUSI
-      saveNotesCheckbox: "Save for future letters", // ✅ UUSI
-      previousNotesLabel: "Previously used:", // ✅ UUSI
+      additionalNotesLabel: "Want to add something specific?", 
+      additionalNotesPlaceholder: "E.g. 'I want to emphasize my project management skills and mention I'm ready to start immediately.'", 
+      additionalNotesHelp: "These instructions will be given to AI when writing your letter.", 
+      saveNotesCheckbox: "Save for future letters", 
+      previousNotesLabel: "Previously used:", 
       summary: "Summary",
       letterGeneration: "Letter Generation",
       cost: "Cost",
@@ -138,7 +139,8 @@ export default function CreateCoverLetterPage() {
       sectionType: "1. Kirjeen tyyppi",
       sectionLanguage: "2. Kieli & Tyyli",
       sectionOptimization: "3. ATS-optimointi (Premium)",
-      sectionAdditionalNotes: "4. Lisätiedot (Vapaaehtoinen)", // ✅ UUSI
+      sectionAdditionalNotes: "4. Lisätiedot (Vapaaehtoinen)", 
+      sectionTemplate: "5. Kirjeen visuaalinen pohja", // ✅ LISÄTTY
       jobSpecific: "Työpaikkaan kohdistettu",
       jobSpecificDesc: "Räätälöity ilmoitukselle",
       general: "Yleinen esittely",
@@ -156,11 +158,11 @@ export default function CreateCoverLetterPage() {
       styleFormalDesc: "Ammattimainen ja hiottu",
       styleCasual: "Rento",
       styleCasualDesc: "Keskusteleva mutta uskottava",
-      additionalNotesLabel: "Haluatko lisätä jotain erityistä?", // ✅ UUSI
-      additionalNotesPlaceholder: "Esim: 'Haluan korostaa projektinhallintaosaamistani ja mainita että olen valmis aloittamaan heti.'", // ✅ UUSI
-      additionalNotesHelp: "Nämä ohjeet annetaan AI:lle kirjettä kirjoitettaessa.", // ✅ UUSI
-      saveNotesCheckbox: "💾 Tallenna tulevia kirjeitä varten", // ✅ UUSI
-      previousNotesLabel: "Viimeksi käytetty:", // ✅ UUSI
+      additionalNotesLabel: "Haluatko lisätä jotain erityistä?", 
+      additionalNotesPlaceholder: "Esim: 'Haluan korostaa projektinhallintaosaamistani ja mainita että olen valmis aloittamaan heti.'", 
+      additionalNotesHelp: "Nämä ohjeet annetaan AI:lle kirjettä kirjoitettaessa.", 
+      saveNotesCheckbox: "💾 Tallenna tulevia kirjeitä varten", 
+      previousNotesLabel: "Viimeksi käytetty:", 
       summary: "Yhteenveto",
       letterGeneration: "Hakukirjeen generointi",
       cost: "Kustannus",
@@ -231,21 +233,8 @@ export default function CreateCoverLetterPage() {
     if (userLoaded && user) loadProfile();
   }, [userLoaded, user]);
 
-  const isProfileValid = useMemo(() => {
-    if (!profileData) return false;
-    
-    const hasName = profileData.name && profileData.name.length > 0;
-    const hasPersonality = 
-      (profileData.working_style && profileData.working_style.length >= 50) ||
-      (profileData.problem_solving && profileData.problem_solving.length >= 80) ||
-      (profileData.unique_strength && profileData.unique_strength.length >= 60);
-    
-    return hasName && hasPersonality;
-  }, [profileData]);
-
   const extractJobInfo = (text: string) => {
     const lowerText = text.toLowerCase();
-    
     let jobTitle = "Työtehtävä";
     let companyName = "Yritys";
     
@@ -261,13 +250,11 @@ export default function CreateCoverLetterPage() {
   };
 
   // --- GENERATE HANDLER ---
- // --- GENERATE HANDLER ---
-    const handleGenerateLetter = async (confirmedViolations?: any) => {
-  // ✅ VALIDOI PROFIILI
-  if (!profileValidation?.isValid) {
-    toast.error(t.noProfile);
-    return;
-  }
+  const handleGenerateLetter = async (confirmedViolations?: any) => {
+    if (!profileValidation?.isValid) {
+      toast.error(t.noProfile);
+      return;
+    }
     if (letterType === 'job_specific' && !jobPosting.trim()) {
       toast.error(t.jobPostingRequired);
       return;
@@ -281,7 +268,6 @@ export default function CreateCoverLetterPage() {
     console.log('🚀 Starting generation with type:', apiType);
 
     try {
-      // ✅ 1. START GENERATION
       startGeneration('cover_letter', {
         templateType: letterType,
         language: letterLanguage
@@ -296,13 +282,12 @@ export default function CreateCoverLetterPage() {
         jobTitle = extracted.jobTitle;
         companyName = extracted.companyName;
         jobDescription = jobPosting;
-        
-        console.log('📝 Extracted:', { jobTitle, companyName });
       }
 
-      // ✅ BUILD REQUEST WITH ADDITIONAL NOTES
+      // ✅ MUUTOS 1: Lisätty templateStyle mukaan pyyntöön
       const requestBody = {
         type: apiType,
+        templateStyle: templateStyle, // 🔥 LÄHETETÄÄN VALITTU POHJA BACKENDILLE
         
         ...(letterType === 'job_specific' && {
           jobTitle: jobTitle || 'Työtehtävä',
@@ -322,7 +307,6 @@ export default function CreateCoverLetterPage() {
         language: letterLanguage,
         style: letterStyle,
         
-        // ✅ LISÄTIEDOT
         additionalNotes: additionalNotes.trim() || undefined,
         saveAdditionalNotes: saveAdditionalNotes,
         
@@ -357,42 +341,29 @@ export default function CreateCoverLetterPage() {
         skipValidation: !!confirmedViolations
       };
 
-      console.log('📤 Request:', { 
-        type: apiType, 
-        hasAdditionalNotes: !!additionalNotes.trim(),
-        saveNotes: saveAdditionalNotes 
+      setStage('analyzing', 20);
+
+      const response = await fetch("/api/generate-cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
       });
 
-      // ✅ 2. ANALYZE STAGE
-  setStage('analyzing', 20);
-
-const response = await fetch("/api/generate-cover-letter", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(requestBody),
-});
-
-const data = await response.json(); // ← Siirrä ENSIN
-
-// ✅ 3. GENERATE STAGE
-setStage('generating', 50); // ← Vasta tämän jälkeen
+      const data = await response.json();
+      setStage('generating', 50);
 
       console.log('📨 API Response:', data);
-
-      // ✅ 4. FINALIZE STAGE
       setStage('finalizing', 80);
 
-      // ✅ 5. HANDLE CONFIRMATION
       if (response.status === 400 && data.needsConfirmation) {
         setPendingViolations(data.violations);
         setShowConfirmation(true);
-        cancelGeneration(); // Pause generation
+        cancelGeneration();
         return;
       }
 
-      // ✅ 6. SUCCESS
       if (data.success) {
-        completeGeneration(data.id); // ✅ Anna ID
+        completeGeneration(data.id);
         toast.success(t.success);
       } else {
         throw new Error(data.error || t.error);
@@ -435,7 +406,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
   }
 
   return (
-
     <div className="min-h-screen bg-[#030711] text-[#e7e3dc]">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
@@ -466,15 +436,17 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
             <Crown className={`w-6 h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
           </div>
         </div>
-{profileValidation && !profileValidation.isValid && (
-  <div className="mb-10">
-    <ProfileValidationBanner 
-      validation={profileValidation}
-      context="cover_letter"
-      language={isFinnish ? 'fi' : 'en'}
-    />
-  </div>
-)}
+
+        {profileValidation && !profileValidation.isValid && (
+          <div className="mb-10">
+            <ProfileValidationBanner 
+              validation={profileValidation}
+              context="cover_letter"
+              language={isFinnish ? 'fi' : 'en'}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-10">
             
@@ -578,19 +550,17 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
             {/* SECTION 3: ATS OPTIMIZATION */}
             {letterType === 'job_specific' && (
               <>
-                {/* ✅ PREMIUM BOX (jos EI Basic tai Premium) */}
                 {!canUseATS && (
                   <section className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border-2 border-amber-500/30 rounded-[2.5rem] shadow-2xl overflow-hidden">
                     <div 
                       className="p-6 md:p-10 cursor-pointer md:cursor-default"
                       onClick={() => setShowPremiumBox(!showPremiumBox)}
                     >
-                      {/* Premium box content... (sama kuin ennen) */}
+                      {/* Premium box content... */}
                     </div>
                   </section>
                 )}
 
-                {/* ✅ ATS SETTINGS (jos Basic tai Premium) */}
                 {canUseATS && (
                   <section className={`rounded-[2.5rem] p-10 border ${
                     letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-gray-900/20 border-gray-800/50'
@@ -609,7 +579,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                         </div>
                       </div>
                       
-                      {/* ✅ V2 TOGGLE - VAIN PREMIUM */}
                       {canUseV2 && (
                         <button 
                           onClick={() => setLetterVersion(letterVersion === 'v2' ? 'v1' : 'v2')}
@@ -623,7 +592,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                         </button>
                       )}
                       
-                      {/* ✅ V2 LOCKED (jos Basic) */}
                       {!canUseV2 && canUseATS && (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
                           <Lock className="w-3.5 h-3.5 text-amber-500" />
@@ -632,7 +600,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                       )}
                     </div>
                     
-                    {/* Info Box */}
                     <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex gap-3 mb-6">
                       <Info className="w-5 h-5 text-blue-400 shrink-0" />
                       <p className="text-xs text-blue-200/70">
@@ -645,7 +612,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                       </p>
                     </div>
                     
-                    {/* Job Posting */}
                     <textarea
                       value={jobPosting}
                       onChange={(e) => setJobPosting(e.target.value)}
@@ -655,7 +621,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                   </section>
                 )}
 
-                {/* ✅ ILMAINEN: Job Posting ilman ATS */}
                 {!canUseATS && (
                   <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
                     <div className="flex items-center gap-3 mb-6">
@@ -690,7 +655,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                   </div>
                 </div>
 
-                {/* Yrityksen nimi + ala/rooli */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <input
                     type="text"
@@ -708,7 +672,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                   />
                 </div>
 
-                {/* Miksi juuri tämä firma — käyttäjän oma näkemys */}
                 <div>
                   <label className="block text-sm font-bold text-gray-300 mb-2">
                     {isFinnish ? 'Miksi juuri tämä yritys?' : 'Why this company?'}
@@ -723,7 +686,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                   />
                 </div>
 
-                {/* About us -teksti */}
                 <div>
                   <label className="block text-sm font-bold text-gray-300 mb-2">
                     {isFinnish ? 'Tietoa yrityksestä (vapaaehtoinen)' : 'About the company (optional)'}
@@ -742,7 +704,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                   />
                 </div>
 
-                {/* AI-faktantarkistus — paikka valmiina, kytketään myöhemmin web-haulla */}
                 <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl flex items-start gap-3">
                   <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                   <div className="text-xs text-blue-200/70">
@@ -759,7 +720,7 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
               </section>
             )}
 
-            {/* ✅ SECTION 4: LISÄTIEDOT (UUSI!) */}
+            {/* SECTION 4: LISÄTIEDOT */}
             <section className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-2 border-purple-500/30 rounded-[2.5rem] p-10 shadow-xl">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 bg-purple-500/20 rounded-2xl border border-purple-500/30">
@@ -771,7 +732,6 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                 </div>
               </div>
 
-              {/* Previous Notes */}
               {previousNotes && (
                 <div className="mb-4 p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
                   <p className="text-xs font-bold text-purple-300 mb-2 flex items-center gap-2">
@@ -811,6 +771,40 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
               </label>
             </section>
 
+            {/* ✅ MUUTOS 2: UUSI SECTION 5: VALITSE POHJA / ULKOASU */}
+            <section className="bg-gray-900/20 border border-gray-800/50 rounded-[2.5rem] p-10">
+              <div className="flex items-center gap-3 mb-8">
+                <Palette className="w-10 h-10 p-2 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" />
+                <h3 className="text-xl font-bold text-white">{t.sectionTemplate}</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { id: "modern-top", label: isFinnish ? "Moderni Yläpalkki" : "Modern Top", desc: isFinnish ? "Tyylikäs värillinen yläpalkki" : "Clean header highlight" },
+                  { id: "modern-left", label: isFinnish ? "Moderni Sivupalkki" : "Modern Left", desc: isFinnish ? "Yhteystiedot siististi sivussa" : "Sidebar info alignment" },
+                  { id: "classic", label: isFinnish ? "Klassinen" : "Classic", desc: isFinnish ? "Perinteinen ja virallinen asettelu" : "Traditional professional look" },
+                  { id: "creative-wave", label: "Creative Wave 🌊", desc: isFinnish ? "Moderni ja erottuva muotoilu" : "Creative wave design decoration" },
+                ].map((style) => (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => setTemplateStyle(style.id)}
+                    className={`relative p-6 rounded-3xl border text-left transition-all ${
+                      templateStyle === style.id 
+                        ? 'border-indigo-500/50 bg-indigo-500/5' 
+                        : 'border-gray-800 bg-black/20 hover:border-gray-700'
+                    }`}
+                  >
+                    <p className="font-bold text-white mb-2">{style.label}</p>
+                    <p className="text-xs text-gray-500">{style.desc}</p>
+                    {templateStyle === style.id && (
+                      <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-indigo-500" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </section>
+
           </div>
 
           {/* SIDEBAR: Summary */}
@@ -835,6 +829,12 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                       <Palette className="w-4 h-4 text-purple-400" />
                       <span className="text-gray-400">Tyyli:</span>
                       <span className="text-white font-bold capitalize">{letterStyle}</span>
+                    </div>
+                    {/* ✅ MUUTOS 3: Visuaalisen pohjan nimi näkyviin yhteenvetoon */}
+                    <div className="flex items-center gap-2 text-xs">
+                      <Palette className="w-4 h-4 text-indigo-400" />
+                      <span className="text-gray-400">{isFinnish ? "Pohja:" : "Template:"}</span>
+                      <span className="text-indigo-300 font-bold capitalize">{templateStyle}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <Target className="w-4 h-4 text-orange-400" />
@@ -874,7 +874,7 @@ setStage('generating', 50); // ← Vasta tämän jälkeen
                   )}
                 </Button>
                 
-{!profileValidation?.isValid && (
+                {!profileValidation?.isValid && (
                   <div className="mt-6 flex gap-3 p-4 bg-red-500/10 rounded-2xl border border-red-500/20">
                     <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
                     <div>
