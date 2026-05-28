@@ -1,6 +1,8 @@
 'use client';
 // edit-cover-letter/[id]/page.tsx
 // ✅ CANVA-TYYLINEN EDITORI + ENGINE-KYTKENTÄ
+// ✅ KORJATTU: kelluva fonttipalkki näkyy vain aidossa valinnassa (ei pelkästä klikkauksesta)
+// ✅ KORJATTU: pohjavalitsin tukee myös 'creative-wave' -pohjaa
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -133,7 +135,9 @@ export default function EditCoverLetterPage() {
             fontSize: l.content?.fontSize || 11,
             lineHeight: l.content?.lineHeight || 1.8,
             textAlign: l.content?.textAlign || 'justify',
+            // ✅ Lue pohja: content.templateStyle → ai_data.templateStyle → johda headerLayoutista
             templateStyle: l.content?.templateStyle
+              || l.ai_data?.templateStyle
               || (l.content?.headerLayout === 'left' ? 'modern-left' : 'modern-top'),
             signatureStyle: l.content?.signatureStyle || 'script',
             fontFamily: l.content?.fontFamily || 'serif',
@@ -149,12 +153,23 @@ export default function EditCoverLetterPage() {
     load();
   }, [id, userId, getToken]);
 
+  // ✅ KORJATTU: palkki näkyy VAIN kun teksti on aidosti maalattu.
+  // Pelkkä kursorin klikkaus piilottaa palkin → ei ole enää tiellä kirjoittaessa.
   const handleSelectionChange = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) {
-      setToolbar(t => ({ ...t, visible: false }));
+      setToolbar(t => (t.visible ? { ...t, visible: false } : t));
       return;
     }
+
+    const hasSelection = sel.toString().trim().length > 0;
+
+    // Ei valintaa (vain kursori) → piilota palkki kokonaan
+    if (!hasSelection) {
+      setToolbar(t => (t.visible ? { ...t, visible: false } : t));
+      return;
+    }
+
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     const editorRect = editorRef.current?.getBoundingClientRect();
@@ -162,25 +177,16 @@ export default function EditCoverLetterPage() {
     const isInEditor = editorRef.current?.contains(container as Node);
 
     if (!isInEditor || !editorRect) {
-      setToolbar(t => ({ ...t, visible: false }));
+      setToolbar(t => (t.visible ? { ...t, visible: false } : t));
       return;
     }
-    const hasSelection = sel.toString().length > 0;
-    if (hasSelection) {
-      setToolbar({
-        x: rect.left - editorRect.left + rect.width / 2,
-        y: rect.top - editorRect.top - 8,
-        visible: true,
-        hasSelection: true,
-      });
-    } else {
-      setToolbar({
-        x: rect.left - editorRect.left,
-        y: rect.top - editorRect.top - 8,
-        visible: true,
-        hasSelection: false,
-      });
-    }
+
+    setToolbar({
+      x: rect.left - editorRect.left + rect.width / 2,
+      y: rect.top - editorRect.top - 8,
+      visible: true,
+      hasSelection: true,
+    });
   }, []);
 
   useEffect(() => {
@@ -471,7 +477,7 @@ export default function EditCoverLetterPage() {
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
-          {/* ✅ Template (skini) */}
+          {/* ✅ Template (skini) — lisätty creative-wave */}
           <select
             value={styleSettings.templateStyle}
             onChange={e => setStyleSettings(p => ({ ...p, templateStyle: e.target.value }))}
@@ -483,6 +489,7 @@ export default function EditCoverLetterPage() {
           >
             <option value="modern-top">Moderni · banneri</option>
             <option value="modern-left">Moderni · sivupalsta</option>
+            <option value="creative-wave">Creative Wave 🌊</option>
             <option value="classic">Klassinen</option>
           </select>
 
@@ -594,7 +601,8 @@ export default function EditCoverLetterPage() {
             transition: isDragging ? 'none' : 'width 0.05s linear',
           }}
         >
-          {toolbar.visible && (
+          {/* ✅ Palkki renderöityy enää vain kun on aito valinta (hasSelection aina true tässä) */}
+          {toolbar.visible && toolbar.hasSelection && (
             <div
               style={{
                 position: 'absolute',
@@ -614,21 +622,17 @@ export default function EditCoverLetterPage() {
                 pointerEvents: 'auto',
               }}
             >
-              {toolbar.hasSelection && (
-                <>
-                  <button
-                    onMouseDown={e => { e.preventDefault(); execCmd('bold'); }}
-                    style={{ padding: '4px 8px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}
-                    title="Lihavointi"
-                  ><Bold size={14} /></button>
-                  <button
-                    onMouseDown={e => { e.preventDefault(); execCmd('italic'); }}
-                    style={{ padding: '4px 8px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontSize: '14px', fontStyle: 'italic' }}
-                    title="Kursiivi"
-                  ><Italic size={14} /></button>
-                  <div style={{ width: '1px', height: '18px', background: '#444' }} />
-                </>
-              )}
+              <button
+                onMouseDown={e => { e.preventDefault(); execCmd('bold'); }}
+                style={{ padding: '4px 8px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontWeight: 700, fontSize: '14px' }}
+                title="Lihavointi"
+              ><Bold size={14} /></button>
+              <button
+                onMouseDown={e => { e.preventDefault(); execCmd('italic'); }}
+                style={{ padding: '4px 8px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontSize: '14px', fontStyle: 'italic' }}
+                title="Kursiivi"
+              ><Italic size={14} /></button>
+              <div style={{ width: '1px', height: '18px', background: '#444' }} />
 
               <button
                 onMouseDown={e => { e.preventDefault(); setStyleSettings(p => ({ ...p, fontSize: Math.max(8, p.fontSize - 0.5) })); }}

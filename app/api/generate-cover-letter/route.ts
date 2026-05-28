@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter/route.ts - ✅ WITH ADDITIONAL NOTES
+// app/api/generate-cover-letter/route.ts - ✅ WITH ADDITIONAL NOTES + TEMPLATE STYLE
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
@@ -7,6 +7,7 @@ import { generateGeneralCoverLetterSafely } from '@/lib/langchain/generalCoverLe
 import { generateATSCoverLetterV1 } from '@/lib/langchain/coverLetterGenerator';
 import { generateATSCoverLetterV2 } from '@/lib/langchain/coverLetterGeneratorV2';
 import { analyzeExperienceGap } from '@/lib/ats/experienceGapAnalyzer';
+import { normalizeBody } from '@/lib/cover-letter/normalize'; // ✅ kohta 4
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -16,22 +17,25 @@ type CoverLetterType = 'general' | 'ats-v1' | 'ats-v2';
 
 interface BaseCoverLetterRequest {
   type: CoverLetterType;
-  
+
   // Basic info
   name?: string;
   email?: string;
   phone?: string;
   location?: string;
-  
+
   // Settings
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
   enableRAG?: boolean;
-  
+
+  // ✅ VISUAALINEN POHJA (create-cover-letter valitsee, editori lukee)
+  templateStyle?: string;
+
   // ✅ LISÄTIEDOT
   additionalNotes?: string;
   saveAdditionalNotes?: boolean;
-  
+
   // Experience Gap kontrollit
   skipExperienceCheck?: boolean;
   followUpAnswers?: Record<string, string>;
@@ -100,11 +104,11 @@ type CoverLetterRequest = GeneralCoverLetterRequest | ATSCoverLetterV1Request | 
 
 export async function POST(request: NextRequest) {
   console.log('📝 [API] Generate Cover Letter - START');
-  
+
   try {
     // STEP 1: Auth
     const { userId } = await auth();
-    
+
     if (!userId) {
       console.log('❌ [AUTH] Unauthorized');
       return NextResponse.json(
@@ -115,8 +119,9 @@ export async function POST(request: NextRequest) {
 
     // STEP 2: Parse request
     const body: CoverLetterRequest = await request.json();
-    
+
     console.log('📋 [REQUEST] Type:', body.type);
+    console.log('🎨 [REQUEST] Template style:', body.templateStyle || '(default)'); // ✅
     console.log('💬 [REQUEST] Additional notes:', body.additionalNotes ? 'YES' : 'NO');
     console.log('💾 [REQUEST] Save notes:', body.saveAdditionalNotes);
 
@@ -145,12 +150,12 @@ export async function POST(request: NextRequest) {
 
     if ((body.type === 'ats-v1' || body.type === 'ats-v2') && !body.skipExperienceCheck) {
       console.log('🔍 [ExperienceGap] Analyzing...');
-      
+
       const atsBody = body as ATSCoverLetterV1Request | ATSCoverLetterV2Request;
-      
+
       try {
         let extractedKeywords = atsBody.keywords || [];
-        
+
         if (extractedKeywords.length === 0) {
           const keywordResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/extract-keywords-ai`, {
             method: 'POST',
@@ -188,7 +193,7 @@ export async function POST(request: NextRequest) {
 
         if (experienceGap.hasGap && experienceGap.severity !== 'none') {
           console.log('⚠️ [ExperienceGap] Returning warning');
-          
+
           return NextResponse.json({
             needsWarning: true,
             experienceGap,
@@ -208,13 +213,13 @@ export async function POST(request: NextRequest) {
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     console.log(`🤖 [AI] Starting ${body.type} generation...`);
-    
+
     let content: string;
     let title: string;
     let keyHighlights: string[] = [];
     let atsScore: number | undefined;
     let atsAnalysis: any;
-    
+
     switch (body.type) {
       case 'general': {
         const generalBody = body as GeneralCoverLetterRequest;
@@ -247,18 +252,18 @@ export async function POST(request: NextRequest) {
           style: generalBody.style || 'professional',
           enableRAG: generalBody.enableRAG ?? true,
         });
-        
+
         content = result.content;
         title = result.title;
         keyHighlights = result.keyHighlights || [];
-        
+
         console.log('✅ [AI] General cover letter generated');
         break;
       }
 
       case 'ats-v1': {
         const atsV1Body = body as ATSCoverLetterV1Request;
-        
+
         const result = await generateATSCoverLetterV1({
           jobDescription: atsV1Body.jobDescription,
           name: atsV1Body.name || 'Applicant',
@@ -279,18 +284,18 @@ export async function POST(request: NextRequest) {
           skipQuestions: false,
           followUpAnswers: atsV1Body.followUpAnswers
         });
-        
+
         content = result.content;
         title = result.title;
         keyHighlights = result.keyHighlights || [];
-        
+
         console.log('✅ [AI] ATS-V1 cover letter generated');
         break;
       }
 
       case 'ats-v2': {
         const atsV2Body = body as ATSCoverLetterV2Request;
-        
+
         const result = await generateATSCoverLetterV2({
           jobDescription: atsV2Body.jobDescription,
           name: atsV2Body.name || 'Applicant',
@@ -311,13 +316,13 @@ export async function POST(request: NextRequest) {
           skipQuestions: false,
           followUpAnswers: atsV2Body.followUpAnswers
         });
-        
+
         content = result.content;
         title = result.title;
         keyHighlights = result.keyHighlights || [];
         atsScore = result.atsScore;
         atsAnalysis = result.atsAnalysis;
-        
+
         console.log('✅ [AI] ATS-V2 cover letter generated');
         break;
       }
@@ -330,12 +335,18 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ [AI] Generation complete');
 
+    // ✅ KOHTA 4: siisti kappalejako ennen tallennusta
+    content = normalizeBody(content);
+
+    // ✅ Visuaalinen pohja (turvallinen oletus)
+    const templateStyle = body.templateStyle || 'modern-top';
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // STEP 5: SAVE TO DATABASE
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     console.log('💾 [DB] Saving to Supabase...');
-    
+
     const coverLetterData = {
       user_id: userId,
       title,
@@ -349,15 +360,20 @@ export async function POST(request: NextRequest) {
           phone: body.phone || '',
           location: body.location || '',
         },
+        // ✅ POHJA TALLENNETAAN TÄHÄN — editori lukee juuri content.templateStyle
+        templateStyle,
       },
       ai_data: {
         style: body.style || 'professional',
         key_highlights: keyHighlights,
         type: body.type,
-        
+
+        // ✅ myös ai_dataan varmuudeksi (helpottaa myöhempää lukua / debugia)
+        templateStyle,
+
         // ✅ TALLENNA ORIGINAL INPUTS (iteraatiota varten!)
         original_inputs: {
-          jobDescription: body.type !== 'general' ? (body as any).jobDescription : body.jobPosting,
+          jobDescription: body.type !== 'general' ? (body as any).jobDescription : (body as any).jobPosting,
           profileData: {
             name: body.name,
             workExperience: (body as any).workExperience,
@@ -378,16 +394,16 @@ export async function POST(request: NextRequest) {
           type: body.type,
           additionalNotes: body.additionalNotes || '', // ✅ TALLENNA
         },
-        
+
         // ✅ ALUSTA ITERATIONS
         iterations: [],
-        
+
         // Job context
         ...(body.type !== 'general' && {
           job_title: (body as ATSCoverLetterV1Request).jobTitle,
           company_name: (body as ATSCoverLetterV1Request).companyName,
         }),
-        
+
         // ATS-specific data
         ...(body.type === 'ats-v2' && atsScore && {
           ats_score: atsScore,
@@ -417,7 +433,7 @@ export async function POST(request: NextRequest) {
 
     if (body.saveAdditionalNotes && body.additionalNotes && body.additionalNotes.trim()) {
       console.log('💾 [DB] Saving additional notes to user-responses...');
-      
+
       try {
         const { error: notesError } = await supabaseAdmin
           .from('user_responses')
@@ -449,8 +465,9 @@ export async function POST(request: NextRequest) {
       success: true,
       coverLetterId: savedLetter.id,
       title: savedLetter.title,
+      templateStyle, // ✅ palautetaan myös vastauksessa
       message: `${body.type} cover letter generated successfully`,
-      
+
       // Include ATS analysis if available
       ...(atsScore && {
         atsScore,
@@ -460,9 +477,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ [API] Generation failed:', error);
-    
+
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to generate cover letter',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
