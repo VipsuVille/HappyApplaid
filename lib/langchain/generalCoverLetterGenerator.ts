@@ -451,7 +451,7 @@ export async function generateGeneralCoverLetter(
       openAIApiKey: process.env.OPENAI_API_KEY!,
       modelName: "gpt-4o-mini",
       temperature: 0.7,
-      timeout: 20000,
+      timeout: 60000,
     });
 
     const formatted = await adaptivePrompt.formatMessages({
@@ -493,7 +493,7 @@ export async function generateGeneralCoverLetter(
     const result = await Promise.race([
       model.invoke(formatted),
       new Promise<never>((_, reject) => 
-        setTimeout(() => reject(new Error('AI timeout')), 20000)
+        setTimeout(() => reject(new Error('AI timeout')), 60000)
       )
     ]);
 
@@ -563,7 +563,7 @@ export async function generateGeneralCoverLetterSafely(
 ): Promise<CoverLetterOutput> {
   try {
     const timeoutPromise = new Promise<CoverLetterOutput>((_, reject) => {
-      setTimeout(() => reject(new Error('Cover letter timeout (25s)')), 25000);
+      setTimeout(() => reject(new Error('Cover letter timeout (70s)')), 70000);
     });
 
     return await Promise.race([
