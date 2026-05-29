@@ -5,7 +5,9 @@ import type { CLRawRecord } from './engine/types';
 import { useCoverLetterEngine } from './engine/useCoverLetterEngine';
 import ModernTop from './skins/ModernTop';
 import ModernLeft from './skins/ModernLeft';
-import CreativeWave from './skins/CreativeWave'; // <-- Uusi tuonti
+import CreativeWave from './skins/CreativeWave';
+import Aurora from './skins/Aurora';       // ✅ uusi
+import Elegant from './skins/Elegant';     // ✅ uusi
 import {
   EditableText,
   EditableParagraphs,
@@ -126,8 +128,12 @@ export default function CoverLetterRenderer({
 
   // Reititetään valinnan mukaan oikealle pohjalle
   switch (templateStyle) {
+    case 'aurora':
+      return <Aurora engine={engine} />;          // ✅ uusi
+    case 'elegant':
+      return <Elegant engine={engine} />;         // ✅ uusi
     case 'creative-wave':
-      return <CreativeWave engine={engine} />; // <-- Kytketty renderöintiin
+      return <CreativeWave engine={engine} />;
     case 'modern-left':
       return <ModernLeft engine={engine} />;
     case 'classic':

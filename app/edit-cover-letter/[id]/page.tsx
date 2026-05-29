@@ -1,8 +1,9 @@
 'use client';
 // edit-cover-letter/[id]/page.tsx
 // ✅ CANVA-TYYLINEN EDITORI + ENGINE-KYTKENTÄ
-// ✅ KORJATTU: kelluva fonttipalkki näkyy vain aidossa valinnassa (ei pelkästä klikkauksesta)
-// ✅ KORJATTU: pohjavalitsin tukee myös 'creative-wave' -pohjaa
+// ✅ Kelluva fonttipalkki näkyy vain aidossa valinnassa
+// ✅ Pohjavalitsin tukee myös 'creative-wave'
+// ✅ AI-TAUSTA: nappi (vain Aurora), tallentuu content.background → engine näyttää sen
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -14,10 +15,9 @@ import {
   Bold, Italic, AlignLeft, AlignCenter, AlignJustify,
   Minus, Plus, Type, Palette, ChevronDown,
   CheckCircle, Undo, Redo, ZoomIn, ZoomOut,
-  GripVertical,
+  GripVertical, Image as ImageIcon,
 } from 'lucide-react';
 
-// ✅ Engine-pohjainen renderöinti (korjattu case)
 import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
 import type { CLStyle, CLContactInfo } from '@/lib/cover-letter/engine/types';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
@@ -34,6 +34,12 @@ interface CoverLetter {
   updated_at: string;
 }
 
+interface BackgroundSettings {
+  mode: 'color' | 'generated' | 'image-faint' | 'image-strong';
+  imageUrl?: string;
+  opacity?: number;
+}
+
 interface StyleSettings {
   headerColor: string;
   headerLayout: 'top' | 'left';
@@ -47,6 +53,7 @@ interface StyleSettings {
   signatureStyle: 'script' | 'print' | 'bold';
   fontFamily: 'serif' | 'sans' | 'classic' | 'modern';
   textColor: string;
+  background?: BackgroundSettings; // ✅ AI-tausta
 }
 
 interface ToolbarPos {
@@ -55,6 +62,9 @@ interface ToolbarPos {
   visible: boolean;
   hasSelection: boolean;
 }
+
+// ✅ Pohjat joille AI-tausta-nappi näytetään (helppo laajentaa)
+const BG_TEMPLATES = ['aurora'];
 
 export default function EditCoverLetterPage() {
   const params = useParams();
@@ -68,6 +78,7 @@ export default function EditCoverLetterPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isGenBg, setIsGenBg] = useState(false); // ✅ AI-tausta lataus
   const [zoom, setZoom] = useState(75);
   const [showHistory, setShowHistory] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -92,6 +103,7 @@ export default function EditCoverLetterPage() {
     signatureStyle: 'script',
     fontFamily: 'serif',
     textColor: '#1a1a1a',
+    background: { mode: 'color' }, // ✅
   });
 
   const [toolbar, setToolbar] = useState<ToolbarPos>({
@@ -101,7 +113,6 @@ export default function EditCoverLetterPage() {
   const editorRef = useRef<HTMLDivElement>(null);
   const colorInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Väliseinä — vasemman osuus pääalueesta (0..1)
   const [leftRatio, setLeftRatio] = useState(0.75);
   const [isDragging, setIsDragging] = useState(false);
   const mainAreaRef = useRef<HTMLDivElement>(null);
@@ -135,13 +146,13 @@ export default function EditCoverLetterPage() {
             fontSize: l.content?.fontSize || 11,
             lineHeight: l.content?.lineHeight || 1.8,
             textAlign: l.content?.textAlign || 'justify',
-            // ✅ Lue pohja: content.templateStyle → ai_data.templateStyle → johda headerLayoutista
             templateStyle: l.content?.templateStyle
               || l.ai_data?.templateStyle
               || (l.content?.headerLayout === 'left' ? 'modern-left' : 'modern-top'),
             signatureStyle: l.content?.signatureStyle || 'script',
             fontFamily: l.content?.fontFamily || 'serif',
             textColor: l.content?.textColor || '#1a1a1a',
+            background: l.content?.background || { mode: 'color' }, // ✅ lue tallennettu tausta
           }));
         }
       } catch (e) {
@@ -153,8 +164,7 @@ export default function EditCoverLetterPage() {
     load();
   }, [id, userId, getToken]);
 
-  // ✅ KORJATTU: palkki näkyy VAIN kun teksti on aidosti maalattu.
-  // Pelkkä kursorin klikkaus piilottaa palkin → ei ole enää tiellä kirjoittaessa.
+  // ✅ Palkki vain aidossa valinnassa
   const handleSelectionChange = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) {
@@ -163,8 +173,6 @@ export default function EditCoverLetterPage() {
     }
 
     const hasSelection = sel.toString().trim().length > 0;
-
-    // Ei valintaa (vain kursori) → piilota palkki kokonaan
     if (!hasSelection) {
       setToolbar(t => (t.visible ? { ...t, visible: false } : t));
       return;
@@ -194,7 +202,6 @@ export default function EditCoverLetterPage() {
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [handleSelectionChange]);
 
-  // ✅ Raahauslogiikka väliseinälle
   useEffect(() => {
     if (!isDragging) return;
     const handleMove = (e: MouseEvent) => {
@@ -230,7 +237,7 @@ export default function EditCoverLetterPage() {
     ...letterData?.content,
     contactInfo: { name, email, phone, location },
     body: content,
-    ...styleSettings,
+    ...styleSettings, // ✅ sisältää myös background
     job_title: letterData?.content?.job_title,
     company_name: letterData?.content?.company_name,
     language: letterData?.content?.language,
@@ -288,6 +295,43 @@ export default function EditCoverLetterPage() {
     }
   };
 
+  // ✅ AI-TAUSTA: tallentaa nykytilan ensin, sitten generoi + tallentaa content.background
+  const generateBackground = async () => {
+    if (!id) return;
+    setIsGenBg(true);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      // 1) tallenna nykytila, jottei tausta-merge ylikirjoita muokkauksia
+      if (token) {
+        await fetch(`/api/cover-letters/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ content: buildContent() }),
+        });
+      }
+      // 2) generoi tausta (uploadaa storageen + tallentaa content.background:iin)
+      const res = await fetch('/api/generate-cover-letter-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ letterId: id }),
+      });
+      const d = await res.json();
+      if (res.ok && d.success && d.imageUrl) {
+        setStyleSettings(p => ({
+          ...p,
+          background: { mode: 'generated', imageUrl: d.imageUrl, opacity: 1 },
+        }));
+        toast.success('🎨 AI-tausta luotu!');
+      } else {
+        throw new Error(d.error || 'fail');
+      }
+    } catch {
+      toast.error('Taustan luonti epäonnistui');
+    } finally {
+      setIsGenBg(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!confirm('Poistetaanko hakukirje?')) return;
     setIsDeleting(true);
@@ -338,7 +382,6 @@ export default function EditCoverLetterPage() {
     );
   }
 
-  // ✅ Engine lukee tämän raw-objektin (nykyinen tallennusmuoto + engine-kentät)
   const engineRaw = {
     title: letterData.title,
     content: {
@@ -357,6 +400,7 @@ export default function EditCoverLetterPage() {
       textColor: styleSettings.textColor,
       signatureStyle: styleSettings.signatureStyle,
       showDate: true,
+      background: styleSettings.background || { mode: 'color' }, // ✅ engine näkee taustan
       divider: {
         direction: (styleSettings.templateStyle === 'modern-left' ? 'vertical'
                    : 'horizontal') as 'vertical' | 'horizontal' | 'none',
@@ -371,6 +415,7 @@ export default function EditCoverLetterPage() {
   };
 
   const scaleValue = zoom / 100;
+  const showBgButton = BG_TEMPLATES.includes(styleSettings.templateStyle);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1e1e', color: '#e8e3dc', fontFamily: "'DM Sans', sans-serif" }}>
@@ -477,7 +522,7 @@ export default function EditCoverLetterPage() {
 
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
 
-          {/* ✅ Template (skini) — lisätty creative-wave */}
+          {/* Template (skini) */}
           <select
             value={styleSettings.templateStyle}
             onChange={e => setStyleSettings(p => ({ ...p, templateStyle: e.target.value }))}
@@ -489,11 +534,33 @@ export default function EditCoverLetterPage() {
           >
             <option value="modern-top">Moderni · banneri</option>
             <option value="modern-left">Moderni · sivupalsta</option>
+            <option value="aurora">Aurora · banneri</option>
+            <option value="elegant">Elegantti · keskitetty</option>
             <option value="creative-wave">Creative Wave 🌊</option>
             <option value="classic">Klassinen</option>
           </select>
 
-          {/* ✅ Allekirjoitustyyli */}
+          {/* ✅ AI-TAUSTA -nappi (vain Aurora) */}
+          {showBgButton && (
+            <button
+              onClick={generateBackground}
+              disabled={isGenBg}
+              style={{
+                padding: '6px 12px', borderRadius: '6px',
+                border: '1px solid #6d28d9', background: 'rgba(139,92,246,0.15)',
+                color: '#c4b5fd', cursor: isGenBg ? 'wait' : 'pointer',
+                fontSize: '12px', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: '6px',
+                opacity: isGenBg ? 0.7 : 1,
+              }}
+              title="Luo AI-taustakuva tälle pohjalle"
+            >
+              {isGenBg ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
+              {isGenBg ? 'Luodaan…' : 'AI-tausta'}
+            </button>
+          )}
+
+          {/* Allekirjoitustyyli */}
           <select
             value={styleSettings.signatureStyle}
             onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as 'script' | 'print' | 'bold' }))}
@@ -508,7 +575,7 @@ export default function EditCoverLetterPage() {
             <option value="bold">Allek. · korostettu</option>
           </select>
 
-          {/* ✅ Fontti */}
+          {/* Fontti */}
           <select
             value={styleSettings.fontFamily}
             onChange={e => setStyleSettings(p => ({ ...p, fontFamily: e.target.value as 'serif' | 'sans' | 'classic' | 'modern' }))}
@@ -601,7 +668,6 @@ export default function EditCoverLetterPage() {
             transition: isDragging ? 'none' : 'width 0.05s linear',
           }}
         >
-          {/* ✅ Palkki renderöityy enää vain kun on aito valinta (hasSelection aina true tässä) */}
           {toolbar.visible && toolbar.hasSelection && (
             <div
               style={{
@@ -668,7 +734,6 @@ export default function EditCoverLetterPage() {
                 </div>
               </div>
 
-              {/* ✅ ENGINE-KYTKENTÄ — oikeat proppinimet */}
               <CoverLetterContainer>
                 <CoverLetterRenderer
                   raw={engineRaw}
@@ -687,6 +752,7 @@ export default function EditCoverLetterPage() {
                       ...(patch.accentColor ? { headerColor: patch.accentColor } : {}),
                       ...(patch.templateStyle ? { templateStyle: patch.templateStyle } : {}),
                       ...(patch.signatureStyle ? { signatureStyle: patch.signatureStyle } : {}),
+                      ...(patch.background ? { background: patch.background } : {}),
                       ...(patch.text?.fontFamily ? { fontFamily: patch.text.fontFamily } : {}),
                       ...(patch.text?.fontSize ? { fontSize: patch.text.fontSize } : {}),
                       ...(patch.text?.lineHeight ? { lineHeight: patch.text.lineHeight } : {}),
@@ -700,7 +766,7 @@ export default function EditCoverLetterPage() {
           </div>
         </div>
 
-        {/* ✅ Raahattava väliseinä */}
+        {/* Raahattava väliseinä */}
         <div
           onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
           style={{
