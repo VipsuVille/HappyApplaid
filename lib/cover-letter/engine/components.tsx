@@ -181,32 +181,21 @@ export function DateRow({ engine }: { engine: CLEngine }) {
 // ─── BackgroundLayer: väri / häilyvä kuva / vahva kuva / generoitu ─
 export function BackgroundLayer({ engine }: { engine: CLEngine }) {
   const { mode, imageUrl, opacity } = engine.data.style.background;
-
-  if (mode === 'color' || !imageUrl) return null;
-
-  if (mode === 'image-faint') {
-    return (
-      <div style={{
-        position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-        backgroundImage: `url(${imageUrl})`,
-        backgroundSize: 'cover', backgroundPosition: 'center',
-        opacity: opacity ?? 0.12,
-        WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
-      }} />
-    );
-  }
-
-  // image-strong / generated: vahvempi, ylälohkossa (skini sijoittaa)
+ 
+  // Vain image-faint piirtyy koko sivulle. Muut moodit → skin hoitaa.
+  if (mode !== 'image-faint' || !imageUrl) return null;
+ 
   return (
     <div style={{
-      position: 'absolute', top: 0, left: 0, right: 0, height: '38%', zIndex: 0, pointerEvents: 'none',
+      position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
       backgroundImage: `url(${imageUrl})`,
       backgroundSize: 'cover', backgroundPosition: 'center',
-      opacity: opacity ?? 0.9,
+      opacity: opacity ?? 0.12,
       WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
     }} />
   );
 }
+ 
 
 // ─── ColorDot: pieni värinvalitsin (muokkaustilassa) ──────────
 export function ColorDot({ engine, position = 'top-right' }: { engine: CLEngine; position?: 'top-right' | 'inline' }) {
