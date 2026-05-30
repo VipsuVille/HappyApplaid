@@ -1,7 +1,7 @@
 'use client';
 // edit-cover-letter/[id]/page.tsx
-// ✅ Kelluva fonttipalkki vain valinnassa · pohja säilyy · AI-tausta EI generoida täällä
-// ✅ Design-paneeli: valitse/lataa tausta, banneri vs koko sivu, himmennys, bannerikorkeus, tekstin tila
+// ✅ DESKTOP: suora paperimuokkaus + split-näkymä (kuten ennen)
+// ✅ MOBIILI: välilehdet Teksti / Ulkoasu / Esikatselu — käytännöllinen lomakemuokkaus
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -11,24 +11,19 @@ import {
   Save, ArrowLeft, Trash2, Download, Loader2,
   FileText, Sparkles,
   Bold, Italic, AlignLeft, AlignCenter, AlignJustify,
-  Minus, Plus, Type, Palette,
-  CheckCircle, ZoomIn, ZoomOut, GripVertical, SlidersHorizontal,
+  Type, Palette, CheckCircle, ZoomIn, ZoomOut, GripVertical,
+  Edit3, Eye, SlidersHorizontal,
 } from 'lucide-react';
 
 import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import IterativeFeedback from '@/components/IterativeFeedback';
-import CoverLetterDesignPanel, { type BackgroundSettings } from '@/components/cover-letter/CoverLetterDesingPanel';
+import CoverLetterDesignPanel, { type BackgroundSettings } from '@/components/cover-letter/CoverLetterDesignPanel';
 import { useTokens } from '@/hooks/useTokens';
 
 interface CoverLetter {
-  id: string;
-  user_id: string;
-  title: string;
-  content: any;
-  ai_data: any;
-  created_at: string;
-  updated_at: string;
+  id: string; user_id: string; title: string;
+  content: any; ai_data: any; created_at: string; updated_at: string;
 }
 
 interface StyleSettings {
@@ -45,12 +40,11 @@ interface StyleSettings {
   fontFamily: 'serif' | 'sans' | 'classic' | 'modern';
   textColor: string;
   background: BackgroundSettings;
-  bannerHeightMm: number; // ✅ divider.sizeMm
+  bannerHeightMm: number;
 }
 
 interface ToolbarPos { x: number; y: number; visible: boolean; hasSelection: boolean; }
 
-// Pohjat joilla on yläbanneri (banneri-korkeussäädin näkyy)
 const BANNER_TEMPLATES = ['aurora', 'modern-top', 'sidebar'];
 
 export default function EditCoverLetterPage() {
@@ -66,7 +60,13 @@ export default function EditCoverLetterPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [zoom, setZoom] = useState(75);
-  const [rightTab, setRightTab] = useState<'design' | 'ai' | 'history'>('design'); // ✅ kolmas välilehti
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Desktop oikea paneeli
+  const [rightTab, setRightTab] = useState<'design' | 'ai' | 'history'>('design');
+  // Mobiili välilehdet
+  const [mobileTab, setMobileTab] = useState<'text' | 'design' | 'preview'>('text');
+
   const [showSuccess, setShowSuccess] = useState(false);
   const [latestChanges, setLatestChanges] = useState('');
 
@@ -74,6 +74,8 @@ export default function EditCoverLetterPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [location, setLocation] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [content, setContent] = useState('');
 
   const [styleSettings, setStyleSettings] = useState<StyleSettings>({
@@ -103,6 +105,14 @@ export default function EditCoverLetterPage() {
 
   const iterationCost = plan_type === 'premium' ? 30 : 50;
 
+  // ── Responsive ──
+  useEffect(() => {
+    const update = () => setIsMobile(window.innerWidth < 768);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       if (!userId || !id) { setIsLoading(false); return; }
@@ -119,6 +129,8 @@ export default function EditCoverLetterPage() {
           setEmail(l.content?.contactInfo?.email || l.ai_data?.email || '');
           setPhone(l.content?.contactInfo?.phone || l.ai_data?.phone || '');
           setLocation(l.content?.contactInfo?.location || l.ai_data?.location || '');
+          setJobTitle(l.content?.job_title || l.ai_data?.job_title || '');
+          setCompanyName(l.content?.company_name || l.ai_data?.company_name || '');
           setContent(l.content?.body || '');
           const tpl = l.content?.templateStyle
             || l.ai_data?.templateStyle
@@ -148,8 +160,9 @@ export default function EditCoverLetterPage() {
     load();
   }, [id, userId, getToken]);
 
-  // Palkki vain aidossa valinnassa
+  // Palkki vain aidossa valinnassa (desktop)
   const handleSelectionChange = useCallback(() => {
+    if (isMobile) return;
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) { setToolbar(t => (t.visible ? { ...t, visible: false } : t)); return; }
     const hasSelection = sel.toString().trim().length > 0;
@@ -160,7 +173,7 @@ export default function EditCoverLetterPage() {
     const isInEditor = editorRef.current?.contains(range.commonAncestorContainer as Node);
     if (!isInEditor || !editorRect) { setToolbar(t => (t.visible ? { ...t, visible: false } : t)); return; }
     setToolbar({ x: rect.left - editorRect.left + rect.width / 2, y: rect.top - editorRect.top - 8, visible: true, hasSelection: true });
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     document.addEventListener('selectionchange', handleSelectionChange);
@@ -208,8 +221,8 @@ export default function EditCoverLetterPage() {
       direction: styleSettings.templateStyle === 'modern-left' ? 'vertical' : 'horizontal',
       sizeMm: styleSettings.bannerHeightMm,
     },
-    job_title: letterData?.content?.job_title,
-    company_name: letterData?.content?.company_name,
+    job_title: jobTitle,
+    company_name: companyName,
     language: letterData?.content?.language,
     style: letterData?.content?.style,
   });
@@ -286,8 +299,8 @@ export default function EditCoverLetterPage() {
       case 'phone': setPhone(value); break;
       case 'location': setLocation(value); break;
       case 'headerColor': setStyleSettings(p => ({ ...p, headerColor: value })); break;
-      case 'jobTitle': setLetterData(p => p ? { ...p, content: { ...p.content, job_title: value } } : p); break;
-      case 'companyName': setLetterData(p => p ? { ...p, content: { ...p.content, company_name: value } } : p); break;
+      case 'jobTitle': setJobTitle(value); break;
+      case 'companyName': setCompanyName(value); break;
     }
   };
 
@@ -313,8 +326,8 @@ export default function EditCoverLetterPage() {
     content: {
       body: content,
       contactInfo: { name, email, phone, location },
-      job_title: letterData.content?.job_title,
-      company_name: letterData.content?.company_name,
+      job_title: jobTitle,
+      company_name: companyName,
       language: letterData.content?.language || 'finnish',
       headerColor: styleSettings.headerColor,
       accentColor: styleSettings.headerColor,
@@ -342,36 +355,265 @@ export default function EditCoverLetterPage() {
   const scaleValue = zoom / 100;
   const showBanner = BANNER_TEMPLATES.includes(styleSettings.templateStyle);
 
+  // Renderöijä (jaettu desktop/mobiili). isEditing=false esikatselussa.
+  const renderPaper = (editing: boolean) => (
+    <CoverLetterContainer>
+      <CoverLetterRenderer
+        raw={engineRaw}
+        isEditing={editing}
+        onContactChange={(field, value) => {
+          if (field === 'name') setName(value);
+          else if (field === 'email') setEmail(value);
+          else if (field === 'phone') setPhone(value);
+          else if (field === 'location') setLocation(value);
+        }}
+        onBodyChange={setContent}
+        onFieldChange={(field, value) => handleFieldChange(field, value)}
+        onStyleChange={(patch) => {
+          setStyleSettings(prev => ({
+            ...prev,
+            ...(patch.accentColor ? { headerColor: patch.accentColor } : {}),
+            ...(patch.templateStyle ? { templateStyle: patch.templateStyle } : {}),
+            ...(patch.signatureStyle ? { signatureStyle: patch.signatureStyle } : {}),
+            ...(patch.background ? { background: patch.background } : {}),
+            ...(patch.text?.fontFamily ? { fontFamily: patch.text.fontFamily } : {}),
+            ...(patch.text?.fontSize ? { fontSize: patch.text.fontSize } : {}),
+            ...(patch.text?.lineHeight ? { lineHeight: patch.text.lineHeight } : {}),
+            ...(patch.text?.textAlign ? { textAlign: patch.text.textAlign } : {}),
+            ...(patch.text?.textColor ? { textColor: patch.text.textColor } : {}),
+          }));
+        }}
+      />
+    </CoverLetterContainer>
+  );
+
+  const designPanel = (
+    <CoverLetterDesignPanel
+      background={styleSettings.background}
+      onBackgroundChange={(bg) => setStyleSettings(p => ({ ...p, background: bg }))}
+      bannerHeightMm={styleSettings.bannerHeightMm}
+      onBannerHeightChange={(mm) => setStyleSettings(p => ({ ...p, bannerHeightMm: mm }))}
+      showBanner={showBanner}
+      fontSize={styleSettings.fontSize}
+      lineHeight={styleSettings.lineHeight}
+      onFontSizeChange={(v) => setStyleSettings(p => ({ ...p, fontSize: v }))}
+      onLineHeightChange={(v) => setStyleSettings(p => ({ ...p, lineHeight: v }))}
+    />
+  );
+
+  // Jaetut valitsimet (pohja/allek/fontti/väri) — käytetään sekä desktop-toolbarissa että mobiili-Ulkoasussa
+  const styleSelectors = (compact: boolean) => (
+    <>
+      <select value={styleSettings.templateStyle} onChange={e => setStyleSettings(p => ({ ...p, templateStyle: e.target.value }))}
+        style={{ padding: compact ? '10px 12px' : '6px 10px', borderRadius: '8px', border: '1px solid #444', background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '13px', fontWeight: 600, width: compact ? '100%' : undefined }}>
+        <option value="modern-top">Moderni · banneri</option>
+        <option value="modern-left">Moderni · sivupalsta</option>
+        <option value="aurora">Aurora · banneri</option>
+        <option value="sidebar">Sivupalsta+ · väripalsta</option>
+        <option value="elegant">Elegantti · keskitetty</option>
+        <option value="ribbon">Ribbon · nauha</option>
+        <option value="monogram">Monogram · vesileima</option>
+        <option value="creative-wave">Creative Wave 🌊</option>
+        <option value="classic">Klassinen</option>
+      </select>
+      <select value={styleSettings.signatureStyle} onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as any }))}
+        style={{ padding: compact ? '10px 12px' : '6px 10px', borderRadius: '8px', border: '1px solid #444', background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '13px', fontWeight: 600, width: compact ? '100%' : undefined }}>
+        <option value="script">Allek. · käsiala</option>
+        <option value="print">Allek. · painettu</option>
+        <option value="bold">Allek. · korostettu</option>
+      </select>
+      <select value={styleSettings.fontFamily} onChange={e => setStyleSettings(p => ({ ...p, fontFamily: e.target.value as any }))}
+        style={{ padding: compact ? '10px 12px' : '6px 10px', borderRadius: '8px', border: '1px solid #444', background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '13px', fontWeight: 600, width: compact ? '100%' : undefined }}>
+        <option value="serif">Fontti · Serif</option>
+        <option value="sans">Fontti · Sans</option>
+        <option value="classic">Fontti · Klassinen</option>
+        <option value="modern">Fontti · Moderni</option>
+      </select>
+    </>
+  );
+
+  // ════════════════════════════════════════════════════════════
+  // MOBIILI
+  // ════════════════════════════════════════════════════════════
+  if (isMobile) {
+    const mobileScale = Math.min(1, (typeof window !== 'undefined' ? window.innerWidth - 24 : 360) / 794);
+    const inputCls = 'w-full bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl px-3 py-2.5 text-sm text-[#e8e3dc] focus:outline-none focus:border-orange-500/60';
+    const labelCls = 'block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5';
+
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1e1e', color: '#e8e3dc', fontFamily: "'DM Sans', sans-serif" }}>
+        {/* Top bar */}
+        <div style={{ height: '52px', background: '#2a2a2a', borderBottom: '1px solid #3a3a3a', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '8px', flexShrink: 0, position: 'sticky', top: 0, zIndex: 50 }}>
+          <button onClick={() => router.push('/my-cover-letters')} style={{ padding: '6px', background: 'transparent', border: 'none', color: '#999' }}><ArrowLeft size={18} /></button>
+          <FileText size={15} style={{ color: '#f97316' }} />
+          <span style={{ flex: 1, fontSize: '13px', fontWeight: 600, color: '#e0dbd4', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{letterData.title}</span>
+          <button onClick={handleDownloadPDF} disabled={isDownloading} style={{ padding: '7px', borderRadius: '8px', background: '#333', border: '1px solid #444', color: '#ccc' }}>
+            {isDownloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+          </button>
+          <button onClick={handleSave} disabled={isSaving} style={{ padding: '7px 14px', borderRadius: '8px', background: isSaving ? '#555' : 'linear-gradient(135deg, #22c55e, #16a34a)', border: 'none', color: '#fff', fontWeight: 700, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Tallenna
+          </button>
+        </div>
+
+        {/* Mobiili-välilehdet */}
+        <div style={{ display: 'flex', gap: '6px', padding: '10px 12px', background: '#1e1e1e', position: 'sticky', top: '52px', zIndex: 40, borderBottom: '1px solid #2a2a2a' }}>
+          {([
+            { k: 'text' as const, label: 'Teksti', icon: Edit3 },
+            { k: 'design' as const, label: 'Ulkoasu', icon: SlidersHorizontal },
+            { k: 'preview' as const, label: 'Esikatselu', icon: Eye },
+          ]).map(({ k, label, icon: Icon }) => (
+            <button key={k} onClick={() => setMobileTab(k)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                padding: '9px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                fontSize: '12px', fontWeight: 700,
+                background: mobileTab === k ? '#f97316' : '#2a2a2a',
+                color: mobileTab === k ? '#fff' : '#999',
+              }}>
+              <Icon size={14} /> {label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '16px 12px 40px' }}>
+
+          {/* ── TEKSTI ── */}
+          {mobileTab === 'text' && (
+            <div className="space-y-5">
+              <div>
+                <label className={labelCls}>Nimi</label>
+                <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Nimi" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Titteli</label>
+                  <input className={inputCls} value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="Titteli" />
+                </div>
+                <div>
+                  <label className={labelCls}>Yritys</label>
+                  <input className={inputCls} value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Yritys" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className={labelCls}>Sähköposti</label>
+                  <input className={inputCls} value={email} onChange={e => setEmail(e.target.value)} placeholder="sähköposti" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>Puhelin</label>
+                    <input className={inputCls} value={phone} onChange={e => setPhone(e.target.value)} placeholder="puhelin" />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Paikkakunta</label>
+                    <input className={inputCls} value={location} onChange={e => setLocation(e.target.value)} placeholder="paikkakunta" />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Hakukirjeen teksti</label>
+                <p className="text-[11px] text-gray-500 mb-2">Tyhjä rivi erottaa kappaleet. Voit myös käyttää AI-muokkausta alla.</p>
+                <textarea
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  className="w-full bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl px-3 py-3 text-sm text-[#e8e3dc] focus:outline-none focus:border-orange-500/60 leading-relaxed"
+                  style={{ minHeight: '320px', resize: 'vertical' }}
+                  placeholder="Kirjoita hakukirjeen teksti tähän…"
+                />
+              </div>
+
+              {/* AI-muokkaus mobiilissa */}
+              <div className="pt-2 border-t border-[#2a2a2a]">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-orange-400 mb-3 flex items-center gap-2">
+                  <Sparkles size={13} /> AI-muokkaus
+                </p>
+                {showSuccess && (
+                  <div className="mb-3 p-3 rounded-xl bg-green-500/10 border border-green-500/30 flex gap-2">
+                    <CheckCircle size={15} className="text-green-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-green-300 m-0">{latestChanges}</p>
+                  </div>
+                )}
+                <IterativeFeedback coverLetterId={id} iterationCost={iterationCost} currentTokens={tokens} onSuccess={handleIterationSuccess} />
+              </div>
+            </div>
+          )}
+
+          {/* ── ULKOASU ── */}
+          {mobileTab === 'design' && (
+            <div className="space-y-4">
+              {/* Pohja / allek / fontti */}
+              <div className="bg-[#252525] border border-[#3a3a3a] rounded-2xl p-4 space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1 flex items-center gap-2"><Palette size={13} /> Pohja & tyyli</p>
+                {styleSelectors(true)}
+                {/* Väri + tasaus */}
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Väri</span>
+                    <input type="color" value={styleSettings.headerColor.startsWith('#') ? styleSettings.headerColor : '#B59850'}
+                      onChange={e => setStyleSettings(p => ({ ...p, headerColor: e.target.value }))}
+                      style={{ width: '36px', height: '32px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', cursor: 'pointer' }} />
+                  </div>
+                  <div className="flex-1" />
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {(['left', 'center', 'justify'] as const).map(align => (
+                      <button key={align} onClick={() => setStyleSettings(p => ({ ...p, textAlign: align }))}
+                        style={{ padding: '8px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: styleSettings.textAlign === align ? '#f97316' : '#333', color: styleSettings.textAlign === align ? '#fff' : '#aaa' }}>
+                        {align === 'left' ? <AlignLeft size={15} /> : align === 'center' ? <AlignCenter size={15} /> : <AlignJustify size={15} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tausta + koot (jaettu paneeli) */}
+              {designPanel}
+            </div>
+          )}
+
+          {/* ── ESIKATSELU ── */}
+          {mobileTab === 'preview' && (
+            <div className="flex flex-col items-center">
+              <p className="text-[11px] text-gray-500 mb-3">Tulostusasu · muokkaa Teksti- ja Ulkoasu-välilehdillä</p>
+              <div style={{ width: `${794 * mobileScale}px`, overflow: 'hidden' }}>
+                <div style={{ width: '210mm', transform: `scale(${mobileScale})`, transformOrigin: 'top left' }}>
+                  <div className="bg-white shadow-2xl" style={{ width: '210mm', minHeight: '297mm' }}>
+                    {renderPaper(false)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // DESKTOP (ennallaan)
+  // ════════════════════════════════════════════════════════════
   const tabBtn = (key: typeof rightTab, label: string) => (
-    <button
-      onClick={() => setRightTab(key)}
-      style={{
-        flex: 1, padding: '12px 6px', fontSize: '11px', fontWeight: 700,
+    <button onClick={() => setRightTab(key)}
+      style={{ flex: 1, padding: '12px 6px', fontSize: '11px', fontWeight: 700,
         background: rightTab === key ? '#2e2e2e' : 'transparent',
         borderBottom: rightTab === key ? '2px solid #f97316' : '2px solid transparent',
         border: 'none', color: rightTab === key ? '#f97316' : '#888', cursor: 'pointer',
-        letterSpacing: '0.03em', textTransform: 'uppercase',
-      }}
-    >{label}</button>
+        letterSpacing: '0.03em', textTransform: 'uppercase' }}>{label}</button>
   );
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1e1e', color: '#e8e3dc', fontFamily: "'DM Sans', sans-serif" }}>
-
-      {/* ══ TOP TOOLBAR ══ */}
       <div style={{ height: '56px', background: '#2a2a2a', borderBottom: '1px solid #3a3a3a', display: 'flex', alignItems: 'center', padding: '0 16px', gap: '8px', flexShrink: 0, zIndex: 50 }}>
         <button onClick={() => router.push('/my-cover-letters')} style={{ padding: '6px', borderRadius: '8px', background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <ArrowLeft size={18} />
         </button>
         <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
         <FileText size={16} style={{ color: '#f97316' }} />
-        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e0dbd4', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {letterData.title}
-        </span>
-
+        <span style={{ fontSize: '14px', fontWeight: 600, color: '#e0dbd4', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{letterData.title}</span>
         <div style={{ flex: 1 }} />
 
-        {/* Tekstin pikasäätimet (tarkemmat löytyvät design-paneelista) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {(['left', 'center', 'justify'] as const).map(align => (
             <button key={align} onClick={() => setStyleSettings(p => ({ ...p, textAlign: align }))}
@@ -380,44 +622,14 @@ export default function EditCoverLetterPage() {
               {align === 'left' ? <AlignLeft size={15} /> : align === 'center' ? <AlignCenter size={15} /> : <AlignJustify size={15} />}
             </button>
           ))}
-
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
-
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Palette size={14} style={{ color: '#888' }} />
             <div onClick={() => colorInputRef.current?.click()} style={{ width: '28px', height: '28px', borderRadius: '6px', background: styleSettings.headerColor, border: '2px solid #555', cursor: 'pointer' }} title="Korostusväri" />
             <input ref={colorInputRef} type="color" value={styleSettings.headerColor.startsWith('#') ? styleSettings.headerColor : '#B59850'} onChange={e => setStyleSettings(p => ({ ...p, headerColor: e.target.value }))} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: '1px', height: '1px' }} />
           </div>
-
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
-
-          <select value={styleSettings.templateStyle} onChange={e => setStyleSettings(p => ({ ...p, templateStyle: e.target.value }))}
-            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #444', background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }} title="Valitse pohja">
-            <option value="modern-top">Moderni · banneri</option>
-            <option value="modern-left">Moderni · sivupalsta</option>
-            <option value="aurora">Aurora · banneri</option>
-            <option value="elegant">Elegantti · keskitetty</option>
-            <option value="creative-wave">Creative Wave 🌊</option>
-            <option value="classic">Klassinen</option>
-            <option value="ribbon">Ribbon · nauha</option>
-<option value="sidebar">Sivupalsta+ · väripalsta</option>
-<option value="monogram">Monogram · vesileima</option>
-          </select>
-
-          <select value={styleSettings.signatureStyle} onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as any }))}
-            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #444', background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }} title="Allekirjoitustyyli">
-            <option value="script">Allek. · käsiala</option>
-            <option value="print">Allek. · painettu</option>
-            <option value="bold">Allek. · korostettu</option>
-          </select>
-
-          <select value={styleSettings.fontFamily} onChange={e => setStyleSettings(p => ({ ...p, fontFamily: e.target.value as any }))}
-            style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #444', background: '#333', color: '#e0dbd4', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }} title="Fontti">
-            <option value="serif">Fontti · Serif</option>
-            <option value="sans">Fontti · Sans</option>
-            <option value="classic">Fontti · Klassinen</option>
-            <option value="modern">Fontti · Moderni</option>
-          </select>
+          {styleSelectors(false)}
         </div>
 
         <div style={{ flex: 1 }} />
@@ -441,7 +653,6 @@ export default function EditCoverLetterPage() {
         </div>
       </div>
 
-      {/* ══ MAIN AREA ══ */}
       <div ref={mainAreaRef} style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
         <div style={{ width: `${leftRatio * 100}%`, overflow: 'auto', background: '#1e1e1e', display: 'flex', justifyContent: 'center', padding: '32px 24px', position: 'relative', transition: isDragging ? 'none' : 'width 0.05s linear' }}>
           {toolbar.visible && toolbar.hasSelection && (
@@ -458,47 +669,17 @@ export default function EditCoverLetterPage() {
                   <span style={{ position: 'absolute', top: '-10px', right: '0', background: 'rgba(239,68,68,0.8)', color: 'white', fontSize: '10px', padding: '1px 8px', borderRadius: '4px', fontWeight: 700 }}>Sivu 1 / Sivu 2</span>
                 </div>
               </div>
-
-              <CoverLetterContainer>
-                <CoverLetterRenderer
-                  raw={engineRaw}
-                  isEditing={true}
-                  onContactChange={(field, value) => {
-                    if (field === 'name') setName(value);
-                    else if (field === 'email') setEmail(value);
-                    else if (field === 'phone') setPhone(value);
-                    else if (field === 'location') setLocation(value);
-                  }}
-                  onBodyChange={setContent}
-                  onFieldChange={(field, value) => handleFieldChange(field, value)}
-                  onStyleChange={(patch) => {
-                    setStyleSettings(prev => ({
-                      ...prev,
-                      ...(patch.accentColor ? { headerColor: patch.accentColor } : {}),
-                      ...(patch.templateStyle ? { templateStyle: patch.templateStyle } : {}),
-                      ...(patch.signatureStyle ? { signatureStyle: patch.signatureStyle } : {}),
-                      ...(patch.background ? { background: patch.background } : {}),
-                      ...(patch.text?.fontFamily ? { fontFamily: patch.text.fontFamily } : {}),
-                      ...(patch.text?.fontSize ? { fontSize: patch.text.fontSize } : {}),
-                      ...(patch.text?.lineHeight ? { lineHeight: patch.text.lineHeight } : {}),
-                      ...(patch.text?.textAlign ? { textAlign: patch.text.textAlign } : {}),
-                      ...(patch.text?.textColor ? { textColor: patch.text.textColor } : {}),
-                    }));
-                  }}
-                />
-              </CoverLetterContainer>
+              {renderPaper(true)}
             </div>
           </div>
         </div>
 
-        {/* Raahattava väliseinä */}
         <div onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
           style={{ width: '8px', background: isDragging ? '#f97316' : '#2a2a2a', borderLeft: '1px solid #333', borderRight: '1px solid #333', cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 10 }}
           title="Raahaa muuttaaksesi paneelin kokoa">
           <GripVertical size={14} style={{ color: isDragging ? '#fff' : '#666', pointerEvents: 'none' }} />
         </div>
 
-        {/* OIKEA PANEELI */}
         <div style={{ width: `${(1 - leftRatio) * 100}%`, background: '#1e1e1e', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0, minWidth: '280px', transition: isDragging ? 'none' : 'width 0.05s linear' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid #333' }}>
             {tabBtn('design', '🎨 Ulkoasu')}
@@ -507,19 +688,7 @@ export default function EditCoverLetterPage() {
           </div>
 
           <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-            {rightTab === 'design' && (
-              <CoverLetterDesignPanel
-                background={styleSettings.background}
-                onBackgroundChange={(bg) => setStyleSettings(p => ({ ...p, background: bg }))}
-                bannerHeightMm={styleSettings.bannerHeightMm}
-                onBannerHeightChange={(mm) => setStyleSettings(p => ({ ...p, bannerHeightMm: mm }))}
-                showBanner={showBanner}
-                fontSize={styleSettings.fontSize}
-                lineHeight={styleSettings.lineHeight}
-                onFontSizeChange={(v) => setStyleSettings(p => ({ ...p, fontSize: v }))}
-                onLineHeightChange={(v) => setStyleSettings(p => ({ ...p, lineHeight: v }))}
-              />
-            )}
+            {rightTab === 'design' && designPanel}
 
             {rightTab === 'ai' && (
               <>
