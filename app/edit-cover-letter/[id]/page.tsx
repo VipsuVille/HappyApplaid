@@ -18,7 +18,7 @@ import {
 import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import IterativeFeedback from '@/components/IterativeFeedback';
-import CoverLetterDesignPanel, { type BackgroundSettings } from '@/components/cover-letter/CoverLetterDesignPanel';
+import CoverLetterDesignPanel, { type BackgroundSettings } from '@/components/cover-letter/CoverLetterDesingPanel';
 import { useTokens } from '@/hooks/useTokens';
 
 interface CoverLetter {
