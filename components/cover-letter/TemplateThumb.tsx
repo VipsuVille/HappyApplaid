@@ -158,6 +158,64 @@ export default function TemplateThumb({ id, accent = '#B59850' }: Props) {
       );
       break;
 
+    // ── MONOGRAM ───────────────────────────────────────────────
+    case 'monogram':
+      content = (
+        <>
+          <rect x={7} y={7} width={W - 14} height={H - 14} fill="none" stroke={accent} strokeWidth={1} opacity={0.35} />
+          {/* iso vesileima-kirjain */}
+          <text x={W - 30} y={150} textAnchor="end" fontSize={210} fontWeight={700} fill={accent} opacity={0.06} fontFamily="Georgia, serif">A</text>
+          <circle cx={42} cy={48} r={15} fill="none" stroke={accent} strokeWidth={1.5} />
+          <rect x={24} y={78} width={104} height={9} rx={2} fill={NAME} />
+          <rect x={24} y={94} width={60} height={4} rx={2} fill={accent} />
+          <rect x={24} y={112} width={40} height={3} rx={1.5} fill={accent} />
+          <Contact x={24} y={128} dot={accent} />
+          <Lines x={24} y={156} count={9} w={150} />
+          <Lines x={24} y={250} count={4} w={150} />
+        </>
+      );
+      break;
+
+    // ── SIDEBAR ────────────────────────────────────────────────
+    case 'sidebar':
+      content = (
+        <>
+          <rect x={0} y={0} width={80} height={H} fill={accent} />
+          <circle cx={40} cy={44} r={16} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth={2} />
+          <rect x={18} y={72} width={44} height={7} rx={2} fill="#ffffff" />
+          <rect x={24} y={86} width={32} height={4} rx={2} fill="rgba(255,255,255,0.6)" />
+          <Contact x={16} y={112} vertical dot="rgba(255,255,255,0.85)" line="rgba(255,255,255,0.4)" />
+          <Lines x={98} y={44} count={11} w={92} />
+          <Lines x={98} y={176} count={6} w={92} />
+        </>
+      );
+      break;
+
+    // ── RIBBON ─────────────────────────────────────────────────
+    case 'ribbon':
+      defs = (
+        <defs>
+          <linearGradient id="ribbonThumb" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={accent} />
+            <stop offset="100%" stopColor={accent} stopOpacity={0.55} />
+          </linearGradient>
+        </defs>
+      );
+      content = (
+        <>
+          <rect x={0} y={0} width={6} height={H} fill={accent} />
+          {/* diagonaalinen nauha oikeaan yläkulmaan */}
+          <path d={`M${W} 0 L${W} 96 L${W - 96} 0 Z`} fill="url(#ribbonThumb)" />
+          <rect x={22} y={34} width={120} height={12} rx={2} fill={NAME} />
+          <rect x={22} y={54} width={70} height={5} rx={2} fill={accent} />
+          <line x1={22} y1={78} x2={50} y2={78} stroke={accent} strokeWidth={2} />
+          <Contact x={58} y={75} dot={accent} />
+          <Lines x={22} y={104} count={9} w={150} />
+          <Lines x={22} y={208} count={4} w={150} />
+        </>
+      );
+      break;
+
     // ── CLASSIC ────────────────────────────────────────────────
     case 'classic':
     default:

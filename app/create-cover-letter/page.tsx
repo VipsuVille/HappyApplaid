@@ -88,6 +88,9 @@ export default function CreateCoverLetterPage() {
     { id: 'elegant', label: isFinnish ? 'Elegantti' : 'Elegant', accent: '#B59850' },
     { id: 'creative-wave', label: 'Creative Wave', accent: '#a855f7' },
     { id: 'classic', label: isFinnish ? 'Klassinen' : 'Classic', accent: '#475569' },
+    { id: 'ribbon',   label: 'Ribbon',   accent: '#e11d48' },
+{ id: 'sidebar',  label: isFinnish ? 'Sivupalsta+' : 'Sidebar+', accent: '#0f766e' },
+{ id: 'monogram', label: 'Monogram', accent: '#1e3a5f' },
   ]), [isFinnish]);
 
   const t = {

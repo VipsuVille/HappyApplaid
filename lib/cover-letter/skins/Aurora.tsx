@@ -1,9 +1,10 @@
 'use client';
 // lib/cover-letter/skins/Aurora.tsx
 // ✅ A-tier skin: täysleveä yläbanneri.
-//    - Jos data.style.background.imageUrl on (AI-generoitu / oma kuva) → banneri käyttää sitä.
-//    - Muuten: tyylikäs aurora-gradient johdettuna accentColorista (nolla AI-kulua).
-// Engine-yhteensopiva: vain { engine } -prop, jaetut komponentit, ei omaa muokkauslogiikkaa.
+//    - background.mode 'generated' | 'image-strong' → kuva banneriin (opacity = himmennys)
+//    - background.mode 'image-faint' → kuva koko sivun taustalle haaleana
+//    - muuten: aurora-gradient accentColorista (nolla AI-kulua)
+//    - bannerin korkeus = data.style.divider.sizeMm (editorin säädin)
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -14,6 +15,7 @@ import {
   Signature,
   ContactRow,
   DateRow,
+  BackgroundLayer,
   ColorDot,
 } from '../engine/components';
 
@@ -22,11 +24,19 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
   const accent = data.style.accentColor;
   const bg = data.style.background;
 
-  const hasImage =
-    !!bg.imageUrl &&
-    (bg.mode === 'generated' || bg.mode === 'image-strong' || bg.mode === 'image-faint');
+  // Banneriin sijoittuva kuva (generoitu/vahva). image-faint hoidetaan BackgroundLayerilla.
+  const bannerImage =
+    !!bg.imageUrl && (bg.mode === 'generated' || bg.mode === 'image-strong')
+      ? bg.imageUrl
+      : null;
 
-  // Aurora-gradient (oletus): accent + pehmeät pastellit → näyttää premiumilta ilman AI-kuvaa
+  const bannerOpacity = bg.opacity ?? 0.9;
+
+  // ✅ Bannerin korkeus editorista (divider.sizeMm). Oletus 82mm.
+  const bannerH = data.style.divider?.sizeMm
+    ? `${data.style.divider.sizeMm}mm`
+    : '82mm';
+
   const auroraGradient = `
     radial-gradient(60% 90% at 78% 12%, ${rgba(accent, 0.92)}, transparent 60%),
     radial-gradient(55% 70% at 98% 45%, rgba(244,114,182,0.55), transparent 62%),
@@ -34,14 +44,6 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
     radial-gradient(50% 60% at 12% 25%, rgba(129,140,248,0.40), transparent 60%),
     linear-gradient(135deg, ${rgba(accent, 0.30)}, #ffffff)
   `;
-
-  const bannerArt: React.CSSProperties = hasImage
-    ? {
-        backgroundImage: `url(${bg.imageUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }
-    : { background: auroraGradient, backgroundColor: '#ffffff' };
 
   return (
     <div
@@ -54,55 +56,51 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
         overflow: 'hidden',
       }}
     >
+      {/* image-faint: koko sivun haalea tausta (BackgroundLayer hoitaa opacityn) */}
+      <BackgroundLayer engine={engine} />
       <ColorDot engine={engine} />
 
       {/* ── YLÄBANNERI ───────────────────────────────────────── */}
       <div
         style={{
           position: 'relative',
-          height: '82mm',
+          height: bannerH,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',
           padding: '0 56px 30px',
-          ...bannerArt,
+          background: bannerImage ? '#ffffff' : auroraGradient,
+          backgroundColor: '#ffffff',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
         }}
       >
-        {/* Koristerenkaat (hillityt) */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '-40px',
-            right: '-40px',
-            width: '180px',
-            height: '180px',
-            borderRadius: '50%',
-            border: '1.5px solid rgba(255,255,255,0.25)',
-            pointerEvents: 'none',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute',
-            top: '24px',
-            right: '40px',
-            width: '90px',
-            height: '90px',
-            borderRadius: '50%',
-            border: '1px solid rgba(255,255,255,0.20)',
-            pointerEvents: 'none',
-          }}
-        />
+        {/* Kuvataso bannerissa — oma opacity (himmennys) */}
+        {bannerImage && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${bannerImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              opacity: bannerOpacity,
+              WebkitPrintColorAdjust: 'exact',
+              printColorAdjust: 'exact',
+            }}
+          />
+        )}
 
-        {/* Tummennusliuku → valkoinen nimi luettavissa sekä gradientilla että kuvalla */}
+        {/* Koristerenkaat */}
+        <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '180px', height: '180px', borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.25)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '24px', right: '40px', width: '90px', height: '90px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.20)', pointerEvents: 'none' }} />
+
+        {/* Tummennusliuku → valkoinen nimi luettavissa */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background:
-              'linear-gradient(180deg, rgba(0,0,0,0) 38%, rgba(0,0,0,0.18) 70%, rgba(0,0,0,0.50) 100%)',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0) 38%, rgba(0,0,0,0.18) 70%, rgba(0,0,0,0.50) 100%)',
             WebkitPrintColorAdjust: 'exact',
             printColorAdjust: 'exact',
             pointerEvents: 'none',
@@ -160,12 +158,12 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
       </div>
 
       {/* ── YHTEYSTIETORIVI ──────────────────────────────────── */}
-      <div style={{ padding: '22px 56px', borderBottom: '1px solid #eef2f7' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '22px 56px', borderBottom: '1px solid #eef2f7' }}>
         <ContactRow engine={engine} onDark={false} />
       </div>
 
       {/* ── LEIPÄTEKSTI ──────────────────────────────────────── */}
-      <div style={{ padding: '36px 56px 56px' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '36px 56px 56px' }}>
         <DateRow engine={engine} />
         <EditableParagraphs engine={engine} />
         <Signature engine={engine} marginTop={48} />
