@@ -1,5 +1,7 @@
+'use client';
 // lib/cover-letter/skins/Classic.tsx
 // ✅ SKINI: Ella-tyyli. Hillitty, ammattimainen. Ohut yläreuna, ei bannerialuetta.
+//    Lukee regions.heading (nimen koko) ja regions.body (leipäteksti).
 
 import React from 'react';
 import type { CLSkinProps } from '../engine/types';
@@ -10,6 +12,7 @@ import {
 export default function Classic({ engine }: CLSkinProps) {
   const { data, fontStack, updateField } = engine;
   const accent = data.style.accentColor;
+  const headingSize = data.style.regions?.heading?.fontSize; // px
 
   return (
     <div className="cover-letter-paper bg-white mx-auto relative"
@@ -26,7 +29,7 @@ export default function Classic({ engine }: CLSkinProps) {
       <div style={{ padding: '52px 56px 0', textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <EditableText engine={engine} as="h1" value={data.contact.name}
           onCommit={(v) => engine.updateContact('name', v)}
-          style={{ fontSize: '30px', fontWeight: 700, color: data.style.text.textColor, fontFamily: fontStack('serif'), letterSpacing: '1px', margin: 0 }}
+          style={{ fontSize: headingSize ? `${headingSize}px` : '30px', fontWeight: 700, color: data.style.text.textColor, fontFamily: fontStack('serif'), letterSpacing: '1px', margin: 0 }}
           placeholder="Nimi" />
 
         {(data.jobTitle || data.companyName) && (
@@ -43,7 +46,7 @@ export default function Classic({ engine }: CLSkinProps) {
       {/* BODY */}
       <div style={{ padding: '44px 64px 40px', flex: 1, position: 'relative', zIndex: 1 }}>
         <DateRow engine={engine} />
-        <EditableParagraphs engine={engine} />
+        <EditableParagraphs engine={engine} region="body" />
         <Signature engine={engine} marginTop={48} />
       </div>
 

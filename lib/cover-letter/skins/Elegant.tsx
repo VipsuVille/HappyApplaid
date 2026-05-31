@@ -2,7 +2,7 @@
 // lib/cover-letter/skins/Elegant.tsx
 // ✅ A-tier skin: keskitetty, ilmava, klassinen. Serif-otsikko, harvennettu välistys,
 //    hillitty kasviornamentti alareunassa. Tukee BackgroundLayeria (häilyvä kuva).
-// Engine-yhteensopiva: vain { engine } -prop, jaetut komponentit.
+//    Lukee regions.heading (nimen koko) ja regions.body (leipäteksti).
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -19,6 +19,7 @@ import {
 export default function Elegant({ engine }: { engine: CLEngine }) {
   const { data, fontStack, updateField, updateContact } = engine;
   const accent = data.style.accentColor;
+  const headingSize = data.style.regions?.heading?.fontSize; // px
 
   return (
     <div
@@ -45,7 +46,7 @@ export default function Elegant({ engine }: { engine: CLEngine }) {
           value={data.contact.name}
           onCommit={(v) => updateContact('name', v)}
           style={{
-            fontSize: '32px',
+            fontSize: headingSize ? `${headingSize}px` : '32px',
             fontWeight: 500,
             letterSpacing: '6px',
             textTransform: 'uppercase',
@@ -126,7 +127,7 @@ export default function Elegant({ engine }: { engine: CLEngine }) {
       {/* ── PÄIVÄYS + LEIPÄTEKSTI ────────────────────────────── */}
       <div style={{ flex: 1, position: 'relative', zIndex: 1 }}>
         <DateRow engine={engine} />
-        <EditableParagraphs engine={engine} />
+        <EditableParagraphs engine={engine} region="body" />
         <Signature engine={engine} marginTop={48} centered closing="Ystävällisin terveisin" />
       </div>
 

@@ -1,4 +1,7 @@
 'use client';
+// lib/cover-letter/skins/CreativeWave.tsx
+// ✅ Aaltografiikka ylä- ja alareunassa, accent-väri aalloissa.
+//    Lukee regions.heading (nimen koko) ja regions.body (leipäteksti).
 
 import React from 'react';
 import {
@@ -11,9 +14,8 @@ import {
 
 export default function CreativeWave({ engine }: { engine: any }) {
   const { data, fontStack, updateField } = engine;
-  
-  // Käytetään käyttäjän valitsemaa teemaväriä aaltojen pohjana (esim. kuvan sininen)
-  const accent = data.style.accentColor || '#0284c7'; 
+  const accent = data.style.accentColor || '#0284c7';
+  const headingSize = data.style.regions?.heading?.fontSize; // px
 
   return (
     <div
@@ -21,16 +23,16 @@ export default function CreativeWave({ engine }: { engine: any }) {
       style={{
         width: '210mm',
         minHeight: '297mm',
-        fontFamily: fontStack('sans'), // Kuva käyttää modernia sans-serif fonttia
+        fontFamily: fontStack('sans'),
         color: data.style.text.textColor || '#1f2937',
         overflow: 'hidden',
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact',
       }}
     >
-      {/* 1. YLÄREUNAN AALTO-GRAFIIKKA (Vastaa kuvaa) */}
-      <div 
-        className="absolute top-0 left-0 right-0 pointer-events-none" 
+      {/* 1. YLÄREUNAN AALTO-GRAFIIKKA */}
+      <div
+        className="absolute top-0 left-0 right-0 pointer-events-none"
         style={{ height: '140px', overflow: 'hidden', zIndex: 0 }}
       >
         <svg viewBox="0 0 1440 320" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">
@@ -39,10 +41,10 @@ export default function CreativeWave({ engine }: { engine: any }) {
         </svg>
       </div>
 
-      {/* 2. SISÄLTÖALUE (Sisennys riittävä, jotta teksti ei mene aaltojen päälle) */}
+      {/* 2. SISÄLTÖALUE */}
       <div style={{ padding: '120px 64px 40px 64px', flexGrow: 1, zIndex: 10, position: 'relative' }}>
-        
-        {/* Keskitetty otsikko- ja yritysosa (kuten kuvassa logo/nimi) */}
+
+        {/* Keskitetty otsikko- ja yritysosa */}
         <div className="text-center mb-12">
           <EditableText
             engine={engine}
@@ -50,15 +52,15 @@ export default function CreativeWave({ engine }: { engine: any }) {
             value={data.contact.name}
             onCommit={(v) => engine.updateContact('name', v)}
             style={{
-              fontSize: '32px',
+              fontSize: headingSize ? `${headingSize}px` : '32px',
               fontWeight: 800,
-              color: accent, // Käytetään korostusväriä nimeen
+              color: accent,
               letterSpacing: '-0.5px',
               margin: '0 0 6px',
             }}
             placeholder="Nimesi"
           />
-          
+
           {(data.jobTitle || data.companyName) && (
             <div className="text-sm font-medium uppercase tracking-wider text-gray-500 mb-4">
               <EditableText
@@ -83,21 +85,19 @@ export default function CreativeWave({ engine }: { engine: any }) {
           </div>
         </div>
 
-        {/* Päivämäärä ja kirjeen leipäteksti */}
+        {/* Päivämäärä ja leipäteksti */}
         <div className="mt-8">
           <DateRow engine={engine} />
-          
-          <div className="prose max-w-none mt-6" style={{ fontSize: '11pt', lineHeight: '1.6' }}>
-            <EditableParagraphs engine={engine} />
+          <div className="mt-6">
+            <EditableParagraphs engine={engine} region="body" />
           </div>
-          
           <Signature engine={engine} marginTop={48} closing="Sincerely," />
         </div>
       </div>
 
-      {/* 3. ALAREUNAN AALTO-GRAFIIKKA (Vastaa kuvaa) */}
-      <div 
-        className="absolute bottom-0 left-0 right-0 pointer-events-none" 
+      {/* 3. ALAREUNAN AALTO-GRAFIIKKA */}
+      <div
+        className="absolute bottom-0 left-0 right-0 pointer-events-none"
         style={{ height: '140px', overflow: 'hidden', zIndex: 0 }}
       >
         <svg viewBox="0 0 1440 320" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full object-cover">

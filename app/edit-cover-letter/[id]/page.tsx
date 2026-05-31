@@ -14,6 +14,7 @@ import {
   Type, Palette, CheckCircle, ZoomIn, ZoomOut, GripVertical,
   Edit3, Eye, SlidersHorizontal,
 } from 'lucide-react';
+import AdaptiveControls from '@/components/cover-letter/AdaptiveControls';
 
 import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
@@ -39,6 +40,10 @@ interface StyleSettings {
   signatureStyle: 'script' | 'print' | 'bold';
   fontFamily: 'serif' | 'sans' | 'classic' | 'modern';
   textColor: string;
+  banner?: { color?: string; heightMm?: number; textColor?: string };
+band?:   { color?: string; heightMm?: number };
+image?:  { url?: string; placement?: import('@/lib/cover-letter/engine/capabilities').ImagePlacement; opacity?: number };
+regions?: Record<string, { fontSize?: number; textColor?: string; letterSpacing?: number }>;
   background: BackgroundSettings;
   bannerHeightMm: number;
 }
@@ -215,8 +220,12 @@ export default function EditCoverLetterPage() {
     textAlign: styleSettings.textAlign,
     fontFamily: styleSettings.fontFamily,
     textColor: styleSettings.textColor,
+      background: styleSettings.background,
+    banner: styleSettings.banner,        // ✅
+    band: styleSettings.band,            // ✅
+    image: styleSettings.image,          // ✅
+    regions: styleSettings.regions,      // ✅
     signatureStyle: styleSettings.signatureStyle,
-    background: styleSettings.background,
     divider: {
       direction: styleSettings.templateStyle === 'modern-left' ? 'vertical' : 'horizontal',
       sizeMm: styleSettings.bannerHeightMm,
@@ -340,6 +349,10 @@ export default function EditCoverLetterPage() {
       signatureStyle: styleSettings.signatureStyle,
       showDate: true,
       background: styleSettings.background,
+      banner: styleSettings.banner,      // ✅
+      band: styleSettings.band,          // ✅
+      image: styleSettings.image,        // ✅
+      regions: styleSettings.regions,    // ✅
       divider: {
         direction: (styleSettings.templateStyle === 'modern-left' ? 'vertical' : 'horizontal') as 'vertical' | 'horizontal' | 'none',
         sizeMm: styleSettings.bannerHeightMm,
@@ -572,8 +585,8 @@ export default function EditCoverLetterPage() {
               </div>
 
               {/* Tausta + koot (jaettu paneeli) */}
-              {designPanel}
-            </div>
+<AdaptiveControls styleSettings={styleSettings} onChange={(p) => setStyleSettings(prev => ({ ...prev, ...p }))} />
+{designPanel}            </div>
           )}
 
           {/* ── ESIKATSELU ── */}
@@ -691,8 +704,12 @@ export default function EditCoverLetterPage() {
           </div>
 
           <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-            {rightTab === 'design' && designPanel}
-
+   {rightTab === 'design' && (
+  <>
+    <AdaptiveControls styleSettings={styleSettings} onChange={(p) => setStyleSettings(prev => ({ ...prev, ...p }))} />
+    {designPanel}
+  </>
+)}
             {rightTab === 'ai' && (
               <>
                 {showSuccess && (

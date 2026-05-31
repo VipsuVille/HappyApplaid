@@ -7,6 +7,7 @@ import type {
   CLData, CLRawRecord, CLEngine, CLContactInfo, CLStyle,
   TextSettings, FontFamilyKey, DividerConfig, BackgroundConfig,
 } from './types';
+// (BannerStyle/BandStyle/SkinImage/RegionText kulkevat CLStyle:n sisällä, ei tarvitse erikseen)
 
 // ─── Fonttipinot ──────────────────────────────────────────────
 const FONT_STACKS: Record<FontFamilyKey, string> = {
@@ -66,7 +67,7 @@ function buildCLData(raw: CLRawRecord): CLData {
     textColor: content.textColor || DEFAULT_TEXT.textColor,
   };
 
-  const style: CLStyle = {
+ const style: CLStyle = {
     templateStyle,
     accentColor,
     divider,
@@ -74,6 +75,11 @@ function buildCLData(raw: CLRawRecord): CLData {
     text,
     signatureStyle: content.signatureStyle || 'script',
     showDate: content.showDate ?? true,
+    // ✅ uudet kentät — luetaan suoraan content:sta (undefined jos ei tallennettu)
+    banner: content.banner,
+    band: content.band,
+    image: content.image,
+    regions: content.regions,
   };
 
   return {

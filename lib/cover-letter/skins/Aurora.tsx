@@ -1,10 +1,11 @@
 'use client';
 // lib/cover-letter/skins/Aurora.tsx
 // ✅ A-tier skin: täysleveä yläbanneri.
+//    - data.style.banner.color → bannerin oma väri (gradient jos ei asetettu)
+//    - data.style.banner.heightMm → korkeus (fallback divider.sizeMm)
 //    - background.mode 'generated' | 'image-strong' → kuva banneriin (opacity = himmennys)
 //    - background.mode 'image-faint' → kuva koko sivun taustalle haaleana
-//    - muuten: aurora-gradient accentColorista (nolla AI-kulua)
-//    - bannerin korkeus = data.style.divider.sizeMm (editorin säädin)
+//    - regions.heading → nimen koko (px), regions.body → leipätekstin koko
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -24,19 +25,14 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
   const accent = data.style.accentColor;
   const bg = data.style.background;
 
-  // Banneriin sijoittuva kuva (generoitu/vahva). image-faint hoidetaan BackgroundLayerilla.
   const bannerImage =
-    !!bg.imageUrl && (bg.mode === 'generated' || bg.mode === 'image-strong')
-      ? bg.imageUrl
-      : null;
-
+    !!bg.imageUrl && (bg.mode === 'generated' || bg.mode === 'image-strong') ? bg.imageUrl : null;
   const bannerOpacity = bg.opacity ?? 0.9;
 
-  // ✅ Bannerin korkeus editorista (divider.sizeMm). Oletus 82mm.
-  const bannerH = data.style.divider?.sizeMm
-    ? `${data.style.divider.sizeMm}mm`
-    : '82mm';
+  // Bannerin korkeus: banner.heightMm → divider.sizeMm → 82mm
+  const bannerH = `${data.style.banner?.heightMm ?? data.style.divider?.sizeMm ?? 82}mm`;
 
+  // Bannerin tausta: banner.color (jos asetettu) muuten aurora-gradient
   const auroraGradient = `
     radial-gradient(60% 90% at 78% 12%, ${rgba(accent, 0.92)}, transparent 60%),
     radial-gradient(55% 70% at 98% 45%, rgba(244,114,182,0.55), transparent 62%),
@@ -44,6 +40,9 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
     radial-gradient(50% 60% at 12% 25%, rgba(129,140,248,0.40), transparent 60%),
     linear-gradient(135deg, ${rgba(accent, 0.30)}, #ffffff)
   `;
+  const bannerBg = bannerImage ? '#ffffff' : (data.style.banner?.color || auroraGradient);
+
+  const headingSize = data.style.regions?.heading?.fontSize; // px
 
   return (
     <div
@@ -56,7 +55,6 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
         overflow: 'hidden',
       }}
     >
-      {/* image-faint: koko sivun haalea tausta (BackgroundLayer hoitaa opacityn) */}
       <BackgroundLayer engine={engine} />
       <ColorDot engine={engine} />
 
@@ -69,13 +67,12 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
           flexDirection: 'column',
           justifyContent: 'flex-end',
           padding: '0 56px 30px',
-          background: bannerImage ? '#ffffff' : auroraGradient,
+          background: bannerBg,
           backgroundColor: '#ffffff',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
         }}
       >
-        {/* Kuvataso bannerissa — oma opacity (himmennys) */}
         {bannerImage && (
           <div
             style={{
@@ -114,12 +111,12 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
             value={data.contact.name}
             onCommit={(v) => updateContact('name', v)}
             style={{
-              fontSize: '40px',
+              fontSize: headingSize ? `${headingSize}px` : '40px',
               fontWeight: 800,
               letterSpacing: '-0.5px',
               lineHeight: 1.05,
               margin: 0,
-              color: '#ffffff',
+              color: data.style.banner?.textColor || '#ffffff',
               fontFamily: fontStack('sans'),
               textShadow: '0 2px 14px rgba(0,0,0,0.30)',
             }}
@@ -165,7 +162,7 @@ export default function Aurora({ engine }: { engine: CLEngine }) {
       {/* ── LEIPÄTEKSTI ──────────────────────────────────────── */}
       <div style={{ position: 'relative', zIndex: 1, padding: '36px 56px 56px' }}>
         <DateRow engine={engine} />
-        <EditableParagraphs engine={engine} />
+        <EditableParagraphs engine={engine} region="body" />
         <Signature engine={engine} marginTop={48} />
       </div>
     </div>

@@ -48,11 +48,15 @@ export function EditableText({
 }
 
 // ─── EditableParagraphs: leipäteksti ──────────────────────────
-export function EditableParagraphs({ engine }: { engine: CLEngine }) {
+export function EditableParagraphs({ engine, region }: { engine: CLEngine; region?: string }) {
   const { paragraphs, isEditing, data, fontStack, updateBody } = engine;
-  const { fontSize, lineHeight, textAlign, textColor } = data.style.text;
+  const base = data.style.text;
+  const ov = (region && data.style.regions?.[region]) || {};
+  const fontSize = ov.fontSize ?? base.fontSize;          // pt
+  const textColor = ov.textColor ?? base.textColor;
+  const { lineHeight, textAlign } = base;
   const paragraphSpacing = Math.round(fontSize * 1.6);
-
+  
   return (
     <div style={{ lineHeight, fontSize: `${fontSize}pt`, fontFamily: fontStack(), color: textColor }}>
       {paragraphs.map((p, idx) => (
