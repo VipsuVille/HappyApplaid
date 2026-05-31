@@ -69,6 +69,9 @@ export default function CoverLetterRenderer({
     case 'elegant':       return <Elegant engine={engine} />;
     case 'creative-wave': return <CreativeWave engine={engine} />;
     case 'modern-left':   return <ModernLeft engine={engine} />;
+    case 'executive':     return <Executive engine={engine} />;
+case 'greeting':      return <Greeting engine={engine} />;
+case 'spine':         return <Spine engine={engine} />;
     case 'classic':       return <ClassicSkin engine={engine} />;
     case 'modern-top':
     default:              return <ModernTop engine={engine} />;

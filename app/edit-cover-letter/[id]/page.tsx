@@ -45,7 +45,7 @@ interface StyleSettings {
 
 interface ToolbarPos { x: number; y: number; visible: boolean; hasSelection: boolean; }
 
-const BANNER_TEMPLATES = ['aurora', 'modern-top', 'sidebar'];
+const BANNER_TEMPLATES = ['aurora', 'modern-top', 'sidebar', 'executive', 'greeting'];
 
 export default function EditCoverLetterPage() {
   const params = useParams();
@@ -414,6 +414,9 @@ export default function EditCoverLetterPage() {
         <option value="ribbon">Ribbon · nauha</option>
         <option value="monogram">Monogram · vesileima</option>
         <option value="creative-wave">Creative Wave 🌊</option>
+        <option value="executive">Executive · tumma banneri</option>
+<option value="greeting">Greeting · Hello-banneri</option>
+<option value="spine">Spine · pystynimi (kraft)</option>
         <option value="classic">Klassinen</option>
       </select>
       <select value={styleSettings.signatureStyle} onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as any }))}
