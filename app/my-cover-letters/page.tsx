@@ -26,6 +26,7 @@ import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer
 import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
 
 interface CoverLetter {
   id: string;
@@ -237,11 +238,17 @@ export default function MyCoverLettersPage() {
           <div className="absolute inset-0 flex justify-center items-start pt-6">
             <div className="origin-top shadow-2xl scale-[0.4] sm:scale-[0.45] transition-transform duration-500 group-hover:scale-[0.47]">
               <CoverLetterContainer>
-                <CoverLetterTemplate
-                  data={convertToCoverLetterData(letter)}
-                  isPdfPreview={false}
-                  isEditing={false}
-                />
+            <div className="origin-top shadow-2xl scale-[0.4] sm:scale-[0.45] transition-transform duration-500 group-hover:scale-[0.47]">
+  
+    <CoverLetterRenderer
+      raw={{
+        title: letter.title,
+        content: letter.content,   // sisältää jo templateStyle, background, divider, contactInfo…
+        ai_data: letter.ai_data,
+      }}
+      isEditing={false}
+    />
+</div>
               </CoverLetterContainer>
             </div>
           </div>

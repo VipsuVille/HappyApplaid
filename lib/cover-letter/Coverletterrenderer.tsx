@@ -14,6 +14,9 @@ import Ribbon from './skins/Ribbon';       // ✅ uusi
 import {
   EditableText, EditableParagraphs, Signature, ContactRow, DateRow, BackgroundLayer,
 } from './engine/components';
+import Executive from './skins/Executive';
+import Greeting from './skins/Greeting';
+import Spine from './skins/Spine';
 
 interface CoverLetterRendererProps {
   raw: CLRawRecord;
