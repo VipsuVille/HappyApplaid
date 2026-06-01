@@ -128,17 +128,20 @@ const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
     return () => window.removeEventListener('resize', update);
   }, []);
 useEffect(() => {
-const onFocus = () => setLoadKey(k => k + 1);
-window.addEventListener('focus', onFocus);
-const onVisibility = () => {
-if (document.visibilityState === 'visible') setLoadKey(k => k + 1);
-};
-document.addEventListener('visibilitychange', onVisibility);
-return () => {
-window.removeEventListener('focus', onFocus);
-document.removeEventListener('visibilitychange', onVisibility);
-};
-}, []);
+  // ÄLÄ lataa uudelleen kun käyttäjä muokkaa — se ylikirjoittaisi muokkaukset
+  if (isEditing) return;
+
+  const onFocus = () => setLoadKey(k => k + 1);
+  const onVisibility = () => {
+    if (document.visibilityState === 'visible') setLoadKey(k => k + 1);
+  };
+  window.addEventListener('focus', onFocus);
+  document.addEventListener('visibilitychange', onVisibility);
+  return () => {
+    window.removeEventListener('focus', onFocus);
+    document.removeEventListener('visibilitychange', onVisibility);
+  };
+}, [isEditing]);
   useEffect(() => {
     const t = setTimeout(() => {
       if (previewContainerRef.current) setPreviewWidth(previewContainerRef.current.offsetWidth);
@@ -174,9 +177,11 @@ document.removeEventListener('visibilitychange', onVisibility);
   }, [cvData, fontScale, lineScale, sectionScales, columnScales, layout, isEditing]);
 
   // ── Load CV ────────────────────────────────────────────────────────
-  useEffect(() => {
+    useEffect(() => {
     const init = async () => {
       if (!userId || !id) return;
+      // Jos käyttäjä muokkaa parhaillaan, ÄLÄ lataa kannasta päälle
+      if (isEditing && loadKey > 0) return;
       try {
         const token = await getToken({ template: 'supabase' });
         if (!token) throw new Error('No token');
@@ -974,78 +979,6 @@ if (!isNaN(Number(last))) {
           {/* OIKEA SARAKE: preview (sticky) + ehdotukset.
               Mobiilissa ensin (order-1), desktopissa oikealla (order-2). */}
           <div className={`lg:col-span-9 order-1 lg:order-2 space-y-4 ${isEditing && mobileTab === 'edit' ? 'hidden lg:block' : ''}`}>
-
-          {/* Preview — sticky, pysyy näkyvissä kun säätimet vierivät */}
-          <div className="lg:sticky lg:top-24 self-start">
-            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-4">
-              <div className="flex items-center justify-between mb-3 px-2">
-                <span className="text-xs text-gray-400 font-mono">{Math.round(scale * 100)}% · A4</span>
-                {isEditing && <span className="text-xs text-orange-500 font-semibold">▲▼ järjestele · ✕ poista · klikkaa muokkaa</span>}
-              </div>
-
-              {/* A4-mahtuvuusmittari */}
-              {contentHeightPx > 0 && (
-                <div className={`mx-2 mb-3 px-3 py-2 rounded-xl border flex items-center gap-3 ${
-                  fitsOnePage
-                    ? 'bg-green-500/10 border-green-500/30'
-                    : pages <= 1.15
-                      ? 'bg-amber-500/10 border-amber-500/30'
-                      : 'bg-red-500/10 border-red-500/30'
-                }`}>
-                  <div className="shrink-0">
-                    {fitsOnePage ? (
-                      <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center text-green-600 dark:text-green-400 text-sm font-bold">✓</div>
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 text-sm font-bold">!</div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-bold ${
-                      fitsOnePage ? 'text-green-700 dark:text-green-400' : pages <= 1.15 ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400'
-                    }`}>
-                      {fitsOnePage
-                        ? 'Mahtuu yhdelle A4-sivulle'
-                        : pages <= 1.15
-                          ? 'Hieman yli yhden sivun'
-                          : `Sisältö vie ~${Math.ceil(pages)} sivua`}
-                    </p>
-                    {!fitsOnePage && (
-                      <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5">
-                        Pienennä fonttia, rivivälejä tai osioiden tilaa saadaksesi yhdelle sivulle.
-                      </p>
-                    )}
-                    {/* Täyttöpalkki: kuinka täynnä A4 on */}
-                    <div className="mt-1.5 w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-500 ${
-                        fitsOnePage ? 'bg-green-500' : pages <= 1.15 ? 'bg-amber-500' : 'bg-red-500'
-                      }`} style={{ width: `${Math.min(100, fillPercent)}%` }} />
-                    </div>
-                  </div>
-                  <span className={`shrink-0 text-xs font-mono font-bold ${
-                    fitsOnePage ? 'text-green-600 dark:text-green-400' : pages <= 1.15 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
-                  }`}>{fillPercent}%</span>
-                </div>
-              )}
-
-              <div ref={previewContainerRef} className="relative bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800" style={{ overflowX: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 8rem)' }}>
-                <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', marginBottom: `calc(${scale * 100}% - 100%)` }}>
-                  {[1, 2].map(p => (
-                    <div key={p} style={{ position: 'absolute', top: `${p * 297}mm`, left: 0, right: 0, zIndex: 30, pointerEvents: 'none' }}>
-                      <div style={{ borderTop: `2px dashed ${p === 1 ? '#ef4444' : '#3b82f6'}`, position: 'relative' }}>
-                        <span style={{ position: 'absolute', top: '-11px', right: '8px', background: p === 1 ? '#ef4444' : '#3b82f6', color: 'white', fontSize: '10px', padding: '1px 8px', borderRadius: '4px', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                          {p === 1 ? '↑ Sivu 1 · Sivu 2 ↓' : 'Sivu 3 ↓'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={cvInnerRef} className={`bg-white shadow-2xl ${isEditing ? 'ring-2 ring-orange-400/30' : ''}`} style={{ width: '210mm', minHeight: '297mm' }}>
-                    {renderTemplate()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Ehdotukset profiilista — kompaktit plus-napit (näkyy previewn yläpuolella) */}
           {isEditing && (missingJobs.length > 0 || missingProjects.length > 0) && (
             <div className="flex flex-wrap items-start gap-2">
@@ -1129,6 +1062,78 @@ if (!isNaN(Number(last))) {
 
             </div>
           )}
+          {/* Preview — sticky, pysyy näkyvissä kun säätimet vierivät */}
+          <div className="lg:sticky lg:top-24 self-start">
+            <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-2 sm:p-4">
+              <div className="flex items-center justify-between mb-3 px-2">
+                <span className="text-xs text-gray-400 font-mono">{Math.round(scale * 100)}% · A4</span>
+                {isEditing && <span className="text-xs text-orange-500 font-semibold">▲▼ järjestele · ✕ poista · klikkaa muokkaa</span>}
+              </div>
+
+              {/* A4-mahtuvuusmittari */}
+              {contentHeightPx > 0 && (
+                <div className={`mx-2 mb-3 px-3 py-2 rounded-xl border flex items-center gap-3 ${
+                  fitsOnePage
+                    ? 'bg-green-500/10 border-green-500/30'
+                    : pages <= 1.15
+                      ? 'bg-amber-500/10 border-amber-500/30'
+                      : 'bg-red-500/10 border-red-500/30'
+                }`}>
+                  <div className="shrink-0">
+                    {fitsOnePage ? (
+                      <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center text-green-600 dark:text-green-400 text-sm font-bold">✓</div>
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 text-sm font-bold">!</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-bold ${
+                      fitsOnePage ? 'text-green-700 dark:text-green-400' : pages <= 1.15 ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400'
+                    }`}>
+                      {fitsOnePage
+                        ? 'Mahtuu yhdelle A4-sivulle'
+                        : pages <= 1.15
+                          ? 'Hieman yli yhden sivun'
+                          : `Sisältö vie ~${Math.ceil(pages)} sivua`}
+                    </p>
+                    {!fitsOnePage && (
+                      <p className="text-[11px] text-gray-600 dark:text-gray-400 mt-0.5">
+                        Pienennä fonttia, rivivälejä tai osioiden tilaa saadaksesi yhdelle sivulle.
+                      </p>
+                    )}
+                    {/* Täyttöpalkki: kuinka täynnä A4 on */}
+                    <div className="mt-1.5 w-full bg-gray-200 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${
+                        fitsOnePage ? 'bg-green-500' : pages <= 1.15 ? 'bg-amber-500' : 'bg-red-500'
+                      }`} style={{ width: `${Math.min(100, fillPercent)}%` }} />
+                    </div>
+                  </div>
+                  <span className={`shrink-0 text-xs font-mono font-bold ${
+                    fitsOnePage ? 'text-green-600 dark:text-green-400' : pages <= 1.15 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+                  }`}>{fillPercent}%</span>
+                </div>
+              )}
+
+              <div ref={previewContainerRef} className="relative bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-200 dark:border-gray-800" style={{ overflowX: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 8rem)' }}>
+                <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', marginBottom: `calc(${scale * 100}% - 100%)` }}>
+                  {[1, 2].map(p => (
+                    <div key={p} style={{ position: 'absolute', top: `${p * 297}mm`, left: 0, right: 0, zIndex: 30, pointerEvents: 'none' }}>
+                      <div style={{ borderTop: `2px dashed ${p === 1 ? '#ef4444' : '#3b82f6'}`, position: 'relative' }}>
+                        <span style={{ position: 'absolute', top: '-11px', right: '8px', background: p === 1 ? '#ef4444' : '#3b82f6', color: 'white', fontSize: '10px', padding: '1px 8px', borderRadius: '4px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {p === 1 ? '↑ Sivu 1 · Sivu 2 ↓' : 'Sivu 3 ↓'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={cvInnerRef} className={`bg-white shadow-2xl ${isEditing ? 'ring-2 ring-orange-400/30' : ''}`} style={{ width: '210mm', minHeight: '297mm' }}>
+                    {renderTemplate()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
           </div>{/* /oikea sarake */}
         </div>
       </div>
