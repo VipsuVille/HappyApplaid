@@ -30,6 +30,7 @@ export default function Monogram({ engine }: { engine: CLEngine }) {
   // jota AdaptiveControls ohjaa; tässä luetaan turvallisella fallbackilla.
   const wmOpacity = (wmRegion as any)?.opacity ?? 0.05;
   const wmColor = wmRegion?.textColor || accent;
+console.log('MONOGRAM wm:', data.style.regions?.watermark, 'initials:', initials);
 
   return (
     <div
@@ -58,6 +59,7 @@ export default function Monogram({ engine }: { engine: CLEngine }) {
         }}
       >
         {(initials || 'CV').charAt(0)}
+        
       </div>
 
       {/* Ohut accent-kehys */}
