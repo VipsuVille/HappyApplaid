@@ -48,6 +48,13 @@ export const SKIN_CAPABILITIES: Record<string, SkinCapabilities> = {
     textRegions: [{ key: 'heading', label: 'Nimi (banneri)', unit: 'px' }, BODY],
     signature: true,
   },
+  'monogram': {
+  textRegions: [
+    { key: 'watermark', label: 'Iso kirjain', unit: 'px' },  // koko + väri
+    { key: 'body', label: 'Leipäteksti', unit: 'pt' },
+  ],
+  signature: true,
+},
 
   // ── Keskitetyt / bannerittomat pohjat: vain tekstialueet ──
   elegant: {
