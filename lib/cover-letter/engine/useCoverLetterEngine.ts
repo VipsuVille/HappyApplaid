@@ -23,7 +23,7 @@ const DEFAULT_TEXT: TextSettings = {
   fontFamily: 'serif',
   fontSize: 10.8,
   lineHeight: 1.85,
-  textAlign: 'justify',
+  textAlign: 'left',
   textColor: '#1a1a1a',
 };
 

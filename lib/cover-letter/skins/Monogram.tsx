@@ -2,6 +2,13 @@
 // lib/cover-letter/skins/Monogram.tsx
 // ✅ WOW-skin: jättimäinen nimikirjain-vesileima + ohut accent-kehys.
 //    Premium / lakitoimisto-henki. Gradient-first, ei vaadi kuvaa.
+//
+// Kyvykkyydet (capabilities.ts → 'monogram'):
+//   • regions.watermark.fontSize  → ison kirjaimen koko (px)
+//   • regions.watermark.textColor → ison kirjaimen väri (oletus accent)
+//   • regions.watermark.opacity-tyyppinen säätö hoidetaan fontSizen rinnalla
+//   • regions.body → leipäteksti (pt)
+//   Iso kirjain ottaa AINA accent-värin ellei regionissa toisin määrätä.
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -13,6 +20,16 @@ import {
 export default function Monogram({ engine }: { engine: CLEngine }) {
   const { data, fontStack, updateField, updateContact, initials } = engine;
   const accent = data.style.accentColor;
+
+  // Vesileiman säädöt (regions.watermark)
+  const wmRegion = data.style.regions?.watermark;
+  const wmSize = wmRegion?.fontSize ?? 420;                 // px
+  // "vahvuus" = opacity. Käytetään regionin letterSpacing-kenttää opacityn
+  // kantajana EI — sen sijaan annetaan oma kenttä jos on, muuten oletus 0.05.
+  // Tallennamme vahvuuden regions.watermark.fontSize:n rinnalle kentällä
+  // jota AdaptiveControls ohjaa; tässä luetaan turvallisella fallbackilla.
+  const wmOpacity = (wmRegion as any)?.opacity ?? 0.05;
+  const wmColor = wmRegion?.textColor || accent;
 
   return (
     <div
@@ -28,14 +45,14 @@ export default function Monogram({ engine }: { engine: CLEngine }) {
       <BackgroundLayer engine={engine} />
       <ColorDot engine={engine} />
 
-      {/* Jättimäinen monogrammi-vesileima oikeaan reunaan */}
+      {/* Jättimäinen monogrammi-vesileima oikeaan reunaan — accent-väri, säädettävä */}
       <div
         aria-hidden
         style={{
           position: 'absolute', top: '-30px', right: '-40px', zIndex: 0,
           fontFamily: fontStack('classic'), fontWeight: 700,
-          fontSize: '420px', lineHeight: 1, letterSpacing: '-10px',
-          color: rgba(accent, 0.05),
+          fontSize: `${wmSize}px`, lineHeight: 1, letterSpacing: '-10px',
+          color: rgba(wmColor, wmOpacity),
           userSelect: 'none', pointerEvents: 'none',
           WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
         }}
@@ -82,7 +99,7 @@ export default function Monogram({ engine }: { engine: CLEngine }) {
 
         <div style={{ marginTop: '36px' }}>
           <DateRow engine={engine} />
-          <EditableParagraphs engine={engine} />
+          <EditableParagraphs engine={engine} region="body" />
           <Signature engine={engine} marginTop={48} closing="Kunnioittavasti" />
         </div>
       </div>
