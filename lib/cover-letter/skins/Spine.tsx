@@ -3,6 +3,13 @@
 // ✅ Editorial-skin (kuva 3): lämmin kraft-palsta vasemmalla, jossa pystyyn
 //    käännetty ISO nimi + titteli. Yhteystiedot palstan yläreunassa.
 //    Leipäteksti oikealla vaalealla palstalla.
+//
+// Kyvykkyydet (capabilities.ts → 'spine'):
+//   • banner.color   → data.style.banner.color    (kraft-palstan väri)
+//   • banner.heightMm→ palstan LEVEYS (pystysuunta)
+//   • image edge     → data.style.image (placement 'edge') palstan taustakuvaksi
+//   • regions.name   → pystynimen koko (px)
+//   • regions.body   → leipätekstin koko (pt)
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -19,9 +26,19 @@ export default function Spine({ engine }: { engine: CLEngine }) {
   const { data, fontStack, updateField, updateContact } = engine;
   const accent = data.style.accentColor;
 
-  // Kraft-palstan sävy (template-identiteetti). Vaihda tähän jos haluat tummemman.
-  const KRAFT = '#c8a87a';
-  const SIDEBAR_W = '64mm';
+  // Kraft-palstan väri: banner.color → oletus kraft-sävy
+  const kraft = data.style.banner?.color || '#c8a87a';
+  // Palstan leveys: banner.heightMm (mm) → oletus 64mm
+  const sidebarW = `${data.style.banner?.heightMm ?? 64}mm`;
+
+  // Kuva palstan taustaksi (placement 'edge')
+  const img = data.style.image;
+  const edgeImage = img?.placement === 'edge' && img.url ? img.url : null;
+  const edgeOpacity = img?.opacity ?? 1;
+
+  // Pystynimen koko (regions.name, px)
+  const nameSize = data.style.regions?.name?.fontSize;
+  const nameColor = data.style.regions?.name?.textColor || '#1a1208';
 
   // Pystyteksti: luetaan alhaalta ylös.
   const vertical: React.CSSProperties = {
@@ -49,13 +66,24 @@ export default function Spine({ engine }: { engine: CLEngine }) {
       <div
         style={{
           position: 'relative',
-          width: SIDEBAR_W,
+          width: sidebarW,
           flexShrink: 0,
-          background: KRAFT,
+          background: kraft,
+          overflow: 'hidden',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
         }}
       >
+        {/* Kuva palstan taustaksi (edge) */}
+        {edgeImage && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `url(${edgeImage})`, backgroundSize: 'cover', backgroundPosition: 'center',
+            opacity: edgeOpacity,
+            WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+          }} />
+        )}
+
         {/* Yhteystiedot palstan yläreunassa (vaaka) */}
         <div style={{ position: 'absolute', top: '28px', left: '20px', right: '20px', zIndex: 2, fontFamily: fontStack('sans'), fontSize: '8pt', color: '#3a2e1f', lineHeight: 1.7 }}>
           {data.contact.phone && (
@@ -77,6 +105,7 @@ export default function Spine({ engine }: { engine: CLEngine }) {
             right: 0,
             top: '130px',
             bottom: '40px',
+            zIndex: 2,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -90,9 +119,9 @@ export default function Spine({ engine }: { engine: CLEngine }) {
             onCommit={(v) => updateContact('name', v)}
             style={{
               ...vertical,
-              fontSize: '44px',
+              fontSize: nameSize ? `${nameSize}px` : '44px',
               fontWeight: 800,
-              color: '#1a1208',
+              color: nameColor,
               letterSpacing: '1px',
               margin: 0,
               fontFamily: fontStack('classic'),
@@ -136,7 +165,7 @@ export default function Spine({ engine }: { engine: CLEngine }) {
           </p>
         )}
         <DateRow engine={engine} />
-        <EditableParagraphs engine={engine} />
+        <EditableParagraphs engine={engine} region="body" />
         <Signature engine={engine} marginTop={40} />
       </div>
     </div>
