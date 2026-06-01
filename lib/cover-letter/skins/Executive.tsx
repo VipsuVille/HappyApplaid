@@ -2,7 +2,12 @@
 // lib/cover-letter/skins/Executive.tsx
 // ✅ Korporaatio-skin (kuva 1): tumma yläbanneri + iso serif-nimi keskellä,
 //    yhteystiedot bannerin yläreunassa, "Vastaanottaja"-lohko bannerin alla.
-//    Bannerin korkeus = data.style.divider.sizeMm (editorin säädin).
+//
+// Kyvykkyydet (capabilities.ts → 'executive'):
+//   • banner.color   → data.style.banner.color   (bannerin taustaväri; fallback tumma gradient)
+//   • banner.height  → data.style.banner.heightMm (fallback divider.sizeMm → 74mm)
+//   • banner image   → data.style.image.placement 'banner-full' | 'banner-center'
+//   • regions.heading→ nimen koko (px), regions.body → leipätekstin koko
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -21,8 +26,20 @@ export default function Executive({ engine }: { engine: CLEngine }) {
   const { data, fontStack, updateField, updateContact } = engine;
   const accent = data.style.accentColor;
 
-  // Bannerin korkeus editorista (divider.sizeMm). Oletus 74mm.
-  const bannerH = data.style.divider?.sizeMm ? `${data.style.divider.sizeMm}mm` : '74mm';
+  // Bannerin korkeus: banner.heightMm → divider.sizeMm → 74mm
+  const bannerH = `${data.style.banner?.heightMm ?? data.style.divider?.sizeMm ?? 74}mm`;
+
+  // Bannerin tausta: banner.color (jos asetettu) muuten tumma gradient
+  const defaultGradient = `linear-gradient(135deg, #0f172a 0%, #14223f 55%, ${rgba(accent, 0.55)} 100%)`;
+  const bannerBg = data.style.banner?.color || defaultGradient;
+
+  // Kuva bannerissa
+  const img = data.style.image;
+  const fullImage = img?.placement === 'banner-full' && img.url ? img.url : null;
+  const centerImage = img?.placement === 'banner-center' && img.url ? img.url : null;
+  const imgOpacity = img?.opacity ?? 0.5;
+
+  const headingSize = data.style.regions?.heading?.fontSize; // px
 
   return (
     <div
@@ -47,25 +64,35 @@ export default function Executive({ engine }: { engine: CLEngine }) {
           flexDirection: 'column',
           color: '#ffffff',
           overflow: 'hidden',
-          background: `linear-gradient(135deg, #0f172a 0%, #14223f 55%, ${rgba(accent, 0.55)} 100%)`,
+          background: bannerBg,
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
         }}
       >
+        {/* Kuva täyteen banneriin (banner-full) */}
+        {fullImage && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            backgroundImage: `url(${fullImage})`, backgroundSize: 'cover', backgroundPosition: 'center',
+            opacity: imgOpacity,
+            WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+          }} />
+        )}
+
         {/* Hienovaraiset koristerenkaat oikealla */}
         <div aria-hidden style={{ position: 'absolute', top: '-90px', right: '-70px', width: '320px', height: '320px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
         <div aria-hidden style={{ position: 'absolute', top: '24px', right: '70px', width: '170px', height: '170px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
 
         {/* Yhteystietorivi bannerin yläreunassa */}
-        <div style={{ position: 'relative', zIndex: 1, padding: '16px 48px 0' }}>
+        <div style={{ position: 'relative', zIndex: 2, padding: '16px 48px 0' }}>
           <ContactRow engine={engine} onDark centered />
         </div>
 
-        {/* Nimi + titteli keskellä */}
+        {/* Nimi + titteli keskellä (+ valinnainen kuva keskellä) */}
         <div
           style={{
             position: 'relative',
-            zIndex: 1,
+            zIndex: 2,
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
@@ -75,17 +102,29 @@ export default function Executive({ engine }: { engine: CLEngine }) {
             padding: '20px 48px 30px',
           }}
         >
+          {centerImage && (
+            <img
+              src={centerImage}
+              alt=""
+              style={{
+                height: '70px', width: '70px', borderRadius: '50%', objectFit: 'cover',
+                marginBottom: '14px', border: '2px solid rgba(255,255,255,0.4)',
+                opacity: img?.opacity ?? 1,
+                WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+              }}
+            />
+          )}
           <EditableText
             engine={engine}
             as="h1"
             value={data.contact.name}
             onCommit={(v) => updateContact('name', v)}
             style={{
-              fontSize: '40px',
+              fontSize: headingSize ? `${headingSize}px` : '40px',
               fontWeight: 700,
               letterSpacing: '0.5px',
               margin: 0,
-              color: '#ffffff',
+              color: data.style.banner?.textColor || '#ffffff',
               fontFamily: fontStack('classic'),
               textShadow: '0 2px 12px rgba(0,0,0,0.3)',
             }}
@@ -108,6 +147,12 @@ export default function Executive({ engine }: { engine: CLEngine }) {
             />
           )}
         </div>
+        {/* Kaareva alareuna (valinnainen pehmeä kaari) */}
+        <svg viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden
+          style={{ position: 'absolute', left: 0, right: 0, bottom: '-1px', width: '100%', height: '40px', zIndex: 3, display: 'block' }}>
+          <path d="M0,80 L0,40 C360,80 1080,80 1440,40 L1440,80 Z" fill="#ffffff"
+            style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} />
+        </svg>
       </div>
 
       {/* ── VASTAANOTTAJA-LOHKO ──────────────────────────────── */}
@@ -130,7 +175,7 @@ export default function Executive({ engine }: { engine: CLEngine }) {
       {/* ── LEIPÄTEKSTI ──────────────────────────────────────── */}
       <div style={{ position: 'relative', zIndex: 1, padding: '34px 56px 56px' }}>
         <DateRow engine={engine} />
-        <EditableParagraphs engine={engine} />
+        <EditableParagraphs engine={engine} region="body" />
         <Signature engine={engine} marginTop={48} />
       </div>
     </div>

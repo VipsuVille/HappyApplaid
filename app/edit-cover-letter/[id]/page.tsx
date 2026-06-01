@@ -119,6 +119,10 @@ export default function EditCoverLetterPage() {
   const mainAreaRef = useRef<HTMLDivElement>(null);
 
   const iterationCost = plan_type === 'premium' ? 30 : 50;
+// Valitun tekstin nykyinen fonttikoko (px) työkalupalkkia varten
+const [selFontSize, setSelFontSize] = useState<number | null>(null);
+
+
 
   // ── Responsive ──
   useEffect(() => {
@@ -194,11 +198,14 @@ export default function EditCoverLetterPage() {
     const isInEditor = editorRef.current?.contains(range.commonAncestorContainer as Node);
     if (!isInEditor || !editorRect) { setToolbar(t => (t.visible ? { ...t, visible: false } : t)); return; }
     setToolbar({ x: rect.left - editorRect.left + rect.width / 2, y: rect.top - editorRect.top - 8, visible: true, hasSelection: true });
+      readSelectionFontSize();   // ✅ TÄHÄN — luetaan valinnan koko kun palkki näkyy
+
   }, [isMobile]);
 
   useEffect(() => {
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    
   }, [handleSelectionChange]);
 
   // ── Split-raahaus ──
@@ -224,40 +231,55 @@ export default function EditCoverLetterPage() {
   }, [isDragging]);
 
   // ── Tekstimuotoilu (execCommand) ──
+// ── Tekstimuotoilu (execCommand) ──
   const execCmd = (cmd: string, value?: string) => document.execCommand(cmd, false, value);
+
   const applyColor = (color: string) => {
     document.execCommand('styleWithCSS', false, 'true');
     document.execCommand('foreColor', false, color);
   };
-  const bumpFontSize = (deltaPct: number) => {
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
 
-  const range = sel.getRangeAt(0);
+  // Lue valinnan alun efektiivinen fonttikoko (näytetään työkalupalkin kentässä)
+  const readSelectionFontSize = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) { setSelFontSize(null); return; }
+    let node: Node | null = sel.getRangeAt(0).startContainer;
+    if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    const el = node as HTMLElement | null;
+    if (!el) { setSelFontSize(null); return; }
+    const px = parseFloat(window.getComputedStyle(el).fontSize);
+    setSelFontSize(Number.isFinite(px) ? Math.round(px) : null);
+  };
 
-  // Jos valinta on jo yhden span-elementin sisällä → säädä sitä suoraan
-  const span = document.createElement('span');
-  // Lue nykyinen efektiivinen koko valinnan alusta
-  const probe = range.startContainer.parentElement;
-  const currentPx = probe ? parseFloat(window.getComputedStyle(probe).fontSize) : 16;
-  const newPx = Math.max(6, Math.min(72, currentPx * (1 + deltaPct / 100)));
-  span.style.fontSize = `${newPx.toFixed(1)}px`;
+  // Aseta valitulle tekstille TARKKA koko (px) — kääräisee valinnan <span>:iin
+  const setSelectionFontSize = (px: number) => {
+    const clamped = Math.max(6, Math.min(160, px));
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = `${clamped}px`;
+    try {
+      range.surroundContents(span);
+    } catch {
+      // surroundContents heittää jos valinta ylittää elementtirajat → fallback
+      const frag = range.extractContents();
+      span.appendChild(frag);
+      range.insertNode(span);
+    }
+    // valinta takaisin span:in sisälle
+    sel.removeAllRanges();
+    const r = document.createRange();
+    r.selectNodeContents(span);
+    sel.addRange(r);
+    setSelFontSize(clamped);
+  };
 
-  try {
-    range.surroundContents(span);
-  } catch {
-    // surroundContents heittää jos valinta ylittää elementtirajat → fallback
-    const frag = range.extractContents();
-    span.appendChild(frag);
-    range.insertNode(span);
-  }
-
-  // Valinta takaisin span:in sisälle + committaa
-  sel.removeAllRanges();
-  const r = document.createRange();
-  r.selectNodeContents(span);
-  sel.addRange(r);
-};
+  // ±1 px hienosäätö (− / + napit)
+  const bumpSelectionFontSize = (deltaPx: number) => {
+    const base = selFontSize ?? 16;
+    setSelectionFontSize(base + deltaPx);
+  };
 
   // ── Kuvavalitsin ──
   const openImagePicker = async () => {
@@ -779,12 +801,31 @@ export default function EditCoverLetterPage() {
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
           {styleSelectors(false)}
         </div>
+{/* Fonttikoko valitulle tekstille — numeerinen */}
 <div style={{ width: '1px', height: '18px', background: '#444', margin: '0 4px' }} />
-<button onMouseDown={e => { e.preventDefault(); bumpFontSize(-12); }} title="Pienennä"
-  style={{ padding: '4px 7px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>A−</button>
-<button onMouseDown={e => { e.preventDefault(); bumpFontSize(12); }} title="Suurenna"
-  style={{ padding: '4px 7px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontSize: '14px', fontWeight: 700 }}>A+</button>
-        <div style={{ flex: 1 }} />
+<div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+  <button onMouseDown={e => { e.preventDefault(); bumpSelectionFontSize(-1); }} title="Pienennä"
+    style={{ padding: '4px 6px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontWeight: 700 }}>−</button>
+  <div style={{ display: 'flex', alignItems: 'center', background: '#1e1e1e', border: '1px solid #444', borderRadius: '5px', padding: '0 4px' }}>
+    <input
+      type="number"
+      min={6}
+      max={160}
+      value={selFontSize ?? ''}
+      placeholder="–"
+      onMouseDown={e => e.stopPropagation()}
+      onChange={e => {
+        const v = parseInt(e.target.value, 10);
+        if (Number.isFinite(v)) setSelectionFontSize(v);
+      }}
+      style={{ width: '34px', background: 'transparent', border: 'none', color: '#e0dbd4', fontSize: '12px', textAlign: 'right', outline: 'none', MozAppearance: 'textfield' }}
+    />
+    <span style={{ fontSize: '10px', color: '#888', marginLeft: '2px' }}>px</span>
+  </div>
+  <button onMouseDown={e => { e.preventDefault(); bumpSelectionFontSize(1); }} title="Suurenna"
+    style={{ padding: '4px 6px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontWeight: 700 }}>+</button>
+</div>
+       <div style={{ flex: 1 }} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', background: '#333', borderRadius: '8px', overflow: 'hidden' }}>

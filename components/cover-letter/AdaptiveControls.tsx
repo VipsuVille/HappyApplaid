@@ -156,7 +156,7 @@ export default function AdaptiveControls({ styleSettings, onChange, onPickImage 
               <span style={{ fontSize: '12px', color: '#f97316', fontWeight: 700 }}>{regionVal.fontSize ?? '—'}</span></div>
             <input type="range"
               min={activeRegion?.unit === 'px' ? 18 : 8}
-              max={activeRegion?.unit === 'px' ? 60 : 16}
+              max={activeRegion?.unit === 'px' ? 160 : 16}
               step={activeRegion?.unit === 'px' ? 1 : 0.5}
               style={{ width: '100%', accentColor: '#f97316' }}
               value={regionVal.fontSize ?? (activeRegion?.unit === 'px' ? 34 : 11)}
