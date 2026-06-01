@@ -1,14 +1,12 @@
 'use client';
 // lib/cover-letter/skins/Monogram.tsx
 // ✅ WOW-skin: jättimäinen nimikirjain-vesileima + ohut accent-kehys.
-//    Premium / lakitoimisto-henki. Gradient-first, ei vaadi kuvaa.
 //
 // Kyvykkyydet (capabilities.ts → 'monogram'):
-//   • regions.watermark.fontSize  → ison kirjaimen koko (px)
-//   • regions.watermark.textColor → ison kirjaimen väri (oletus accent)
-//   • regions.watermark.opacity-tyyppinen säätö hoidetaan fontSizen rinnalla
-//   • regions.body → leipäteksti (pt)
-//   Iso kirjain ottaa AINA accent-värin ellei regionissa toisin määrätä.
+//   • banner.heightMm        → yläosan tyhjä tila (px paddingina) — "ilmavuus"
+//   • regions.watermark      → ison kirjaimen koko (fontSize px) + väri + opacity
+//   • regions.body           → leipäteksti (pt)
+//   • signature closing      → muokattava lopputervehdys (data.style.closingText)
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -22,15 +20,23 @@ export default function Monogram({ engine }: { engine: CLEngine }) {
   const accent = data.style.accentColor;
 
   // Vesileiman säädöt (regions.watermark)
-  const wmRegion = data.style.regions?.watermark;
-  const wmSize = wmRegion?.fontSize ?? 420;                 // px
-  // "vahvuus" = opacity. Käytetään regionin letterSpacing-kenttää opacityn
-  // kantajana EI — sen sijaan annetaan oma kenttä jos on, muuten oletus 0.05.
-  // Tallennamme vahvuuden regions.watermark.fontSize:n rinnalle kentällä
-  // jota AdaptiveControls ohjaa; tässä luetaan turvallisella fallbackilla.
-  const wmOpacity = (wmRegion as any)?.opacity ?? 0.05;
+  const wmRegion = data.style.regions?.watermark as
+    | { fontSize?: number; textColor?: string; opacity?: number }
+    | undefined;
+  const wmSize = wmRegion?.fontSize ?? 420;               // px
+  const wmOpacity = wmRegion?.opacity ?? 0.20;            // 0–1
   const wmColor = wmRegion?.textColor || accent;
-console.log('MONOGRAM wm:', data.style.regions?.watermark, 'initials:', initials);
+  const wmChar = (initials || data.contact.name || 'CV').trim().charAt(0).toUpperCase() || 'C';
+
+  // Yläosan ilmavuus: banner.heightMm → padding-top px (oletus 64)
+  const topPad = data.style.banner?.heightMm ?? 64;
+
+  // Lopputervehdys: muokattava (data.style.closingText), oletus kielen mukaan
+  const defaultClosing =
+    data.language === 'english' ? 'Respectfully' :
+    data.language === 'swedish' ? 'Med vänliga hälsningar' :
+    'Kunnioittavasti';
+  const closingText = (data.style as any).closingText || defaultClosing;
 
   return (
     <div
@@ -46,7 +52,7 @@ console.log('MONOGRAM wm:', data.style.regions?.watermark, 'initials:', initials
       <BackgroundLayer engine={engine} />
       <ColorDot engine={engine} />
 
-      {/* Jättimäinen monogrammi-vesileima oikeaan reunaan — accent-väri, säädettävä */}
+      {/* Jättimäinen monogrammi-vesileima — accent-väri, säädettävä koko + opacity */}
       <div
         aria-hidden
         style={{
@@ -58,14 +64,13 @@ console.log('MONOGRAM wm:', data.style.regions?.watermark, 'initials:', initials
           WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
         }}
       >
-        {(initials || 'CV').charAt(0)}
-        
+        {wmChar}
       </div>
 
       {/* Ohut accent-kehys */}
       <div style={{ position: 'absolute', inset: '14px', border: `1px solid ${rgba(accent, 0.35)}`, pointerEvents: 'none', zIndex: 1, WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} />
 
-      <div style={{ position: 'relative', zIndex: 2, padding: '64px 64px 56px' }}>
+      <div style={{ position: 'relative', zIndex: 2, padding: `${topPad}px 64px 56px` }}>
         {/* Pieni monogrammi-merkki */}
         <div style={{
           width: '54px', height: '54px', borderRadius: '50%',
@@ -102,7 +107,7 @@ console.log('MONOGRAM wm:', data.style.regions?.watermark, 'initials:', initials
         <div style={{ marginTop: '36px' }}>
           <DateRow engine={engine} />
           <EditableParagraphs engine={engine} region="body" />
-          <Signature engine={engine} marginTop={48} closing="Kunnioittavasti" />
+          <Signature engine={engine} marginTop={48} closing={closingText} editableClosing />
         </div>
       </div>
     </div>

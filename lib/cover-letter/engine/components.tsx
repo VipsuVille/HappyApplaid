@@ -158,19 +158,23 @@ export function EditableParagraphs({ engine, region }: { engine: CLEngine; regio
   );
 }
 
-// ─── Signature: 3 tyyliä, muokattava nimi ─────────────────────
+// ─── Signature: 3 tyyliä, muokattava nimi + valinnainen muokattava tervehdys ──
 export function Signature({
   engine,
   centered = false,
   marginTop = 48,
   closing = 'Ystävällisin terveisin',
+  editableClosing = false,
+  onClosingCommit,
 }: {
   engine: CLEngine;
   centered?: boolean;
   marginTop?: number;
   closing?: string;
+  editableClosing?: boolean;
+  onClosingCommit?: (v: string) => void;
 }) {
-  const { data, fontStack, updateContact } = engine;
+  const { data, fontStack, updateContact, updateStyle } = engine;
   const accent = data.style.accentColor;
   const sig = data.style.signatureStyle;
 
@@ -181,12 +185,27 @@ export function Signature({
   };
   const nameStyle = sigStyles[sig] || sigStyles.script;
 
+  const closingStyle: React.CSSProperties = {
+    marginBottom: '8px', fontSize: '9pt', color: '#94a3b8',
+    fontFamily: fontStack('sans'), letterSpacing: '1px', textTransform: 'uppercase',
+  };
+
+  // Tallennetaan muokattu tervehdys style.closingText:iin (jaettu kenttä)
+  const commitClosing = (v: string) => {
+    if (onClosingCommit) onClosingCommit(v);
+    else updateStyle({ closingText: v } as any);
+  };
+
   return (
     <div style={{ marginTop: `${marginTop}px`, textAlign: centered ? 'center' : 'left' }}>
       <div style={{ width: '40px', height: '2px', background: accent, margin: centered ? '0 auto 16px' : '0 0 16px', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} />
-      <p style={{ marginBottom: '8px', fontSize: '9pt', color: '#94a3b8', fontFamily: fontStack('sans'), letterSpacing: '1px', textTransform: 'uppercase' }}>
-        {closing}
-      </p>
+      {editableClosing && engine.isEditing ? (
+        <p style={closingStyle}>
+          <EditableText engine={engine} value={closing} onCommit={commitClosing} style={{ ...closingStyle, marginBottom: 0 }} placeholder="Lopputervehdys" />
+        </p>
+      ) : (
+        <p style={closingStyle}>{closing}</p>
+      )}
       <EditableText
         engine={engine}
         value={data.contact.name}

@@ -2,6 +2,7 @@
 // components/cover-letter/AdaptiveControls.tsx
 // ✅ Kyvykkyysohjautuva säädinpaneeli. Näyttää VAIN aktiivisen pohjan tukemat säätimet.
 //    Kuvan valinta tapahtuu olemassa olevan kuvavalitsimen kautta (ei URL-kenttää).
+//    ✅ Vesileima-region ('watermark') saa oman ISON kokoskaalan + opacity-liu'un.
 
 import React, { useState } from 'react';
 import { getCapabilities, type ImagePlacement } from '@/lib/cover-letter/engine/capabilities';
@@ -9,8 +10,6 @@ import { getCapabilities, type ImagePlacement } from '@/lib/cover-letter/engine/
 interface Props {
   styleSettings: any;
   onChange: (patch: any) => void;
-  /** Avaa olemassa olevan kuvavalitsimen (sama kuin CV-puolella). 
-   *  Palauttaa valitun kuvan signed URL:n + pysyvän file_path:n. */
   onPickImage?: () => void;
 }
 
@@ -28,6 +27,9 @@ const PLACEMENT_LABEL: Record<ImagePlacement, string> = {
   'body-faint': 'Taustalle (haalea)',
 };
 
+// Onko region "vesileima"-tyyppinen (iso koristekirjain)? → oma skaala
+const isWatermark = (key?: string) => key === 'watermark';
+
 export default function AdaptiveControls({ styleSettings, onChange, onPickImage }: Props) {
   const caps = getCapabilities(styleSettings.templateStyle);
   const [region, setRegion] = useState(caps.textRegions[0]?.key || 'body');
@@ -43,12 +45,16 @@ export default function AdaptiveControls({ styleSettings, onChange, onPickImage 
   const hasImage = styleSettings.image?.url;
   const placement = styleSettings.image?.placement || 'none';
 
+  const watermark = isWatermark(region);
+  // Vesileiman oletusväri = teemaväri; käyttäjä voi yliajaa
+  const usingThemeColor = !regionVal.textColor;
+
   return (
     <div>
       {/* ── BANNERI ── */}
       {caps.banner && (
         <div style={card}>
-          <p style={head}>{caps.banner.orientation === 'vertical' ? 'Sivupalsta' : 'Banneri'}</p>
+          <p style={head}>{caps.banner.orientation === 'vertical' ? 'Sivupalsta' : 'Banneri / yläosa'}</p>
 
           {caps.banner.color && (
             <div style={rowS}>
@@ -61,10 +67,10 @@ export default function AdaptiveControls({ styleSettings, onChange, onPickImage 
 
           {caps.banner.height && (
             <div style={{ marginBottom: '10px' }}>
-              <div style={rowS}><span style={lbl}>{caps.banner.orientation === 'vertical' ? 'Leveys' : 'Korkeus'}</span>
-                <span style={{ fontSize: '12px', color: '#f97316', fontWeight: 700 }}>{styleSettings.banner?.heightMm ?? 62} mm</span></div>
-              <input type="range" min={30} max={130} step={1} style={{ width: '100%', accentColor: '#f97316' }}
-                value={styleSettings.banner?.heightMm ?? 62}
+              <div style={rowS}><span style={lbl}>{caps.banner.orientation === 'vertical' ? 'Leveys' : 'Korkeus / ylätila'}</span>
+                <span style={{ fontSize: '12px', color: '#f97316', fontWeight: 700 }}>{styleSettings.banner?.heightMm ?? 64} {caps.banner.orientation === 'vertical' ? 'mm' : 'px'}</span></div>
+              <input type="range" min={20} max={160} step={1} style={{ width: '100%', accentColor: '#f97316' }}
+                value={styleSettings.banner?.heightMm ?? 64}
                 onChange={e => patchBanner({ heightMm: Number(e.target.value) })} />
             </div>
           )}
@@ -80,15 +86,12 @@ export default function AdaptiveControls({ styleSettings, onChange, onPickImage 
                 </select>
               </div>
 
-              {/* ✅ Kuvan valinta: nappi joka avaa olemassa olevan kuvavalitsimen */}
               {placement !== 'none' && (
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {hasImage && (
                     <img src={styleSettings.image.url} alt="" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #444' }} />
                   )}
-                  <button
-                    type="button"
-                    onClick={() => onPickImage?.()}
+                  <button type="button" onClick={() => onPickImage?.()}
                     style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #f97316', background: 'rgba(249,115,22,0.12)', color: '#f97316', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}>
                     {hasImage ? 'Vaihda kuva' : 'Valitse kuva'}
                   </button>
@@ -101,7 +104,6 @@ export default function AdaptiveControls({ styleSettings, onChange, onPickImage 
                 </div>
               )}
 
-              {/* Kuvan himmennys (opacity) jos kuva valittu */}
               {placement !== 'none' && hasImage && (
                 <div style={{ marginTop: '10px' }}>
                   <div style={rowS}><span style={lbl}>Himmennys</span>
@@ -151,25 +153,55 @@ export default function AdaptiveControls({ styleSettings, onChange, onPickImage 
               {caps.textRegions.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
             </select>
           </div>
+
+          {/* Koko — vesileimalle ISO skaala (100–600px), muuten normaali */}
           <div>
-            <div style={rowS}><span style={lbl}>Koko ({activeRegion?.unit})</span>
-              <span style={{ fontSize: '12px', color: '#f97316', fontWeight: 700 }}>{regionVal.fontSize ?? '—'}</span></div>
+            <div style={rowS}>
+              <span style={lbl}>{watermark ? 'Koko (px)' : `Koko (${activeRegion?.unit})`}</span>
+              <span style={{ fontSize: '12px', color: '#f97316', fontWeight: 700 }}>
+                {regionVal.fontSize ?? (watermark ? 420 : '—')}
+              </span>
+            </div>
             <input type="range"
-              min={activeRegion?.unit === 'px' ? 18 : 8}
-              max={activeRegion?.unit === 'px' ? 160 : 16}
-              step={activeRegion?.unit === 'px' ? 1 : 0.5}
+              min={watermark ? 100 : activeRegion?.unit === 'px' ? 18 : 8}
+              max={watermark ? 600 : activeRegion?.unit === 'px' ? 160 : 16}
+              step={watermark ? 10 : activeRegion?.unit === 'px' ? 1 : 0.5}
               style={{ width: '100%', accentColor: '#f97316' }}
-              value={regionVal.fontSize ?? (activeRegion?.unit === 'px' ? 34 : 11)}
+              value={regionVal.fontSize ?? (watermark ? 420 : activeRegion?.unit === 'px' ? 34 : 11)}
               onChange={e => patchRegion(region, { fontSize: Number(e.target.value) })} />
           </div>
+
+          {/* Vesileimalle: vahvuus (opacity) */}
+          {watermark && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={rowS}><span style={lbl}>Vahvuus</span>
+                <span style={{ fontSize: '12px', color: '#f97316', fontWeight: 700 }}>{Math.round((regionVal.opacity ?? 0.05) * 100)}%</span></div>
+              <input type="range" min={0.02} max={0.4} step={0.01} style={{ width: '100%', accentColor: '#f97316' }}
+                value={regionVal.opacity ?? 0.05}
+                onChange={e => patchRegion(region, { opacity: Number(e.target.value) })} />
+            </div>
+          )}
+
+          {/* Väri — vesileimalle "käytä teemaväriä" -valinta */}
           <div style={{ ...rowS, marginTop: '8px', marginBottom: 0 }}>
-            <span style={lbl}>Väri</span>
-            <input type="color" style={swatch(regionVal.textColor || '#1a1a1a')}
-              value={regionVal.textColor || '#1a1a1a'}
-              onChange={e => patchRegion(region, { textColor: e.target.value })} />
+            <span style={lbl}>Väri{watermark && usingThemeColor ? ' (teemaväri)' : ''}</span>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              {watermark && !usingThemeColor && (
+                <button type="button" onClick={() => patchRegion(region, { textColor: undefined })}
+                  style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#2a2a2a', color: '#999', fontSize: '10px', cursor: 'pointer' }}>
+                  Teemaväri
+                </button>
+              )}
+              <input type="color" style={swatch(regionVal.textColor || styleSettings.headerColor || '#1a1a1a')}
+                value={regionVal.textColor || styleSettings.headerColor || '#1a1a1a'}
+                onChange={e => patchRegion(region, { textColor: e.target.value })} />
+            </div>
           </div>
+
           <p style={{ fontSize: '10px', color: '#666', margin: '10px 0 0', lineHeight: 1.5 }}>
-            💡 Yksittäisten sanojen tai kirjainten väri: maalaa teksti paperilla ja käytä työkalupalkkia.
+            {watermark
+              ? '💡 Iso koristekirjain. Oletuksena teemaväri — säädä kokoa, vahvuutta ja väriä.'
+              : '💡 Yksittäisten sanojen väri: maalaa teksti paperilla ja käytä työkalupalkkia.'}
           </p>
         </div>
       )}
