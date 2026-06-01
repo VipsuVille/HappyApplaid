@@ -1,9 +1,17 @@
 // lib/cover-letter/engine/components.tsx
 // ✅ Jaetut muokattavat palaset. Skinit käyttävät näitä — eivät toista muokkauslogiikkaa.
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import type { CLEngine, CLContactInfo, SignatureStyle } from './types';
 import { rgba } from './useCoverLetterEngine';
+
+// HTML-escape plain-text-kappaleille
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 
 // ─── Muokkaustyylit ───────────────────────────────────────────
 const editOutline = (editing: boolean): React.CSSProperties => editing ? {
@@ -47,10 +55,11 @@ export function EditableText({
   );
 }
 
-// ─── EditableParagraphs: leipäteksti (säilyttää inline-muotoilun HTML:nä) ──
-// ✅ Tallentaa innerHTML (ei innerText), joten työkalupalkilla annetut värit /
-//    lihavoinnit / kursiivit säilyvät myös yksittäisille sanoille tai kirjaimille.
-//    Body voi olla joko plain text ("kpl1\n\nkpl2") tai jo HTML:ää (<p>…</p>).
+// ─── EditableParagraphs: leipäteksti ──────────────────────────
+// ✅ KONTROLLOIMATON contentEditable: DOM-sisältö asetetaan vain kun teksti
+//    muuttuu ULKOPUOLELTA (lataus / AI / pohjanvaihto). Editoinnin aikana
+//    React EI kosketa sisältöä → kohdistin ja tekstivalinta eivät nollaudu.
+//    Säilyttää inline-muotoilun (värit/lihavointi/kursiivi) HTML:nä.
 export function EditableParagraphs({ engine, region }: { engine: CLEngine; region?: string }) {
   const { isEditing, data, fontStack, updateBody } = engine;
   const base = data.style.text;
@@ -61,63 +70,57 @@ export function EditableParagraphs({ engine, region }: { engine: CLEngine; regio
   const paragraphSpacing = Math.round(fontSize * 1.6);
 
   const raw = data.body || '';
-  // Tunnista onko body jo HTML:ää (sisältää muotoilutageja)
-  const looksLikeHtml = /<\/?(p|span|b|i|strong|em|br|u|font)\b/i.test(raw);
+  const looksLikeHtml = /<\/?(p|span|b|i|strong|em|br|u|font|div)\b/i.test(raw);
+
+  // Yhtenäinen sisäinen HTML-muoto (kappaleet <p>-tageissa)
+  const html = looksLikeHtml
+    ? raw
+    : (raw.split('\n\n').filter(p => p.trim()).map(p => `<p>${escapeHtml(p)}</p>`).join('') || '<p></p>');
+
+  const ref = useRef<HTMLDivElement>(null);
+  const cls = `cl-paras-${region || 'body'}`;
+
+  // Aseta sisältö vain kun ULKOINEN html eroaa DOM:sta (ei editoinnin aikana)
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }, [html]);
 
   const wrapStyle: React.CSSProperties = {
     lineHeight,
     fontSize: `${fontSize}pt`,
     fontFamily: fontStack(),
     color: textColor,
+    textAlign,
   };
 
-  // ── HTML-tila: yksi muokattava lohko (säilyttää kaiken inline-muotoilun) ──
-  if (looksLikeHtml) {
+  // Kappaleväli sisäisille <p>-tageille (dynaaminen)
+  const spacingStyle = `.${cls} p { margin: 0 0 ${paragraphSpacing}px; } .${cls} p:last-child { margin-bottom: 0; }`;
+
+  // Esikatselu / PDF (ei muokattava)
+  if (!isEditing) {
     return (
-      <div
-        contentEditable={isEditing}
-        suppressContentEditableWarning
-        onBlur={(e) => { if (isEditing) updateBody(e.currentTarget.innerHTML); }}
-        style={{
-          ...wrapStyle,
-          textAlign,
-          ...(isEditing ? { outline: '2px solid #f97316', borderRadius: '4px', padding: '6px', minHeight: '1.5em' } : {}),
-        }}
-        dangerouslySetInnerHTML={{ __html: raw }}
-      />
+      <>
+        <style>{spacingStyle}</style>
+        <div className={cls} style={wrapStyle} dangerouslySetInnerHTML={{ __html: html }} />
+      </>
     );
   }
 
-  // ── Plain-text-tila: kappaleet erikseen, mutta tallenna HTML:nä blurissa ──
-  const paragraphs = raw.split('\n\n').filter(p => p.trim());
-
+  // Muokkaustila — kontrolloimaton, commit onInput (pitää tilan synkassa nollaamatta valintaa)
   return (
-    <div style={wrapStyle}>
-      {paragraphs.map((p, idx) => (
-        <p
-          key={idx}
-          contentEditable={isEditing}
-          suppressContentEditableWarning
-          onBlur={(e) => {
-            if (!isEditing) return;
-            const parent = e.currentTarget.parentElement;
-            if (!parent) return;
-            // Kokoa kaikki kappaleet HTML:ksi (säilyttää valitun muotoilun)
-            const html = Array.from(parent.querySelectorAll('p'))
-              .map(el => `<p>${(el as HTMLElement).innerHTML}</p>`)
-              .join('');
-            updateBody(html);
-          }}
-          style={{
-            marginBottom: `${paragraphSpacing}px`,
-            textAlign,
-            ...(isEditing ? { outline: '2px solid #f97316', borderRadius: '4px', padding: '4px', minHeight: '1.5em' } : {}),
-          }}
-        >
-          {p}
-        </p>
-      ))}
-    </div>
+    <>
+      <style>{spacingStyle}</style>
+      <div
+        ref={ref}
+        className={cls}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={(e) => updateBody(e.currentTarget.innerHTML)}
+        style={{ ...wrapStyle, outline: '2px solid #f97316', borderRadius: '4px', padding: '6px', minHeight: '1.5em' }}
+      />
+    </>
   );
 }
 
