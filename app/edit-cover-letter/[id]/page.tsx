@@ -229,6 +229,35 @@ export default function EditCoverLetterPage() {
     document.execCommand('styleWithCSS', false, 'true');
     document.execCommand('foreColor', false, color);
   };
+  const bumpFontSize = (deltaPct: number) => {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+
+  const range = sel.getRangeAt(0);
+
+  // Jos valinta on jo yhden span-elementin sisällä → säädä sitä suoraan
+  const span = document.createElement('span');
+  // Lue nykyinen efektiivinen koko valinnan alusta
+  const probe = range.startContainer.parentElement;
+  const currentPx = probe ? parseFloat(window.getComputedStyle(probe).fontSize) : 16;
+  const newPx = Math.max(6, Math.min(72, currentPx * (1 + deltaPct / 100)));
+  span.style.fontSize = `${newPx.toFixed(1)}px`;
+
+  try {
+    range.surroundContents(span);
+  } catch {
+    // surroundContents heittää jos valinta ylittää elementtirajat → fallback
+    const frag = range.extractContents();
+    span.appendChild(frag);
+    range.insertNode(span);
+  }
+
+  // Valinta takaisin span:in sisälle + committaa
+  sel.removeAllRanges();
+  const r = document.createRange();
+  r.selectNodeContents(span);
+  sel.addRange(r);
+};
 
   // ── Kuvavalitsin ──
   const openImagePicker = async () => {
@@ -750,7 +779,11 @@ export default function EditCoverLetterPage() {
           <div style={{ width: '1px', height: '24px', background: '#3a3a3a', margin: '0 4px' }} />
           {styleSelectors(false)}
         </div>
-
+<div style={{ width: '1px', height: '18px', background: '#444', margin: '0 4px' }} />
+<button onMouseDown={e => { e.preventDefault(); bumpFontSize(-12); }} title="Pienennä"
+  style={{ padding: '4px 7px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontSize: '11px', fontWeight: 700 }}>A−</button>
+<button onMouseDown={e => { e.preventDefault(); bumpFontSize(12); }} title="Suurenna"
+  style={{ padding: '4px 7px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer', fontSize: '14px', fontWeight: 700 }}>A+</button>
         <div style={{ flex: 1 }} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -5,12 +5,14 @@ import React, { useRef, useEffect } from 'react';
 import type { CLEngine, CLContactInfo, SignatureStyle } from './types';
 import { rgba } from './useCoverLetterEngine';
 
-// HTML-escape plain-text-kappaleille
+// HTML-escape plain-text-sisällölle
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Onko merkkijono jo HTML:ää (sisältää muotoilutageja)?
+function hasHtml(s: string): boolean {
+  return /<\/?(span|b|i|strong|em|br|u|font|p|div)\b/i.test(s);
 }
 
 // ─── Muokkaustyylit ───────────────────────────────────────────
@@ -22,7 +24,8 @@ const editOutline = (editing: boolean): React.CSSProperties => editing ? {
   transition: 'outline 0.15s',
 } : {};
 
-// ─── EditableText: yksittäinen muokattava kenttä ──────────────
+// ─── EditableText: yksittäinen muokattava kenttä (PELKKÄ TEKSTI) ──
+//    Käytä nimille/otsikoille joissa ei tarvita inline-muotoilua.
 export function EditableText({
   engine,
   value,
@@ -55,11 +58,53 @@ export function EditableText({
   );
 }
 
+// ─── EditableField: HTML-säilyttävä kenttä (koko/väri maalaamalla) ──
+//    Sama kontrolloimaton logiikka kuin EditableParagraphs, mutta yhdelle
+//    kentälle (yhteystiedot, titteli, yritys…). Säilyttää inline-muotoilun.
+export function EditableField({
+  engine,
+  value,
+  onCommit,
+  style,
+  as = 'span',
+  placeholder,
+}: {
+  engine: CLEngine;
+  value: string;
+  onCommit: (v: string) => void;
+  style?: React.CSSProperties;
+  as?: 'span' | 'div' | 'p';
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const html = hasHtml(value) ? value : escapeHtml(value || '');
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.innerHTML !== html) el.innerHTML = html;
+  }, [html]);
+
+  if (!engine.isEditing) {
+    const Tag = as as any;
+    return <Tag style={style} dangerouslySetInnerHTML={{ __html: html || (placeholder ? escapeHtml(placeholder) : '') }} />;
+  }
+
+  const Tag = as as any;
+  return (
+    <Tag
+      ref={ref as any}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={(e: React.FormEvent<HTMLElement>) => onCommit((e.currentTarget as HTMLElement).innerHTML)}
+      style={{ ...style, ...editOutline(true), minWidth: '40px', display: 'inline-block' }}
+      title={placeholder ? `Klikkaa muokataksesi: ${placeholder}` : 'Klikkaa muokataksesi'}
+    />
+  );
+}
+
 // ─── EditableParagraphs: leipäteksti ──────────────────────────
-// ✅ KONTROLLOIMATON contentEditable: DOM-sisältö asetetaan vain kun teksti
-//    muuttuu ULKOPUOLELTA (lataus / AI / pohjanvaihto). Editoinnin aikana
-//    React EI kosketa sisältöä → kohdistin ja tekstivalinta eivät nollaudu.
-//    Säilyttää inline-muotoilun (värit/lihavointi/kursiivi) HTML:nä.
+//    Kontrolloimaton contentEditable; säilyttää inline-muotoilun HTML:nä.
 export function EditableParagraphs({ engine, region }: { engine: CLEngine; region?: string }) {
   const { isEditing, data, fontStack, updateBody } = engine;
   const base = data.style.text;
@@ -70,9 +115,7 @@ export function EditableParagraphs({ engine, region }: { engine: CLEngine; regio
   const paragraphSpacing = Math.round(fontSize * 1.6);
 
   const raw = data.body || '';
-  const looksLikeHtml = /<\/?(p|span|b|i|strong|em|br|u|font|div)\b/i.test(raw);
-
-  // Yhtenäinen sisäinen HTML-muoto (kappaleet <p>-tageissa)
+  const looksLikeHtml = hasHtml(raw);
   const html = looksLikeHtml
     ? raw
     : (raw.split('\n\n').filter(p => p.trim()).map(p => `<p>${escapeHtml(p)}</p>`).join('') || '<p></p>');
@@ -80,7 +123,6 @@ export function EditableParagraphs({ engine, region }: { engine: CLEngine; regio
   const ref = useRef<HTMLDivElement>(null);
   const cls = `cl-paras-${region || 'body'}`;
 
-  // Aseta sisältö vain kun ULKOINEN html eroaa DOM:sta (ei editoinnin aikana)
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -88,17 +130,10 @@ export function EditableParagraphs({ engine, region }: { engine: CLEngine; regio
   }, [html]);
 
   const wrapStyle: React.CSSProperties = {
-    lineHeight,
-    fontSize: `${fontSize}pt`,
-    fontFamily: fontStack(),
-    color: textColor,
-    textAlign,
+    lineHeight, fontSize: `${fontSize}pt`, fontFamily: fontStack(), color: textColor, textAlign,
   };
-
-  // Kappaleväli sisäisille <p>-tageille (dynaaminen)
   const spacingStyle = `.${cls} p { margin: 0 0 ${paragraphSpacing}px; } .${cls} p:last-child { margin-bottom: 0; }`;
 
-  // Esikatselu / PDF (ei muokattava)
   if (!isEditing) {
     return (
       <>
@@ -108,7 +143,6 @@ export function EditableParagraphs({ engine, region }: { engine: CLEngine; regio
     );
   }
 
-  // Muokkaustila — kontrolloimaton, commit onInput (pitää tilan synkassa nollaamatta valintaa)
   return (
     <>
       <style>{spacingStyle}</style>
@@ -164,7 +198,7 @@ export function Signature({
   );
 }
 
-// ─── ContactRow: yhteystiedot (vaaka/pysty/keskitetty) ────────
+// ─── ContactRow: yhteystiedot (HTML-säilyttävä → koko/väri maalaamalla) ──
 export function ContactRow({
   engine,
   vertical = false,
@@ -202,7 +236,7 @@ export function ContactRow({
         data.contact[field] ? (
           <div key={field} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: txt }}>
             <span style={{ width: '26px', height: '26px', borderRadius: '7px', background: chip, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', flexShrink: 0 }}>{icon}</span>
-            <EditableText engine={engine} value={data.contact[field]} onCommit={(v) => updateContact(field, v)} style={{ color: txt, wordBreak: 'break-word' }} placeholder={ph} />
+            <EditableField engine={engine} value={data.contact[field]} onCommit={(v) => updateContact(field, v)} style={{ color: txt, wordBreak: 'break-word' }} placeholder={ph} />
           </div>
         ) : null
       )}
@@ -224,13 +258,10 @@ export function DateRow({ engine }: { engine: CLEngine }) {
   );
 }
 
-// ─── BackgroundLayer: väri / häilyvä kuva / vahva kuva / generoitu ─
+// ─── BackgroundLayer ──────────────────────────────────────────
 export function BackgroundLayer({ engine }: { engine: CLEngine }) {
   const { mode, imageUrl, opacity } = engine.data.style.background;
-
-  // Vain image-faint piirtyy koko sivulle. Muut moodit → skin hoitaa.
   if (mode !== 'image-faint' || !imageUrl) return null;
-
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
@@ -242,7 +273,7 @@ export function BackgroundLayer({ engine }: { engine: CLEngine }) {
   );
 }
 
-// ─── ColorDot: pieni värinvalitsin (muokkaustilassa) ──────────
+// ─── ColorDot ─────────────────────────────────────────────────
 export function ColorDot({ engine, position = 'top-right' }: { engine: CLEngine; position?: 'top-right' | 'inline' }) {
   if (!engine.isEditing) return null;
   const accent = engine.data.style.accentColor;
