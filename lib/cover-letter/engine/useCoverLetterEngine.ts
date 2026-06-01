@@ -7,7 +7,6 @@ import type {
   CLData, CLRawRecord, CLEngine, CLContactInfo, CLStyle,
   TextSettings, FontFamilyKey, DividerConfig, BackgroundConfig,
 } from './types';
-// (BannerStyle/BandStyle/SkinImage/RegionText kulkevat CLStyle:n sisällä, ei tarvitse erikseen)
 
 // ─── Fonttipinot ──────────────────────────────────────────────
 const FONT_STACKS: Record<FontFamilyKey, string> = {
@@ -53,7 +52,7 @@ function buildCLData(raw: CLRawRecord): CLData {
     templateStyle === 'modern-left'
       ? { direction: 'vertical', sizeMm: 74 }
       : templateStyle === 'classic'
-        ? { direction: 'horizontal', sizeMm: 0 } // classicilla ohut yläreuna, ei varsinaista bannerialuetta
+        ? { direction: 'horizontal', sizeMm: 0 }
         : { direction: 'horizontal', sizeMm: 70 }
   );
 
@@ -67,7 +66,7 @@ function buildCLData(raw: CLRawRecord): CLData {
     textColor: content.textColor || DEFAULT_TEXT.textColor,
   };
 
- const style: CLStyle = {
+  const style: CLStyle = {
     templateStyle,
     accentColor,
     divider,
@@ -75,7 +74,7 @@ function buildCLData(raw: CLRawRecord): CLData {
     text,
     signatureStyle: content.signatureStyle || 'script',
     showDate: content.showDate ?? true,
-    // ✅ uudet kentät — luetaan suoraan content:sta (undefined jos ei tallennettu)
+    // ✅ UUDET KENTÄT — luetaan suoraan content:sta (undefined jos ei tallennettu)
     banner: content.banner,
     band: content.band,
     image: content.image,
@@ -97,7 +96,6 @@ function buildCLData(raw: CLRawRecord): CLData {
 interface UseCoverLetterEngineArgs {
   raw: CLRawRecord;
   isEditing: boolean;
-  // Kutsutaan kun data muuttuu. Sivu päättää miten tallentaa (sama kuin nyt).
   onContactChange?: (field: keyof CLContactInfo, value: string) => void;
   onBodyChange?: (newBody: string) => void;
   onFieldChange?: (field: 'jobTitle' | 'companyName' | 'title', value: string) => void;

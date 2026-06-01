@@ -3,13 +3,14 @@
 // ✅ Designer-skin (kuva 2): tumma yläbanneri ("Hello" + käsiala-nimi),
 //    alla vaalea kolmen sarakkeen yhteystietopalkki, sans-leipäteksti.
 //
+// Kuva bannerin keskelle tulee KUMMASTA tahansa lähteestä:
+//   1) data.style.image (placement 'banner-center')  ← AdaptiveControls-valitsin
+//   2) data.style.background.imageUrl (generated/image-strong) ← vanha TAUSTAKUVA-paneeli
+//
 // Kyvykkyydet (capabilities.ts → 'greeting'):
-//   • banner.color   → data.style.banner.color       (bannerin taustaväri)
-//   • banner.height  → data.style.banner.heightMm     (bannerin korkeus)
-//   • banner image   → data.style.image.placement === 'banner-center'  (kuva keskelle)
-//   • band.color     → data.style.band.color          (vaalean palkin väri)
-//   • band.height    → data.style.band.heightMm        (palkin korkeus)
-//   • regions.heading→ nimen koko (px), regions.body → leipätekstin koko (pt)
+//   • banner.color / banner.heightMm / banner.textColor
+//   • band.color / band.heightMm
+//   • regions.heading (nimen koko px), regions.body (leipäteksti pt)
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -32,9 +33,14 @@ export default function Greeting({ engine }: { engine: CLEngine }) {
   const bannerTextColor = data.style.banner?.textColor || '#ffffff';
   const bannerH = `${data.style.banner?.heightMm ?? data.style.divider?.sizeMm ?? 62}mm`;
 
-  // ── Kuva keskelle banneria ──
+  // ── Kuva keskelle banneria — kummasta tahansa lähteestä ──
   const img = data.style.image;
-  const centerImage = img?.placement === 'banner-center' && img.url ? img.url : null;
+  const bg = data.style.background;
+  const centerImage =
+    (img?.placement === 'banner-center' && img.url) ? img.url :
+    (bg?.imageUrl && (bg.mode === 'generated' || bg.mode === 'image-strong')) ? bg.imageUrl :
+    null;
+  const centerOpacity = img?.opacity ?? bg?.opacity ?? 1;
 
   // ── Vaalea yhteystietopalkki ──
   const bandColor = data.style.band?.color || '#eef1f7';
@@ -80,7 +86,8 @@ export default function Greeting({ engine }: { engine: CLEngine }) {
               alt=""
               style={{
                 height: '82%', width: 'auto', maxWidth: '40%', objectFit: 'cover',
-                opacity: img?.opacity ?? 1,
+                borderRadius: '8px',
+                opacity: centerOpacity,
                 WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
               }}
             />
