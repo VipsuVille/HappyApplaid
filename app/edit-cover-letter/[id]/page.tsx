@@ -1,7 +1,9 @@
 'use client';
 // edit-cover-letter/[id]/page.tsx
-// ✅ DESKTOP: suora paperimuokkaus + split-näkymä (kuten ennen)
-// ✅ MOBIILI: välilehdet Teksti / Ulkoasu / Esikatselu — käytännöllinen lomakemuokkaus
+// ✅ DESKTOP: suora paperimuokkaus + split-näkymä
+// ✅ MOBIILI: välilehdet Teksti / Ulkoasu / Esikatselu
+// ✅ Kyvykkyysohjautuva AdaptiveControls (banneri/palkki/kuva/alueet)
+// ✅ Kuvavalitsin (ei URL-kenttää) + per-sana/merkki värit (desktop-työkalupalkki)
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -11,16 +13,18 @@ import {
   Save, ArrowLeft, Trash2, Download, Loader2,
   FileText, Sparkles,
   Bold, Italic, AlignLeft, AlignCenter, AlignJustify,
-  Type, Palette, CheckCircle, ZoomIn, ZoomOut, GripVertical,
+  Palette, CheckCircle, ZoomIn, ZoomOut, GripVertical,
   Edit3, Eye, SlidersHorizontal,
 } from 'lucide-react';
-import AdaptiveControls from '@/components/cover-letter/AdaptiveControls';
 
 import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
 import IterativeFeedback from '@/components/IterativeFeedback';
 import CoverLetterDesignPanel, { type BackgroundSettings } from '@/components/cover-letter/CoverLetterDesingPanel';
+import AdaptiveControls from '@/components/cover-letter/AdaptiveControls';
 import { useTokens } from '@/hooks/useTokens';
+import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
+import type { ImagePlacement } from '@/lib/cover-letter/engine/capabilities';
 
 interface CoverLetter {
   id: string; user_id: string; title: string;
@@ -41,9 +45,9 @@ interface StyleSettings {
   fontFamily: 'serif' | 'sans' | 'classic' | 'modern';
   textColor: string;
   banner?: { color?: string; heightMm?: number; textColor?: string };
-band?:   { color?: string; heightMm?: number };
-image?:  { url?: string; placement?: import('@/lib/cover-letter/engine/capabilities').ImagePlacement; opacity?: number };
-regions?: Record<string, { fontSize?: number; textColor?: string; letterSpacing?: number }>;
+  band?: { color?: string; heightMm?: number };
+  image?: { url?: string; filePath?: string; placement?: ImagePlacement; opacity?: number };
+  regions?: Record<string, { fontSize?: number; textColor?: string; letterSpacing?: number }>;
   background: BackgroundSettings;
   bannerHeightMm: number;
 }
@@ -51,6 +55,9 @@ regions?: Record<string, { fontSize?: number; textColor?: string; letterSpacing?
 interface ToolbarPos { x: number; y: number; visible: boolean; hasSelection: boolean; }
 
 const BANNER_TEMPLATES = ['aurora', 'modern-top', 'sidebar', 'executive', 'greeting'];
+
+// Pikavärit valitulle tekstille
+const QUICK_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#111827'];
 
 export default function EditCoverLetterPage() {
   const params = useParams();
@@ -67,9 +74,7 @@ export default function EditCoverLetterPage() {
   const [zoom, setZoom] = useState(75);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Desktop oikea paneeli
   const [rightTab, setRightTab] = useState<'design' | 'ai' | 'history'>('design');
-  // Mobiili välilehdet
   const [mobileTab, setMobileTab] = useState<'text' | 'design' | 'preview'>('text');
 
   const [showSuccess, setShowSuccess] = useState(false);
@@ -82,6 +87,11 @@ export default function EditCoverLetterPage() {
   const [jobTitle, setJobTitle] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [content, setContent] = useState('');
+
+  // Kuvavalitsin
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [availableImages, setAvailableImages] = useState<UserImage[]>([]);
+  const [imagesLoading, setImagesLoading] = useState(false);
 
   const [styleSettings, setStyleSettings] = useState<StyleSettings>({
     headerColor: '#B59850',
@@ -118,6 +128,7 @@ export default function EditCoverLetterPage() {
     return () => window.removeEventListener('resize', update);
   }, []);
 
+  // ── Lataus ──
   useEffect(() => {
     const load = async () => {
       if (!userId || !id) { setIsLoading(false); return; }
@@ -154,6 +165,11 @@ export default function EditCoverLetterPage() {
             textColor: l.content?.textColor || '#1a1a1a',
             background: l.content?.background || { mode: 'color' },
             bannerHeightMm: l.content?.divider?.sizeMm || (tpl === 'modern-left' ? 74 : 82),
+            // ✅ uudet kentät kannasta (GET-reitti on jo hydratoinut image.url:n filePath:sta)
+            banner: l.content?.banner,
+            band: l.content?.band,
+            image: l.content?.image,
+            regions: l.content?.regions,
           }));
         }
       } catch {
@@ -165,7 +181,7 @@ export default function EditCoverLetterPage() {
     load();
   }, [id, userId, getToken]);
 
-  // Palkki vain aidossa valinnassa (desktop)
+  // ── Tekstivalinnan seuranta (desktop-työkalupalkki) ──
   const handleSelectionChange = useCallback(() => {
     if (isMobile) return;
     const sel = window.getSelection();
@@ -185,6 +201,7 @@ export default function EditCoverLetterPage() {
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, [handleSelectionChange]);
 
+  // ── Split-raahaus ──
   useEffect(() => {
     if (!isDragging) return;
     const handleMove = (e: MouseEvent) => {
@@ -206,8 +223,44 @@ export default function EditCoverLetterPage() {
     };
   }, [isDragging]);
 
-  const execCmd = (cmd: string) => document.execCommand(cmd, false);
+  // ── Tekstimuotoilu (execCommand) ──
+  const execCmd = (cmd: string, value?: string) => document.execCommand(cmd, false, value);
+  const applyColor = (color: string) => {
+    document.execCommand('styleWithCSS', false, 'true');
+    document.execCommand('foreColor', false, color);
+  };
 
+  // ── Kuvavalitsin ──
+  const openImagePicker = async () => {
+    setImagePickerOpen(true);
+    setImagesLoading(true);
+    try {
+      const { backgroundImages, profileImages } = await getAllAvailableImagesAction();
+      // taustakuvat ensin, sitten profiilikuvat (käytä mitä haluat)
+      setAvailableImages([...backgroundImages, ...profileImages]);
+    } catch {
+      toast.error('Kuvien lataus epäonnistui');
+    } finally {
+      setImagesLoading(false);
+    }
+  };
+
+  const chooseImage = (img: UserImage) => {
+    setStyleSettings(prev => ({
+      ...prev,
+      image: {
+        ...prev.image,
+        url: img.signedUrl,        // näyttöön (vanhenee — luodaan uudelleen latauksessa)
+        filePath: img.file_path,   // pysyvä totuus kannassa
+        placement: prev.image?.placement && prev.image.placement !== 'none'
+          ? prev.image.placement
+          : 'banner-center',
+      },
+    }));
+    setImagePickerOpen(false);
+  };
+
+  // ── Sisällön rakennus (tallennus + esikatselu) ──
   const buildContent = () => ({
     ...letterData?.content,
     contactInfo: { name, email, phone, location },
@@ -220,12 +273,12 @@ export default function EditCoverLetterPage() {
     textAlign: styleSettings.textAlign,
     fontFamily: styleSettings.fontFamily,
     textColor: styleSettings.textColor,
-      background: styleSettings.background,
-    banner: styleSettings.banner,        // ✅
-    band: styleSettings.band,            // ✅
-    image: styleSettings.image,          // ✅
-    regions: styleSettings.regions,      // ✅
     signatureStyle: styleSettings.signatureStyle,
+    background: styleSettings.background,
+    banner: styleSettings.banner,
+    band: styleSettings.band,
+    image: styleSettings.image,
+    regions: styleSettings.regions,
     divider: {
       direction: styleSettings.templateStyle === 'modern-left' ? 'vertical' : 'horizontal',
       sizeMm: styleSettings.bannerHeightMm,
@@ -349,10 +402,10 @@ export default function EditCoverLetterPage() {
       signatureStyle: styleSettings.signatureStyle,
       showDate: true,
       background: styleSettings.background,
-      banner: styleSettings.banner,      // ✅
-      band: styleSettings.band,          // ✅
-      image: styleSettings.image,        // ✅
-      regions: styleSettings.regions,    // ✅
+      banner: styleSettings.banner,
+      band: styleSettings.band,
+      image: styleSettings.image,
+      regions: styleSettings.regions,
       divider: {
         direction: (styleSettings.templateStyle === 'modern-left' ? 'vertical' : 'horizontal') as 'vertical' | 'horizontal' | 'none',
         sizeMm: styleSettings.bannerHeightMm,
@@ -368,7 +421,6 @@ export default function EditCoverLetterPage() {
   const scaleValue = zoom / 100;
   const showBanner = BANNER_TEMPLATES.includes(styleSettings.templateStyle);
 
-  // Renderöijä (jaettu desktop/mobiili). isEditing=false esikatselussa.
   const renderPaper = (editing: boolean) => (
     <CoverLetterContainer>
       <CoverLetterRenderer
@@ -414,7 +466,47 @@ export default function EditCoverLetterPage() {
     />
   );
 
-  // Jaetut valitsimet (pohja/allek/fontti/väri) — käytetään sekä desktop-toolbarissa että mobiili-Ulkoasussa
+  const adaptivePanel = (
+    <AdaptiveControls
+      styleSettings={styleSettings}
+      onChange={(p) => setStyleSettings(prev => ({ ...prev, ...p }))}
+      onPickImage={openImagePicker}
+    />
+  );
+
+  // Kuvavalitsin-modal (jaettu desktop/mobiili)
+  const imagePickerModal = imagePickerOpen && (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+      onClick={() => setImagePickerOpen(false)}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background: '#1e1e1e', border: '1px solid #3a3a3a', borderRadius: '16px', padding: '20px', maxWidth: '560px', width: '100%', maxHeight: '70vh', overflow: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+          <h3 style={{ color: '#e8e3dc', fontSize: '15px', margin: 0 }}>Valitse kuva</h3>
+          <button onClick={() => setImagePickerOpen(false)} style={{ background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+        </div>
+        {imagesLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+            <Loader2 className="animate-spin" style={{ color: '#f97316' }} />
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+            {availableImages.map(img => (
+              <button key={img.id} onClick={() => chooseImage(img)}
+                style={{ padding: 0, border: '2px solid transparent', borderRadius: '10px', overflow: 'hidden', cursor: 'pointer', background: '#2a2a2a' }}>
+                {img.signedUrl && <img src={img.signedUrl} alt={img.name} style={{ width: '100%', height: '110px', objectFit: 'cover', display: 'block' }} />}
+              </button>
+            ))}
+            {availableImages.length === 0 && (
+              <p style={{ color: '#888', fontSize: '13px', gridColumn: '1 / -1', textAlign: 'center', padding: '20px' }}>
+                Ei kuvia vielä. Generoi tai lataa kuva ensin.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   const styleSelectors = (compact: boolean) => (
     <>
       <select value={styleSettings.templateStyle} onChange={e => setStyleSettings(p => ({ ...p, templateStyle: e.target.value }))}
@@ -428,8 +520,8 @@ export default function EditCoverLetterPage() {
         <option value="monogram">Monogram · vesileima</option>
         <option value="creative-wave">Creative Wave 🌊</option>
         <option value="executive">Executive · tumma banneri</option>
-<option value="greeting">Greeting · Hello-banneri</option>
-<option value="spine">Spine · pystynimi (kraft)</option>
+        <option value="greeting">Greeting · Hello-banneri</option>
+        <option value="spine">Spine · pystynimi (kraft)</option>
         <option value="classic">Klassinen</option>
       </select>
       <select value={styleSettings.signatureStyle} onChange={e => setStyleSettings(p => ({ ...p, signatureStyle: e.target.value as any }))}
@@ -456,8 +548,15 @@ export default function EditCoverLetterPage() {
     const inputCls = 'w-full bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl px-3 py-2.5 text-sm text-[#e8e3dc] focus:outline-none focus:border-orange-500/60';
     const labelCls = 'block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5';
 
+    // Mobiilin textarea näyttää tekstin ilman HTML-tageja
+    const plainForTextarea = content
+      .replace(/<\/p>\s*<p>/gi, '\n\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '');
+
     return (
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1e1e', color: '#e8e3dc', fontFamily: "'DM Sans', sans-serif" }}>
+        {imagePickerModal}
         {/* Top bar */}
         <div style={{ height: '52px', background: '#2a2a2a', borderBottom: '1px solid #3a3a3a', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '8px', flexShrink: 0, position: 'sticky', top: 0, zIndex: 50 }}>
           <button onClick={() => router.push('/my-cover-letters')} style={{ padding: '6px', background: 'transparent', border: 'none', color: '#999' }}><ArrowLeft size={18} /></button>
@@ -531,10 +630,10 @@ export default function EditCoverLetterPage() {
 
               <div>
                 <label className={labelCls}>Hakukirjeen teksti</label>
-                <p className="text-[11px] text-gray-500 mb-2">Tyhjä rivi erottaa kappaleet. Voit myös käyttää AI-muokkausta alla.</p>
+                <p className="text-[11px] text-gray-500 mb-2">Tyhjä rivi erottaa kappaleet. Tekstin värit muokataan tietokoneella.</p>
                 <textarea
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
+                  value={plainForTextarea}
+                  onChange={e => setContent(e.target.value.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join(''))}
                   className="w-full bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl px-3 py-3 text-sm text-[#e8e3dc] focus:outline-none focus:border-orange-500/60 leading-relaxed"
                   style={{ minHeight: '320px', resize: 'vertical' }}
                   placeholder="Kirjoita hakukirjeen teksti tähän…"
@@ -564,10 +663,10 @@ export default function EditCoverLetterPage() {
               <div className="bg-[#252525] border border-[#3a3a3a] rounded-2xl p-4 space-y-3">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1 flex items-center gap-2"><Palette size={13} /> Pohja & tyyli</p>
                 {styleSelectors(true)}
-                {/* Väri + tasaus */}
+                {/* Korostusväri + tasaus */}
                 <div className="flex items-center gap-3 pt-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Väri</span>
+                    <span className="text-xs text-gray-500">Korostus</span>
                     <input type="color" value={styleSettings.headerColor.startsWith('#') ? styleSettings.headerColor : '#B59850'}
                       onChange={e => setStyleSettings(p => ({ ...p, headerColor: e.target.value }))}
                       style={{ width: '36px', height: '32px', borderRadius: '8px', border: '1px solid #444', background: 'transparent', cursor: 'pointer' }} />
@@ -584,9 +683,12 @@ export default function EditCoverLetterPage() {
                 </div>
               </div>
 
+              {/* Kyvykkyysohjautuvat säätimet */}
+              {adaptivePanel}
+
               {/* Tausta + koot (jaettu paneeli) */}
-<AdaptiveControls styleSettings={styleSettings} onChange={(p) => setStyleSettings(prev => ({ ...prev, ...p }))} />
-{designPanel}            </div>
+              {designPanel}
+            </div>
           )}
 
           {/* ── ESIKATSELU ── */}
@@ -608,7 +710,7 @@ export default function EditCoverLetterPage() {
   }
 
   // ════════════════════════════════════════════════════════════
-  // DESKTOP (ennallaan)
+  // DESKTOP
   // ════════════════════════════════════════════════════════════
   const tabBtn = (key: typeof rightTab, label: string) => (
     <button onClick={() => setRightTab(key)}
@@ -621,6 +723,7 @@ export default function EditCoverLetterPage() {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#1e1e1e', color: '#e8e3dc', fontFamily: "'DM Sans', sans-serif" }}>
+      {imagePickerModal}
       <div style={{ height: '56px', background: '#2a2a2a', borderBottom: '1px solid #3a3a3a', display: 'flex', alignItems: 'center', padding: '0 16px', gap: '8px', flexShrink: 0, zIndex: 50 }}>
         <button onClick={() => router.push('/my-cover-letters')} style={{ padding: '6px', borderRadius: '8px', background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
           <ArrowLeft size={18} />
@@ -675,6 +778,16 @@ export default function EditCoverLetterPage() {
             <div style={{ position: 'absolute', left: `calc(50% - 105mm + ${toolbar.x}px)`, top: `${32 + toolbar.y * scaleValue}px`, transform: 'translateX(-50%) translateY(-100%)', zIndex: 100, background: '#2a2a2a', border: '1px solid #444', borderRadius: '10px', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
               <button onMouseDown={e => { e.preventDefault(); execCmd('bold'); }} style={{ padding: '4px 8px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer' }} title="Lihavointi"><Bold size={14} /></button>
               <button onMouseDown={e => { e.preventDefault(); execCmd('italic'); }} style={{ padding: '4px 8px', borderRadius: '5px', border: 'none', background: 'transparent', color: '#e0dbd4', cursor: 'pointer' }} title="Kursiivi"><Italic size={14} /></button>
+              {/* Pikavärit valitulle tekstille */}
+              <div style={{ width: '1px', height: '18px', background: '#444', margin: '0 4px' }} />
+              {QUICK_COLORS.map(c => (
+                <button key={c} onMouseDown={(e) => { e.preventDefault(); applyColor(c); }} title={`Väri ${c}`}
+                  style={{ width: '18px', height: '18px', borderRadius: '50%', background: c, border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', padding: 0 }} />
+              ))}
+              <label style={{ position: 'relative', width: '18px', height: '18px', borderRadius: '50%', background: 'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)', cursor: 'pointer', display: 'inline-block', border: '1px solid rgba(255,255,255,0.3)' }} title="Vapaa väri">
+                <input type="color" onChange={(e) => applyColor(e.target.value)} onMouseDown={(e) => e.stopPropagation()}
+                  style={{ position: 'absolute', opacity: 0, width: '1px', height: '1px' }} />
+              </label>
             </div>
           )}
 
@@ -704,12 +817,13 @@ export default function EditCoverLetterPage() {
           </div>
 
           <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-   {rightTab === 'design' && (
-  <>
-    <AdaptiveControls styleSettings={styleSettings} onChange={(p) => setStyleSettings(prev => ({ ...prev, ...p }))} />
-    {designPanel}
-  </>
-)}
+            {rightTab === 'design' && (
+              <>
+                {adaptivePanel}
+                {designPanel}
+              </>
+            )}
+
             {rightTab === 'ai' && (
               <>
                 {showSuccess && (
@@ -734,7 +848,7 @@ export default function EditCoverLetterPage() {
                           <span style={{ fontSize: '12px', fontWeight: 700, color: '#f97316' }}>Versio {iter.version}</span>
                           <span style={{ fontSize: '11px', color: '#666' }}>{new Date(iter.timestamp).toLocaleDateString('fi-FI')}</span>
                         </div>
-                        <p style={{ fontSize: '12px', color: '#999', margin: '0 0 4px', fontStyle: 'italic' }}>"{iter.user_feedback}"</p>
+                        <p style={{ fontSize: '12px', color: '#999', margin: '0 0 4px', fontStyle: 'italic' }}>&quot;{iter.user_feedback}&quot;</p>
                         <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>✅ {iter.changes_made}</p>
                       </div>
                     ))}
@@ -748,7 +862,7 @@ export default function EditCoverLetterPage() {
 
           <div style={{ padding: '12px 16px', borderTop: '1px solid #333', background: '#1e1e1e' }}>
             <p style={{ fontSize: '11px', color: '#555', margin: 0, lineHeight: '1.5' }}>
-              💡 Klikkaa tekstiä muokataksesi · Valitse teksti muotoiluun · Ulkoasu-välilehdeltä tausta & koko
+              💡 Klikkaa tekstiä muokataksesi · Maalaa teksti → väri/lihavointi · Ulkoasu-välilehdeltä banneri, kuva & koot
             </p>
           </div>
         </div>

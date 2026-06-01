@@ -47,18 +47,52 @@ export function EditableText({
   );
 }
 
-// ─── EditableParagraphs: leipäteksti ──────────────────────────
+// ─── EditableParagraphs: leipäteksti (säilyttää inline-muotoilun HTML:nä) ──
+// ✅ Tallentaa innerHTML (ei innerText), joten työkalupalkilla annetut värit /
+//    lihavoinnit / kursiivit säilyvät myös yksittäisille sanoille tai kirjaimille.
+//    Body voi olla joko plain text ("kpl1\n\nkpl2") tai jo HTML:ää (<p>…</p>).
 export function EditableParagraphs({ engine, region }: { engine: CLEngine; region?: string }) {
-  const { paragraphs, isEditing, data, fontStack, updateBody } = engine;
+  const { isEditing, data, fontStack, updateBody } = engine;
   const base = data.style.text;
   const ov = (region && data.style.regions?.[region]) || {};
-  const fontSize = ov.fontSize ?? base.fontSize;          // pt
+  const fontSize = ov.fontSize ?? base.fontSize;   // pt
   const textColor = ov.textColor ?? base.textColor;
   const { lineHeight, textAlign } = base;
   const paragraphSpacing = Math.round(fontSize * 1.6);
-  
+
+  const raw = data.body || '';
+  // Tunnista onko body jo HTML:ää (sisältää muotoilutageja)
+  const looksLikeHtml = /<\/?(p|span|b|i|strong|em|br|u|font)\b/i.test(raw);
+
+  const wrapStyle: React.CSSProperties = {
+    lineHeight,
+    fontSize: `${fontSize}pt`,
+    fontFamily: fontStack(),
+    color: textColor,
+  };
+
+  // ── HTML-tila: yksi muokattava lohko (säilyttää kaiken inline-muotoilun) ──
+  if (looksLikeHtml) {
+    return (
+      <div
+        contentEditable={isEditing}
+        suppressContentEditableWarning
+        onBlur={(e) => { if (isEditing) updateBody(e.currentTarget.innerHTML); }}
+        style={{
+          ...wrapStyle,
+          textAlign,
+          ...(isEditing ? { outline: '2px solid #f97316', borderRadius: '4px', padding: '6px', minHeight: '1.5em' } : {}),
+        }}
+        dangerouslySetInnerHTML={{ __html: raw }}
+      />
+    );
+  }
+
+  // ── Plain-text-tila: kappaleet erikseen, mutta tallenna HTML:nä blurissa ──
+  const paragraphs = raw.split('\n\n').filter(p => p.trim());
+
   return (
-    <div style={{ lineHeight, fontSize: `${fontSize}pt`, fontFamily: fontStack(), color: textColor }}>
+    <div style={wrapStyle}>
       {paragraphs.map((p, idx) => (
         <p
           key={idx}
@@ -66,8 +100,13 @@ export function EditableParagraphs({ engine, region }: { engine: CLEngine; regio
           suppressContentEditableWarning
           onBlur={(e) => {
             if (!isEditing) return;
-            const all = Array.from(e.currentTarget.parentElement?.querySelectorAll('p') || []);
-            updateBody(all.map(el => (el as HTMLElement).innerText).join('\n\n'));
+            const parent = e.currentTarget.parentElement;
+            if (!parent) return;
+            // Kokoa kaikki kappaleet HTML:ksi (säilyttää valitun muotoilun)
+            const html = Array.from(parent.querySelectorAll('p'))
+              .map(el => `<p>${(el as HTMLElement).innerHTML}</p>`)
+              .join('');
+            updateBody(html);
           }}
           style={{
             marginBottom: `${paragraphSpacing}px`,
@@ -185,10 +224,10 @@ export function DateRow({ engine }: { engine: CLEngine }) {
 // ─── BackgroundLayer: väri / häilyvä kuva / vahva kuva / generoitu ─
 export function BackgroundLayer({ engine }: { engine: CLEngine }) {
   const { mode, imageUrl, opacity } = engine.data.style.background;
- 
+
   // Vain image-faint piirtyy koko sivulle. Muut moodit → skin hoitaa.
   if (mode !== 'image-faint' || !imageUrl) return null;
- 
+
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
@@ -199,7 +238,6 @@ export function BackgroundLayer({ engine }: { engine: CLEngine }) {
     }} />
   );
 }
- 
 
 // ─── ColorDot: pieni värinvalitsin (muokkaustilassa) ──────────
 export function ColorDot({ engine, position = 'top-right' }: { engine: CLEngine; position?: 'top-right' | 'inline' }) {
