@@ -86,7 +86,7 @@ async function extractJobContext(jobDescription: string): Promise<{
   const prompt = `Analyze this job posting and extract what truly matters to the employer.
 
 Job Posting:
-${jobDescription.substring(0, 3000)}
+${jobDescription.substring(0, 6000)}
 
 Return JSON:
 {

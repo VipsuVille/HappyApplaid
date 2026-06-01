@@ -698,7 +698,7 @@ export default function CreateCoverLetterPage() {
                     onChange={(e) => setCompanyAboutText(e.target.value)}
                     placeholder={isFinnish ? 'Liitä yrityksen esittelyteksti tähän…' : 'Paste the company description here…'}
                     className="w-full h-28 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none placeholder:text-gray-600"
-                    maxLength={2000}
+                    maxLength={6000}
                   />
                 </div>
 

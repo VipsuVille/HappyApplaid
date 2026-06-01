@@ -294,20 +294,20 @@ export default function Home() {
         overflow-x: hidden;
       }
  
-      /* ══ LIGHT THEME ══ */
+   /* ══ LIGHT THEME — lämmin paperi ══ */
       .ha-landing.ha-light {
-  --bg:      #faf8f4;   /* oli #f5f4f0 — lämpimämpi */
-  --bg-2:    #f4f1ea;
-  --bg-3:    #efebe2;
-  --text:    #1a1714;   /* lämmin charcoal, oli #111 */
-  --gray-mid: #6b6359;  /* lämpimämpi harmaa */
-        --border:  rgba(0,0,0,.08);
-        --border-strong: rgba(0,0,0,.15);
-        --gray-dim: #888;
-        --gray-light: #333;
+        --bg:      #faf8f4;
+        --bg-2:    #f4f1ea;
+        --bg-3:    #efebe2;
+        --border:  rgba(60,40,20,.10);
+        --border-strong: rgba(60,40,20,.18);
+        --text:    #1a1714;
+        --gray-dim: #9a8f80;
+        --gray-mid: #6b6359;
+        --gray-light: #3a342c;
         --card-top: rgba(249,115,22,.4);
-        --stat-sep: rgba(0,0,0,.07);
-        --kw-sep:   rgba(0,0,0,.07);
+        --stat-sep: rgba(60,40,20,.08);
+        --kw-sep:   rgba(60,40,20,.08);
         --scan-color: rgba(249,115,22,.2);
         background: var(--bg);
         color: var(--text);
@@ -831,10 +831,10 @@ export default function Home() {
         {/* ════════════════════════════════════════════════
             1. HERO — original cinematic layout
         ════════════════════════════════════════════════ */}
-        <section style={{
-          position: "relative", minHeight: "100vh",
-          display: "flex", flexDirection: "column", justifyContent: "flex-end",
-          paddingBottom: "80px", overflow: "hidden",
+    <section style={{
+          position: "relative", minHeight: "auto",
+          display: "flex", flexDirection: "column", justifyContent: "center",
+          padding: "72px 0 64px", overflow: "hidden",
         }}>
           {/* Noise texture */}
           <div style={{
@@ -865,7 +865,7 @@ export default function Home() {
           </svg>
  
           {/* Content */}
-          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "120px 24px 0", width: "100%" }}>
+          <div style={{ position: "relative", zIndex: 2, maxWidth: "1200px", margin: "0 auto", padding: "24px 24px 0", width: "100%" }}>
  
             {/* Eyebrow badge */}
             <div style={{ marginBottom: "24px" }}>

@@ -445,7 +445,7 @@ const EnhancedProfilePage: React.FC = () => {
 
   const handleFinalSave = async () => {
     const success = await saveProfileData(true);
-    if (success) setTimeout(() => router.push("/create-cover-letter"), 800);
+    if (success) setTimeout(() => router.push("/"), 800);
   };
 
   // ════════════════════════════════════════════════════════════════
@@ -728,7 +728,7 @@ const EnhancedProfilePage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="md:col-span-2"><label className={styles.label}>Oppilaitos *</label><input type="text" value={edu.school} onChange={(e) => handleArrayItemChange("education", edu.id, "school", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="Koulun nimi" /></div>
                   <div className="md:col-span-2"><label className={styles.label}>Tutkinto *</label><input type="text" value={edu.degree} onChange={(e) => handleArrayItemChange("education", edu.id, "degree", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="Esim. Tradenomi" /></div>
-                  <div><label className={styles.label}>Vuosi *</label><input type="text" value={edu.year} onChange={(e) => handleArrayItemChange("education", edu.id, "year", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="2024" /></div>
+                  <div><label className={styles.label}>Päättymisvuosi *</label><input type="text" value={edu.year} onChange={(e) => handleArrayItemChange("education", edu.id, "year", e.target.value)} className={`w-full p-3 ${styles.glassInput}`} placeholder="2024" /></div>
                   <div className="flex items-end pb-3">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input type="checkbox" checked={edu.isOngoing} onChange={(e) => handleArrayItemChange("education", edu.id, "isOngoing", e.target.checked)} className="w-5 h-5 rounded text-purple-500 focus:ring-purple-500/50" />

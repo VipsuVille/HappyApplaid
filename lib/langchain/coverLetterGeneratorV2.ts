@@ -113,7 +113,7 @@ async function extractDeepKeywords(jobDescription: string): Promise<{
   const prompt = `Extract keywords from job posting.
 
 Job Posting:
-${jobDescription.substring(0, 3000)}
+${jobDescription.substring(0, 6000)}
 
 Return JSON:
 {
