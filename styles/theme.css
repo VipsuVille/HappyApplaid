@@ -1,23 +1,28 @@
-/* styles/theme.css - DESIGN TOKENS */
+/* styles/theme.css - DESIGN TOKENS
+   ✅ Light mode: lämmin & premium (paperimainen off-white, lämmin charcoal-teksti)
+   ✅ Dark mode: korjattu muted-bugi
+   Periaate: matala saturaatio neutraaleissa, lämpimät sävyt, oranssi vain korostuksena. */
 
 :root {
   /* =========================
      BRAND COLORS
      ========================= */
-  --brand-primary: 24 94% 53%;
-  --brand-secondary: 38 92% 50%;
+  --brand-primary: 24 94% 53%;     /* oranssi */
+  --brand-secondary: 38 92% 50%;   /* amber */
 
   /* =========================
-     LIGHT MODE (DEFAULT)
+     LIGHT MODE (DEFAULT) — lämmin paperi
      ========================= */
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
+  /* Tausta: lämmin off-white, ei puhdas valkoinen → pehmeämpi, premium */
+  --background: 36 33% 97%;        /* #faf8f4 lämmin paperi */
+  --foreground: 24 12% 16%;        /* lämmin charcoal (ei sininen) */
 
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 40%;
+  /* Kortit: hitusen vaaleampi kuin tausta → hienovarainen syvyys */
+  --card: 40 40% 99%;              /* lähes valkoinen, lämmin */
+  --card-foreground: 24 10% 28%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
+  --popover: 40 40% 99%;
+  --popover-foreground: 24 12% 16%;
 
   /* =========================
      UI SEMANTICS
@@ -25,20 +30,22 @@
   --primary: var(--brand-primary);
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 38 92% 95%;
-  --secondary-foreground: 38 92% 20%;
+  --secondary: 36 38% 93%;         /* lämmin vaalea (napit/chipit) */
+  --secondary-foreground: 24 20% 25%;
 
   --accent: var(--brand-secondary);
-  --accent-foreground: 0 0% 0%;
+  --accent-foreground: 24 30% 15%;
 
-  --muted: 220 14% 96%;
-  --muted-foreground: 215 20% 45%;
+  /* Muted: lämmin hiekansävy, ei kylmä harmaa */
+  --muted: 36 24% 92%;
+  --muted-foreground: 28 8% 42%;   /* lämmin keskiharmaa, riittävä kontrasti */
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 98%;
 
---border: 220 14% 85%;
-  --input: 220 14% 90%;
+  /* Reunat: pehmeät, lämpimät, matala kontrasti → rauhallinen */
+  --border: 33 18% 86%;
+  --input: 33 18% 88%;
   --ring: var(--brand-primary);
 
   --radius: 0.75rem;
@@ -55,31 +62,32 @@
    DARK MODE
    ========================= */
 .dark {
-  --background: 222 47% 8%;
-  --foreground: 0 0% 98%;
+  --background: 24 12% 9%;         /* lämmin tumma (ei sininen) */
+  --foreground: 36 20% 92%;        /* lämmin off-white teksti */
 
-  --card: 220 26% 14%;
-  --card-foreground: 0 0% 98%;
+  --card: 24 10% 14%;
+  --card-foreground: 36 20% 92%;
 
-  --popover: 220 26% 14%;
-  --popover-foreground: 0 0% 98%;
+  --popover: 24 10% 14%;
+  --popover-foreground: 36 20% 92%;
 
   --primary: var(--brand-primary);
   --primary-foreground: 0 0% 0%;
 
-  --secondary: 38 92% 20%;
-  --secondary-foreground: 38 92% 95%;
+  --secondary: 30 15% 20%;
+  --secondary-foreground: 36 30% 90%;
 
   --accent: var(--brand-secondary);
   --accent-foreground: 0 0% 0%;
 
---muted: 220 14% 94%;
-  --muted-foreground: 215 20% 65%;
+  /* ✅ KORJATTU: muted oli 94% (lähes valkoinen pimeässä → teksti katosi) */
+  --muted: 28 10% 20%;
+  --muted-foreground: 32 12% 62%;
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 220 14% 25%;
-  --input: 220 14% 25%;
+  --border: 28 10% 22%;
+  --input: 28 10% 22%;
   --ring: var(--brand-primary);
 }

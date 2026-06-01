@@ -428,6 +428,28 @@ export default function SmartHeader() {
   // ────────────────────────────────────────────────────────
   //  UNAUTHENTICATED — Riot / Blizzard style
   // ────────────────────────────────────────────────────────
+ // ────────────────────────────────────────────────────────
+  //  UNAUTHENTICATED — simppeli, insinöörimäinen
+  //  Logo korvattu tekstiwordmarkilla (ei kuvalogoa toistaiseksi)
+  // ────────────────────────────────────────────────────────
+
+  // Wordmark: "Happy" neutraali + "Applaid" oranssi. Barlow Condensed, tiivis.
+  const Wordmark = () => (
+    <Link href="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', flexShrink: 0 }}>
+      <span style={{
+        fontFamily: "'Barlow Condensed', sans-serif",
+        fontWeight: 800,
+        fontSize: '1.35rem',
+        letterSpacing: '.02em',
+        textTransform: 'uppercase',
+        lineHeight: 1,
+        color: isDark ? '#f0ece4' : '#1a1714',
+      }}>
+        Happy<span style={{ color: '#f97316' }}>Applaid</span>
+      </span>
+    </Link>
+  );
+
   return (
     <>
       <style>{riotStyles}</style>
@@ -438,137 +460,86 @@ export default function SmartHeader() {
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          height: '64px',
+          height: '60px',
           background: scrolled
-            ? (isDark ? 'rgba(8,8,8,.98)' : 'rgba(245,244,240,.98)')
-            : (isDark ? 'rgba(8,8,8,.7)' : 'rgba(245,244,240,.7)'),
+            ? (isDark ? 'rgba(24,21,18,.98)' : 'rgba(250,248,244,.98)')
+            : (isDark ? 'rgba(24,21,18,.75)' : 'rgba(250,248,244,.75)'),
           backdropFilter: 'blur(20px)',
-          borderBottom: `1px solid ${isDark ? 'rgba(249,115,22,.15)' : 'rgba(249,115,22,.2)'}`,
-          transition: 'background .3s, box-shadow .3s',
+          borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)'}`,
+          transition: 'background .3s, box-shadow .3s, border-color .3s',
           display: 'flex',
           alignItems: 'center',
         }}
       >
-        {/* Bottom accent line */}
-        <div className="ha-header-line" />
+        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
 
-        <div style={{ maxWidth: '1280px', width: '100%', margin: '0 auto', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          {/* Vasen: wordmark */}
+          <Wordmark />
 
-          {/* Logo */}
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-            <Image src="/logo.png" alt="HappyApplaid" width={120} height={32} style={{ width: 'clamp(100px, 14vw, 140px)', height: 'auto' }} />
-          </Link>
+          {/* Oikea: kaikki toiminnot yhdessä ryhmässä — selkeä, ei keskinaviä */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className="desktop-actions">
+            <a href="/ats-checker" className="ha-nav-link">{t.atsChecker}</a>
+            <a href={pricingAnchor} className="ha-nav-link">{t.pricing}</a>
 
-          {/* Desktop center nav — minimal, Riot-style */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, justifyContent: 'center' }} className="desktop-nav">
-            <a href={pricingAnchor} className="ha-nav-link">
-              <PricingIcon size={13} />
-              {t.pricing}
-            </a>
-            {/* Optional: link to about/blog if exists */}
-            <a href="/ats-checker" className="ha-nav-link">
-              <Shield size={13} />
-              ATS Check
-            </a>
-          </nav>
+            <div style={{ width: '1px', height: '20px', background: isDark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)', margin: '0 4px' }} />
 
-          {/* Desktop right side */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }} className="desktop-actions">
-
-            {/* Theme toggle */}
             <ThemeToggle />
+            <button className="ha-lang-btn" onClick={toggleLanguage}>{t.toggleLang}</button>
 
-            {/* Lang toggle */}
-            <button className="ha-lang-btn" onClick={toggleLanguage}>
-              <Languages size={12} />
-              {t.toggleLang}
-            </button>
-
-            {/* Sign In */}
             <SignInButton mode="modal" appearance={clerkAppearance}>
               <button className="ha-btn-ghost">{t.signIn}</button>
             </SignInButton>
-
-            {/* Sign Up CTA */}
             <SignUpButton mode="modal" appearance={clerkAppearance}>
-              <button className="ha-btn-cta">
-                <Sparkles size={14} />
-                {t.signUp}
-              </button>
+              <button className="ha-btn-cta">{t.signUp}</button>
             </SignUpButton>
           </div>
 
           {/* Mobile hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            style={{
-              display: 'none',
-              padding: '8px',
-              background: 'transparent',
-              border: 'none',
-              color: isDark ? 'rgba(240,236,228,.7)' : 'rgba(17,17,17,.6)',
-              cursor: 'pointer',
-            }}
+            style={{ display: 'none', padding: '8px', background: 'transparent', border: 'none', color: isDark ? 'rgba(240,236,228,.7)' : 'rgba(17,17,17,.6)', cursor: 'pointer' }}
             className="mobile-hamburger"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
-        {/* ── MOBILE MENU (unauthenticated) ── */}
+        {/* ── MOBILE MENU ── */}
         {mobileMenuOpen && (
           <div className="ha-mobile-menu">
             <div style={{ padding: '8px 0' }}>
-
-              {/* Nav links */}
               <a href="/" className="ha-mobile-link" onClick={() => setMobileMenuOpen(false)}>
-                <Home size={18} style={{ color: '#f97316' }} />
-                {t.home}
+                <Home size={18} style={{ color: '#f97316' }} />{t.home}
               </a>
               <a href="/ats-checker" className="ha-mobile-link" onClick={() => setMobileMenuOpen(false)}>
-                <Shield size={18} style={{ color: '#f97316' }} />
-                ATS Check
+                <Shield size={18} style={{ color: '#f97316' }} />{t.atsChecker}
               </a>
               <a href={pricingAnchor} className="ha-mobile-link" onClick={() => setMobileMenuOpen(false)}>
-                <PricingIcon size={18} style={{ color: '#f97316' }} />
-                {t.pricing}
+                <PricingIcon size={18} style={{ color: '#f97316' }} />{t.pricing}
               </a>
 
-              {/* Divider */}
               <div style={{ height: '1px', background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.07)', margin: '8px 0' }} />
 
-              {/* Theme toggle row */}
               <div className="ha-mobile-link" style={{ justifyContent: 'space-between', cursor: 'default' }}>
                 <span style={{ color: isDark ? 'rgba(240,236,228,.5)' : 'rgba(17,17,17,.5)' }}>
                   {language === 'en' ? 'Dark mode' : 'Tumma tila'}
                 </span>
                 <ThemeToggle />
               </div>
-
-              {/* Lang */}
-              <button
-                className="ha-mobile-link"
-                onClick={() => { toggleLanguage(); setMobileMenuOpen(false); }}
-                style={{ width: '100%', textAlign: 'left' }}
-              >
+              <button className="ha-mobile-link" onClick={() => { toggleLanguage(); setMobileMenuOpen(false); }} style={{ width: '100%', textAlign: 'left' }}>
                 <Languages size={18} style={{ color: isDark ? 'rgba(240,236,228,.4)' : 'rgba(17,17,17,.4)' }} />
                 {language === 'en' ? 'Suomeksi' : 'In English'}
               </button>
 
-              {/* Divider */}
               <div style={{ height: '1px', background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.07)', margin: '8px 0' }} />
 
-              {/* Auth CTAs */}
               <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <SignInButton mode="modal" appearance={clerkAppearance}>
-                  <button className="ha-btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>
-                    {t.signIn}
-                  </button>
+                  <button className="ha-btn-ghost" style={{ width: '100%', justifyContent: 'center' }}>{t.signIn}</button>
                 </SignInButton>
                 <SignUpButton mode="modal" appearance={clerkAppearance}>
                   <button className="ha-btn-cta" style={{ width: '100%', justifyContent: 'center', clipPath: 'none' }}>
-                    <Sparkles size={16} />
-                    {t.signUp}
+                    <Sparkles size={16} />{t.signUp}
                   </button>
                 </SignUpButton>
               </div>
@@ -576,10 +547,8 @@ export default function SmartHeader() {
           </div>
         )}
 
-        {/* Responsive styles via inline style tag */}
         <style>{`
           @media (max-width: 768px) {
-            .desktop-nav { display: none !important; }
             .desktop-actions { display: none !important; }
             .mobile-hamburger { display: flex !important; }
           }
