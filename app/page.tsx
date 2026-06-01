@@ -296,14 +296,14 @@ export default function Home() {
  
       /* ══ LIGHT THEME ══ */
       .ha-landing.ha-light {
-        --bg:      #f5f4f0;
-        --bg-2:    #eeede9;
-        --bg-3:    #e8e7e2;
+  --bg:      #faf8f4;   /* oli #f5f4f0 — lämpimämpi */
+  --bg-2:    #f4f1ea;
+  --bg-3:    #efebe2;
+  --text:    #1a1714;   /* lämmin charcoal, oli #111 */
+  --gray-mid: #6b6359;  /* lämpimämpi harmaa */
         --border:  rgba(0,0,0,.08);
         --border-strong: rgba(0,0,0,.15);
-        --text:    #111;
         --gray-dim: #888;
-        --gray-mid: #555;
         --gray-light: #333;
         --card-top: rgba(249,115,22,.4);
         --stat-sep: rgba(0,0,0,.07);
