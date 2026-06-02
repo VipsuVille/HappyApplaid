@@ -238,6 +238,10 @@ useEffect(() => {
           ...data, cv_data: cvDataParsed, ai_data: aiDataParsed,
           content: { ...(data.content || {}), cv_data: cvDataParsed, ai_data: aiDataParsed },
         };
+        console.log('🎓 LATAUS cv_data.education:', JSON.stringify(cvDataParsed?.education));
+console.log('🎓 LATAUS ai_data.education:', JSON.stringify(aiDataParsed?.education));
+console.log('🎓 LATAUS ai_data.education_section:', JSON.stringify(aiDataParsed?.education_section));
+console.log('🎓 LATAUS koko ai_data avaimet:', aiDataParsed ? Object.keys(aiDataParsed) : null);
         setCvData(processed);
         historyRef.current = [];
 
