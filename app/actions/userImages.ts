@@ -141,54 +141,37 @@ export async function uploadUserImageAction(
   if (!file) return { ok: false, error: 'Tiedosto puuttuu' };
   if (file.size > 5 * 1024 * 1024) return { ok: false, error: 'Max 5 MB' };
 
-  try {
+try {
+    console.log('📤 [upload] START', { name: file.name, size: file.size, type: file.type, imageType });
+
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-    // ✅ RAKENNE: {userId}/profiles|backgrounds/timestamp.ext (userId ensin → RLS-valmis)
     const folder = imageType === 'profile' ? 'profiles' : 'backgrounds';
     const filePath = `${userId}/${folder}/${Date.now()}.${ext}`;
+    console.log('📤 [upload] path:', filePath);
 
     const arrayBuffer = await file.arrayBuffer();
+    console.log('📤 [upload] arrayBuffer ok, bytes:', arrayBuffer.byteLength);
+
     const { error: upErr } = await supabaseAdmin.storage
       .from('cv_files')
-      .upload(filePath, arrayBuffer, {
-        contentType: file.type || 'image/jpeg',
-        upsert: false,
-      });
+      .upload(filePath, arrayBuffer, { contentType: file.type || 'image/jpeg', upsert: false });
+    console.log('📤 [upload] storage.upload done, err:', upErr);
     if (upErr) throw upErr;
 
     const { data: row, error: dbErr } = await supabaseAdmin
       .from('default_images')
-      .insert({
-        user_id: userId,
-        image_type: imageType,
-        file_path: filePath,     // ✅ PYSYVÄ polku
-        name: file.name,
-        is_active: true,
-        is_ai_generated: false,
-      })
-      .select()
-      .single();
+      .insert({ user_id: userId, image_type: imageType, file_path: filePath, name: file.name, is_active: true, is_ai_generated: false })
+      .select().single();
+    console.log('📤 [upload] db.insert done, err:', dbErr, 'rowId:', row?.id);
     if (dbErr) throw dbErr;
 
     const { data: urlData } = await supabaseAdmin.storage
-      .from('cv_files')
-      .createSignedUrl(filePath, SIGNED_URL_TTL);
+      .from('cv_files').createSignedUrl(filePath, SIGNED_URL_TTL);
+    console.log('📤 [upload] signedUrl done:', !!urlData?.signedUrl);
 
-    return {
-      ok: true,
-      image: {
-        id: row.id,
-        image_type: imageType,
-        file_path: filePath,
-        name: file.name,
-        is_active: true,
-        is_ai_generated: false,
-        created_at: row.created_at,
-        signedUrl: urlData?.signedUrl,
-      },
-    };
+    return { ok: true, image: { id: row.id, image_type: imageType, file_path: filePath, name: file.name, is_active: true, is_ai_generated: false, created_at: row.created_at, signedUrl: urlData?.signedUrl } };
   } catch (e: any) {
-    console.error('❌ uploadUserImageAction error:', e);
+    console.error('❌ [upload] FAILED:', e);
     return { ok: false, error: e?.message || 'Lataus epäonnistui' };
   }
 }
