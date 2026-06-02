@@ -79,6 +79,8 @@ function buildCLData(raw: CLRawRecord): CLData {
     band: content.band,
     image: content.image,
     regions: content.regions,
+        closingText: content.closingText,   // ✅ LISÄÄ TÄMÄ
+
   };
 
   return {

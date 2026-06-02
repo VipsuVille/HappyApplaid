@@ -75,6 +75,7 @@ export interface CLStyle {
   text: TextSettings;
   signatureStyle: SignatureStyle;
   showDate: boolean;
+  closingText?: string;
 
   // ✅ uudet, valinnaiset
   banner?: BannerStyle;
