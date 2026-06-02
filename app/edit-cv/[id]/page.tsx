@@ -9,7 +9,7 @@ import {
   Eye, Edit3, FileText, X, Camera, Undo2, Briefcase, Plus
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
-import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
+import { getAllAvailableImagesAction, uploadUserImageAction, type UserImage } from '@/app/actions/userImages';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
 import TechnicalCVTemplate, { type SectionScales, type ColumnScales, type LayoutConfig } from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
@@ -59,6 +59,7 @@ const [profileEducation, setProfileEducation] = useState<StructuredEducation[]>(
   // ── Typography controls ────────────────────────────────────────────
   const [fontScale, setFontScale] = useState(1.0);
   const [lineScale, setLineScale] = useState(1.0);
+const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   // ── Per-osio / per-palsta tilankäyttö ──────────────────────────────
   const [sectionScales, setSectionScales] = useState<SectionScales>({});
@@ -213,12 +214,12 @@ useEffect(() => {
         }
         if (!Array.isArray(cvDataParsed?.skills)) cvDataParsed.skills = [];
 
-        const processImg = (url?: string | null): string => {
+   const processImg = (url?: string | null): string => {
           if (!url?.trim()) return '';
           const t = url.trim();
           if (t.startsWith('data:image') || t.startsWith('http')) return t;
-          if (t.includes('/')) return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/cv_files/${t}`;
-          return '';
+          // Pysyvä polku → jätä ennalleen, resolveImg muuntaa signed URL:ksi
+          return t;
         };
 
         const profileImage = processImg(data.profile_image || cvDataParsed?.profileImage || aiDataParsed?.profile_image || cvDataParsed?.photo);
@@ -247,6 +248,11 @@ console.log('🎓 LATAUS koko ai_data avaimet:', aiDataParsed ? Object.keys(aiDa
 
         const images = await getAllAvailableImagesAction();
         setAvailableImages(images);
+        const urlMap: Record<string, string> = {};
+[...images.profileImages, ...images.backgroundImages].forEach(img => {
+  if (img.file_path && img.signedUrl) urlMap[img.file_path] = img.signedUrl;
+});
+setSignedUrls(urlMap);
       } catch (err) {
         console.error('Load error:', err);
         toast.error('CV:n lataaminen epäonnistui');
@@ -399,25 +405,57 @@ if (!isNaN(Number(last))) {
   }, [pushHistory]);
 
   // ── Image handlers ─────────────────────────────────────────────────
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'profileImage' | 'backgroundImage') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error('Max 5 MB'); return; }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      handleUpdate(type, reader.result as string);
-      setShowProfileModal(false); setShowBgModal(false);
-      toast.success('Kuva ladattu!');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSelectImage = (img: UserImage, type: 'profileImage' | 'backgroundImage') => {
-    handleUpdate(type, img.signedUrl || '');
-    setShowProfileModal(false); setShowBgModal(false);
-    toast.success('Kuva valittu!');
-  };
-
+const handleImageUpload = async (
+  e: React.ChangeEvent<HTMLInputElement>,
+  type: 'profileImage' | 'backgroundImage'
+) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { toast.error('Max 5 MB'); return; }
+ 
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('imageType', type === 'profileImage' ? 'profile' : 'background');
+ 
+  toast.loading('Ladataan kuvaa…', { id: 'imgup' });
+  const res = await uploadUserImageAction(fd);
+  toast.dismiss('imgup');
+ 
+  if (!res.ok || !res.image) { toast.error(res.error || 'Lataus epäonnistui'); return; }
+ 
+  // CV:hen pysyvä polku
+  handleUpdate(type, res.image.file_path);
+ 
+  // Muista signed URL näyttöä varten + lisää galleriaan
+  if (res.image.signedUrl) {
+    setSignedUrls(prev => ({ ...prev, [res.image!.file_path]: res.image!.signedUrl! }));
+  }
+  setAvailableImages(prev => ({
+    profileImages: type === 'profileImage' ? [res.image!, ...prev.profileImages] : prev.profileImages,
+    backgroundImages: type === 'backgroundImage' ? [res.image!, ...prev.backgroundImages] : prev.backgroundImages,
+  }));
+ 
+  setShowProfileModal(false); setShowBgModal(false);
+  toast.success('Kuva ladattu!');
+};
+ 
+const handleSelectImage = (img: UserImage, type: 'profileImage' | 'backgroundImage') => {
+  // CV:hen pysyvä polku (EI signed URL — se vanhenee 7 pv)
+  handleUpdate(type, img.file_path);
+ 
+  // Muista signed URL näyttöä varten
+  if (img.signedUrl) {
+    setSignedUrls(prev => ({ ...prev, [img.file_path]: img.signedUrl! }));
+  }
+ 
+  setShowProfileModal(false); setShowBgModal(false);
+  toast.success('Kuva valittu!');
+};
+const resolveImg = useCallback((val?: string): string => {
+  if (!val) return '';
+  if (val.startsWith('http') || val.startsWith('data:')) return val;
+  return signedUrls[val] || '';
+}, [signedUrls]);
   const updateFontScale = useCallback((val: number) => {
     setFontScale(val);
     handleUpdate('fontScale', val);
@@ -499,6 +537,13 @@ if (!isNaN(Number(last))) {
         columnScales,
         layout,
       };
+            // SUOJA: älä koskaan tallenna base64-data-URL:ia kantaan (timeout 57014)
+      if (typeof final.profileImage === 'string' && final.profileImage.startsWith('data:')) {
+        final.profileImage = '';
+      }
+      if (typeof final.backgroundImage === 'string' && final.backgroundImage.startsWith('data:')) {
+        final.backgroundImage = '';
+      }
 
       await updateCV(id, {
         content: { cv_data: final, ai_data: cvData.ai_data || {} },
@@ -528,6 +573,13 @@ if (!isNaN(Number(last))) {
           columnScales,
           layout,
         };
+              // SUOJA: älä koskaan tallenna base64-data-URL:ia kantaan (timeout riski)
+      if (typeof final.profileImage === 'string' && final.profileImage.startsWith('data:')) {
+        final.profileImage = '';
+      }
+      if (typeof final.backgroundImage === 'string' && final.backgroundImage.startsWith('data:')) {
+        final.backgroundImage = '';
+      }
         await updateCV(id, {
           content: { cv_data: final, ai_data: cvData.ai_data || {} },
           profile_image: final.profileImage || '',
@@ -561,13 +613,18 @@ if (!isNaN(Number(last))) {
   const renderTemplate = (editingOverride?: boolean) => {
     if (!cvData) return null;
     const cvd = cvData.cv_data || cvData.content?.cv_data || {};
+        const cvdResolved = {
+      ...cvd,
+      profileImage: resolveImg(cvd.profileImage),
+      backgroundImage: resolveImg(cvd.backgroundImage),
+    };
     const aid = cvData.ai_data || cvData.content?.ai_data || {};
     const type = cvd?.cvType || aid?.cv_type || cvData.metadata?.cv_type || 'simple';
     const Comp: any = type === 'technical' ? TechnicalCVTemplate : type === 'creative' ? CreativeCVTemplate : SimpleCVTemplate;
     const editing = editingOverride ?? isEditing;
     return (
       <CVContainer>
-        <Comp data={cvd} aiData={aid} isEditing={editing}
+        <Comp data={cvdResolved} aiData={aid} isEditing={editing}
           onUpdate={handleUpdate} onDelete={handleDelete}
           showEditControls={false} editMode={null}
           fontScale={fontScale} lineScale={lineScale}
@@ -625,8 +682,8 @@ const missingEducation = profileEducation.filter(
     </div>
   );
 
-  const currentProfile = cvData.cv_data?.profileImage || cvData.ai_data?.profile_image || '';
-  const currentBg = cvData.cv_data?.backgroundImage || cvData.ai_data?.background_image || '';
+const currentProfile = resolveImg(cvData.cv_data?.profileImage || cvData.ai_data?.profile_image || '');
+  const currentBg = resolveImg(cvData.cv_data?.backgroundImage || cvData.ai_data?.background_image || '');
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc]">
