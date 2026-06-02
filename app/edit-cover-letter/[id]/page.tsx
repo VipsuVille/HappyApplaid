@@ -254,11 +254,20 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
   };
 
   // Aseta valitulle tekstille TARKKA koko (px) — kääräisee valinnan <span>:iin
-  const setSelectionFontSize = (px: number) => {
+ const setSelectionFontSize = (px: number) => {
     const clamped = Math.max(6, Math.min(160, px));
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
     const range = sel.getRangeAt(0);
+
+    // Talteen: mihin contentEditable-elementtiin valinta osuu (leipätekstin editori)
+    let editableEl: HTMLElement | null = range.startContainer.nodeType === Node.TEXT_NODE
+      ? range.startContainer.parentElement
+      : (range.startContainer as HTMLElement);
+    while (editableEl && !editableEl.isContentEditable) {
+      editableEl = editableEl.parentElement;
+    }
+
     const span = document.createElement('span');
     span.style.fontSize = `${clamped}px`;
     try {
@@ -274,7 +283,14 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
     const r = document.createRange();
     r.selectNodeContents(span);
     sel.addRange(r);
+
     setSelFontSize(clamped);
+
+    // ✅ Synkronoi muokattu DOM takaisin content-tilaan, muuten koko ei tallennu.
+    // Laukaise sama input-tapahtuma jota onBodyChange jo kuuntelee.
+    if (editableEl) {
+      editableEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   };
 
   // ±1 px hienosäätö (− / + napit)
@@ -490,8 +506,7 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
         onBodyChange={setContent}
         onFieldChange={(field, value) => handleFieldChange(field, value)}
         onStyleChange={(patch) => {
-            console.log('🎨 onStyleChange patch:', patch);   // ← LISÄÄ
-
+  console.log('🎨 patch:', patch);
           setStyleSettings(prev => ({
             ...prev,
             ...(patch.accentColor ? { headerColor: patch.accentColor } : {}),
