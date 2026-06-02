@@ -538,12 +538,8 @@ const resolveImg = useCallback((val?: string): string => {
         layout,
       };
             // SUOJA: älä koskaan tallenna base64-data-URL:ia kantaan (timeout 57014)
-      if (typeof final.profileImage === 'string' && final.profileImage.startsWith('data:')) {
-        final.profileImage = '';
-      }
-      if (typeof final.backgroundImage === 'string' && final.backgroundImage.startsWith('data:')) {
-        final.backgroundImage = '';
-      }
+      if (typeof final.profileImage === 'string' && final.profileImage.startsWith('data:')) final.profileImage = '';
+if (typeof final.backgroundImage === 'string' && final.backgroundImage.startsWith('data:')) final.backgroundImage = '';
 
       await updateCV(id, {
         content: { cv_data: final, ai_data: cvData.ai_data || {} },
@@ -574,12 +570,8 @@ const resolveImg = useCallback((val?: string): string => {
           layout,
         };
               // SUOJA: älä koskaan tallenna base64-data-URL:ia kantaan (timeout riski)
-      if (typeof final.profileImage === 'string' && final.profileImage.startsWith('data:')) {
-        final.profileImage = '';
-      }
-      if (typeof final.backgroundImage === 'string' && final.backgroundImage.startsWith('data:')) {
-        final.backgroundImage = '';
-      }
+if (typeof final.profileImage === 'string' && final.profileImage.startsWith('data:')) final.profileImage = '';
+if (typeof final.backgroundImage === 'string' && final.backgroundImage.startsWith('data:')) final.backgroundImage = '';
         await updateCV(id, {
           content: { cv_data: final, ai_data: cvData.ai_data || {} },
           profile_image: final.profileImage || '',
