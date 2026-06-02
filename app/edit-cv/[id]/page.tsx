@@ -411,36 +411,66 @@ const handleImageUpload = async (
 ) => {
   const file = e.target.files?.[0];
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { toast.error('Max 5 MB'); return; }
- 
- const reader = new FileReader();
-reader.onloadend = async () => {
-  const dataUrl = reader.result as string;
+  if (file.size > 10 * 1024 * 1024) { toast.error('Max 10 MB'); e.target.value=''; return; }
+
   toast.loading('Ladataan kuvaa…', { id: 'imgup' });
-  const res = await uploadUserImageBase64Action(dataUrl, file.name,
-    type === 'profileImage' ? 'profile' : 'background');
-  toast.dismiss('imgup');
- 
-  if (!res.ok || !res.image) { toast.error(res.error || 'Lataus epäonnistui'); return; }
- 
-  // CV:hen pysyvä polku
-  handleUpdate(type, res.image.file_path);
- 
-  // Muista signed URL näyttöä varten + lisää galleriaan
-  if (res.image.signedUrl) {
-    setSignedUrls(prev => ({ ...prev, [res.image!.file_path]: res.image!.signedUrl! }));
+  try {
+    // 1) Lue kuva
+    const dataUrl: string = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onloadend = () => res(r.result as string);
+      r.onerror = () => rej(new Error('Luku epäonnistui'));
+      r.readAsDataURL(file);
+    });
+
+    // 2) Piirrä canvasiin ja pienennä
+    const img = new Image();
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error('Kuvan avaus epäonnistui'));
+      img.src = dataUrl;
+    });
+
+    // Profiilikuva max 600px, taustakuva max 1600px (leveämpi)
+    const maxDim = type === 'profileImage' ? 600 : 1600;
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      if (width >= height) { height = Math.round(height * maxDim / width); width = maxDim; }
+      else { width = Math.round(width * maxDim / height); height = maxDim; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // 3) Pakkaa JPEG 0.85 → pieni dataUrl
+    const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+    // 4) Lähetä Server Actioniin (nyt pieni, ~100-300 kB)
+    const res = await uploadUserImageBase64Action(
+      resizedDataUrl,
+      file.name.replace(/\.\w+$/, '.jpg'),
+      type === 'profileImage' ? 'profile' : 'background'
+    );
+    toast.dismiss('imgup');
+    if (!res.ok || !res.image) { toast.error(res.error || 'Lataus epäonnistui'); e.target.value=''; return; }
+
+    handleUpdate(type, res.image.file_path);
+    if (res.image.signedUrl) {
+      setSignedUrls(prev => ({ ...prev, [res.image!.file_path]: res.image!.signedUrl! }));
+    }
+    setAvailableImages(prev => ({
+      profileImages: type === 'profileImage' ? [res.image!, ...prev.profileImages] : prev.profileImages,
+      backgroundImages: type === 'backgroundImage' ? [res.image!, ...prev.backgroundImages] : prev.backgroundImages,
+    }));
+    setShowProfileModal(false); setShowBgModal(false);
+    toast.success('Kuva ladattu!');
+  } catch (err: any) {
+    toast.dismiss('imgup');
+    toast.error(err?.message || 'Lataus epäonnistui');
+  } finally {
+    e.target.value = '';
   }
-  setAvailableImages(prev => ({
-    profileImages: type === 'profileImage' ? [res.image!, ...prev.profileImages] : prev.profileImages,
-    backgroundImages: type === 'backgroundImage' ? [res.image!, ...prev.backgroundImages] : prev.backgroundImages,
-  }));
- 
-  setShowProfileModal(false); setShowBgModal(false);
-  toast.success('Kuva ladattu!');
-  };
-  reader.onerror = () => { toast.dismiss('imgup'); toast.error('Tiedoston luku epäonnistui'); };
-  e.target.value = '';
-  reader.readAsDataURL(file);
 };
  
 const handleSelectImage = (img: UserImage, type: 'profileImage' | 'backgroundImage') => {
