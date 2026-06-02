@@ -43,6 +43,7 @@ interface StyleSettings {
   templateStyle: string;
   signatureStyle: 'script' | 'print' | 'bold';
   fontFamily: 'serif' | 'sans' | 'classic' | 'modern';
+    closingText?: string;   // ✅ LISÄÄ
   textColor: string;
   banner?: { color?: string; heightMm?: number; textColor?: string };
   band?: { color?: string; heightMm?: number };
@@ -162,6 +163,7 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
             sidebarContent: l.content?.sidebarContent || 'contact',
             fontSize: l.content?.fontSize || 11,
             lineHeight: l.content?.lineHeight || 1.8,
+            closingText: l.content?.closingText,
             textAlign: l.content?.textAlign || 'justify',
             templateStyle: tpl,
             signatureStyle: l.content?.signatureStyle || 'script',
@@ -328,6 +330,7 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
     background: styleSettings.background,
     banner: styleSettings.banner,
     band: styleSettings.band,
+    closingText: styleSettings.closingText,
     image: styleSettings.image,
     regions: styleSettings.regions,
     divider: {
@@ -441,6 +444,7 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
       contactInfo: { name, email, phone, location },
       job_title: jobTitle,
       company_name: companyName,
+      closingText: styleSettings.closingText,
       language: letterData.content?.language || 'finnish',
       headerColor: styleSettings.headerColor,
       accentColor: styleSettings.headerColor,
@@ -497,6 +501,7 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
             ...(patch.text?.lineHeight ? { lineHeight: patch.text.lineHeight } : {}),
             ...(patch.text?.textAlign ? { textAlign: patch.text.textAlign } : {}),
             ...(patch.text?.textColor ? { textColor: patch.text.textColor } : {}),
+            ...(patch.closingText !== undefined ? { closingText: patch.closingText } : {}),
           }));
         }}
       />
