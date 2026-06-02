@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
     return `build-${Date.now()}-${Math.random().toString(36).substring(7)}`
   },
 
+  // ✅ Server Actions: nosta body-raja jotta kuvat (megatavuja) menevät läpi.
+  //    Oletus on 1 MB → kuva ylittää → 400 "unexpected response".
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '8mb',
+    },
+  },
+
   // Kuvien optimointi
   images: {
     remotePatterns: [
