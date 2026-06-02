@@ -15,7 +15,8 @@ import TechnicalCVTemplate, { type SectionScales, type ColumnScales, type Layout
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
 import CVContainer from '@/components/cv/CVContainer';
 import { toast } from 'sonner';
-import { mapProfileJobToStructured, jobLikelyExists, mapProfileProjectToStructured, projectLikelyExists, type StructuredExperience, type StructuredProject, experienceKey } from '@/lib/cv/profileToStructured';
+
+import { mapProfileJobToStructured, jobLikelyExists, mapProfileProjectToStructured, projectLikelyExists, mapProfileEducationToStructured, educationLikelyExists, type StructuredExperience, type StructuredProject, type StructuredEducation, experienceKey } from '@/lib/cv/profileToStructured';
 interface BaseCV {
   id: string; user_id: string; title?: string; created_at: string;
   content?: any; cv_data: any; ai_data: any;
@@ -42,6 +43,7 @@ const [profileProjects, setProfileProjects] = useState<StructuredProject[]>([]);
   const [contentHeightPx, setContentHeightPx] = useState(0);
 const [loadKey, setLoadKey] = useState(0);
 const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
+const [profileEducation, setProfileEducation] = useState<StructuredEducation[]>([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showBgModal, setShowBgModal] = useState(false);
   // Vaihe 3: esikatselu-bongahdus + mobiilivälilehti
@@ -49,7 +51,7 @@ const [profileJobs, setProfileJobs] = useState<StructuredExperience[]>([]);
   const [mobileTab, setMobileTab] = useState<'edit' | 'preview'>('edit');
   const [showMiniPreview, setShowMiniPreview] = useState(true);
   // Ehdotusten pudotusvalikot (työ / projektit)
-  const [openSuggest, setOpenSuggest] = useState<null | 'jobs' | 'projects'>(null);
+  const [openSuggest, setOpenSuggest] = useState<null | 'jobs' | 'projects' | 'education'>(null);
   const [availableImages, setAvailableImages] = useState<{
     profileImages: UserImage[]; backgroundImages: UserImage[];
   }>({ profileImages: [], backgroundImages: [] });
@@ -259,14 +261,18 @@ useEffect(() => {
         setProfileJobs(jobs.map(mapProfileJobToStructured));
         const ports = Array.isArray(profile?.portfolio_links) ? profile.portfolio_links : [];
         setProfileProjects(ports.map(mapProfileProjectToStructured));
+        const edus = Array.isArray(profile?.education) ? profile.education : [];
+setProfileEducation(edus.map(mapProfileEducationToStructured));
       } catch {
       }
     };
     loadProfileData();
   }, [userId]);
   // ── handleUpdate ───────────────────────────────────────────────────
-  const handleUpdate = useCallback((field: string, value: any) => {
-    setCvData(prev => {
+ const handleUpdate = useCallback((field: string, value: any) => {
+  console.log('UPDATE field:', field, 'value:', value);
+  setCvData(prev => {
+    console.log('  education BEFORE:', JSON.stringify(prev?.cv_data?.education));
       if (!prev) return prev;
       pushHistory(prev);
       const updated = JSON.parse(JSON.stringify(prev));
@@ -335,6 +341,7 @@ if (!isNaN(Number(last))) {
         if (updated.ai_data) updated.ai_data.background_image = value;
         if (updated.content.ai_data) updated.content.ai_data.background_image = value;
       }
+    console.log('  education AFTER:', JSON.stringify(updated.cv_data?.education));
 
       return updated;
     });
@@ -353,6 +360,13 @@ if (!isNaN(Number(last))) {
     handleUpdate(`projects.${len}`, proj);
     toast.success(`Lisätty projekti: ${proj.title}`);
   }, [cvData, handleUpdate]);
+  const handleAddEducationFromProfile = useCallback((edu: StructuredEducation) => {
+  const len = Array.isArray(cvData?.cv_data?.education)
+    ? cvData.cv_data.education.length
+    : 0;
+  handleUpdate(`education.${len}`, edu);
+  toast.success(`Lisätty koulutus: ${edu.degree || edu.school || ''}`);
+}, [cvData, handleUpdate]);
   // ── handleDelete ───────────────────────────────────────────────────
   const handleDelete = useCallback((field: string, index: number) => {
     setCvData(prev => {
@@ -579,6 +593,13 @@ if (!isNaN(Number(last))) {
   const missingProjects = profileProjects.filter(
     (proj) => !projectLikelyExists(proj, currentProjects)
   );
+  const currentEducation: any[] = Array.isArray(cvData?.cv_data?.education)
+  ? cvData.cv_data.education
+  : [];
+
+const missingEducation = profileEducation.filter(
+  (edu) => !educationLikelyExists(edu, currentEducation)
+);
   // ── Scale ──────────────────────────────────────────────────────────
   const A4_PX = 794;
   const scale = isMobile ? 0.42 : previewWidth > 0 ? Math.min(1, (previewWidth - 32) / A4_PX) : 0.78;
@@ -980,7 +1001,7 @@ if (!isNaN(Number(last))) {
               Mobiilissa ensin (order-1), desktopissa oikealla (order-2). */}
           <div className={`lg:col-span-9 order-1 lg:order-2 space-y-4 ${isEditing && mobileTab === 'edit' ? 'hidden lg:block' : ''}`}>
           {/* Ehdotukset profiilista — kompaktit plus-napit (näkyy previewn yläpuolella) */}
-          {isEditing && (missingJobs.length > 0 || missingProjects.length > 0) && (
+          {isEditing && (missingJobs.length > 0 || missingProjects.length > 0  || missingEducation.length > 0) && (
             <div className="flex flex-wrap items-start gap-2">
 
               {/* Työkokemus + */}
@@ -1059,8 +1080,44 @@ if (!isNaN(Number(last))) {
                   )}
                 </div>
               )}
-
+{/* Koulutus + */}
+{missingEducation.length > 0 && (
+  <div className="relative">
+    <button
+      onClick={() => setOpenSuggest(openSuggest === 'education' ? null : 'education')}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+        openSuggest === 'education'
+          ? 'bg-emerald-500 text-white border-emerald-500'
+          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+      }`}
+    >
+      <FileText className="w-3.5 h-3.5" />
+      Koulutus
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-emerald-500/20 text-[10px]">{missingEducation.length}</span>
+      <Plus className="w-3.5 h-3.5" />
+    </button>
+    {openSuggest === 'education' && (
+      <div className="absolute left-0 top-full mt-1 z-50 w-72 max-w-[80vw] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-2 max-h-72 overflow-y-auto">
+        <p className="text-[11px] text-gray-500 px-2 py-1">Profiilisi koulutukset, ei vielä CV:ssä:</p>
+        {missingEducation.map((edu, idx) => (
+          <button
+            key={idx}
+            onClick={() => { handleAddEducationFromProfile(edu); setOpenSuggest(null); }}
+            className="w-full flex items-center justify-between gap-2 p-2 rounded-lg hover:bg-emerald-500/10 text-left transition-colors"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-900 dark:text-white truncate">{edu.degree || edu.school}</span>
+              {edu.school && edu.degree && <span className="block text-xs text-gray-500 truncate">{edu.school}{edu.year ? ` · ${edu.year}` : ''}</span>}
+            </span>
+            <Plus className="w-4 h-4 text-emerald-500 shrink-0" />
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+)}
             </div>
+            
           )}
           {/* Preview — sticky, pysyy näkyvissä kun säätimet vierivät */}
           <div className="lg:sticky lg:top-24 self-start">

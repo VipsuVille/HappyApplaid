@@ -97,3 +97,53 @@ export function projectLikelyExists(
     return false;
   });
 }
+
+// ── KOULUTUS (education) ─────────────────────────────────────────────
+
+export interface StructuredEducation {
+  degree: string;        // tutkinto / nimike, esim. "Datanomi"
+  institution: string;   // oppilaitos, esim. "HAMK" — TEMPLATE lukee tätä
+  school: string;        // alias institutionille (ehdotuslistan näyttöä varten)
+  year: string;          // ajankohta, esim. "2021" tai "2021–2024"
+  details: string[];     // lisätiedot — TEMPLATE lukee tätä
+  bullets: string[];     // alias details:ille
+}
+
+/** Yksi profiilin education-alkio → template-muoto.
+ *  Joustava kenttänimien suhteen (eri lähteet käyttävät eri nimiä). */
+export function mapProfileEducationToStructured(edu: any): StructuredEducation {
+  const degree = edu?.degree || edu?.title || edu?.qualification || edu?.program || edu?.field || "Tutkinto";
+  const institution = edu?.school || edu?.institution || edu?.organization || edu?.university || edu?.name || "";
+  const year = edu?.year || edu?.period || edu?.duration || edu?.dates || edu?.graduationYear || "";
+
+  const details = [
+    edu?.description,
+    typeof edu?.details === "string" ? edu.details : undefined,
+    edu?.thesis,
+  ]
+    .filter((b: any) => typeof b === "string" && b.trim().length > 0)
+    .map((b: string) => b.trim());
+
+  // Palauta sekä template-kentät (institution, details) että aliakset (school, bullets)
+  return { degree, institution, school: institution, year, details, bullets: details };
+}
+
+/** Onko koulutus todennäköisesti jo CV:ssä? (oppilaitos + tutkinto täsmää) */
+export function educationLikelyExists(
+  education: { degree: string; school: string },
+  cvEducation: any[]
+): boolean {
+  const ed = normalizeForMatch(education.degree);
+  const es = normalizeForMatch(education.school);
+
+  return (cvEducation || []).some((e: any) => {
+    const cd = normalizeForMatch(e?.degree || e?.title || e?.qualification);
+    const cs = normalizeForMatch(e?.school || e?.institution || e?.university);
+
+    // Oppilaitos täsmää (kumpi tahansa sisältää toisen) → osuma
+    if (es && cs && (cs.includes(es) || es.includes(cs))) return true;
+    // Tai tutkintonimike täsmää selvästi
+    if (ed && cd && (cd.includes(ed) || ed.includes(cd))) return true;
+    return false;
+  });
+}
