@@ -490,6 +490,8 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
         onBodyChange={setContent}
         onFieldChange={(field, value) => handleFieldChange(field, value)}
         onStyleChange={(patch) => {
+            console.log('🎨 onStyleChange patch:', patch);   // ← LISÄÄ
+
           setStyleSettings(prev => ({
             ...prev,
             ...(patch.accentColor ? { headerColor: patch.accentColor } : {}),
