@@ -314,7 +314,8 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
   };
 
   // ── Sisällön rakennus (tallennus + esikatselu) ──
-  const buildContent = () => ({
+  const buildContent = () =>console.log('💾 closingText:', styleSettings.closingText);
+ ({
     ...letterData?.content,
     contactInfo: { name, email, phone, location },
     body: content,
