@@ -9,7 +9,7 @@ import {
   Eye, Edit3, FileText, X, Camera, Undo2, Briefcase, Plus
 } from 'lucide-react';
 import { fetchCVById, updateCV, deleteCV } from '@/services/cvService-client';
-import { getAllAvailableImagesAction, uploadUserImageAction, type UserImage } from '@/app/actions/userImages';
+import { getAllAvailableImagesAction, uploadUserImageBase64Action, type UserImage } from '@/app/actions/userImages';
 import SimpleCVTemplate from '@/components/cv/CVSimpleTemplate';
 import TechnicalCVTemplate, { type SectionScales, type ColumnScales, type LayoutConfig } from '@/components/cv/CVTemplateTechnical';
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
@@ -413,12 +413,12 @@ const handleImageUpload = async (
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) { toast.error('Max 5 MB'); return; }
  
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('imageType', type === 'profileImage' ? 'profile' : 'background');
- 
+ const reader = new FileReader();
+reader.onloadend = async () => {
+  const dataUrl = reader.result as string;
   toast.loading('Ladataan kuvaa…', { id: 'imgup' });
-  const res = await uploadUserImageAction(fd);
+  const res = await uploadUserImageBase64Action(dataUrl, file.name,
+    type === 'profileImage' ? 'profile' : 'background');
   toast.dismiss('imgup');
  
   if (!res.ok || !res.image) { toast.error(res.error || 'Lataus epäonnistui'); return; }
@@ -437,6 +437,10 @@ const handleImageUpload = async (
  
   setShowProfileModal(false); setShowBgModal(false);
   toast.success('Kuva ladattu!');
+  };
+  reader.onerror = () => { toast.dismiss('imgup'); toast.error('Tiedoston luku epäonnistui'); };
+  e.target.value = '';
+  reader.readAsDataURL(file);
 };
  
 const handleSelectImage = (img: UserImage, type: 'profileImage' | 'backgroundImage') => {

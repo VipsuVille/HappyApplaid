@@ -175,7 +175,41 @@ try {
     return { ok: false, error: e?.message || 'Lataus epäonnistui' };
   }
 }
+export async function uploadUserImageBase64Action(
+  dataUrl: string, fileName: string, imageType: 'profile' | 'background'
+): Promise<{ ok: boolean; image?: UserImage; error?: string }> {
+  const { userId } = await auth();
+  if (!userId) return { ok: false, error: 'Unauthorized' };
+  try {
+    const m = dataUrl.match(/^data:(.+?);base64,(.+)$/);
+    if (!m) return { ok: false, error: 'Virheellinen kuva' };
+    const contentType = m[1];
+    const buffer = Buffer.from(m[2], 'base64');
+    if (buffer.byteLength > 5 * 1024 * 1024) return { ok: false, error: 'Max 5 MB' };
 
+    const ext = (fileName.split('.').pop() || 'jpg').toLowerCase();
+    const folder = imageType === 'profile' ? 'profiles' : 'backgrounds';
+    const filePath = `${userId}/${folder}/${Date.now()}.${ext}`;
+
+    const { error: upErr } = await supabaseAdmin.storage
+      .from('cv_files').upload(filePath, buffer, { contentType, upsert: false });
+    if (upErr) throw upErr;
+
+    const { data: row, error: dbErr } = await supabaseAdmin
+      .from('default_images')
+      .insert({ user_id: userId, image_type: imageType, file_path: filePath, name: fileName, is_active: true, is_ai_generated: false })
+      .select().single();
+    if (dbErr) throw dbErr;
+
+    const { data: urlData } = await supabaseAdmin.storage
+      .from('cv_files').createSignedUrl(filePath, SIGNED_URL_TTL);
+
+    return { ok: true, image: { id: row.id, image_type: imageType, file_path: filePath, name: fileName, is_active: true, is_ai_generated: false, created_at: row.created_at, signedUrl: urlData?.signedUrl } };
+  } catch (e: any) {
+    console.error('❌ [uploadBase64] FAILED:', e);
+    return { ok: false, error: e?.message || 'Lataus epäonnistui' };
+  }
+}
 /**
  * ✅ POISTAA käyttäjän kuvan (Storage + default_images). Vain OMAN (user_id-vahti).
  */
