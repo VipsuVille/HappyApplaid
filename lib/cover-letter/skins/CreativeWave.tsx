@@ -1,7 +1,9 @@
 'use client';
 // lib/cover-letter/skins/CreativeWave.tsx
 // ✅ Aaltografiikka ylä- ja alareunassa, accent-väri aalloissa.
-//    Lukee regions.heading (nimen koko) ja regions.body (leipäteksti).
+//    KORJAUS: (1) sulkulause muokattavissa (editableClosing) — lukee
+//    data.style.closingText, oletus kielen mukaan. (2) alareunan aalto ei
+//    enää mene allekirjoituksen päälle (sisällön alapehmuste kasvatettu).
 
 import React from 'react';
 import {
@@ -16,6 +18,9 @@ export default function CreativeWave({ engine }: { engine: any }) {
   const { data, fontStack, updateField } = engine;
   const accent = data.style.accentColor || '#0284c7';
   const headingSize = data.style.regions?.heading?.fontSize; // px
+
+  // Kielen mukainen oletus-sulkulause (käyttäjä voi muokata, tallentuu closingText:iin)
+  const defaultClosing = data.language === 'english' ? 'Sincerely,' : 'Ystävällisin terveisin,';
 
   return (
     <div
@@ -41,8 +46,8 @@ export default function CreativeWave({ engine }: { engine: any }) {
         </svg>
       </div>
 
-      {/* 2. SISÄLTÖALUE */}
-      <div style={{ padding: '120px 64px 40px 64px', flexGrow: 1, zIndex: 10, position: 'relative' }}>
+      {/* 2. SISÄLTÖALUE — alapehmuste 170px jotta allekirjoitus jää aallon yläpuolelle */}
+      <div style={{ padding: '120px 64px 170px 64px', flexGrow: 1, zIndex: 10, position: 'relative' }}>
 
         {/* Keskitetty otsikko- ja yritysosa */}
         <div className="text-center mb-12">
@@ -91,7 +96,8 @@ export default function CreativeWave({ engine }: { engine: any }) {
           <div className="mt-6">
             <EditableParagraphs engine={engine} region="body" />
           </div>
-          <Signature engine={engine} marginTop={48} closing="Sincerely," />
+          {/* ✅ editableClosing → sulkulause muokattavissa, tallentuu closingText:iin */}
+          <Signature engine={engine} marginTop={48} editableClosing closing={defaultClosing} />
         </div>
       </div>
 

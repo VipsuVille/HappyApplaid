@@ -15,7 +15,7 @@ import TechnicalCVTemplate, { type SectionScales, type ColumnScales, type Layout
 import CreativeCVTemplate from '@/components/cv/CVCreativeTemplate';
 import CVContainer from '@/components/cv/CVContainer';
 import { toast } from 'sonner';
-
+import AquarelleCVTemplate from '@/components/cv/CVAquarelleTemplate';
 import { mapProfileJobToStructured, jobLikelyExists, mapProfileProjectToStructured, projectLikelyExists, mapProfileEducationToStructured, educationLikelyExists, type StructuredExperience, type StructuredProject, type StructuredEducation, experienceKey } from '@/lib/cv/profileToStructured';
 interface BaseCV {
   id: string; user_id: string; title?: string; created_at: string;
@@ -73,6 +73,8 @@ const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
     { id: 'projects', label: 'Projektit', column: 'right' },
     { id: 'languages', label: 'Kielet', column: 'right' },
     { id: 'skills', label: 'Taidot (vasen palsta)', column: 'left' },
+    { id: 'profile',     label: 'Profiili',                 column: 'right' },
+{ id: 'internships', label: 'Työharjoittelut/Kesätyöt', column: 'right' },
   ];
 
   // Simple-templaten lohkot (kertova rakenne, vapaa asettelu)
@@ -647,7 +649,7 @@ await updateCV(id, {
     };
     const aid = cvData.ai_data || cvData.content?.ai_data || {};
     const type = cvd?.cvType || aid?.cv_type || cvData.metadata?.cv_type || 'simple';
-    const Comp: any = type === 'technical' ? TechnicalCVTemplate : type === 'creative' ? CreativeCVTemplate : SimpleCVTemplate;
+    const Comp: any = type === 'technical' ? TechnicalCVTemplate : type === 'aquarelle' ? AquarelleCVTemplate : type === 'creative' ? CreativeCVTemplate : SimpleCVTemplate;
     const editing = editingOverride ?? isEditing;
     return (
       <CVContainer>
@@ -918,7 +920,7 @@ const currentProfile = resolveImg(cvData.cv_data?.profileImage || cvData.ai_data
             </div>
 
             {/* Osioiden tilankäyttö — technical ja simple */}
-            {isEditing && (cvType === 'technical' || cvType === 'simple') && (
+{isEditing && (cvType === 'technical' || cvType === 'simple' || cvType === 'aquarelle') && (
               <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">

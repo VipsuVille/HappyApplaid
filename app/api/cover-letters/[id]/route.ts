@@ -103,11 +103,12 @@ export async function PATCH(
     
     const { data, error } = await supabase
       .from('cover_letters')
-      .update({
-        content: body.content,
-        ai_data: body.ai_data,
-        updated_at: new Date().toISOString(),
-      })
+    .update({
+  ...(body.content !== undefined ? { content: body.content } : {}),
+  ...(body.ai_data !== undefined ? { ai_data: body.ai_data } : {}),
+  ...(body.title !== undefined ? { title: body.title } : {}),
+  updated_at: new Date().toISOString(),
+})
       .eq('id', params.id)
       .eq('user_id', clerkUserId) // ✅ CLERK USER ID!
       .select()

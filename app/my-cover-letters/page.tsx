@@ -20,10 +20,10 @@ import {
   List,
   Clock,
   Sparkles,
+  Pencil,
 } from 'lucide-react';
 import { fetchCoverLetters, deleteCoverLetter } from '@/services/coverLetterService-client';
 import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer';
-import CoverLetterTemplate from '@/components/cover-letter/CoverLetterTemplate';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import CoverLetterRenderer from '@/lib/cover-letter/Coverletterrenderer';
@@ -49,11 +49,16 @@ export default function MyCoverLettersPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
 
+  // ✅ Otsikon muokkaus
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [savingTitleId, setSavingTitleId] = useState<string | null>(null);
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
@@ -85,11 +90,11 @@ export default function MyCoverLettersPage() {
     try {
       const token = await getToken({ template: 'supabase' });
       if (!token) throw new Error('No authentication token');
-      
+
       const { data, error } = await fetchCoverLetters(token, userId);
-      
+
       if (error) throw error;
-      
+
       setCoverLetters(data || []);
     } catch (error) {
       console.error('Error loading cover letters:', error);
@@ -114,10 +119,10 @@ export default function MyCoverLettersPage() {
 
       const { error } = await deleteCoverLetter(id, token);
       if (error) throw error;
-      
+
       setCoverLetters(prev => prev.filter(letter => letter.id !== id));
       toast.success('Hakukirje poistettu');
-      
+
       if (mobileView === 'carousel' && currentIndex >= coverLetters.length - 1) {
         setCurrentIndex(Math.max(0, currentIndex - 1));
       }
@@ -126,6 +131,35 @@ export default function MyCoverLettersPage() {
       toast.error('Poisto epäonnistui');
     } finally {
       setDeleteLoading(null);
+    }
+  };
+
+  // ✅ Otsikon tallennus PATCH-reitillä (lähettää vain { title })
+  const cancelEditTitle = () => {
+    setEditingTitleId(null);
+    setTitleDraft('');
+  };
+  const saveTitle = async (letter: CoverLetter) => {
+    const newTitle = titleDraft.trim();
+    if (!newTitle || newTitle === letter.title) { cancelEditTitle(); return; }
+    setSavingTitleId(letter.id);
+    try {
+      const token = await getToken({ template: 'supabase' });
+      if (!token) throw new Error('No authentication token');
+      const res = await fetch(`/api/cover-letters/${letter.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (!res.ok) throw new Error('save failed');
+      setCoverLetters(prev => prev.map(l => l.id === letter.id ? { ...l, title: newTitle } : l));
+      toast.success('Otsikko päivitetty');
+    } catch (e) {
+      console.error('Title save failed:', e);
+      toast.error('Otsikon tallennus epäonnistui');
+    } finally {
+      setSavingTitleId(null);
+      setEditingTitleId(null);
     }
   };
 
@@ -177,52 +211,6 @@ export default function MyCoverLettersPage() {
     return cleaned || 'Työhakemus';
   };
 
-  function convertToCoverLetterData(letter: CoverLetter) {
-    return {
-      name: letter.content?.contactInfo?.name || 
-            letter.ai_data?.name || 
-            letter.content?.name || 
-            "Hakija",
-      
-      email: letter.content?.contactInfo?.email || 
-             letter.ai_data?.email || 
-             letter.content?.email || 
-             "",
-      
-      phone: letter.content?.contactInfo?.phone || 
-             letter.ai_data?.phone || 
-             letter.content?.phone || 
-             "",
-      
-      location: letter.content?.contactInfo?.location || 
-                letter.ai_data?.location || 
-                letter.content?.location || 
-                "",
-      
-      jobTitle: letter.content?.job_title || 
-                letter.ai_data?.job_title || 
-                "",
-      
-      companyName: letter.content?.company_name || 
-                   letter.ai_data?.company_name || 
-                   "",
-      
-      title: letter.title,
-      
-      content: letter.content?.body || 
-               letter.ai_data?.html?.content || 
-               '',
-      
-      keyHighlights: letter.ai_data?.key_highlights || [],
-      language: letter.content?.language || "finnish",
-      style: (letter.content?.style || letter.ai_data?.style || "professional") as "professional" | "casual" | "creative",
-      
-      headerColor: letter.content?.headerColor || 'rgb(181, 152, 79)',
-      headerLayout: (letter.content?.headerLayout || 'top') as 'top' | 'left',
-      sidebarContent: (letter.content?.sidebarContent || 'contact') as 'contact' | 'highlights' | 'none',
-    };
-  }
-
   const renderLetterCard = (letter: CoverLetter, isCarousel: boolean = false) => {
     const smartTitle = generateSmartTitle(letter.content?.job_description, letter.title);
     const displayTitle = letter.title || smartTitle;
@@ -232,29 +220,35 @@ export default function MyCoverLettersPage() {
 
     return (
       <div className="group bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-[2rem] overflow-hidden flex flex-col transition-all duration-300 hover:shadow-2xl hover:border-orange-500/30">
-        
-        {/* Preview Area */}
-        <div className="relative h-[400px] bg-gray-50 dark:bg-black/40 overflow-hidden border-b border-gray-100 dark:border-gray-800">
-          <div className="absolute inset-0 flex justify-center items-start pt-6">
-            <div className="origin-top shadow-2xl scale-[0.4] sm:scale-[0.45] transition-transform duration-500 group-hover:scale-[0.47]">
+
+        {/* ✅ Preview Area — SAMA kuin my-cvs: yksi 210mm×297mm laatikko, scale 0.38, origin top center */}
+        <div className="relative h-[420px] bg-gray-50 dark:bg-black/40 overflow-hidden border-b border-gray-100 dark:border-gray-800">
+          <div className="absolute inset-0 flex justify-center items-start overflow-hidden">
+            <div
+              className="bg-white shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]"
+              style={{
+                width: '210mm',
+                minHeight: '297mm',
+                transform: 'scale(0.38)',
+                transformOrigin: 'top center',
+                marginTop: '16px',
+              }}
+            >
               <CoverLetterContainer>
-            <div className="origin-top shadow-2xl scale-[0.4] sm:scale-[0.45] transition-transform duration-500 group-hover:scale-[0.47]">
-  
-    <CoverLetterRenderer
-      raw={{
-        title: letter.title,
-        content: letter.content,   // sisältää jo templateStyle, background, divider, contactInfo…
-        ai_data: letter.ai_data,
-      }}
-      isEditing={false}
-    />
-</div>
+                <CoverLetterRenderer
+                  raw={{
+                    title: letter.title,
+                    content: letter.content,
+                    ai_data: letter.ai_data,
+                  }}
+                  isEditing={false}
+                />
               </CoverLetterContainer>
             </div>
           </div>
-          
+
           <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <button 
+            <button
               onClick={() => handleDelete(letter.id)}
               className="p-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white backdrop-blur-md rounded-2xl transition-all"
             >
@@ -266,16 +260,42 @@ export default function MyCoverLettersPage() {
         {/* Content Area */}
         <div className="p-6 sm:p-8">
           <div className="flex justify-between items-start mb-6">
-            <div>
-              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 line-clamp-1">
-                {displayTitle}
-              </h3>
+            {/* ✅ Muokattava otsikko */}
+            <div className="flex-1 min-w-0 mr-3">
+              {editingTitleId === letter.id ? (
+                <input
+                  autoFocus
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={() => saveTitle(letter)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); saveTitle(letter); }
+                    if (e.key === 'Escape') { e.preventDefault(); cancelEditTitle(); }
+                  }}
+                  className="w-full text-xl font-black bg-transparent border-b-2 border-orange-500 outline-none text-gray-900 dark:text-white mb-2"
+                  placeholder="Anna hakemukselle nimi"
+                />
+              ) : (
+                <h3 className="group/title text-xl font-black text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                  <span className="truncate">{displayTitle}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingTitleId(letter.id); setTitleDraft(displayTitle); }}
+                    title="Muokkaa otsikkoa"
+                    className="shrink-0 opacity-0 group-hover/title:opacity-100 transition-opacity text-gray-400 hover:text-orange-500"
+                  >
+                    {savingTitleId === letter.id
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Pencil className="w-4 h-4" />}
+                  </button>
+                </h3>
+              )}
               <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
                 <Clock className="w-3.5 h-3.5" />
-                {new Date(letter.created_at).toLocaleDateString("fi-FI")}
+                {new Date(letter.created_at).toLocaleDateString('fi-FI')}
               </div>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1 shrink-0">
               {isRAG && (
                 <div className="px-3 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400 rounded-full text-[10px] font-black uppercase tracking-tighter flex items-center gap-1">
                   <Database className="w-3 h-3" />
@@ -284,9 +304,9 @@ export default function MyCoverLettersPage() {
               )}
               {isATSOptimized && (
                 <div className={`px-3 py-1 border rounded-full text-[10px] font-black uppercase tracking-tighter flex items-center gap-1 ${
-                  atsScore >= 75 
-                    ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400' 
-                    : atsScore >= 50 
+                  atsScore >= 75
+                    ? 'bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400'
+                    : atsScore >= 50
                     ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                     : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
                 }`}>
@@ -298,7 +318,7 @@ export default function MyCoverLettersPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Button 
+            <Button
               onClick={() => handleDownloadPDF(letter.id, displayTitle)}
               disabled={isDownloading === letter.id}
               className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl h-12 font-bold"
@@ -329,7 +349,7 @@ export default function MyCoverLettersPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc] transition-colors duration-500">
-      
+
       {/* Background Orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 dark:bg-orange-500/10 rounded-full blur-[120px]" />
@@ -337,7 +357,7 @@ export default function MyCoverLettersPage() {
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-12 md:py-20">
-        
+
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <div className="space-y-4">
@@ -393,7 +413,7 @@ export default function MyCoverLettersPage() {
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="flex justify-center items-center gap-6 mt-8">
                   <button onClick={prevSlide} className="p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg"><ChevronLeft/></button>
                   <span className="font-black text-sm">{currentIndex + 1} / {coverLetters.length}</span>

@@ -1,10 +1,9 @@
 "use client";
 
-import { Download, Edit, Trash2, Loader2, Plus, FileText, ChevronLeft, ChevronRight, List, LayoutGrid, Sparkles, Clock } from "lucide-react";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { Download, Edit, Trash2, Loader2, Plus, FileText, ChevronLeft, ChevronRight, List, LayoutGrid, Sparkles, Clock, Pencil, Check, X } from "lucide-react";
+import { fetchCVs, deleteCV, updateCV } from "@/services/cvService-client";import { useCallback, useEffect, useState, useRef } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { fetchCVs, deleteCV } from "@/services/cvService-client";
 import CVTemplate from "@/components/cv/CVSimpleTemplate";
 import TechnicalCVTemplate from "@/components/cv/CVTemplateTechnical";
 import CreativeCVTemplate from "@/components/cv/CVCreativeTemplate";
@@ -19,6 +18,8 @@ interface BaseCV {
   content?: any;
   cv_data: any;
   ai_data: any;
+    title?: string;          // ✅ lisää
+
   profile_image?: string;
   background_image?: string;
   metadata?: any;
@@ -314,7 +315,9 @@ export default function MyCVsPage() {
   const [mobileView, setMobileView] = useState<MobileView>('carousel');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-
+const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+const [titleDraft, setTitleDraft] = useState("");
+const [savingTitleId, setSavingTitleId] = useState<string | null>(null);
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
@@ -399,6 +402,36 @@ export default function MyCVsPage() {
     }
   };
 
+  const startEditTitle = (cv: BaseCV) => {
+  setEditingTitleId(cv.id);
+  setTitleDraft(cv.title || cv.cv_data?.name || "");
+};
+const cancelEditTitle = () => {
+  setEditingTitleId(null);
+  setTitleDraft("");
+};
+const saveTitle = async (cv: BaseCV) => {
+  const newTitle = titleDraft.trim();
+  if (!newTitle || newTitle === cv.title) { cancelEditTitle(); return; }
+  setSavingTitleId(cv.id);
+  try {
+    const token = await getToken({ template: "supabase" });
+    if (!token) throw new Error("Token puuttuu");
+
+    // ✅ client-updateCV ottaa (cvId, updates, token) — updates päivittyy sellaisenaan
+    const { error } = await updateCV(cv.id, { title: newTitle }, token);
+    if (error) throw error;
+
+    setCvs(prev => prev.map(c => c.id === cv.id ? { ...c, title: newTitle } : c));
+    toast.success("Otsikko päivitetty");
+  } catch {
+    toast.error("Otsikon tallennus epäonnistui");
+  } finally {
+    setSavingTitleId(null);
+    setEditingTitleId(null);
+  }
+};
+
   useEffect(() => { loadCVs(); }, [userId]);
 
   const renderCVCard = (cv: BaseCV, isCarousel: boolean = false) => {
@@ -445,10 +478,40 @@ export default function MyCVsPage() {
         {/* Content Area */}
         <div className="p-6 sm:p-8">
           <div className="flex justify-between items-start mb-6">
-            <div>
-              <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 line-clamp-1">
-                {cv.cv_data?.name || "Nimetön CV"}
-              </h3>
+<div className="flex-1 min-w-0">
+  {editingTitleId === cv.id ? (
+    <input
+      autoFocus
+      value={titleDraft}
+      onChange={(e) => setTitleDraft(e.target.value)}
+      onBlur={() => saveTitle(cv)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.preventDefault(); saveTitle(cv); }
+        if (e.key === "Escape") { e.preventDefault(); cancelEditTitle(); }
+      }}
+      className="w-full text-xl font-black bg-transparent border-b-2 border-orange-500 outline-none text-gray-900 dark:text-white mb-2"
+      placeholder="Anna hakemukselle nimi"
+    />
+  ) : (
+    <h3 className="group/title text-xl font-black text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+      <span className="truncate">{cv.title || cv.cv_data?.name || "Nimetön CV"}</span>
+      <button
+        type="button"
+        onClick={() => startEditTitle(cv)}
+        title="Muokkaa otsikkoa"
+        className="shrink-0 opacity-0 group-hover/title:opacity-100 transition-opacity text-gray-400 hover:text-orange-500"
+      >
+        {savingTitleId === cv.id
+          ? <Loader2 className="w-4 h-4 animate-spin" />
+          : <Pencil className="w-4 h-4" />}
+      </button>
+    </h3>
+  )}
+  <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+    <Clock className="w-3.5 h-3.5" />
+    {new Date(cv.created_at).toLocaleDateString("fi-FI")}
+  </div>
+</div>
               <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
                 <Clock className="w-3.5 h-3.5" />
                 {new Date(cv.created_at).toLocaleDateString("fi-FI")}
@@ -476,7 +539,6 @@ export default function MyCVsPage() {
             </Link>
           </div>
         </div>
-      </div>
     );
   };
 

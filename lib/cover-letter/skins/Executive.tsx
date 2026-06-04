@@ -1,13 +1,8 @@
 'use client';
 // lib/cover-letter/skins/Executive.tsx
-// ✅ Korporaatio-skin (kuva 1): tumma yläbanneri + iso serif-nimi keskellä,
-//    yhteystiedot bannerin yläreunassa, "Vastaanottaja"-lohko bannerin alla.
-//
-// Kyvykkyydet (capabilities.ts → 'executive'):
-//   • banner.color   → data.style.banner.color   (bannerin taustaväri; fallback tumma gradient)
-//   • banner.height  → data.style.banner.heightMm (fallback divider.sizeMm → 74mm)
-//   • banner image   → data.style.image.placement 'banner-full' | 'banner-center'
-//   • regions.heading→ nimen koko (px), regions.body → leipätekstin koko
+// ✅ Korporaatio-skin: näyttävä accent-banneri + iso serif-nimi keskellä.
+//    KORJAUS: banneri on nyt accent-vetoinen (teemaväri näkyy selvästi),
+//    diagonaali-sheen + accent-hehku + voimakkaampi kaareva alareuna.
 
 import React from 'react';
 import type { CLEngine } from '../engine/types';
@@ -26,14 +21,14 @@ export default function Executive({ engine }: { engine: CLEngine }) {
   const { data, fontStack, updateField, updateContact } = engine;
   const accent = data.style.accentColor;
 
-  // Bannerin korkeus: banner.heightMm → divider.sizeMm → 74mm
   const bannerH = `${data.style.banner?.heightMm ?? data.style.divider?.sizeMm ?? 74}mm`;
 
-  // Bannerin tausta: banner.color (jos asetettu) muuten tumma gradient
-  const defaultGradient = `linear-gradient(135deg, #0f172a 0%, #14223f 55%, ${rgba(accent, 0.55)} 100%)`;
+  // ✅ ACCENT-VETOINEN gradientti: teemaväri dominoi vasemmalla, syvenee
+  //    tummaan oikealla → accent näkyy selvästi (ei enää vain 55% reunassa).
+  const defaultGradient =
+    `linear-gradient(120deg, ${accent} 0%, ${rgba(accent, 0.85)} 28%, #16243f 72%, #0f172a 100%)`;
   const bannerBg = data.style.banner?.color || defaultGradient;
 
-  // Kuva bannerissa
   const img = data.style.image;
   const fullImage = img?.placement === 'banner-full' && img.url ? img.url : null;
   const centerImage = img?.placement === 'banner-center' && img.url ? img.url : null;
@@ -55,7 +50,7 @@ export default function Executive({ engine }: { engine: CLEngine }) {
       <BackgroundLayer engine={engine} />
       <ColorDot engine={engine} />
 
-      {/* ── TUMMA YLÄBANNERI ─────────────────────────────────── */}
+      {/* ── ACCENT-YLÄBANNERI ────────────────────────────────── */}
       <div
         style={{
           position: 'relative',
@@ -79,9 +74,30 @@ export default function Executive({ engine }: { engine: CLEngine }) {
           }} />
         )}
 
-        {/* Hienovaraiset koristerenkaat oikealla */}
-        <div aria-hidden style={{ position: 'absolute', top: '-90px', right: '-70px', width: '320px', height: '320px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
-        <div aria-hidden style={{ position: 'absolute', top: '24px', right: '70px', width: '170px', height: '170px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+        {/* ✅ Diagonaali-sheen: vaalea accent-juova tuo syvyyttä */}
+        {!fullImage && (
+          <div aria-hidden style={{
+            position: 'absolute', inset: 0,
+            background: `linear-gradient(115deg, transparent 48%, ${rgba('#ffffff', 0.10)} 60%, transparent 72%)`,
+            pointerEvents: 'none',
+            WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+          }} />
+        )}
+
+        {/* ✅ Pehmeä accent-hehku vasempaan yläkulmaan */}
+        {!fullImage && (
+          <div aria-hidden style={{
+            position: 'absolute', top: '-120px', left: '-80px', width: '380px', height: '380px',
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${rgba('#ffffff', 0.18)} 0%, transparent 70%)`,
+            pointerEvents: 'none',
+            WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+          }} />
+        )}
+
+        {/* Koristerenkaat oikealla (accent-sävyiset) */}
+        <div aria-hidden style={{ position: 'absolute', top: '-90px', right: '-70px', width: '320px', height: '320px', borderRadius: '50%', border: `1px solid ${rgba('#ffffff', 0.14)}`, pointerEvents: 'none' }} />
+        <div aria-hidden style={{ position: 'absolute', top: '24px', right: '70px', width: '170px', height: '170px', borderRadius: '50%', border: `1px solid ${rgba('#ffffff', 0.10)}`, pointerEvents: 'none' }} />
 
         {/* Yhteystietorivi bannerin yläreunassa */}
         <div style={{ position: 'relative', zIndex: 2, padding: '16px 48px 0' }}>
@@ -99,7 +115,7 @@ export default function Executive({ engine }: { engine: CLEngine }) {
             justifyContent: 'center',
             alignItems: 'center',
             textAlign: 'center',
-            padding: '20px 48px 30px',
+            padding: '20px 48px 34px',
           }}
         >
           {centerImage && (
@@ -108,7 +124,7 @@ export default function Executive({ engine }: { engine: CLEngine }) {
               alt=""
               style={{
                 height: '70px', width: '70px', borderRadius: '50%', objectFit: 'cover',
-                marginBottom: '14px', border: '2px solid rgba(255,255,255,0.4)',
+                marginBottom: '14px', border: '2px solid rgba(255,255,255,0.5)',
                 opacity: img?.opacity ?? 1,
                 WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
               }}
@@ -126,7 +142,7 @@ export default function Executive({ engine }: { engine: CLEngine }) {
               margin: 0,
               color: data.style.banner?.textColor || '#ffffff',
               fontFamily: fontStack('classic'),
-              textShadow: '0 2px 12px rgba(0,0,0,0.3)',
+              textShadow: '0 2px 16px rgba(0,0,0,0.35)',
             }}
             placeholder="Nimi"
           />
@@ -140,17 +156,18 @@ export default function Executive({ engine }: { engine: CLEngine }) {
                 fontSize: '12pt',
                 letterSpacing: '3px',
                 textTransform: 'uppercase',
-                color: '#e8d9b0',
+                color: 'rgba(255,255,255,0.92)',
                 fontFamily: fontStack('sans'),
               }}
               placeholder="Titteli"
             />
           )}
         </div>
-        {/* Kaareva alareuna (valinnainen pehmeä kaari) */}
-        <svg viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden
-          style={{ position: 'absolute', left: 0, right: 0, bottom: '-1px', width: '100%', height: '40px', zIndex: 3, display: 'block' }}>
-          <path d="M0,80 L0,40 C360,80 1080,80 1440,40 L1440,80 Z" fill="#ffffff"
+
+        {/* ✅ Voimakkaampi kaareva alareuna (syvempi kaari) */}
+        <svg viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden
+          style={{ position: 'absolute', left: 0, right: 0, bottom: '-1px', width: '100%', height: '58px', zIndex: 3, display: 'block' }}>
+          <path d="M0,120 L0,48 C280,118 1160,118 1440,40 L1440,120 Z" fill="#ffffff"
             style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} />
         </svg>
       </div>
