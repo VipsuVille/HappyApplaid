@@ -22,10 +22,11 @@ Käyttäjä täyttää kerran kattavan profiilin. Sen pohjalta sovellus voi koos
 | Framework | Next.js (App Router), React, TypeScript |
 | Tyylit | Tailwind CSS + inline-tyylit (skinit) |
 | Tietokanta | Supabase (Postgres) |
-| Autentikointi | Clerk |
+| Autentikointi | Clerk (Supabase JWT -template) |
 | Maksut | Stripe |
 | AI | LangChain + GPT-4o-mini |
 | Kuvat | Supabase Storage (`cv_files`-bucket) |
+| Hosting | Vercel |
 
 ---
 
@@ -36,15 +37,17 @@ Käyttäjä täyttää kerran kattavan profiilin. Sen pohjalta sovellus voi koos
 Käyttäjän tiedot elävät kahdessa kerroksessa:
 
 - **Profiili** (`user_profiles`-taulu) — pysyvä, kattava kuva käyttäjästä. Täytetään kerran, käytetään moneen kertaan.
-- **CV-dokumentit** ja **hakukirjeet** — kukin koostetaan profiilista.
+- **CV-dokumentit** (`cvs`) ja **hakukirjeet** (`cover_letters`) — kukin koostetaan profiilista.
 
 Tärkeä periaate: **dokumentti ja profiili ovat erillisiä.** Dokumentti on profiilista koostettu valikoima. Kun käyttäjä poistaa kohteen dokumentista, se säilyy profiilissa.
+
+**Sarakkeet (molemmat taulut):** varsinainen sisältö on `content`-sarakkeessa (`jsonb`), joka sisältää `cv_data`/`content`-kentät ja `ai_data`:n. Lisäksi top-tason sarakkeet kuten `title`, `user_id`, `created_at`, `updated_at`, `profile_image`, `background_image`. **`title` on top-tason sarake** (esim. "Ville Skog CV - technical") — sitä käytetään korteissa dokumenttien erottamiseen.
 
 ---
 
 ## HAKUKIRJEEN ARKKITEHTUURI (engine + skinit)
 
-Hakukirjepuoli on rakennettu samalla "engine + skin" -periaatteella kuin CV:n Tie B. Tämä on tärkein osa ymmärtää uusia templateja tehtäessä.
+Hakukirjepuoli on rakennettu "engine + skin" -periaatteella (sama kuin CV:n Tie B). Tärkein osa ymmärtää uusia templateja tehtäessä.
 
 ### Kolme kerrosta
 
@@ -61,12 +64,13 @@ lib/cover-letter/
     types.ts                     ← CLStyle, CLData, CLEngine, CLSkinProps (kaikki tyypit)
     useCoverLetterEngine.ts      ← buildCLData(): content → data.style. KRIITTINEN.
     components.tsx               ← jaetut palaset: EditableText, EditableField,
-                                   EditableParagraphs, Signature, ContactRow, DateRow,
-                                   BackgroundLayer, ColorDot
+                                   EditableParagraphs, Signature (editableClosing!),
+                                   ContactRow, DateRow, BackgroundLayer, ColorDot
     capabilities.ts              ← SKIN_CAPABILITIES: mitä säätimiä kukin skin näyttää
   skins/
     Aurora.tsx, Greeting.tsx, Executive.tsx, Spine.tsx, Elegant.tsx,
-    Ribbon.tsx, Classic.tsx, CreativeWave.tsx, ModernTop.tsx, ModernLeft.tsx, …
+    Ribbon.tsx, Classic.tsx, CreativeWave.tsx, ModernTop.tsx, ModernLeft.tsx,
+    Sidebar.tsx, Monogram.tsx, …
 
 components/cover-letter/
   AdaptiveControls.tsx           ← kyvykkyysohjautuva säädinpaneeli (lukee capabilities)
@@ -75,6 +79,7 @@ components/cover-letter/
 app/edit-cover-letter/[id]/page.tsx   ← muokkausnäkymä (desktop split + mobiili-välilehdet)
 app/api/cover-letters/[id]/route.ts   ← GET (hydratoi image.url) / PATCH / DELETE
 app/api/generate-cover-letter/route.ts ← luonti + valinnainen AI-tausta
+app/my-cover-letters/page.tsx         ← arkisto (esikatselukortit + muokattavat otsikot)
 ```
 
 ### Datavirta (tärkeä ymmärtää)
@@ -97,18 +102,16 @@ Supabase content {}  ──GET──▶  edit-sivun styleSettings (useState)
 
 **Tallennus** kulkee toiseen suuntaan: edit-sivun `buildContent()` → PATCH → Supabase.
 
-**KRIITTINEN sääntö:** jokainen uusi tyylikenttä pitää lisätä KOLMEEN paikkaan tai se ei toimi:
+**KRIITTINEN sääntö (KOLME paikkaa):** jokainen uusi tyylikenttä pitää lisätä KOLMEEN paikkaan tai se ei toimi:
 1. `types.ts` → `CLStyle`-rajapintaan
 2. `useCoverLetterEngine.ts` → `buildCLData()`:n `style`-objektiin (`content.X → style.X`)
-3. edit-sivu → SEKÄ `engineRaw.content` ETTÄ `buildContent()`
+3. edit-sivu → SEKÄ `engineRaw.content` ETTÄ `buildContent()` (+ load() lukee kannasta, + onStyleChange-handler poimii patchista)
 
-Jos kenttä puuttuu kohdasta 2, se on aina `undefined` eikä mikään säädin vaikuta. Tämä on yleisin "säädin ei tee mitään" -bugi.
+Jos kenttä puuttuu kohdasta 2, se on aina `undefined` eikä mikään säädin vaikuta. **Tämä oli `closingText`-bugin juurisyy** (ks. alla "Ratkaistut bugit").
 
 ---
 
 ## UUDEN HAKUKIRJE-TEMPLATEN (SKININ) LUONTI — täydellinen ohje
-
-Tämä osio kertoo täsmälleen miten uusi template tehdään ja saadaan toimimaan.
 
 ### Vaihe 1 — Luo skin-tiedosto
 
@@ -140,63 +143,45 @@ export default function MyTemplate({ engine }: { engine: CLEngine }) {
       <BackgroundLayer engine={engine} />
       <ColorDot engine={engine} />
 
-      {/* Otsikko/nimi — EditableText (pelkkä teksti) tai EditableField (maalattava) */}
       <EditableText engine={engine} as="h1" value={data.contact.name}
         onCommit={(v) => updateContact('name', v)}
         style={{ fontSize: headingSize ? `${headingSize}px` : '40px' }}
         placeholder="Nimi" />
 
-      {/* Yhteystiedot — käyttää EditableField:iä (maalattava koko/väri) */}
       <ContactRow engine={engine} />
-
-      {/* Leipäteksti — region 'body' */}
       <DateRow engine={engine} />
       <EditableParagraphs engine={engine} region="body" />
-      <Signature engine={engine} marginTop={48} />
+      {/* editableClosing → sulkulause muokattavissa (tallentuu style.closingText) */}
+      <Signature engine={engine} marginTop={48} editableClosing closing="Ystävällisin terveisin," />
     </div>
   );
 }
 ```
 
 ### Vaihe 2 — Rekisteröi skin reitittimeen
-
-`Coverletterrenderer.tsx`:
-```tsx
-import MyTemplate from './skins/MyTemplate';
-// switch (templateStyle) sisään:
-case 'my-template': return <MyTemplate engine={engine} />;
-```
+`Coverletterrenderer.tsx`: `case 'my-template': return <MyTemplate engine={engine} />;`
 
 ### Vaihe 3 — Lisää valikko-optio
+edit-sivun `styleSelectors`: `<option value="my-template">Oma template · kuvaus</option>`
 
-edit-sivun `styleSelectors`-funktioon:
-```tsx
-<option value="my-template">Oma template · kuvaus</option>
-```
-
-### Vaihe 4 — Ilmoita kyvykkyydet (mitä säätimiä paneeli näyttää)
-
-`capabilities.ts` → `SKIN_CAPABILITIES`:
-```tsx
-'my-template': {
-  banner: { orientation: 'horizontal', color: true, height: true,
-            imagePlacements: ['none', 'banner-full', 'banner-center'] },
-  band: { color: true, height: true },     // jos on toissijainen palkki
-  textRegions: [
-    { key: 'heading', label: 'Nimi', unit: 'px' },
-    { key: 'body', label: 'Leipäteksti', unit: 'pt' },
-  ],
-  signature: true,
-},
-```
-Jos jätät pois → skin saa `DEFAULT_CAPABILITIES` (vain leipäteksti). Skin lukee kentät joka tapauksessa; capability ohjaa VAIN mitä säätimiä AdaptiveControls näyttää.
+### Vaihe 4 — Ilmoita kyvykkyydet
+`capabilities.ts` → `SKIN_CAPABILITIES` (banner/band/textRegions/signature). Jos jätät pois → `DEFAULT_CAPABILITIES`.
 
 ### Vaihe 5 — Jos bannerillinen, lisää BANNER_TEMPLATES-listaan
-
 edit-sivu: `const BANNER_TEMPLATES = [..., 'my-template'];`
-(ohjaa vanhan bannerin korkeussäätimen näkyvyyttä CoverLetterDesignPanelissa)
 
-### Siinä kaikki. Engine, tallennus, PDF ja kortit toimivat automaattisesti.
+---
+
+## SULKULAUSEEN MUOKKAUS (Signature.editableClosing)
+
+`Signature`-komponentti tukee muokattavaa lopputervehdystä:
+```tsx
+<Signature engine={engine} editableClosing closing="Ystävällisin terveisin," />
+```
+- `editableClosing` → tervehdys renderöityy muokattavana (EditableText).
+- Muokkaus tallentuu `updateStyle({ closingText })` → `style.closingText`.
+- Oletus tulee `closing`-propista (kielikohtainen: "Sincerely," / "Ystävällisin terveisin,").
+- **Vaatii että `closingText` on kaikissa KOLMESSA paikassa** (types, buildCLData, edit-sivu). Tämä on jo tehty.
 
 ---
 
@@ -208,51 +193,39 @@ Kaikki valinnaisia — käytä aina fallbackeja.
 |--------|--------|--------|
 | `accentColor` | string | Korostusväri (aina olemassa) |
 | `text.fontSize/lineHeight/textAlign/textColor/fontFamily` | — | Leipätekstin globaalit |
+| `closingText` | string | Allekirjoituksen lopputervehdys (Signature editableClosing) |
 | `banner.color` | string | Bannerin/palstan taustaväri |
 | `banner.heightMm` | number | Bannerin korkeus / pystypalstan leveys |
 | `banner.textColor` | string | Bannerin tekstien perusväri |
-| `band.color / band.heightMm` | — | Toissijainen palkki (esim. yhteystietopalkki) |
+| `band.color / band.heightMm` | — | Toissijainen palkki |
 | `image.url` | string | Kuvan signed URL (näyttöön) |
 | `image.filePath` | string | Kuvan PYSYVÄ polku (kantaan) |
 | `image.placement` | enum | 'none' \| 'banner-full' \| 'banner-center' \| 'edge' \| 'body-faint' |
 | `image.opacity` | number | Kuvan himmennys 0–1 |
-| `regions[key].fontSize` | number | Alueittainen koko (key esim. 'heading', 'name', 'body') |
+| `regions[key].fontSize` | number | Alueittainen koko (esim. 'heading','name','body') |
 | `regions[key].textColor` | string | Alueittainen väri |
-| `divider.sizeMm` | number | Vanha bannerin korkeus (fallback banner.heightMm:lle) |
+| `divider.sizeMm` | number | Vanha bannerin korkeus (fallback banner.heightMm) |
 | `background.mode/imageUrl/opacity` | — | Vanha taustakuvajärjestelmä (image-faint koko sivulle) |
 
 ---
 
 ## JAETUT KOMPONENTIT (components.tsx) — milloin mitäkin
 
-- **`EditableText`** — pelkkä teksti, EI säilytä muotoilua. Käytä nimille/otsikoille joita ei tarvitse maalata. Tallentaa `innerText`.
-- **`EditableField`** — HTML-säilyttävä yksittäiskenttä. Käytä yhteystiedoille/tittelille jne. kun käyttäjän pitää voida maalata osa tekstistä ja muuttaa koko/väri. Tallentaa `innerHTML`. Kontrolloimaton (ei nollaa valintaa).
-- **`EditableParagraphs`** — leipäteksti, HTML-säilyttävä, kontrolloimaton. `region`-propilla alueittainen typografia. Tallentaa `innerHTML`.
-- **`ContactRow`** — yhteystietorivi (käyttää EditableField:iä). Propit: `vertical`, `centered`, `onDark`.
-- **`Signature`** — allekirjoitus 3 tyylillä. Propit: `centered`, `marginTop`, `closing`.
+- **`EditableText`** — pelkkä teksti, EI säilytä muotoilua. Nimille/otsikoille. Tallentaa `innerText`.
+- **`EditableField`** — HTML-säilyttävä yksittäiskenttä (maalattava koko/väri). Yhteystiedot/titteli. Tallentaa `innerHTML`. Kontrolloimaton.
+- **`EditableParagraphs`** — leipäteksti, HTML-säilyttävä, kontrolloimaton. `region`-propilla alueittainen typografia.
+- **`ContactRow`** — yhteystietorivi (EditableField). Propit: `vertical`, `centered`, `onDark`. **Renderöi vain kentät joissa on arvo** (tyhjät jätetään pois).
+- **`Signature`** — allekirjoitus 3 tyylillä. Propit: `centered`, `marginTop`, `closing`, **`editableClosing`**, `onClosingCommit`.
 - **`DateRow`** — päiväys + viiva.
 - **`BackgroundLayer`** — piirtää `background.mode === 'image-faint'` koko sivun taustaksi.
-- **`ColorDot`** — kelluva korostusvärin valitsin (näkyy vain muokkaustilassa).
+- **`ColorDot`** — kelluva korostusvärin valitsin (vain muokkaustilassa).
 
-### Tekstin muokkaus: kaksi tapaa (tärkeä periaate)
+### Tekstin muokkaus: kaksi tapaa
 
-1. **Rakenteelliset elementit** (iso pystynimi, banneri) → AdaptiveControls-säädin (`regions[key]`). Osa templaten identiteettiä.
-2. **Sisältöteksti** (yhteystiedot, leipäteksti, titteli) → MAALAAMALLA + työkalupalkki (koko A−/A+, väri, lihavointi). Vaatii `EditableField`/`EditableParagraphs`.
+1. **Rakenteelliset elementit** (iso pystynimi, banneri) → AdaptiveControls-säädin (`regions[key]`).
+2. **Sisältöteksti** (yhteystiedot, leipäteksti, titteli, sulkulause) → MAALAAMALLA + työkalupalkki (A−/A+, väri, lihavointi).
 
-Fonttikoko ilmaistaan aina `fontSize`:nä — yksikkö `pt` painettavalle tekstille (A4-standardi), `px` näyttöotsikoille. Capability-merkinnän `unit` kertoo kumpi.
-
----
-
-## KUVAT (storage) — miten AI-tausta ja käyttäjän kuvat toimivat
-
-- Bucket: `cv_files`. Polut: `backgrounds/{userId}/...`, `profiles/{userId}/...`
-- Taulu `default_images`: rivi per kuva, `file_path` PYSYVÄ, `is_ai_generated` erottaa AI-kuvat.
-- **Kannassa säilytetään `file_path` (pysyvä), EI signed URL:ää** (se vanhenee).
-- Signed URL luodaan latauksessa: `getAllAvailableImagesAction()` (valitsin) ja `cover-letters/[id]` GET (hydratoi `content.image.url` `file_path`:sta).
-- Skin lukee `data.style.image.url` (näyttö) — saa aina tuoreen URL:n latauksessa.
-- PDF: `prepareImageForPDF()` muuntaa tarvittaessa base64:ksi.
-
-Kuvavalitsin edit-sivulla avaa `getAllAvailableImagesAction`:n kuvat — EI URL-kenttää.
+**HUOM fonttikoon DOM-synkronointi:** maalaamalla tehty fonttikoko (`setSelectionFontSize` → `surroundContents`) EI laukaise contentEditablen input-tapahtumaa automaattisesti (toisin kuin `execCommand`-väri). Siksi se on synkronoitava käsin: `editableEl.dispatchEvent(new Event('input', { bubbles:true }))`. Ilman tätä koko näkyy ruudulla mutta ei tallennu.
 
 ---
 
@@ -260,12 +233,118 @@ Kuvavalitsin edit-sivulla avaa `getAllAvailableImagesAction`:n kuvat — EI URL-
 
 CV:llä on oma vastaava engine (`lib/cv/engine/`). Sama periaate: data → moottori → skin.
 
+### Tiedostokartta (CV)
+```
+lib/cv/
+  engine/
+    types.ts                     ← SectionScale, LayoutConfig, Engine*-tyypit
+    useCVEngine.ts               ← parsii cv_data/AI-HTML → skinin data; skaalat
+    components.tsx               ← InlineEditor, DragItem, SectionWrap, AddBtn
+  profileToStructured.ts         ← profiili → strukturoitu (experience/education/projektit)
+components/cv/
+  CVSimpleTemplate.tsx           ← kertova skin (kuva + teksti)
+  CVTemplateTechnical.tsx        ← 2-palstainen tekninen skin
+  CVCreativeTemplate.tsx
+  CVAquarelleTemplate.tsx        ← UUSI: valkoinen vasen palsta + akvarellisininen oikea
+  CVContainer.tsx
+app/edit-cv/[id]/page.tsx        ← muokkausnäkymä
+app/create-cv/page.tsx           ← luonti (pohja + kieli + ATS)
+app/my-cvs/page.tsx              ← arkisto (esikatselukortit + muokattavat otsikot)
+```
+
+### CV-skinit
+- **Simple** — kertova (kuva + teksti), suomenkieliset otsikot.
+- **Technical** — 2-palstainen, englanninkieliset otsikot.
+- **Creative**
+- **Aquarelle** (UUSI) — käsialanimi + titteli-pilleri + iso pystykuva + yhteystiedot (puh/email/sijainti/synt.aika) + OSAAMINEN/TAIDOT vasemmalla; PROFIILI/KOULUTUS/TYÖKOKEMUS/TYÖHARJOITTELUT-KESÄTYÖT oikealla akvarellitaustalla. **Kielitietoinen** (ks. alla). Uudet cv_data-kentät: `birthDate`, `internships[]`, `simpleBlocks.profile`, `simpleBlocks.tagline`.
+
+### CV-pohjan kieli (KIELITIETOISUUS)
+- `create-cv` lähettää `language` ('finnish'/'english') `generate-cv`:lle.
+- `generate-cv` TALLENTAA sen `content.cv_data.language`:en (varmistettu: suomi-CV:llä `"language":"finnish"`). AI-sisältö generoituu jo oikealla kielellä.
+- **Aquarelle-skin lukee kielen** ja valitsee otsikot/paikkamerkit/napit sen mukaan. Lukujärjestys: `prop.language → cv_data.language → ai_data.language → ai_data.cv_language → 'finnish'`. `'en'`-alkuinen → englanti.
+- Technical (englanti) ja Simple (suomi) ovat yhä kovakoodattuja — voidaan kielitietoistaa samalla LABELS-kuviolla tarvittaessa.
+
+### CV-pohjan valinta
+CV käyttää skiniä `cv_data.cvType` mukaan ('simple'|'technical'|'creative'|'aquarelle'). Testaus olemassa olevalle CV:lle (content on jsonb):
+```sql
+UPDATE cvs SET content = jsonb_set(content, '{cv_data,cvType}', '"aquarelle"')
+WHERE id = '<CV_ID>';
+```
+
 **Vaiheet:**
 - ✅ Vaihe 1: Moottori eristetty, Technical-skin.
-- 🔜 Vaihe 2: SimpleCV skiniksi.
-- ⬜ Vaihe 3: Ilmainen ei-AI-polku.
-- ⬜ Vaihe 4: Creative skiniksi.
+- ✅ Vaihe 2: SimpleCV skiniksi.
+- 🔜 Vaihe 3: Ilmainen ei-AI-polku.
+- 🔜 Vaihe 4: Creative skiniksi (Aquarelle lisätty uutena skininä).
 - ⬜ Vaihe 5: Monisivuisuus.
+
+---
+
+## ARKISTOSIVUT (my-cvs / my-cover-letters)
+
+Molemmat näyttävät dokumentit esikatselukortteina. **Esikatselun vakiomalli:** yksi
+`210mm × 297mm` laatikko, `transform: scale(0.38)`, `transformOrigin: 'top center'`,
+`h-[420px]`-kontilla, `flex justify-center items-start overflow-hidden`. (Älä skaalaa
+kahdesti — kaksinkertainen scale näkyi liian pienenä.)
+
+**Muokattavat otsikot:** kortin otsikon vieressä kynäkuvake → input (Enter tallentaa,
+Esc peruu). Otsikko on top-tason `title`-sarake.
+- **CV:t:** tallennus `services/cvService-client.ts` → `updateCV(cvId, updates, token)`
+  (geneerinen — `{ title }` päivittyy suoraan title-sarakkeeseen).
+- **Hakukirjeet:** tallennus PATCH `/api/cover-letters/[id]` bodylla `{ title }`.
+  PATCH-reitin on käytettävä EHDOLLISTA spreadia ettei pelkkä otsikkotallennus
+  pyyhi sisältöä:
+  ```ts
+  .update({
+    ...(body.content !== undefined ? { content: body.content } : {}),
+    ...(body.ai_data !== undefined ? { ai_data: body.ai_data } : {}),
+    ...(body.title !== undefined ? { title: body.title } : {}),
+    updated_at: new Date().toISOString(),
+  })
+  ```
+
+**Huom kaksi updateCV:tä (eri kerros, EI duplikaatti — älä poista):**
+- `services/cvService-client.ts` `updateCV(cvId, updates, token)` — client, Clerk-token, geneerinen update. Tätä my-cvs käyttää.
+- `utils/pdfStorageUtils.ts` `updateCV(cvId, cvData)` — server, supabaseAdmin, päivittää vain `content`. PDF/palvelinpuoli.
+
+---
+
+## KUVAT (storage)
+
+- Bucket: `cv_files`. Polut: `backgrounds/{userId}/...`, `profiles/{userId}/...`
+- Taulu `default_images`: rivi per kuva, `file_path` PYSYVÄ, `name`, `is_ai_generated`.
+- **Kannassa säilytetään `file_path` (pysyvä), EI signed URL:ää.**
+- Signed URL luodaan latauksessa: `getAllAvailableImagesAction()` ja `cover-letters/[id]` GET.
+- PDF: `prepareImageForPDF()` muuntaa tarvittaessa base64:ksi.
+
+### Profiilikuvan lataus (ratkaistu bugiketju)
+Lataus käyttää **base64-merkkijonoa** Server Actionissa (`uploadUserImageBase64Action`),
+EI FormData/File-oliota (joka palautti 400). `next.config.ts`:
+`experimental.serverActions.bodySizeLimit: '8mb'`. Lisäksi **client-side resize**
+(canvas: profiili max 600px / tausta max 1600px, JPEG 0.85) pienentää bodyn ~100–300 kt:hen
+→ ei 413. `default_images`-taulussa oltava `name`-sarake
+(`ALTER TABLE default_images ADD COLUMN IF NOT EXISTS name text;`).
+
+---
+
+## RATKAISTUT BUGIT (tämä sessio)
+
+- **Hakukirjeen sulkulause/closingText ei tallentunut.** Juurisyy: `buildCLData` ei
+  mapannut `content.closingText → style.closingText` (KOLME paikkaa -säännön kohta 2
+  puuttui enginessä). Korjaus: lisätty `closingText: content.closingText` buildCLData:n
+  style-objektiin + `CLStyle`-tyyppiin. Tallennus, lataus ja PATCH-reitti olivat jo kunnossa.
+- **Fonttikoko (maalaamalla) ei tallentunut.** `surroundContents` ei laukaise input-
+  tapahtumaa → `setContent` ei päivity. Korjaus: `editableEl.dispatchEvent(new Event('input',{bubbles:true}))`
+  fonttikoon vaihdon jälkeen.
+- **Ribbon:** kulmakoriste (320px) meni leipätekstin päälle → pienennetty 230px:iin +
+  nimen `maxWidth` varaa turva-alueen.
+- **CreativeWave:** (1) sulkulause nyt muokattavissa (`editableClosing`), (2) alareunan
+  aalto ei enää allekirjoituksen päällä (sisällön alapehmuste 40→170px).
+- **Executive:** banneri accent-vetoinen (teemaväri näkyy selvästi) + diagonaali-sheen +
+  accent-hehku + voimakkaampi kaareva alareuna (ei enää lähes pelkkä tumma navy).
+- **my-cover-letters esikatselu** näkyi liian pienenä (kaksinkertainen scale + rikkinäinen
+  JSX) → korjattu samaan malliin kuin my-cvs (yksi 210mm-laatikko, scale 0.38).
+- **Muokattavat otsikot** lisätty molempiin arkistosivuihin.
 
 ---
 
@@ -280,23 +359,30 @@ CV:llä on oma vastaava engine (`lib/cv/engine/`). Sama periaate: data → moott
 ## TEHTY (hakukirje-engine)
 
 - Engine + skin -arkkitehtuuri hakukirjeille (sama kuin CV Tie B).
-- Skinit: Aurora, Elegant, Ribbon, Classic, CreativeWave, ModernTop, ModernLeft + UUDET: Executive (tumma banneri + kaareva alareuna), Greeting (Hello-banneri + 3-sarakkeinen yhteystietopalkki), Spine (pystynimi kraft-palstalla).
-- Kyvykkyysohjautuva AdaptiveControls: banneri (väri/korkeus/kuva), palkki (väri/korkeus), alueittainen typografia.
-- Per-alue typografia (`regions`): rakenteelliset otsikot säätimellä.
-- Maalaamalla muokkaus: EditableField + EditableParagraphs säilyttävät inline-muotoilun (koko A−/A+, väri, lihavointi). Kontrolloimaton contentEditable → valinta ei nollaudu.
-- Kuvavalitsin olemassa olevasta kuvakirjastosta (ei URL-kenttää), file_path-pohjainen storage.
+- Skinit: Aurora, Elegant, Ribbon, Classic, CreativeWave, ModernTop, ModernLeft,
+  Executive, Greeting, Spine, **Sidebar, Monogram**.
+- Kyvykkyysohjautuva AdaptiveControls: banneri (väri/korkeus/kuva), palkki (väri/korkeus),
+  alueittainen typografia.
+- Per-alue typografia (`regions`).
+- Maalaamalla muokkaus: EditableField + EditableParagraphs (kontrolloimaton contentEditable).
+- Muokattava sulkulause (`editableClosing` → `closingText`).
+- Kuvavalitsin olemassa olevasta kuvakirjastosta, file_path-pohjainen storage.
 
 ---
 
 ## TEKEMÄTTÄ (tietoisesti myöhemmäksi)
 
-- **CV Tie B vaiheet 2–5.**
+- **CV Tie B vaiheet 3 & 5** (ilmainen ei-AI-polku, monisivuisuus).
 - **Hakukirje V1 & V2** (job-specific, ATS) loppuun.
-- **Yksi yhtenäinen kuvajärjestelmä:** nyt rinnakkain vanha `background` (CoverLetterDesignPanel) ja uusi `image` (AdaptiveControls). Greeting lukee molempia fallbackina. Valitse yksi.
-- **Mobiilin tekstinväri-muokkaus:** mobiilin textarea ei tue inline-värejä (näyttää tekstin ilman tageja). Värit muokataan desktopilla. Vaihtoehto: vaihtaa mobiilin textarea contentEditable-diviksi.
-- **EditableField + mailto/tel:** yhteystiedot tallentuvat HTML:nä — strippaa tagit jos käytät niitä linkkeinä.
-- **Persoonallisuuskorttien kokoontaitto** profiilisivulla.
-- **Tulostuksen monisivupäätös** (`globals.css` @media print height: 297mm).
+- **Technical/Simple CV-otsikoiden kielitietoisuus** (Aquarelle jo tehty; sama LABELS-kuvio).
+- **Yksi yhtenäinen kuvajärjestelmä:** rinnakkain vanha `background` ja uusi `image`. Valitse yksi.
+  Sama koskee CV:n profileImageUtils.client.ts (PUBLIC url) vs userImages.ts (SIGNED) — valitse yksi.
+- **Mobiilin tekstinväri-muokkaus:** mobiilin textarea ei tue inline-värejä. Vaihtoehto:
+  contentEditable-div.
+- **EditableField + mailto/tel:** yhteystiedot tallentuvat HTML:nä — strippaa tagit linkeissä.
+- **Capabilities Monogram/Sidebar:** varmista että uusilla skineillä on capabilities.ts-merkintä.
+- **generate-cover-letter BG_TEMPLATES typo** `['aurora, sidebar']` → `['aurora','sidebar']`.
+- **Diagnostiikkalokien siivous** (🎨/💾/🔔/📥/🖼️) kun ominaisuudet vahvistettu toimiviksi.
 - **Siivous:** vanhat `app/profile/utils/`, kaksoiskappale `ProfileData`-tyyppi.
 
 ---
@@ -305,6 +391,8 @@ CV:llä on oma vastaava engine (`lib/cv/engine/`). Sama periaate: data → moott
 
 - **A4 ohjataan, ei pakoteta.** Mittari kertoo ylityksen; käyttäjä pienentää itse.
 - **Mobiilimuokkaus lomakkeilla, ei skaalatulla dokumentilla.**
-- **Template takaa laadun.** Ei täysin vapaata hiekkalaatikkoa — muokkaus templaten rajoissa.
-- **Engine yksi, skinit monta.** Sama bugi korjataan kerran. Uusi template = vain skin + capability-merkintä.
-- **Rakenteelliset elementit säätimistä, sisältöteksti maalaamalla.** Iso pystynimi on osa templaten identiteettiä (säädin); yhteystiedot ja leipäteksti ovat sisältöä (maalattavissa vapaasti).
+- **Template takaa laadun.** Muokkaus templaten rajoissa, ei vapaata hiekkalaatikkoa.
+- **Engine yksi, skinit monta.** Sama bugi korjataan kerran. Uusi template = vain skin + capability.
+- **Rakenteelliset elementit säätimistä, sisältöteksti maalaamalla.**
+- **KOLME paikkaa** uudelle tyylikentälle (types → buildCLData → edit-sivu). Yleisin bugi
+  on unohtaa buildCLData → kenttä jää undefined.
