@@ -170,7 +170,7 @@ export default function SmartHeader() {
   }
 
   // Yhteinen dropdown-renderöinti (desktop, kirjautunut)
-  const NavDropdown = ({ id, label, Icon, items }: { id: string; label: string; Icon: any; items: { href: string; label: string; icon: any }[] }) => (
+  const NavDropdown = ({ id, label, items }: { id: string; label: string; items: { href: string; label: string; icon: any }[] }) => (
     <div data-menu className="relative">
       <button
         onClick={() => setOpenMenu(openMenu === id ? null : id)}
@@ -180,7 +180,6 @@ export default function SmartHeader() {
             : isDark ? 'text-gray-300 hover:text-orange-300 hover:bg-white/5' : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'
         }`}
       >
-        <Icon className="w-4 h-4" />{label}
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${openMenu === id ? 'rotate-180' : ''}`} />
       </button>
       {openMenu === id && (
@@ -207,21 +206,21 @@ export default function SmartHeader() {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 h-16 flex justify-between items-center relative">
 
           <Link href="/" className="flex items-center flex-shrink-0">
-            <Image src="/logo.png" alt="HappyApplaid" width={120} height={32} className="sm:w-[150px] sm:h-[40px]" />
+        Happy<span style={{ color: '#f97316' }}>Applaid</span>
           </Link>
 
           {/* Desktop-navi: Koti · CV▾ · Hakukirje▾ · ATS */}
           <nav className="hidden lg:flex items-center gap-1 mx-4">
             <Link href="/">
               <button className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/' ? 'text-orange-400 bg-orange-500/10' : isDark ? 'text-gray-300 hover:text-orange-300 hover:bg-white/5' : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'}`}>
-                <Home className="w-4 h-4" />{t.home}
+               {t.home}
               </button>
             </Link>
-            <NavDropdown id="cv" label={t.cv} Icon={FileText} items={cvItems} />
-            <NavDropdown id="hakukirje" label={t.coverLetter} Icon={Mail} items={letterItems} />
+            <NavDropdown id="cv" label={t.cv}  items={cvItems} />
+            <NavDropdown id="hakukirje" label={t.coverLetter} items={letterItems} />
             <Link href="/ats-checker">
               <button className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/ats-checker' ? 'text-orange-400 bg-orange-500/10' : isDark ? 'text-gray-300 hover:text-orange-300 hover:bg-white/5' : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'}`}>
-                <Shield className="w-4 h-4" />{t.atsChecker}
+                {t.atsChecker}
               </button>
             </Link>
           </nav>
