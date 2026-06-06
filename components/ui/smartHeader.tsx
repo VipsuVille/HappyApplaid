@@ -2,8 +2,16 @@
 
 // ══════════════════════════════════════════════════════════
 //  HappyApplaid — SmartHeader
-//  Kirjautunut: Koti · ATS · Luo▾ · Omat▾  |  token·plan-pilleri + profiilivalikko
+//  Kirjautunut: Koti · CV▾ · Hakukirje▾ · ATS  |  token·plan-pilleri + profiilivalikko
 //  Kirjautumaton: wordmark + ATS · Hinnasto + Sign in / Get started
+//
+//  Muutokset:
+//   • Navi ryhmitelty tuotteittain: CV▾ (Uusi CV / CV:t) ja Hakukirje▾ (Uusi / omat)
+//     entisten verbipohjaisten Luo▾ / Omat▾ tilalle.
+//   • Vastaukset siirretty profiilivalikkoon (se on profiilidataa, ei dokumentti).
+//   • Profiilivalikko uudistettu: identiteettiheader + Tili-ryhmä + Mieltymykset-ryhmä
+//     + uloskirjautuminen omana lohkonaan. Hinnasto poistettu (on jo token-pillerissä).
+//   • Mobiilivalikko ryhmitelty samoin kuin desktop (CV / Hakukirje / Tili).
 // ══════════════════════════════════════════════════════════
 
 import { useEffect, useState } from 'react';
@@ -19,7 +27,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { clerkAppearance } from '@/lib/clerkAppearance';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
-  FileText, Menu, X, Home, FileEdit, User as UserIcon,
+  FileText, Menu, X, Home, FileEdit, Mail, User as UserIcon,
   Settings, Crown, LogOut, Languages, ChevronDown, Book,
   ReceiptEuro, CircleDollarSign, Sparkles, Shield, Plus, FolderOpen,
 } from 'lucide-react';
@@ -62,7 +70,7 @@ export default function SmartHeader() {
   const pathname = usePathname();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [openMenu, setOpenMenu] = useState<string | null>(null); // 'luo' | 'omat' | 'profile'
+  const [openMenu, setOpenMenu] = useState<string | null>(null); // 'cv' | 'hakukirje' | 'profile'
   const [scrolled, setScrolled] = useState(false);
 
   const plan = subscription?.plan_type || plan_type;
@@ -90,46 +98,71 @@ export default function SmartHeader() {
       profile: 'Profile', pricing: 'Pricing', settings: 'Settings',
       signOut: 'Sign out', signIn: 'Sign In', signUp: 'Get Started Free',
       toggleLang: 'EN', balance: 'Balance', atsChecker: 'ATS Check',
-      create: 'Create', newCv: 'New CV', newLetter: 'New Cover Letter',
-      mine: 'Mine', theme: 'Theme',
+      newCv: 'New CV', newLetter: 'New Cover Letter',
+      cv: 'CV', coverLetter: 'Cover Letter',
+      account: 'Account', prefs: 'Preferences', theme: 'Theme', lang: 'Language',
     },
     fi: {
       home: 'Koti', cvs: 'CV:t', letters: 'Hakukirjeet', answers: 'Vastaukset',
       profile: 'Profiili', pricing: 'Hinnasto', settings: 'Asetukset',
       signOut: 'Kirjaudu ulos', signIn: 'Kirjaudu', signUp: 'Aloita Ilmaiseksi',
       toggleLang: 'FI', balance: 'Saldosi', atsChecker: 'ATS Mittari',
-      create: 'Luo', newCv: 'Uusi CV', newLetter: 'Uusi hakukirje',
-      mine: 'Omat', theme: 'Teema',
+      newCv: 'Uusi CV', newLetter: 'Uusi hakukirje',
+      cv: 'CV', coverLetter: 'Hakukirje',
+      account: 'Tili', prefs: 'Mieltymykset', theme: 'Teema', lang: 'Kieli',
     },
   }[language];
 
   const PricingIcon = language === 'fi' ? ReceiptEuro : CircleDollarSign;
   const pricingAnchor = pathname === '/' ? '#pricing' : '/#pricing';
 
-  const createItems = [
-    { href: '/create-cv', label: t.newCv, icon: FileText },
-    { href: '/create-cover-letter', label: t.newLetter, icon: FileEdit },
+  // Tuotepohjaiset dropdownit: luonti + arkisto saman tuotteen alla
+  const cvItems = [
+    { href: '/create-cv', label: t.newCv, icon: Plus },
+    { href: '/my-cvs', label: t.cvs, icon: FolderOpen },
   ];
-  const mineItems = [
-    { href: '/my-cvs', label: t.cvs, icon: FileText },
-    { href: '/my-cover-letters', label: t.letters, icon: FileEdit },
-    { href: '/profile/responses', label: t.answers, icon: Book },
+  const letterItems = [
+    { href: '/create-cover-letter', label: t.newLetter, icon: Plus },
+    { href: '/my-cover-letters', label: t.letters, icon: FolderOpen },
   ];
-  const secondaryNavLinks = [
+  // Profiilivalikon Tili-ryhmä (Vastaukset siirretty tänne Omat-valikosta)
+  const accountItems = [
     { href: '/profile', label: t.profile, icon: UserIcon },
-    { href: '/pricing', label: t.pricing, icon: PricingIcon },
-  ];
-  // Mobiili: kaikki linkit yhtenä listana
-  const allMobileLinks = [
-    { href: '/', label: t.home, icon: Home },
-    { href: '/ats-checker', label: t.atsChecker, icon: Shield },
-    { href: '/create-cv', label: t.newCv, icon: FileText },
-    { href: '/create-cover-letter', label: t.newLetter, icon: FileEdit },
-    { href: '/my-cvs', label: t.cvs, icon: FileText },
-    { href: '/my-cover-letters', label: t.letters, icon: FileEdit },
     { href: '/profile/responses', label: t.answers, icon: Book },
-    { href: '/profile', label: t.profile, icon: UserIcon },
-    { href: '/pricing', label: t.pricing, icon: PricingIcon },
+    { href: '/settings', label: t.settings, icon: Settings },
+  ];
+  // Mobiili: samat ryhmät kuin desktopilla
+  const mobileGroups = [
+    {
+      label: null as string | null,
+      links: [
+        { href: '/', label: t.home, icon: Home },
+        { href: '/ats-checker', label: t.atsChecker, icon: Shield },
+      ],
+    },
+    {
+      label: t.cv,
+      links: [
+        { href: '/create-cv', label: t.newCv, icon: Plus },
+        { href: '/my-cvs', label: t.cvs, icon: FolderOpen },
+      ],
+    },
+    {
+      label: t.coverLetter,
+      links: [
+        { href: '/create-cover-letter', label: t.newLetter, icon: Plus },
+        { href: '/my-cover-letters', label: t.letters, icon: FolderOpen },
+      ],
+    },
+    {
+      label: t.account,
+      links: [
+        { href: '/profile', label: t.profile, icon: UserIcon },
+        { href: '/profile/responses', label: t.answers, icon: Book },
+        { href: '/settings', label: t.settings, icon: Settings },
+        { href: '/pricing', label: t.pricing, icon: PricingIcon },
+      ],
+    },
   ];
 
   if (!isClerkLoaded || isSubscriptionLoading || tokensLoading) {
@@ -177,20 +210,20 @@ export default function SmartHeader() {
             <Image src="/logo.png" alt="HappyApplaid" width={120} height={32} className="sm:w-[150px] sm:h-[40px]" />
           </Link>
 
-          {/* Desktop-navi: Koti · ATS · Luo▾ · Omat▾ */}
+          {/* Desktop-navi: Koti · CV▾ · Hakukirje▾ · ATS */}
           <nav className="hidden lg:flex items-center gap-1 mx-4">
             <Link href="/">
               <button className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/' ? 'text-orange-400 bg-orange-500/10' : isDark ? 'text-gray-300 hover:text-orange-300 hover:bg-white/5' : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'}`}>
                 <Home className="w-4 h-4" />{t.home}
               </button>
             </Link>
+            <NavDropdown id="cv" label={t.cv} Icon={FileText} items={cvItems} />
+            <NavDropdown id="hakukirje" label={t.coverLetter} Icon={Mail} items={letterItems} />
             <Link href="/ats-checker">
               <button className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${pathname === '/ats-checker' ? 'text-orange-400 bg-orange-500/10' : isDark ? 'text-gray-300 hover:text-orange-300 hover:bg-white/5' : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'}`}>
                 <Shield className="w-4 h-4" />{t.atsChecker}
               </button>
             </Link>
-            <NavDropdown id="luo" label={t.create} Icon={Plus} items={createItems} />
-            <NavDropdown id="omat" label={t.mine} Icon={FolderOpen} items={mineItems} />
           </nav>
 
           {/* Oikea: token·plan-pilleri + profiilivalikko */}
@@ -217,33 +250,55 @@ export default function SmartHeader() {
                 </div>
                 <ChevronDown className={`w-4 h-4 transition-transform ${openMenu === 'profile' ? 'rotate-180' : ''} ${isDark ? 'text-gray-300' : 'text-gray-500'}`} />
               </button>
+
+              {/* Profiilivalikko — uudistettu: header · Tili · Mieltymykset · uloskirjautuminen */}
               {openMenu === 'profile' && (
-                <div className={`absolute right-0 top-12 w-56 border rounded-xl shadow-2xl z-50 overflow-hidden ${isDark ? 'bg-gray-900/95 border-white/10' : 'bg-white border-gray-200'}`}>
-                  <div className={`px-4 py-3 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
-                    <p className={`text-xs font-bold truncate ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{user?.firstName} {user?.lastName}</p>
-                    <p className={`text-[10px] truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{user?.primaryEmailAddress?.emailAddress}</p>
+                <div className={`absolute right-0 top-12 w-64 border rounded-xl shadow-2xl z-50 overflow-hidden ${isDark ? 'bg-gray-900/95 border-white/10' : 'bg-white border-gray-200'}`}>
+
+                  {/* Identiteettiheader */}
+                  <div className={`flex items-center gap-3 px-4 py-3 border-b ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                    <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-full text-sm flex items-center justify-center font-bold">
+                      {user?.firstName?.[0] ?? 'U'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm font-semibold truncate ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{user?.firstName} {user?.lastName}</p>
+                      <p className={`text-xs truncate ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{user?.primaryEmailAddress?.emailAddress}</p>
+                    </div>
+                    {plan && (
+                      <span className={`flex-shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full ${isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>
+                        {plan.toUpperCase()}
+                      </span>
+                    )}
                   </div>
-                  {secondaryNavLinks.map(({ href, label, icon: Icon }) => (
-                    <Link key={href} href={href}>
-                      <button className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 transition-colors ${isDark ? 'text-gray-200 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'}`}>
-                        <Icon className="w-4 h-4" />{label}
-                      </button>
-                    </Link>
-                  ))}
-                  <Link href="/settings">
-                    <button className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 transition-colors ${isDark ? 'text-gray-200 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'}`}>
-                      <Settings className="w-4 h-4" />{t.settings}
+
+                  {/* Ryhmä: Tili */}
+                  <div className="py-1.5">
+                    <p className={`px-4 pt-1.5 pb-1 text-[11px] uppercase tracking-wider font-bold ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{t.account}</p>
+                    {accountItems.map(({ href, label, icon: Icon }) => (
+                      <Link key={href} href={href}>
+                        <button className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 transition-colors ${pathname === href ? 'text-orange-500 bg-orange-500/10' : isDark ? 'text-gray-200 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'}`}>
+                          <Icon className="w-4 h-4" />{label}
+                        </button>
+                      </Link>
+                    ))}
+                  </div>
+
+                  {/* Ryhmä: Mieltymykset (teema + kieli yhtenäisinä riveinä) */}
+                  <div className={`py-1.5 border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
+                    <p className={`px-4 pt-1.5 pb-1 text-[11px] uppercase tracking-wider font-bold ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{t.prefs}</p>
+                    <div className="flex items-center justify-between px-4 py-2">
+                      <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t.theme}</span>
+                      <ThemeToggle />
+                    </div>
+                    <button onClick={toggleLanguage} className={`w-full flex items-center justify-between px-4 py-2 transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
+                      <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t.lang}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded ${isDark ? 'bg-white/10 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>{language.toUpperCase()}</span>
                     </button>
-                  </Link>
-                  <div className={`flex items-center justify-between px-4 py-2.5 border-t ${isDark ? 'border-white/5' : 'border-gray-100'}`}>
-                    <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t.theme}</span>
-                    <ThemeToggle />
                   </div>
-                  <button onClick={toggleLanguage} className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 transition-colors ${isDark ? 'text-gray-200 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-50'}`}>
-                    <Languages className="w-4 h-4" />{language === 'en' ? 'Suomeksi' : 'In English'}
-                  </button>
+
+                  {/* Uloskirjautuminen omana lohkonaan */}
                   <SignOutButton>
-                    <button className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-2.5 font-semibold border-t transition-colors ${isDark ? 'text-red-400 hover:bg-red-500/10 border-white/5' : 'text-red-500 hover:bg-red-50 border-gray-100'}`}>
+                    <button className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 font-semibold border-t transition-colors ${isDark ? 'text-red-400 hover:bg-red-500/10 border-white/5' : 'text-red-500 hover:bg-red-50 border-gray-100'}`}>
                       <LogOut className="w-4 h-4" />{t.signOut}
                     </button>
                   </SignOutButton>
@@ -258,7 +313,7 @@ export default function SmartHeader() {
           </button>
         </div>
 
-        {/* Mobile menu (kirjautunut) */}
+        {/* Mobile menu (kirjautunut) — ryhmitelty desktopin tapaan */}
         {mobileMenuOpen && (
           <div className={`lg:hidden border-b absolute left-0 top-full w-full z-50 animate-in slide-in-from-top duration-200 shadow-2xl ${isDark ? 'bg-[#0a0a0a] backdrop-blur-2xl border-white/10' : 'bg-white backdrop-blur-2xl border-gray-200'}`}>
             <div className="flex flex-col p-4 gap-1 max-h-[80vh] overflow-y-auto">
@@ -271,26 +326,30 @@ export default function SmartHeader() {
                   {plan && (<><div className={`w-px h-5 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} /><Crown className="w-4 h-4 text-amber-400" /><span className={`text-xs font-bold ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>{plan.toUpperCase()}</span></>)}
                 </div>
               </div>
-              {allMobileLinks.map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href}>
-                  <Button variant="ghost" className={`w-full justify-start ${pathname === href ? 'text-orange-400 bg-orange-500/10' : isDark ? 'text-gray-300 hover:text-orange-300' : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'}`}>
-                    <Icon className="w-5 h-5 mr-3" />{label}
-                  </Button>
-                </Link>
+
+              {mobileGroups.map((group, gi) => (
+                <div key={gi} className={gi > 0 ? 'mt-1' : ''}>
+                  {group.label && (
+                    <p className={`px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider font-bold ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>{group.label}</p>
+                  )}
+                  {group.links.map(({ href, label, icon: Icon }) => (
+                    <Link key={href} href={href}>
+                      <Button variant="ghost" className={`w-full justify-start ${pathname === href ? 'text-orange-400 bg-orange-500/10' : isDark ? 'text-gray-300 hover:text-orange-300' : 'text-gray-600 hover:text-orange-500 hover:bg-orange-50'}`}>
+                        <Icon className="w-5 h-5 mr-3" />{label}
+                      </Button>
+                    </Link>
+                  ))}
+                </div>
               ))}
+
               <div className={`pt-2 mt-1 border-t space-y-1 ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
                 <div className={`flex items-center justify-between px-4 py-2 rounded-lg ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'}`}>
-                  <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{language === 'en' ? 'Dark mode' : 'Tumma tila'}</span>
+                  <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{t.theme}</span>
                   <ThemeToggle />
                 </div>
                 <Button onClick={toggleLanguage} variant="ghost" className={`w-full justify-start ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                  <Languages className="w-5 h-5 mr-3" />{language === 'en' ? 'In English' : 'Suomeksi'}
+                  <Languages className="w-5 h-5 mr-3" />{language === 'en' ? 'Suomeksi' : 'In English'}
                 </Button>
-                <Link href="/settings">
-                  <Button variant="ghost" className={`w-full justify-start ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    <Settings className="w-5 h-5 mr-3" />{t.settings}
-                  </Button>
-                </Link>
                 <SignOutButton>
                   <Button variant="ghost" className={`w-full justify-start font-bold ${isDark ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10' : 'text-red-500 hover:text-red-600 hover:bg-red-50'}`}>
                     <LogOut className="w-5 h-5 mr-3" />{t.signOut}
