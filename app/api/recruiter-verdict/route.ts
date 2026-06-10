@@ -1,10 +1,10 @@
 // app/api/recruiter-verdict/route.ts
-// Rekrytoijasimulaatio: malli ottaa palkkaavan henkilön roolin ja arvioi hakemuksen
-// suhteessa työpaikkailmoitukseen. Palauttaa jäsennellyn JSONin (ks. tyyppi alla).
+// Rekrytoijasimulaatio + ANONYYMI vertailu. Malli ottaa palkkaavan henkilön roolin.
+// Vertailu: vain { role_type, fit_score } tallennetaan — EI käyttäjäkohtaista dataa.
 import { auth } from "@clerk/nextjs/server";
 import { ChatOpenAI } from "@langchain/openai";
+import { quickRoleType, computeBenchmark, recordVerdictStat } from "@/lib/ats/benchmark";
 
-// Sävyt: kuinka ankara rekrytoija on
 const TONE_INSTRUCTIONS: Record<string, string> = {
   strict:
     "You are a demanding hiring manager with a huge stack of applications and little patience. You reject quickly. Be blunt about every weakness.",
@@ -24,18 +24,17 @@ export async function POST(req: Request) {
   }
 
   const toneLine = TONE_INSTRUCTIONS[tone] ?? TONE_INSTRUCTIONS.neutral;
-
   const system = `${toneLine}
 
 You are reading ONE application against ONE job posting. Put yourself fully in the shoes of the person hiring for THIS role at THIS company. Judge whether this is the candidate they want.
 
 Rules:
-- Be honest, not flattering. Flattery helps no one. If something is weak, say so plainly.
+- Be honest, not flattering. If something is weak, say so plainly.
 - Ground every concern and gap in a SPECIFIC requirement or signal from the job posting. Do not invent requirements.
 - Answer in the SAME LANGUAGE as the application text.
 - Respond with ONLY a valid JSON object, no markdown, no backticks, no preamble. Shape:
 {
-  "verdict": "interview" | "maybe" | "pass",   // would you invite them to interview?
+  "verdict": "interview" | "maybe" | "pass",
   "verdictLabel": short human phrase for the verdict, in the application's language,
   "firstImpression": "1-2 sentences: what the recruiter thinks after ~10 seconds",
   "strengths": ["concrete things that genuinely fit the posting"],
@@ -59,7 +58,6 @@ Rules:
     raw = raw.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(raw);
 
-    // Kevyt validointi + oletukset
     const result = {
       verdict: ["interview", "maybe", "pass"].includes(parsed.verdict) ? parsed.verdict : "maybe",
       verdictLabel: parsed.verdictLabel ?? "",
@@ -72,7 +70,14 @@ Rules:
       oneLineToFix: parsed.oneLineToFix ?? "",
     };
 
-    return Response.json(result);
+    // ── Anonyymi vertailu ──────────────────────────────────────────────
+    const roleType = quickRoleType(jobPosting);
+    // Laske ENNEN tallennusta, ettei oma rivi vääristä omaa sijoitusta
+    const benchmark = await computeBenchmark(roleType, result.fitScore);
+    // Tallenna anonyymi rivi (ei user_id, ei tekstiä)
+    await recordVerdictStat(roleType, result.fitScore);
+
+    return Response.json({ ...result, roleType, benchmark });
   } catch (e) {
     console.error("recruiter-verdict error:", e);
     return Response.json({ error: "Arvio epäonnistui. Yritä uudelleen." }, { status: 500 });

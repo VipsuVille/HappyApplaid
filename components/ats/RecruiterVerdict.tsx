@@ -1,17 +1,21 @@
 'use client';
 // components/ats/RecruiterVerdict.tsx
-// Pudota tämä ats-checker-sivulle omaksi osiokseen ("Ihminen: rekrytoijan verdikti").
+// Rekrytoijan verdikti + anonyymi vertailu ("Miten vertaudut"). Pudota ats-checker-sivulle.
 import { useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import {
-  CheckCircle2, AlertTriangle, XCircle, HelpCircle, Sparkles, Loader2, UserCheck,
+  CheckCircle2, AlertTriangle, XCircle, HelpCircle, Sparkles, Loader2, UserCheck, BarChart3,
 } from 'lucide-react';
 
 type Verdict = 'interview' | 'maybe' | 'pass';
+interface Bench {
+  percentile: number; median: number; strongThreshold: number; sampleSize: number; basis: 'data' | 'estimate';
+}
 interface Result {
   verdict: Verdict; verdictLabel: string; firstImpression: string;
   strengths: string[]; concerns: string[]; gaps: string[];
   questionsTheydAsk: string[]; fitScore: number; oneLineToFix: string;
+  roleType?: string; benchmark?: Bench;
 }
 
 const VERDICT_STYLE: Record<Verdict, { bg: string; text: string; Icon: any; fallback: string }> = {
@@ -30,10 +34,7 @@ export default function RecruiterVerdict() {
   const [result, setResult] = useState<Result | null>(null);
 
   const run = async () => {
-    if (!coverLetter.trim() || !jobPosting.trim()) {
-      setError('Liitä sekä hakemuksesi että työpaikkailmoitus.');
-      return;
-    }
+    if (!coverLetter.trim() || !jobPosting.trim()) { setError('Liitä sekä hakemuksesi että työpaikkailmoitus.'); return; }
     setLoading(true); setError(null); setResult(null);
     try {
       const token = await getToken();
@@ -47,16 +48,13 @@ export default function RecruiterVerdict() {
       setResult(data);
     } catch (e: any) {
       setError(e.message || 'Arvio epäonnistui.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const v = result ? VERDICT_STYLE[result.verdict] : null;
 
   return (
     <div className="space-y-6">
-      {/* Selittävä yläosa */}
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0">
           <UserCheck className="w-5 h-5 text-orange-500" />
@@ -69,7 +67,6 @@ export default function RecruiterVerdict() {
         </div>
       </div>
 
-      {/* Syötteet */}
       <div className="grid md:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5">Hakemuksesi</label>
@@ -85,7 +82,6 @@ export default function RecruiterVerdict() {
         </div>
       </div>
 
-      {/* Sävy + nappi */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Sävy</span>
@@ -105,10 +101,8 @@ export default function RecruiterVerdict() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {/* Tulos */}
       {result && v && (
         <div className="space-y-5 pt-2">
-          {/* Verdikti-banneri + fit-mittari */}
           <div className={`rounded-2xl border p-5 ${v.bg}`}>
             <div className="flex items-center gap-3 mb-3">
               <v.Icon className={`w-6 h-6 ${v.text}`} />
@@ -122,6 +116,11 @@ export default function RecruiterVerdict() {
               <p className="text-sm text-gray-700 dark:text-gray-200 mt-3 italic">&ldquo;{result.firstImpression}&rdquo;</p>
             )}
           </div>
+
+          {/* ── Anonyymi vertailu ── */}
+          {result.benchmark && (
+            <BenchmarkCard b={result.benchmark} fitScore={result.fitScore} fix={result.oneLineToFix} />
+          )}
 
           <div className="grid md:grid-cols-2 gap-4">
             <ListCard title="Vahvuudet" items={result.strengths} Icon={CheckCircle2} color="text-emerald-500" />
@@ -138,6 +137,47 @@ export default function RecruiterVerdict() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function BenchmarkCard({ b, fitScore, fix }: { b: Bench; fitScore: number; fix: string }) {
+  const ahead = b.percentile;                       // % heikompia kuin sinä
+  const strong = fitScore >= b.strongThreshold;
+  const headline = strong
+    ? `Olet vahvempi kuin ~${ahead}% vastaaviin rooleihin arvioiduista hakemuksista.`
+    : `Vahvat hakijat tähän rooliin yltävät noin ${b.strongThreshold}/100. Sinä: ${fitScore}.`;
+  const sub = strong
+    ? (fix ? `Hyvä pohja \u2014 viimeistele vielä: ${fix}` : 'Vahva hakemus tähän rooliin.')
+    : (fix ? `Lähin parannus: ${fix}` : 'Keskity ilmoituksen vaatimusten kattamiseen.');
+
+  return (
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <BarChart3 className="w-4 h-4 text-orange-500" />
+        <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">Miten vertaudut</h3>
+        <span className="ml-auto text-[11px] text-gray-400">
+          {b.basis === 'data' ? `perustuu ${b.sampleSize} arvioon` : 'vertailuarvo (vähän dataa)'}
+        </span>
+      </div>
+
+      {/* Jakaumapalkki: mediaani + vahva taso + sinä */}
+      <div className="relative h-2.5 rounded-full bg-gray-200 dark:bg-gray-800 my-4">
+        <div className="absolute top-1/2 -translate-y-1/2 w-px h-3.5 bg-gray-400" style={{ left: `${b.median}%` }} title="Mediaani" />
+        <div className="absolute top-1/2 -translate-y-1/2 w-px h-3.5 bg-emerald-400" style={{ left: `${b.strongThreshold}%` }} title="Vahva hakija" />
+        <div className="absolute -top-1 w-4 h-4 rounded-full bg-orange-500 border-2 border-white dark:border-gray-900 shadow"
+          style={{ left: `calc(${fitScore}% - 8px)` }} title={`Sinä: ${fitScore}`} />
+      </div>
+      <div className="flex justify-between text-[10px] text-gray-400 mb-3">
+        <span>Mediaani {b.median}</span>
+        <span className="text-emerald-500">Vahva {b.strongThreshold}</span>
+      </div>
+
+      <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{headline}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{sub}</p>
+      <p className="text-[11px] text-gray-400 mt-3">
+        Vertailu on anonyymi ja koostettu \u2014 emme tallenna hakemustasi emmekä yhdistä tätä sinuun.
+      </p>
     </div>
   );
 }
