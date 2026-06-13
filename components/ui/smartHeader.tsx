@@ -31,6 +31,7 @@ import {
   Settings, Crown, LogOut, Languages, ChevronDown, Book,
   ReceiptEuro, CircleDollarSign, Sparkles, Shield, Plus, FolderOpen,
 } from 'lucide-react';
+import AiUsageMeter from '../aiUsageMeter';
 
 const riotStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600&display=swap');
@@ -232,7 +233,7 @@ const plan = subscription?.plan_type;
             <Link href="/pricing">
               <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-opacity hover:opacity-80 ${isDark ? 'bg-gray-900/60 border-gray-800' : 'bg-gray-100 border-gray-200'}`}>
                 <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{aiRemaining}/{aiLimit}</span>
+  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}><AiUsageMeter compact /></span>
 <span className="text-[10px] font-bold text-orange-500">AI·VKO</span>
                {plan && (
                   <>
