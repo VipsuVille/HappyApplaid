@@ -1,9 +1,12 @@
-// lib/langchain/coverLetterGenerator.ts - V1 REWRITTEN: NO ATS, V2-QUALITY
+// lib/langchain/coverLetterGenerator.ts - V1 REWRITTEN: NO ATS, V2-QUALITY + finnishStyle + appGuide + RAG
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { analyzeJobAndProfile } from "./smartQuestionAnalyzer";
 import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
+import { buildAIContext } from "@/lib/knowledge";                 // ✅ RAG
+import { FINNISH_STYLE_RULES } from "./finnishStyle";
+import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";  // ✅ kirjainkoko täsmää tiedostoon
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -42,7 +45,7 @@ export interface ATSV1Input {
 
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
-  enableRAG?: boolean;
+  enableRAG?: boolean;          // ✅ premium-portti reitissä
   guardianValidation?: boolean;
   userId?: string;
   skipQuestions?: boolean;
@@ -68,14 +71,13 @@ export interface ATSV1Output {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HELPER: JOB CONTEXT EXTRACTION (replaces keyword extraction)
-// Understands what employer wants WITHOUT scoring/ATS logic
+// HELPER: JOB CONTEXT EXTRACTION
 // ═══════════════════════════════════════════════════════════════
 
 async function extractJobContext(jobDescription: string): Promise<{
-  keyThemes: string[];       // what the role is really about
-  requiredQualities: string[]; // what kind of person they want
-  companySignals: string[];  // culture/values clues
+  keyThemes: string[];
+  requiredQualities: string[];
+  companySignals: string[];
 }> {
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
@@ -115,8 +117,7 @@ Focus on the spirit of the role, not just keywords.`;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// QUALITY EVALUATOR (replaces ATS score)
-// Evaluates writing quality, not keyword density
+// QUALITY EVALUATOR
 // ═══════════════════════════════════════════════════════════════
 
 async function evaluateLetterQuality(
@@ -124,7 +125,7 @@ async function evaluateLetterQuality(
   jobContext: { keyThemes: string[]; requiredQualities: string[]; companySignals: string[] },
   language: string
 ): Promise<{
-  score: number; // 0-100
+  score: number;
   weaknesses: string[];
   isGoodEnough: boolean;
 }> {
@@ -218,7 +219,7 @@ You write cover letters, not fiction. Present the applicant's ACTUAL background.
 `;
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN V1 GENERATOR — No ATS, V2-quality iterative approach
+// MAIN V1 GENERATOR
 // ═══════════════════════════════════════════════════════════════
 
 export async function generateATSCoverLetterV1(
@@ -228,20 +229,15 @@ export async function generateATSCoverLetterV1(
   console.log('🚀 [V1] Starting quality-focused generation...');
   console.log('🔒 [V1] Privacy: Personal info NOT sent to AI');
   console.log('💬 [V1] Additional notes:', input.additionalNotes ? 'YES' : 'NO');
-  console.log('📌 [V1] Mode: Character-driven, no ATS scoring');
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 1: SMART QUESTIONS
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+  // ━━━ STEP 1: SMART QUESTIONS ━━━
   if (!input.skipQuestions) {
     console.log('🧠 [V1] Checking if questions needed...');
-
     try {
       const analysis = await analyzeJobAndProfile({
         jobDescription: input.jobDescription,
         userProfile: {
-          name: 'Applicant', // ✅ Anonymous
+          name: 'Applicant',
           workExperience: input.workExperience || '',
           education: input.education || '',
           skills: input.skills || '',
@@ -271,7 +267,6 @@ export async function generateATSCoverLetterV1(
           questions: criticalQuestions,
         };
       }
-
       console.log('✅ [V1] No critical questions needed');
     } catch (error) {
       console.error('⚠️ [V1] Question analysis failed, proceeding:', error);
@@ -280,18 +275,11 @@ export async function generateATSCoverLetterV1(
     console.log('⏭️ [V1] Questions skipped');
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 2: EXTRACT JOB CONTEXT (not keywords — themes)
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+  // ━━━ STEP 2: EXTRACT JOB CONTEXT ━━━
   console.log('🔍 [V1] Extracting job context...');
   const jobContext = await extractJobContext(input.jobDescription);
-  console.log(`✅ [V1] Themes: ${jobContext.keyThemes.join(', ')}`);
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 3: GUARDIAN - EXTRACT GROUND TRUTH
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+  // ━━━ STEP 3: GROUND TRUTH ━━━
   let groundTruth = null;
   if (input.guardianValidation !== false) {
     console.log('🛡️ [V1] Extracting ground truth...');
@@ -317,18 +305,31 @@ export async function generateATSCoverLetterV1(
     }
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 4: ITERATIVE QUALITY GENERATION
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ━━━ STEP 3.5: ✅ FINNISH STYLE + APP GUIDE + RAG ━━━
+  const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
+  const languageName = isFinnish ? 'suomi' : 'englanti';
+  const finnishStyle = isFinnish ? FINNISH_STYLE_RULES : '';
+  const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
 
+  let knowledgeContext = '';
+  if (input.enableRAG) {
+    try {
+      knowledgeContext = await buildAIContext({
+        jobDescription: input.jobDescription,
+        userProfile: { name: input.name, skills: input.skills, workExperience: input.workExperience, education: input.education },
+        enableRAG: true,
+        contentType: 'cover_letter',
+        language: input.language || 'finnish',
+      });
+    } catch { knowledgeContext = ''; }
+  }
+
+  // ━━━ STEP 4: ITERATIVE QUALITY GENERATION ━━━
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: 'gpt-4o-mini',
     temperature: 0.6,
   });
-
-  const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
-  const languageName = isFinnish ? 'suomi' : 'englanti';
 
   let iteration = 0;
   let bestContent = '';
@@ -338,14 +339,12 @@ export async function generateATSCoverLetterV1(
   let additionalInstructionsText = 'None';
   if (input.additionalNotes && input.additionalNotes.trim()) {
     additionalInstructionsText = `"${input.additionalNotes}"\n\nFollow these carefully — user knows their situation best.`;
-    console.log('💬 [V1] Using additional notes:', input.additionalNotes.substring(0, 50) + '...');
   }
 
   while (iteration < maxIterations) {
     iteration++;
     console.log(`🔄 [V1] Quality iteration ${iteration}/${maxIterations}...`);
 
-    // Build improvement prompt for iterations 2+
     let improvementGuidance = '';
     if (iteration > 1) {
       improvementGuidance = `
@@ -364,6 +363,12 @@ Keep all truthful content, improve the delivery.`;
 
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', `You write cover letters that feel HUMAN and GENUINE.
+
+{knowledgeContext}
+
+{finnishStyle}
+
+{appGuide}
 
 # ════════════════════════════════════════════════════════════════
 # MISSION: CHARACTER-DRIVEN, NOT CREDENTIAL-DRIVEN
@@ -477,6 +482,9 @@ Failure Lesson: {failureLesson}
 
     try {
       const formatted = await prompt.formatMessages({
+        knowledgeContext: knowledgeContext || '',
+        finnishStyle,
+        appGuide,
         languageName,
         style: input.style || 'professional',
         keyThemes: jobContext.keyThemes.join(', ') || 'Professional excellence',
@@ -485,8 +493,6 @@ Failure Lesson: {failureLesson}
         jobDescription: input.jobDescription,
         additionalInstructions: additionalInstructionsText,
         improvementGuidance,
-
-        // ✅ ANONYMIZED DATA
         careerLevel: input.careerLevel || 'mid',
         yearsOfExperience: input.yearsOfExperience || 0,
         workExperience: input.workExperience || 'Building experience',
@@ -512,7 +518,6 @@ Failure Lesson: {failureLesson}
         ? result.content
         : JSON.stringify(result.content);
 
-      // Cleanup
       content = content
         .replace(/\[.*?\]/g, '')
         .replace(/\n\s*\n\s*\n/g, '\n\n')
@@ -521,7 +526,6 @@ Failure Lesson: {failureLesson}
         .replace(/Sincerely,?\s*/gi, '')
         .trim();
 
-      // Remove leaked name
       const namePattern = new RegExp(`\\b${input.name}\\b`, 'gi');
       const nameCount = (content.match(namePattern) || []).length;
       if (nameCount > 0) {
@@ -529,13 +533,11 @@ Failure Lesson: {failureLesson}
         content = content.replace(namePattern, '').trim();
       }
 
-      // Remove leaked email
       if (input.email) {
         const emailPattern = new RegExp(input.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
         content = content.replace(emailPattern, '').trim();
       }
 
-      // ── Quality evaluation (replaces ATS scoring) ──────────────
       const quality = await evaluateLetterQuality(content, jobContext, input.language || 'finnish');
       console.log(`📊 [V1] Iteration ${iteration} quality: ${quality.score}/100 (good enough: ${quality.isGoodEnough})`);
 
@@ -550,39 +552,25 @@ Failure Lesson: {failureLesson}
       } else {
         console.log(`⚠️ [V1] Weaknesses: ${quality.weaknesses.join(', ')}`);
       }
-
     } catch (error) {
       console.error(`❌ [V1] Iteration ${iteration} failed:`, error);
-      if (bestContent) break; // Use what we have if we have something
+      if (bestContent) break;
     }
   }
 
   console.log(`✅ [V1] Final quality score: ${bestScore}/100 after ${iteration} iterations`);
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 5: GUARDIAN VALIDATION
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+  // ━━━ STEP 5: GUARDIAN VALIDATION ━━━
   let guardianReport = null;
   if (input.guardianValidation !== false && groundTruth) {
     console.log('🛡️ [V1] Running Guardian...');
     try {
-      guardianReport = await masterGuardianValidatorV2(
-        bestContent,
-        groundTruth,
-        'generation'
-      );
+      guardianReport = await masterGuardianValidatorV2(bestContent, groundTruth, 'generation');
       console.log(`🛡️ [V1] Guardian: ${guardianReport.approved ? 'APPROVED ✅' : 'ISSUES ⚠️'}`);
-
-      if (!guardianReport.approved) {
-        console.warn('⚠️ [V1] Guardian violations:', guardianReport.violations);
-      }
     } catch (error) {
       console.error('⚠️ [V1] Guardian failed:', error);
     }
   }
-
-  console.log(`✅ [V1] Generated ${bestContent.length} chars`);
 
   return {
     content: bestContent,

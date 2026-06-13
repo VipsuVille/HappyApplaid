@@ -6,7 +6,7 @@ import { useUser } from '@clerk/nextjs';
 import { X, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 import { createCheckoutSessionAction } from '@/app/actions/stripe';
 import { PRICING, BillingPeriod } from '@/lib/pricing';
-import { useTokens } from '@/hooks/useTokens';
+import { useSubscription } from '@/context/SubscriptionContext';
 import dynamic from 'next/dynamic';
 
 const PromoCodeRedeem = dynamic(
@@ -188,22 +188,22 @@ function CompareModal({ onClose, isEN }: { onClose: () => void; isEN: boolean })
                 </thead>
                 <tbody>
                   <tr className="border-b border-gray-100 dark:border-neutral-800">
-                    <td className="py-3 px-2 text-gray-600 dark:text-neutral-300">
-                      {isEN ? 'Tokens/month' : 'Tokenit/kk'}
-                    </td>
-                    <td className="text-center py-3 px-2 text-gray-900 dark:text-white">10,000</td>
-                    <td className="text-center py-3 px-2 text-amber-600 dark:text-amber-400 font-semibold">100,000</td>
-                  </tr>
+                  <td className="py-3 px-2 text-gray-600 dark:text-neutral-300">{isEN ? 'AI actions / week' : 'AI-toimintoja / viikko'}</td>
+<td className="text-center py-3 px-2 text-gray-900 dark:text-white">150</td>
+<td className="text-center py-3 px-2 text-amber-600 dark:text-amber-400 font-semibold">300</td>
+       </tr>
                   <tr className="border-b border-gray-100 dark:border-neutral-800">
                     <td className="py-3 px-2 text-gray-600 dark:text-neutral-300">
-                      {isEN ? 'ATS optimization' : 'ATS-optimointi'}
+                     {isEN ? 'How do the limits work?' : 'Miten rajat toimivat?'}
                     </td>
                     <td className="text-center py-3 px-2 text-red-400">✗</td>
                     <td className="text-center py-3 px-2 text-green-400">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100 dark:border-neutral-800">
                     <td className="py-3 px-2 text-gray-600 dark:text-neutral-300">
-                      {isEN ? 'STAR method cover letters' : 'STAR-menetelmä kirjeisiin'}
+                      { isEN
+  ? 'Each plan includes a weekly number of AI actions (generating a CV or cover letter, ATS check, recruiter verdict). Manual edits, saving and PDF downloads are always free and unlimited.'
+  : 'Jokaiseen pakettiin kuuluu viikoittainen määrä AI-toimintoja (CV:n tai hakukirjeen luonti, ATS-tarkistus, rekrytoijaverdikti). Manuaalinen muokkaus, tallennus ja PDF-lataus ovat aina ilmaisia ja rajattomia.'}
                     </td>
                     <td className="text-center py-3 px-2 text-red-400">✗</td>
                     <td className="text-center py-3 px-2 text-green-400">✓</td>
@@ -276,7 +276,7 @@ function CompareModal({ onClose, isEN }: { onClose: () => void; isEN: boolean })
 export default function PricingPage() {
   const { language } = useLanguage();
   const { user } = useUser();
-  const { plan_type, isLoading: tokensLoading } = useTokens(); // ✅ HAETAAN PLAN
+const { subscription, isLoading: tokensLoading } = useSubscription();
   const [billing, setBilling] = useState<BillingPeriod>('monthly');
   const [showCompare, setShowCompare] = useState(false);
 
@@ -284,6 +284,7 @@ export default function PricingPage() {
 
   const basicFeatures = PRICING.basic.features;
   const premiumFeatures = PRICING.premium.features;
+const plan_type = subscription?.plan_type ?? null;
 
   // ✅ TARKISTA TILAUS
   const canSubscribeBasic = plan_type === 'free' || plan_type === null;

@@ -1,5 +1,7 @@
 // lib/cover-letter/engine/components.tsx
 // ✅ Jaetut muokattavat palaset. Skinit käyttävät näitä — eivät toista muokkauslogiikkaa.
+// Exportit: EditableText, EditableField, EditableParagraphs, Signature,
+//           ContactRow, DateRow, BackgroundLayer, ColorDot
 
 import React, { useRef, useEffect } from 'react';
 import type { CLEngine, CLContactInfo, SignatureStyle } from './types';
@@ -25,7 +27,6 @@ const editOutline = (editing: boolean): React.CSSProperties => editing ? {
 } : {};
 
 // ─── EditableText: yksittäinen muokattava kenttä (PELKKÄ TEKSTI) ──
-//    Käytä nimille/otsikoille joissa ei tarvita inline-muotoilua.
 export function EditableText({
   engine,
   value,
@@ -59,8 +60,6 @@ export function EditableText({
 }
 
 // ─── EditableField: HTML-säilyttävä kenttä (koko/väri maalaamalla) ──
-//    Sama kontrolloimaton logiikka kuin EditableParagraphs, mutta yhdelle
-//    kentälle (yhteystiedot, titteli, yritys…). Säilyttää inline-muotoilun.
 export function EditableField({
   engine,
   value,
@@ -104,7 +103,6 @@ export function EditableField({
 }
 
 // ─── EditableParagraphs: leipäteksti ──────────────────────────
-//    Kontrolloimaton contentEditable; säilyttää inline-muotoilun HTML:nä.
 export function EditableParagraphs({ engine, region }: { engine: CLEngine; region?: string }) {
   const { isEditing, data, fontStack, updateBody } = engine;
   const base = data.style.text;
@@ -190,7 +188,6 @@ export function Signature({
     fontFamily: fontStack('sans'), letterSpacing: '1px', textTransform: 'uppercase',
   };
 
-  // Tallennetaan muokattu tervehdys style.closingText:iin (jaettu kenttä)
   const commitClosing = (v: string) => {
     if (onClosingCommit) onClosingCommit(v);
     else updateStyle({ closingText: v } as any);
@@ -217,7 +214,24 @@ export function Signature({
   );
 }
 
-// ─── ContactRow: yhteystiedot (HTML-säilyttävä → koko/väri maalaamalla) ──
+// ─── ContactIcon: inline-SVG (ei fonttiriippuvuutta) ──────────
+function ContactIcon({ type, color }: { type: 'email' | 'phone' | 'location'; color: string }) {
+  const p = {
+    width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none',
+    stroke: color, strokeWidth: 2,
+    strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+    style: { WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' } as React.CSSProperties,
+  };
+  if (type === 'email') {
+    return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-10 5L2 7" /></svg>;
+  }
+  if (type === 'phone') {
+    return <svg {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>;
+  }
+  return <svg {...p}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" /></svg>;
+}
+
+// ─── ContactRow: yhteystiedot (SVG-ikonit + HTML-säilyttävät kentät) ──
 export function ContactRow({
   engine,
   vertical = false,
@@ -232,13 +246,14 @@ export function ContactRow({
   const { data, fontStack, updateContact } = engine;
   const accent = data.style.accentColor;
   const txt = onDark ? 'rgba(255,255,255,0.75)' : '#64748b';
-  const chip = onDark ? 'rgba(255,255,255,0.12)' : rgba(accent, 0.08);
+  const iconColor = onDark ? 'rgba(255,255,255,0.9)' : accent;
+  const chip = onDark ? 'rgba(255,255,255,0.12)' : rgba(accent, 0.12);
   const fs = Math.max(8, data.style.text.fontSize * 0.88);
 
-  const items: { field: keyof CLContactInfo; icon: string; ph: string }[] = [
-    { field: 'email', icon: '✉', ph: 'sähköposti' },
-    { field: 'phone', icon: '☎', ph: 'puhelin' },
-    { field: 'location', icon: '⌖', ph: 'paikkakunta' },
+  const items: { field: keyof CLContactInfo; type: 'email' | 'phone' | 'location'; ph: string }[] = [
+    { field: 'email', type: 'email', ph: 'sähköposti' },
+    { field: 'phone', type: 'phone', ph: 'puhelin' },
+    { field: 'location', type: 'location', ph: 'paikkakunta' },
   ];
 
   return (
@@ -251,10 +266,16 @@ export function ContactRow({
       fontSize: `${fs}pt`,
       fontFamily: fontStack('sans'),
     }}>
-      {items.map(({ field, icon, ph }) =>
+      {items.map(({ field, type, ph }) =>
         data.contact[field] ? (
           <div key={field} style={{ display: 'flex', alignItems: 'center', gap: '8px', color: txt }}>
-            <span style={{ width: '26px', height: '26px', borderRadius: '7px', background: chip, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', flexShrink: 0 }}>{icon}</span>
+            <span style={{
+              width: '26px', height: '26px', borderRadius: '7px', background: chip,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+            }}>
+              <ContactIcon type={type} color={iconColor} />
+            </span>
             <EditableField engine={engine} value={data.contact[field]} onCommit={(v) => updateContact(field, v)} style={{ color: txt, wordBreak: 'break-word' }} placeholder={ph} />
           </div>
         ) : null
@@ -263,53 +284,118 @@ export function ContactRow({
   );
 }
 
-// ─── DateRow: päiväys + viiva ─────────────────────────────────
-export function DateRow({ engine }: { engine: CLEngine }) {
-  const { data, todayStr, fontStack } = engine;
-  if (!data.style.showDate) return null;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
-      <span style={{ fontSize: '9pt', color: '#94a3b8', fontFamily: fontStack('sans'), letterSpacing: '1px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-        {todayStr}
-      </span>
-      <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
-    </div>
-  );
-}
+// ─── DateRow: päiväys + ohut viiva ────────────────────────────
+export function DateRow({
+  engine,
+  centered = false,
+  onDark = false,
+}: {
+  engine: CLEngine;
+  centered?: boolean;
+  onDark?: boolean;
+}) {
+  const { data, fontStack } = engine;
+  const accent = data.style.accentColor;
 
-// ─── BackgroundLayer ──────────────────────────────────────────
-export function BackgroundLayer({ engine }: { engine: CLEngine }) {
-  const { mode, imageUrl, opacity } = engine.data.style.background;
-  if (mode !== 'image-faint' || !imageUrl) return null;
+  // Näytä päiväys vain jos engine sallii (showDate oletuksena true)
+  const show = (data.style as any).showDate ?? (data as any).showDate ?? true;
+  if (!show) return null;
+
+  const dateText =
+    (data as any).dateText ||
+    new Date().toLocaleDateString('fi-FI', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const color = onDark ? 'rgba(255,255,255,0.8)' : '#64748b';
+  const fs = Math.max(8, data.style.text.fontSize * 0.9);
+
   return (
     <div style={{
-      position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none',
-      backgroundImage: `url(${imageUrl})`,
-      backgroundSize: 'cover', backgroundPosition: 'center',
-      opacity: opacity ?? 0.12,
-      WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
-    }} />
+      display: 'flex', alignItems: 'center', gap: '12px',
+      justifyContent: centered ? 'center' : 'flex-start',
+      margin: '6px 0',
+    }}>
+      <span style={{ fontSize: `${fs}pt`, fontFamily: fontStack('sans'), color }}>{dateText}</span>
+      <span style={{
+        flex: centered ? 'unset' : 1, height: '1px', minWidth: centered ? '40px' : undefined,
+        background: rgba(accent, 0.4),
+        WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+      }} />
+    </div>
   );
 }
 
-// ─── ColorDot ─────────────────────────────────────────────────
-export function ColorDot({ engine, position = 'top-right' }: { engine: CLEngine; position?: 'top-right' | 'inline' }) {
-  if (!engine.isEditing) return null;
-  const accent = engine.data.style.accentColor;
-  const posStyle: React.CSSProperties = position === 'top-right'
-    ? { position: 'absolute', top: '16px', right: '18px', zIndex: 5 }
-    : { display: 'inline-block' };
+// ─── BackgroundLayer: koko sivun taustakuva (background.mode === 'image-faint') ──
+export function BackgroundLayer({ engine }: { engine: CLEngine }) {
+  const bg = (engine.data.style as any).background as
+    | { mode?: string; imageUrl?: string; opacity?: number }
+    | undefined;
+
+  if (!bg || bg.mode !== 'image-faint' || !bg.imageUrl) return null;
+
   return (
-    <div style={posStyle}>
-      <label style={{ cursor: 'pointer', display: 'inline-flex' }} title="🎨 Vaihda korostusväri">
-        <span style={{ width: '26px', height: '26px', borderRadius: '50%', background: accent, border: '2px solid #fff', boxShadow: '0 0 0 1px #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>🎨</span>
-        <input
-          type="color"
-          value={accent.startsWith('#') ? accent : '#1a1a2e'}
-          onChange={(e) => engine.updateStyle({ accentColor: e.target.value })}
-          style={{ position: 'absolute', opacity: 0, width: '1px', height: '1px', pointerEvents: 'none' }}
-        />
-      </label>
-    </div>
+    <div
+      aria-hidden
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 0,
+        backgroundImage: `url(${bg.imageUrl})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        opacity: bg.opacity ?? 0.08,
+        pointerEvents: 'none',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+      }}
+    />
+  );
+}
+
+// ─── ColorDot: kelluva korostusvärin valitsin (vain muokkaustilassa) ──
+// ─── ColorDot: kelluva korostusvärin valitsin (vain muokkaustilassa) ──
+export function ColorDot({
+  engine,
+  position = 'top-right',
+}: {
+  engine: CLEngine;
+  position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+}) {
+  const { isEditing, data, updateStyle } = engine;
+  if (!isEditing) return null;
+
+  const accent = data.style.accentColor;
+
+  // position → sijoittelu
+  const pos: React.CSSProperties =
+    position === 'top-left'     ? { top: '12px', left: '12px' }
+    : position === 'bottom-right' ? { bottom: '12px', right: '12px' }
+    : position === 'bottom-left'  ? { bottom: '12px', left: '12px' }
+    : { top: '12px', right: '12px' }; // top-right (oletus)
+
+  return (
+    <label
+      title="Vaihda korostusväri"
+      style={{
+        position: 'absolute',
+        ...pos,
+        width: '28px',
+        height: '28px',
+        borderRadius: '50%',
+        background: accent,
+        border: '2px solid #fff',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+        cursor: 'pointer',
+        zIndex: 30,
+        display: 'inline-block',
+      }}
+    >
+      <input
+        type="color"
+        value={accent?.startsWith('#') ? accent : '#B59850'}
+        onChange={(e) => updateStyle({ accentColor: e.target.value } as any)}
+        style={{ position: 'absolute', opacity: 0, width: '1px', height: '1px', pointerEvents: 'none' }}
+      />
+    </label>
   );
 }

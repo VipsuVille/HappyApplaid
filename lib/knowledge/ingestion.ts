@@ -99,12 +99,9 @@ export async function ingestContent(input: {
   source: string;
   author?: string;
   url?: string;
-  
-  // ✅ NEW: Admin can set priority
   priority?: 'high' | 'medium' | 'low';
-  
-  // ✅ NEW: Admin can set type (overrides AI suggestion)
   content_type?: 'cover_letter' | 'cv' | 'both';
+  language?: string;                 // ✅ UUSI: 'finnish' | 'english' (override auto-detect)
 }): Promise<{
   success: boolean;
   chunksAdded: number;
@@ -120,17 +117,17 @@ export async function ingestContent(input: {
 
   // 2. Determine final type (admin override or AI suggestion)
   const finalType = input.content_type || analysis.suggestedType;
-  console.log(`📌 Final type: ${finalType}${input.content_type ? ' (admin override)' : ' (AI suggested)'}`);
 
-  // 3. Determine priority (admin set or default)
+  // 3. Priority + ✅ kieli (käsin annettu voittaa auto-tunnistuksen)
   const priority = input.priority || 'medium';
+  const finalLanguage = input.language || analysis.language;
+  console.log(`📌 type: ${finalType}, priority: ${priority}, language: ${finalLanguage}`);
 
   // 4. Split into chunks
   const splitter = new RecursiveCharacterTextSplitter({
     chunkSize: 1000,
     chunkOverlap: 200,
   });
-
   const chunks = await splitter.splitText(input.content);
   console.log(`📄 Split into ${chunks.length} chunks`);
 
@@ -156,26 +153,19 @@ export async function ingestContent(input: {
             source: input.source,
             author: input.author || 'Unknown',
             url: input.url || null,
-            language: analysis.language,
+            language: finalLanguage,          // ✅ käsin annettu / auto
             topics: analysis.topics,
             relevantFor: analysis.relevantFor,
             insights: analysis.insights,
-            
-            // ✅ NEW: Priority and Type
             priority: priority,
             content_type: finalType,
-            
             chunkIndex: i,
             totalChunks: chunks.length,
-            createdAt: new Date().toISOString()
-          }
+            createdAt: new Date().toISOString(),
+          },
         });
 
-      if (error) {
-        console.error(`Failed chunk ${i}:`, error);
-        continue;
-      }
-
+      if (error) { console.error(`Failed chunk ${i}:`, error); continue; }
       addedCount++;
     } catch (error) {
       console.error(`Error chunk ${i}:`, error);
@@ -189,7 +179,7 @@ export async function ingestContent(input: {
     chunksAdded: addedCount,
     insights: analysis.insights,
     detectedType: finalType,
-    message: `Added ${addedCount} chunks (${finalType}, priority: ${priority})`
+    message: `Added ${addedCount} chunks (${finalType}, ${finalLanguage}, priority: ${priority})`,
   };
 }
 

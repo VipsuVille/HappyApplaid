@@ -22,7 +22,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/context/LanguageContext';
 import { useSubscription } from '@/context/SubscriptionContext';
-import { useTokens } from '@/hooks/useTokens';
+import { usePlanStatus } from '@/hooks/usePlanStatus';
 import { useTheme } from '@/context/ThemeContext';
 import { clerkAppearance } from '@/lib/clerkAppearance';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -64,8 +64,9 @@ export default function SmartHeader() {
   const { subscription, isLoading: isSubscriptionLoading } = useSubscription();
   const { user, isSignedIn, isLoaded: isClerkLoaded } = useUser();
   const { language, toggleLanguage } = useLanguage();
-  const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
-  let isDark = false;
+const { status, loading: tokensLoading } = usePlanStatus();
+const aiRemaining = status?.aiRemaining ?? 0;
+const aiLimit = status?.aiLimit ?? 0;  let isDark = false;
   try { const theme = useTheme(); isDark = theme?.isDark ?? false; } catch { isDark = false; }
   const pathname = usePathname();
 
@@ -73,7 +74,7 @@ export default function SmartHeader() {
   const [openMenu, setOpenMenu] = useState<string | null>(null); // 'cv' | 'hakukirje' | 'profile'
   const [scrolled, setScrolled] = useState(false);
 
-  const plan = subscription?.plan_type || plan_type;
+const plan = subscription?.plan_type;
 
   useEffect(() => { setMobileMenuOpen(false); setOpenMenu(null); }, [pathname]);
   useEffect(() => {
@@ -231,9 +232,9 @@ export default function SmartHeader() {
             <Link href="/pricing">
               <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-opacity hover:opacity-80 ${isDark ? 'bg-gray-900/60 border-gray-800' : 'bg-gray-100 border-gray-200'}`}>
                 <Sparkles className="w-3.5 h-3.5 text-orange-400" />
-                <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{tokens.toLocaleString()}</span>
-                <span className="text-[10px] font-bold text-orange-500">TKN</span>
-                {plan && (
+  <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{aiRemaining}/{aiLimit}</span>
+<span className="text-[10px] font-bold text-orange-500">AI·VKO</span>
+               {plan && (
                   <>
                     <span className={`w-px h-4 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} />
                     <Crown className="w-3.5 h-3.5 text-amber-400" />
@@ -321,9 +322,9 @@ export default function SmartHeader() {
                 <p className={`text-[10px] uppercase tracking-wider mb-1.5 font-bold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{t.balance}</p>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Sparkles className="w-4 h-4 text-orange-400" />
-                  <span className={`text-xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{tokens.toLocaleString()}</span>
-                  <span className="text-xs font-bold text-orange-500">TKN</span>
-                  {plan && (<><div className={`w-px h-5 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} /><Crown className="w-4 h-4 text-amber-400" /><span className={`text-xs font-bold ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>{plan.toUpperCase()}</span></>)}
+<span className={`text-xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{aiRemaining}/{aiLimit}</span>
+<span className="text-xs font-bold text-orange-500">AI·VKO</span>
+                 {plan && (<><div className={`w-px h-5 mx-1 ${isDark ? 'bg-gray-700' : 'bg-gray-300'}`} /><Crown className="w-4 h-4 text-amber-400" /><span className={`text-xs font-bold ${isDark ? 'text-amber-300' : 'text-amber-600'}`}>{plan.toUpperCase()}</span></>)}
                 </div>
               </div>
 

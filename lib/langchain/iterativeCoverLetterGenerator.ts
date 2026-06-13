@@ -3,6 +3,8 @@
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { FINNISH_STYLE_RULES } from "./finnishStyle";
+import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";
 
 export interface IterationInput {
   // Alkuperäiset inputit (context)
@@ -51,7 +53,9 @@ export async function iterateCoverLetter(
     temperature: 0.3, // ✅ Matala = vähemmän vaihtelua, kohdennetumpi muutos
   });
 
-  const isFinnish = input.language.toLowerCase().includes('fi');
+  const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
+const finnishStyle = isFinnish ? FINNISH_STYLE_RULES : '';
+const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
 
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', `You are a cover letter editor specializing in TARGETED, MINIMAL modifications.
@@ -59,7 +63,9 @@ export async function iterateCoverLetter(
 # ════════════════════════════════════════════════════════════════
 # 🎯 CRITICAL: MINIMAL CHANGES ONLY
 # ════════════════════════════════════════════════════════════════
+{finnishStyle}
 
+{appGuide}
 **GOLDEN RULE:**
 Change ONLY what the user asks for. Keep everything else IDENTICAL.
 
@@ -201,7 +207,8 @@ Generate now.`]
         : input.profileData.skills || '',
       uniqueStrength: input.profileData.unique_strength || '',
       superpower: input.profileData.superpower || '',
-      
+        finnishStyle,
+  appGuide,
       // History
       iterationHistory: input.previousIterations && input.previousIterations.length > 0
         ? input.previousIterations.map((iter, i) => 

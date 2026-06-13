@@ -22,7 +22,6 @@ import CoverLetterContainer from '@/components/cover-letter/CoverLetterContainer
 import IterativeFeedback from '@/components/IterativeFeedback';
 import CoverLetterDesignPanel, { type BackgroundSettings } from '@/components/cover-letter/CoverLetterDesingPanel';
 import AdaptiveControls from '@/components/cover-letter/AdaptiveControls';
-import { useTokens } from '@/hooks/useTokens';
 import { getAllAvailableImagesAction, type UserImage } from '@/app/actions/userImages';
 import type { ImagePlacement } from '@/lib/cover-letter/engine/capabilities';
 
@@ -64,7 +63,6 @@ export default function EditCoverLetterPage() {
   const params = useParams();
   const router = useRouter();
   const { getToken, userId } = useAuth();
-  const { tokens, plan_type } = useTokens();
   const id = params?.id as string;
 
   const [letterData, setLetterData] = useState<CoverLetter | null>(null);
@@ -119,7 +117,6 @@ export default function EditCoverLetterPage() {
   const [isDragging, setIsDragging] = useState(false);
   const mainAreaRef = useRef<HTMLDivElement>(null);
 
-  const iterationCost = plan_type === 'premium' ? 30 : 50;
 // Valitun tekstin nykyinen fonttikoko (px) työkalupalkkia varten
 const [selFontSize, setSelFontSize] = useState<number | null>(null);
 
@@ -724,8 +721,7 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
                     <p className="text-xs text-green-300 m-0">{latestChanges}</p>
                   </div>
                 )}
-                <IterativeFeedback coverLetterId={id} iterationCost={iterationCost} currentTokens={tokens} onSuccess={handleIterationSuccess} />
-              </div>
+<IterativeFeedback coverLetterId={id} onSuccess={handleIterationSuccess} />              </div>
             </div>
           )}
 
@@ -930,7 +926,7 @@ const [selFontSize, setSelFontSize] = useState<number | null>(null);
                     </div>
                   </div>
                 )}
-                <IterativeFeedback coverLetterId={id} iterationCost={iterationCost} currentTokens={tokens} onSuccess={handleIterationSuccess} />
+                <IterativeFeedback coverLetterId={id}  onSuccess={handleIterationSuccess} />
               </>
             )}
 

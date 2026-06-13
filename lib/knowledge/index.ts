@@ -50,67 +50,52 @@ export class KnowledgeBase {
    * ✅ UNIVERSAL RETRIEVE (No Hardcoding)
    */
   async retrieve(input: {
-    jobDescription: string;
-    userProfile?: Record<string, any>; // Fully dynamic
-    contentType: 'cover_letter' | 'cv'; // Filter by type
-    maxResults?: number;
-  }): Promise<string> {
-    const cacheKey = this.createCacheKey(input);
-    const cached = this.getCached(cacheKey);
-    if (cached) {
-      console.log('💾 Cache HIT');
-      return cached;
-    }
+  jobDescription: string;
+  userProfile?: Record<string, any>;
+  contentType: 'cover_letter' | 'cv';
+  language?: string;           // ✅ UUSI
+  maxResults?: number;
+}): Promise<string> {
+  const cacheKey = this.createCacheKey(input);
+  const cached = this.getCached(cacheKey);
+  if (cached) return cached;
 
-    await this.initialize();
-    if (!this.vectorStore) {
-      console.warn('⚠️ Vector store unavailable');
-      return '';
-    }
+  await this.initialize();
+  if (!this.vectorStore) return '';
 
-    // Build semantic query (AI infers context)
-    const query = this.buildSemanticQuery(input);
-    
-    try {
-      const results = await this.vectorStore.similaritySearch(
-        query,
-        input.maxResults || 5 // Get more results for prioritization
-      );
+  const query = this.buildSemanticQuery(input);
 
-      if (results.length === 0) {
-        console.log('📭 No relevant documents');
-        return '';
-      }
+  try {
+    // Hae ENEMMÄN tuloksia, suodata sitten kielen mukaan
+    const raw = await this.vectorStore.similaritySearch(query, (input.maxResults || 5) * 2);
+    if (raw.length === 0) return '';
 
-      // ✅ PRIORITIZE by content_type and priority
-      const prioritized = this.prioritizeResults(results, input.contentType);
+    // ✅ KIELISUODATUS: suomenkieliseen hakemukseen vain suomi (tai kielineutraali)
+    const want = (input.language || '').toLowerCase().includes('fi') ? 'finnish' : 'english';
+    const langOk = (doc: any) => {
+      const l = (doc.metadata?.language || '').toLowerCase();
+      return !l || l === 'unknown' || l === 'both' || l.startsWith(want.slice(0, 2)) || l === want;
+    };
+    const filtered = raw.filter(langOk);
+    const usable = filtered.length > 0 ? filtered : raw; // fallback jos suodatin tyhjentää
 
-      // Format with priority indicators
-      const insights = prioritized
-        .map((doc, i) => {
-          const meta = doc.metadata || {};
-          const isPriority = meta.priority === 'high';
-          const isCorrectType = meta.content_type === input.contentType;
-          
-          return `
-### ${isPriority ? '⭐ PRIORITY ' : ''}Insight ${i + 1} (${meta.source || 'Unknown'})
-${meta.content_type ? `**Type:** ${meta.content_type}` : ''}
-${meta.topics ? `**Topics:** ${meta.topics.join(', ')}` : ''}
-${isPriority ? '**⚠️ Admin-marked as HIGH PRIORITY for this content type**' : ''}
+    const prioritized = this.prioritizeResults(usable, input.contentType);
 
-${escapeTemplateString(doc.pageContent)} // ✅ KORJAUS TÄHÄN
-          `.trim();
-        })
-        .join('\n\n---\n\n');
+    const insights = prioritized.map((doc, i) => {
+      const meta = doc.metadata || {};
+      const isPriority = meta.priority === 'high';
+      return `### ${isPriority ? '⭐ PRIORITY ' : ''}Insight ${i + 1} (${meta.source || 'Unknown'})
+${meta.language ? `**Language:** ${meta.language}` : ''}
+${escapeTemplateString(doc.pageContent)}`.trim();
+    }).join('\n\n---\n\n');
 
-      this.setCached(cacheKey, insights);
-      console.log(`✅ Retrieved ${prioritized.length} insights (${input.contentType})`);
-      return insights;
-    } catch (error) {
-      console.error('❌ Retrieval failed:', error);
-      return '';
-    }
+    this.setCached(cacheKey, insights);
+    return insights;
+  } catch (error) {
+    console.error('❌ Retrieval failed:', error);
+    return '';
   }
+}
 
   /**
    * ✅ PRIORITIZE RESULTS (content_type + priority)
@@ -297,46 +282,22 @@ export async function buildAIContext(input: {
   userProfile?: Record<string, any>;
   enableRAG: boolean;
   contentType: 'cover_letter' | 'cv';
+  language?: string;           // ✅ UUSI
 }): Promise<string> {
   const coreGuidelines = knowledgeBase.getHonestyGuidelines();
-
-  if (!input.enableRAG) {
-    return `
-# KNOWLEDGE BASE GUIDELINES
-
-${coreGuidelines}
-
----
-**Note:** Upgrade to PRO for expert insights.
-    `.trim();
-  }
+  if (!input.enableRAG) return coreGuidelines;
 
   try {
     const dynamicInsights = await knowledgeBase.retrieve({
       jobDescription: input.jobDescription,
       userProfile: input.userProfile,
       contentType: input.contentType,
-      maxResults: 5
+      language: input.language,   // ✅ välitä eteenpäin
+      maxResults: 5,
     });
-
-    if (!dynamicInsights) {
-      return coreGuidelines;
-    }
-
-    return `
-# KNOWLEDGE BASE GUIDELINES
-
-## Core Truth Enforcement (ALWAYS ACTIVE)
-${coreGuidelines}
-
-## Expert Insights (PRO - Retrieved for ${input.contentType})
-${dynamicInsights}
-
----
-**Critical:** If insights suggest claiming skills candidate lacks, IGNORE and ASK user instead.
-    `.trim();
-  } catch (error) {
-    console.error('RAG failed:', error);
+    if (!dynamicInsights) return coreGuidelines;
+    return `# KNOWLEDGE BASE GUIDELINES\n${coreGuidelines}\n\n## Expert Insights (${input.contentType}, ${input.language || 'any'})\n${dynamicInsights}`;
+  } catch {
     return coreGuidelines;
   }
 }

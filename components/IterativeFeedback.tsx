@@ -1,45 +1,36 @@
 // components/IterativeFeedback.tsx
-// UI komponentti hakukirjeen iteratiiviselle muokkaukselle
+// UI komponentti hakukirjeen iteratiiviselle muokkaukselle (EI tokeneita)
 
 'use client';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { 
-  Sparkles, 
-  Loader2, 
-  MessageSquare, 
+import {
+  Sparkles,
+  Loader2,
   Info,
-  CheckCircle,
   AlertCircle,
   Lightbulb,
-  Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Props {
   coverLetterId: string;
-  iterationCost: number; // 30 TKN (Premium) tai 50 TKN (Basic)
-  currentTokens: number;
   onSuccess: (newContent: string, summary: string, affectedSections: string[]) => void;
 }
 
-export default function IterativeFeedback({ 
-  coverLetterId, 
-  iterationCost,
-  currentTokens,
-  onSuccess 
+export default function IterativeFeedback({
+  coverLetterId,
+  onSuccess,
 }: Props) {
   const [feedback, setFeedback] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showExamples, setShowExamples] = useState(false);
 
-  const canAfford = currentTokens >= iterationCost;
-
   const exampleFeedbacks = [
     "Korosta enemmän projektinhallintaosaamistani",
     "Poista maininta varastotyöstä",
-    "Muuta avauskappale renommaksi",
+    "Muuta avauskappale rennommaksi",
     "Lisää konkreettinen esimerkki projektista",
     "Korosta tiimityötaitoja",
     "Poista liian muodollinen sävy",
@@ -51,11 +42,6 @@ export default function IterativeFeedback({
       return;
     }
 
-    if (!canAfford) {
-      toast.error(`Tarvitset ${iterationCost} tokenia`);
-      return;
-    }
-    
     setIsLoading(true);
     try {
       const response = await fetch('/api/iterate-cover-letter', {
@@ -63,20 +49,23 @@ export default function IterativeFeedback({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           coverLetterId,
-          userFeedback: feedback
-        })
+          userFeedback: feedback,
+        }),
       });
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
-        toast.success(`✅ Muokattu! (${data.tokensUsed} TKN)`);
+        toast.success('✅ Muokattu!');
         onSuccess(
-          data.newContent, 
+          data.newContent,
           data.changesSummary,
           data.affectedSections || []
         );
         setFeedback('');
+      } else if (response.status === 429) {
+        // Viikkokatto täynnä
+        toast.error(data.message || 'Viikon AI-toiminnot käytetty. Kokeile myöhemmin tai päivitä pakettiasi.');
       } else {
         toast.error(data.error || 'Muokkaus epäonnistui');
       }
@@ -90,7 +79,7 @@ export default function IterativeFeedback({
 
   return (
     <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-2 border-purple-500/30 rounded-[2.5rem] p-6 sm:p-8 md:p-10 shadow-xl">
-      
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="flex items-start gap-3">
@@ -106,17 +95,15 @@ export default function IterativeFeedback({
             </p>
           </div>
         </div>
-        
-        {/* Cost badge */}
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <div className="px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-full">
-            <span className="text-xs font-black text-purple-300">
-              {iterationCost} TKN
+
+        {/* AI-toiminto -merkki (ei token-hintaa) */}
+        <div className="shrink-0">
+          <div className="px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-full flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-purple-300" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-purple-300">
+              AI-toiminto
             </span>
           </div>
-          <span className="text-[10px] text-gray-500">
-            vs {iterationCost * 3} TKN uusi
-          </span>
         </div>
       </div>
 
@@ -126,9 +113,9 @@ export default function IterativeFeedback({
         <div className="text-xs text-blue-200/70 space-y-1">
           <p className="font-bold">💡 Vinkki: Ole tarkka!</p>
           <p>
-            Mitä tarkempi palaute, sitä parempi tulos. 
-            Esim: "Korosta projektinhallintaa kappaleessa 2" 
-            on parempi kuin "Muuta jotain".
+            Mitä tarkempi palaute, sitä parempi tulos.
+            Esim: &quot;Korosta projektinhallintaa kappaleessa 2&quot;
+            on parempi kuin &quot;Muuta jotain&quot;.
           </p>
         </div>
       </div>
@@ -142,7 +129,7 @@ export default function IterativeFeedback({
           <Lightbulb className="w-4 h-4" />
           {showExamples ? 'Piilota esimerkit' : 'Näytä esimerkkejä'}
         </button>
-        
+
         {showExamples && (
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {exampleFeedbacks.map((example, i) => (
@@ -151,7 +138,7 @@ export default function IterativeFeedback({
                 onClick={() => setFeedback(example)}
                 className="text-left p-3 bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/20 rounded-xl text-xs text-purple-200 transition-colors"
               >
-                💬 "{example}"
+                💬 &quot;{example}&quot;
               </button>
             ))}
           </div>
@@ -168,29 +155,10 @@ export default function IterativeFeedback({
       />
 
       {/* Action bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        
-        {/* Token info */}
-        <div className="flex items-center gap-3 text-sm">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-orange-400" />
-            <span className="text-gray-400">Saldo:</span>
-            <span className={`font-bold ${canAfford ? 'text-white' : 'text-red-400'}`}>
-              {currentTokens} TKN
-            </span>
-          </div>
-          {!canAfford && (
-            <div className="flex items-center gap-1 text-red-400 text-xs">
-              <AlertCircle className="w-3 h-3" />
-              Ei riittävästi
-            </div>
-          )}
-        </div>
-        
-        {/* Button */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-4">
         <Button
           onClick={handleIterate}
-          disabled={isLoading || !feedback.trim() || !canAfford}
+          disabled={isLoading || !feedback.trim()}
           className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-700 disabled:to-gray-700 text-white rounded-xl sm:rounded-2xl px-6 py-3 sm:py-4 font-bold text-sm sm:text-base transition-all hover:scale-[1.02] active:scale-[0.98] disabled:scale-100 disabled:opacity-50"
         >
           {isLoading ? (

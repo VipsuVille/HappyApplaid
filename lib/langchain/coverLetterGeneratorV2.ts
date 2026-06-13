@@ -1,4 +1,4 @@
-// lib/langchain/atsCoverLetterV2Generator.ts - V2 + SMART QUESTIONS
+// lib/langchain/atsCoverLetterV2Generator.ts - V2 + SMART QUESTIONS + finnishStyle + appGuide + RAG
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -8,10 +8,12 @@ import { analyzeKeywordsUniversal } from "@/lib/ats/synonymMatcher";
 import { supabaseAdmin } from "@/lib/supabase";
 
 import {
-  convertToAnswerFormat,
   mergeResponsesIntoLetterContext,
   type AnswerEntry,
 } from "@/lib/langchain/responseHelper";
+import { buildAIContext } from "@/lib/knowledge";                 // ✅ RAG
+import { FINNISH_STYLE_RULES } from "./finnishStyle";
+import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";  // ✅ kirjainkoko täsmää tiedostoon
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -20,14 +22,12 @@ import {
 export interface ATSV2Input {
   jobDescription: string;
 
-  // ✅ PRIVACY: Personal info (NOT sent to AI)
   name: string;
   email?: string;
   phone?: string;
   location?: string;
   additionalNotes?: string;
 
-  // ✅ ANONYMIZED DATA (sent to AI)
   workExperience?: string;
   education?: string;
   skills?: string;
@@ -49,7 +49,7 @@ export interface ATSV2Input {
 
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
-  enableRAG?: boolean;
+  enableRAG?: boolean;          // ✅ premium-portti reitissä
   guardianValidation?: boolean;
   userId?: string;
   skipQuestions?: boolean;
@@ -140,7 +140,7 @@ Return JSON:
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SAVED RESPONSES — Direct DB fetch, merge via responseHelper
+// SAVED RESPONSES
 // ═══════════════════════════════════════════════════════════════
 
 function inferCategory(dbCategory: string, questionText: string): string {
@@ -270,14 +270,7 @@ function buildEmptyOutputWithQuestions(input: ATSV2Input, questions: any[]): ATS
     signature: input.name,
     keyHighlights: [],
     atsScore: 0,
-    atsAnalysis: {
-      keywordMatch: 0,
-      readability: 0,
-      overall: 0,
-      exactMatches: [],
-      synonymMatches: [],
-      missingCritical: [],
-    },
+    atsAnalysis: { keywordMatch: 0, readability: 0, overall: 0, exactMatches: [], synonymMatches: [], missingCritical: [] },
     iterations: 0,
     needsMoreInfo: true,
     questions,
@@ -294,10 +287,7 @@ export async function generateATSCoverLetterV2(
 
   console.log('🚀 [V2-ATS] Starting advanced generation...');
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 0: ENRICH WITH SAVED RESPONSES
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
   let enrichedInput: ATSV2Input;
   try {
     enrichedInput = await enrichInputWithSavedResponses(input);
@@ -306,18 +296,14 @@ export async function generateATSCoverLetterV2(
     enrichedInput = { ...input };
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 0.5: SMART QUESTIONS (NEW)
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+  // STEP 0.5: SMART QUESTIONS
   if (!enrichedInput.skipQuestions) {
     console.log('🧠 [V2-ATS] Checking if questions needed...');
-
     try {
       const analysis = await analyzeJobAndProfile({
         jobDescription: enrichedInput.jobDescription,
         userProfile: {
-          name: 'Applicant', // ✅ Anonymous
+          name: 'Applicant',
           workExperience: enrichedInput.workExperience || '',
           education: enrichedInput.education || '',
           skills: enrichedInput.skills || '',
@@ -340,7 +326,6 @@ export async function generateATSCoverLetterV2(
         console.log(`❓ [V2-ATS] Returning ${criticalQuestions.length} critical questions`);
         return buildEmptyOutputWithQuestions(enrichedInput, criticalQuestions);
       }
-
       console.log('✅ [V2-ATS] No critical questions needed, proceeding...');
     } catch (error) {
       console.error('⚠️ [V2-ATS] Question analysis failed, proceeding without questions:', error);
@@ -349,35 +334,20 @@ export async function generateATSCoverLetterV2(
     console.log('⏭️ [V2-ATS] Questions skipped');
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 1: LANGUAGE CHECK
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
   const jobLanguage = detectLanguageSimple(enrichedInput.jobDescription);
   const letterLanguage = (enrichedInput.language || 'finnish').toLowerCase();
-
-  const languageWarning = {
-    jobLanguage,
-    letterLanguage,
-    needsTranslation: jobLanguage !== letterLanguage
-  };
-
+  const languageWarning = { jobLanguage, letterLanguage, needsTranslation: jobLanguage !== letterLanguage };
   if (languageWarning.needsTranslation) {
     console.warn(`⚠️ [V2-ATS] Language mismatch: Job is ${jobLanguage}, letter is ${letterLanguage}`);
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 2: EXTRACT KEYWORDS
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
   console.log('🔍 [V2-ATS] Extracting keywords...');
   const keywords = await extractDeepKeywords(enrichedInput.jobDescription);
   console.log(`✅ [V2-ATS] Found ${keywords.critical.length} critical keywords`);
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // STEP 3: GUARDIAN - EXTRACT GROUND TRUTH
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+  // STEP 3: GROUND TRUTH
   let groundTruth = null;
   if (enrichedInput.guardianValidation !== false) {
     console.log('🛡️ [V2-ATS] Extracting ground truth...');
@@ -403,18 +373,31 @@ export async function generateATSCoverLetterV2(
     }
   }
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 4: ITERATIVE GENERATION
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
   const model = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY!,
     modelName: "gpt-4o-mini",
     temperature: 0.5,
   });
 
-  const isFinnish = letterLanguage.includes('fi');
+  const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
   const languageName = isFinnish ? 'suomi' : letterLanguage;
+  const finnishStyle = isFinnish ? FINNISH_STYLE_RULES : '';
+  const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
+
+  // ✅ RAG
+  let knowledgeContext = '';
+  if (enrichedInput.enableRAG) {
+    try {
+      knowledgeContext = await buildAIContext({
+        jobDescription: enrichedInput.jobDescription,
+        userProfile: { name: enrichedInput.name, skills: enrichedInput.skills, workExperience: enrichedInput.workExperience, education: enrichedInput.education },
+        enableRAG: true,
+        contentType: 'cover_letter',
+        language: enrichedInput.language || 'finnish',
+      });
+    } catch { knowledgeContext = ''; }
+  }
 
   let iteration = 0;
   let bestContent = "";
@@ -438,6 +421,12 @@ export async function generateATSCoverLetterV2(
 
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', `You are an ATS-optimized cover letter writer (V2).
+
+{knowledgeContext}
+
+{finnishStyle}
+
+{appGuide}
 
 # ════════════════════════════════════════════════════════════════
 # PRIVACY: NO PERSONAL INFO IN OUTPUT
@@ -525,6 +514,9 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
 
     try {
       const formatted = await prompt.formatMessages({
+        knowledgeContext: knowledgeContext || '',
+        finnishStyle,
+        appGuide,
         languageName,
         critical_keywords: keywords.critical.join(', ') || 'None',
         important_keywords: keywords.important.join(', ') || 'None',
@@ -545,16 +537,9 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
 
       const result = await model.invoke(formatted);
 
-      let content = typeof result.content === 'string'
-        ? result.content
-        : JSON.stringify(result.content);
+      let content = typeof result.content === 'string' ? result.content : JSON.stringify(result.content);
+      content = content.replace(/\[.*?\]/g, '').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
 
-      content = content
-        .replace(/\[.*?\]/g, '')
-        .replace(/\n\s*\n\s*\n/g, '\n\n')
-        .trim();
-
-      // ── Remove leaked name ──────────────────────────────────────
       if (input.name) {
         const namePattern = new RegExp(`\\b${input.name}\\b`, 'gi');
         const nameCount = (content.match(namePattern) || []).length;
@@ -564,49 +549,25 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
         }
       }
 
-      // Calculate ATS score
-      const allKeywords = [
-        ...keywords.critical,
-        ...keywords.important,
-        ...keywords.bonus
-      ];
+      const allKeywords = [...keywords.critical, ...keywords.important, ...keywords.bonus];
+      const analysis = await analyzeKeywordsUniversal(allKeywords, content, letterLanguage);
 
-      const analysis = await analyzeKeywordsUniversal(
-        allKeywords,
-        content,
-        letterLanguage
-      );
-
-      const criticalMatched = keywords.critical.filter(k =>
-        content.toLowerCase().includes(k.toLowerCase())
-      ).length;
+      const criticalMatched = keywords.critical.filter(k => content.toLowerCase().includes(k.toLowerCase())).length;
       const criticalTotal = keywords.critical.length || 1;
-
-      const importantMatched = keywords.important.filter(k =>
-        content.toLowerCase().includes(k.toLowerCase())
-      ).length;
+      const importantMatched = keywords.important.filter(k => content.toLowerCase().includes(k.toLowerCase())).length;
       const importantTotal = keywords.important.length || 1;
-
-      const bonusMatched = keywords.bonus.filter(k =>
-        content.toLowerCase().includes(k.toLowerCase())
-      ).length;
+      const bonusMatched = keywords.bonus.filter(k => content.toLowerCase().includes(k.toLowerCase())).length;
 
       const criticalScore = (criticalMatched / criticalTotal) * 60;
       const importantScore = (importantMatched / importantTotal) * 30;
       const bonusScore = Math.min(bonusMatched * 2, 10);
-
       const atsScore = Math.round(criticalScore + importantScore + bonusScore);
 
       console.log(`📊 [V2-ATS] Iteration ${iteration} Score: ${atsScore}%`);
 
-      const missingCritical = keywords.critical.filter(k =>
-        !content.toLowerCase().includes(k.toLowerCase())
-      );
-
+      const missingCritical = keywords.critical.filter(k => !content.toLowerCase().includes(k.toLowerCase()));
       const currentAnalysis = {
-        keywordMatch: atsScore,
-        readability: 85,
-        overall: atsScore,
+        keywordMatch: atsScore, readability: 85, overall: atsScore,
         exactMatches: analysis.exactMatches?.map((m: any) => m.keyword) || [],
         synonymMatches: analysis.synonymMatches?.map((m: any) => m.keyword) || [],
         missingCritical,
@@ -622,7 +583,6 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
         console.log(`✅ [V2-ATS] Target reached! (${atsScore}%)`);
         break;
       }
-
     } catch (error) {
       console.error(`❌ [V2-ATS] Iteration ${iteration} failed:`, error);
     }
@@ -630,19 +590,12 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
 
   console.log(`✅ [V2-ATS] Best score: ${bestScore}% after ${iteration} iterations`);
 
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // STEP 5: GUARDIAN VALIDATION
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
   let guardianReport = null;
   if (enrichedInput.guardianValidation !== false && groundTruth) {
     console.log('🛡️ [V2-ATS] Running Guardian...');
     try {
-      guardianReport = await masterGuardianValidatorV2(
-        bestContent,
-        groundTruth,
-        'generation'
-      );
+      guardianReport = await masterGuardianValidatorV2(bestContent, groundTruth, 'generation');
       console.log(`🛡️ [V2-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES'}`);
     } catch (error) {
       console.error('⚠️ [V2-ATS] Guardian failed:', error);

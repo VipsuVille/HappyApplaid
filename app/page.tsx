@@ -36,7 +36,6 @@ import {
   TrendingDown,
   ChevronDown,
 } from "lucide-react";
-import { useTokens } from "@/hooks/useTokens";
 import WelcomeModal from "@/components/welcomephase/WelcomeModal";
 import OnboardingSteps from "@/components/welcomephase/OnboardingSteps";
 import HowItWorksTimeline from "@/components/howitworks";
@@ -73,7 +72,6 @@ export default function Home() {
   const isPaid = isActive && tier !== "free";
   const { language } = useLanguage();
   const { isLoaded, isSignedIn, user } = useUser();
-  const { tokens } = useTokens();
   const [hasRunATS, setHasRunATS] = useState(false);
   const [atsScore, setAtsScore] = useState<number | null>(null);
   const [hasHighGap, setHasHighGap] = useState(false);
@@ -140,13 +138,13 @@ export default function Home() {
           const cvData = await cvResponse.json();
           setRecentCVs(cvData.slice(0, 3));
         }
-        if (tokens > 0 || (isActive && tier !== "free")) {
-          const letterResponse = await fetch("/api/recent-cover-letters");
-          if (letterResponse.ok) {
-            const letterData = await letterResponse.json();
-            setRecentCoverLetters(letterData.slice(0, 3));
-          }
-        }
+{
+  const letterResponse = await fetch("/api/recent-cover-letters");
+  if (letterResponse.ok) {
+    const letterData = await letterResponse.json();
+    setRecentCoverLetters(letterData.slice(0, 3));
+  }
+}
       } catch (error) {
         console.error("Error loading recent documents:", error);
       } finally {
@@ -166,7 +164,6 @@ export default function Home() {
     isSignedIn,
     user?.id,
     profileCompleted,
-    tokens,
     isActive,
     tier,
     isLoaded,

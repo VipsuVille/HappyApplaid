@@ -1,3 +1,4 @@
+// app/create-cover-letter/page.tsx — light/dark + free/pro (ei tokeneita); logiikka säilytetty
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -13,20 +14,18 @@ import {
 } from "lucide-react";
 import { validateProfile } from '@/lib/profileValidation';
 import ProfileValidationBanner from '@/components/ProfileValidationBanner';
-import { useTokens } from "@/hooks/useTokens";
-import { useFreeUsage } from '@/hooks/useFreeUsage';
+import { usePlanStatus } from "@/hooks/usePlanStatus"; // ✅ tokeneista plan-statukseen
 import { useLanguage } from '@/context/LanguageContext';
-import { ACTION_COSTS, PlanType, TokenAction } from "@/lib/domain/tokens";
 import CVConfirmationModal from "@/components/CVConfirmationModal";
-import TemplateThumb from "@/components/cover-letter/TemplateThumb"; // ✅ uusi
+import TemplateThumb from "@/components/cover-letter/TemplateThumb";
 
 type LetterType = "job_specific" | "general";
 type LetterVersion = "v1" | "v2";
 type LetterLanguage = "finnish" | "english" | "swedish";
 type LetterStyle = "formal" | "casual";
 
-// ✅ Yhtenäinen, rauhallinen osio-tyyli
-const SECTION = "bg-white/[0.02] border border-white/10 rounded-3xl p-6 md:p-8";
+// ✅ Yhtenäinen osio-tyyli (light/dark)
+const SECTION = "bg-white dark:bg-white/[0.02] border border-gray-200 dark:border-white/10 rounded-3xl p-6 md:p-8";
 
 export default function CreateCoverLetterPage() {
   const router = useRouter();
@@ -39,15 +38,13 @@ export default function CreateCoverLetterPage() {
   const [targetIndustry, setTargetIndustry] = useState("");
   const [targetRole, setTargetRole] = useState("");
 
-  // ✅ AVOIN HAKEMUS — firma-konteksti
   const [openAppCompany, setOpenAppCompany] = useState("");
   const [companyMotivation, setCompanyMotivation] = useState("");
   const [companyAboutText, setCompanyAboutText] = useState("");
 
   const [letterLanguage, setLetterLanguage] = useState<LetterLanguage>("finnish");
   const [letterStyle, setLetterStyle] = useState<LetterStyle>("formal");
-
-  // ✅ Lisätiedot-kenttä
+const [mustInclude, setMustInclude] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [saveAdditionalNotes, setSaveAdditionalNotes] = useState(false);
   const [previousNotes, setPreviousNotes] = useState<string>("");
@@ -59,20 +56,17 @@ export default function CreateCoverLetterPage() {
   const [pendingViolations, setPendingViolations] = useState<any>(null);
   const [showPremiumBox, setShowPremiumBox] = useState(false);
 
-  const { tokens, plan_type, isLoading: tokensLoading } = useTokens();
-  const freeUsage = useFreeUsage();
+  // ✅ Plan-status (ei tokeneita)
+  const { status, loading: planLoading, isPaid, refresh } = usePlanStatus();
 
   const {
-    startGeneration,
-    setStage,
-    completeGeneration,
-    failGeneration,
-    cancelGeneration,
-    isGenerating,
+    startGeneration, setStage, completeGeneration,
+    failGeneration, cancelGeneration, isGenerating,
   } = useGeneration();
 
-  const canUseATS = plan_type !== 'free';
-  const canUseV2 = plan_type === 'premium' && letterType === 'job_specific';
+  // ✅ Ominaisuusportit plan-statuksesta (ei tokeneista)
+  const canUseATS = status ? status.plan !== 'free' : false;       // ATS = maksullinen
+  const canUseV2 = (status?.plan === 'premium') && letterType === 'job_specific';
 
   const isFinnish = language === 'fi' || (language as string) === 'finnish';
   const profileValidation = useMemo(() => {
@@ -80,7 +74,6 @@ export default function CreateCoverLetterPage() {
     return validateProfile(profileData);
   }, [profileData]);
 
-  // ✅ Pohjat + edustava väri thumbnailiin (visuaalinen vaihtelu kuten oikeissa gallerioissa)
   const TEMPLATES = useMemo(() => ([
     { id: 'modern-top', label: isFinnish ? 'Moderni · banneri' : 'Modern · banner', accent: '#6366f1' },
     { id: 'aurora', label: 'Aurora', accent: '#8b5cf6', badge: isFinnish ? 'AI-tausta' : 'AI background' },
@@ -88,144 +81,83 @@ export default function CreateCoverLetterPage() {
     { id: 'elegant', label: isFinnish ? 'Elegantti' : 'Elegant', accent: '#B59850' },
     { id: 'creative-wave', label: 'Creative Wave', accent: '#a855f7' },
     { id: 'classic', label: isFinnish ? 'Klassinen' : 'Classic', accent: '#475569' },
-    { id: 'ribbon',   label: 'Ribbon',   accent: '#e11d48' },
-{ id: 'sidebar',  label: isFinnish ? 'Sivupalsta+' : 'Sidebar+', accent: '#0f766e' },
-{ id: 'monogram', label: 'Monogram', accent: '#1e3a5f' },
+    { id: 'ribbon', label: 'Ribbon', accent: '#e11d48' },
+    { id: 'sidebar', label: isFinnish ? 'Sivupalsta+' : 'Sidebar+', accent: '#0f766e' },
+    { id: 'monogram', label: 'Monogram', accent: '#1e3a5f' },
   ]), [isFinnish]);
 
   const t = {
     en: {
-      title: "Create an",
-      titleHighlight: "Impressive",
-      titleEnd: "Cover Letter.",
+      title: "Create an", titleHighlight: "Impressive", titleEnd: "Cover Letter.",
       subtitle: "Let AI craft a compelling introduction.",
-      balance: "Your Balance",
-      sectionType: "Letter type",
-      sectionLanguage: "Language & Style",
-      sectionOptimization: "ATS Optimization (Premium)",
-      sectionAdditionalNotes: "Additional Notes (Optional)",
-      sectionTemplate: "Visual Template",
-      sectionTemplateHelp: "Pick a look — you can fine-tune it later in the editor.",
-      jobSpecific: "Job-Specific",
-      jobSpecificDesc: "Tailored for a job posting",
-      general: "General Introduction",
-      generalDesc: "Universal professional intro",
-      atsToggle: "Optimize for ATS",
-      jobPostingPlaceholder: "Job posting text...",
+      aiLeft: "AI generations left", planFree: "Free · 1 AI / week", planPaid: "Active plan",
+      sectionType: "Letter type", sectionLanguage: "Language & Style",
+      sectionOptimization: "ATS Optimization (Paid)", sectionAdditionalNotes: "Additional Notes (Optional)",
+      sectionTemplate: "Visual Template", sectionTemplateHelp: "Pick a look — you can fine-tune it later in the editor.",
+      jobSpecific: "Job-Specific", jobSpecificDesc: "Tailored for a job posting",
+      general: "General Introduction", generalDesc: "Universal professional intro",
+      atsToggle: "Optimize for ATS", jobPostingPlaceholder: "Job posting text...",
       targetRolePlaceholder: "e.g. Software Engineer...",
-      languageLabel: "Letter Language",
-      languageHelp: "Which language should the letter be written in?",
-      styleLabel: "Writing Style",
-      styleHelp: "Choose the tone of your letter",
-      styleFormal: "Formal",
-      styleFormalDesc: "Professional and polished",
-      styleCasual: "Casual",
-      styleCasualDesc: "Conversational but credible",
+      languageLabel: "Letter Language", languageHelp: "Which language should the letter be written in?",
+      styleLabel: "Writing Style", styleHelp: "Choose the tone of your letter",
+      styleFormal: "Formal", styleFormalDesc: "Professional and polished",
+      styleCasual: "Casual", styleCasualDesc: "Conversational but credible",
       additionalNotesPlaceholder: "E.g. 'I want to emphasize my project management skills and mention I'm ready to start immediately.'",
       additionalNotesHelp: "These instructions will be given to AI when writing your letter.",
-      saveNotesCheckbox: "Save for future letters",
-      previousNotesLabel: "Previously used:",
-      summary: "Summary",
-      letterGeneration: "Letter Generation",
-      cost: "Cost",
-      free: "FREE",
-      generateNow: "Create Letter Now",
-      generating: "Generating...",
-      freeTrialInfo: "Free users can create one cover letter.",
-      noProfile: "Fill profile first!",
-      success: "✅ Cover letter created!",
-      error: "Error occurred",
+      saveNotesCheckbox: "Save for future letters", previousNotesLabel: "Previously used:",
+      summary: "Summary", generateNow: "Create Letter Now", generating: "Generating...",
+      freeNote: "Free plan: 1 AI generation per week. ATS optimization is a paid feature.",
+      noProfile: "Fill profile first!", success: "✅ Cover letter created!", error: "Error occurred",
       jobPostingRequired: "Job posting required.",
+      limitReached: "Weekly AI limit reached. Upgrade to Pro for more.",
+      sumLanguage: "Language", sumStyle: "Style", sumTemplate: "Template", sumType: "Type", sumNotes: "Notes",
     },
     fi: {
-      title: "Luo",
-      titleHighlight: "Vaikuttava",
-      titleEnd: "Hakukirje.",
+      title: "Luo", titleHighlight: "Vaikuttava", titleEnd: "Hakukirje.",
       subtitle: "Anna AI:n luoda vakuuttava esittely.",
-      balance: "Saldosi",
-      sectionType: "Kirjeen tyyppi",
-      sectionLanguage: "Kieli & Tyyli",
-      sectionOptimization: "ATS-optimointi (Premium)",
-      sectionAdditionalNotes: "Lisätiedot (Vapaaehtoinen)",
-      sectionTemplate: "Visuaalinen pohja",
-      sectionTemplateHelp: "Valitse ulkoasu — voit hienosäätää sitä myöhemmin editorissa.",
-      jobSpecific: "Työpaikkaan kohdistettu",
-      jobSpecificDesc: "Räätälöity ilmoitukselle",
-      general: "Yleinen esittely",
-      generalDesc: "Yleispätevä esittelykirje",
-      atsToggle: "Optimoi ATS:lle",
-      jobPostingPlaceholder: "Työpaikkailmoitus...",
+      aiLeft: "AI-luonnit jäljellä", planFree: "Ilmainen · 1 AI / viikko", planPaid: "Aktiivinen tilaus",
+      sectionType: "Kirjeen tyyppi", sectionLanguage: "Kieli & Tyyli",
+      sectionOptimization: "ATS-optimointi (Maksullinen)", sectionAdditionalNotes: "Lisätiedot (Vapaaehtoinen)",
+      sectionTemplate: "Visuaalinen pohja", sectionTemplateHelp: "Valitse ulkoasu — voit hienosäätää sitä myöhemmin editorissa.",
+      jobSpecific: "Työpaikkaan kohdistettu", jobSpecificDesc: "Räätälöity ilmoitukselle",
+      general: "Yleinen esittely", generalDesc: "Yleispätevä esittelykirje",
+      atsToggle: "Optimoi ATS:lle", jobPostingPlaceholder: "Työpaikkailmoitus...",
       targetRolePlaceholder: "esim. Kehittäjä...",
-      languageLabel: "Kirjeen kieli",
-      languageHelp: "Millä kielellä kirje kirjoitetaan?",
-      styleLabel: "Kirjoitustyyli",
-      styleHelp: "Valitse kirjeen sävy",
-      styleFormal: "Muodollinen",
-      styleFormalDesc: "Ammattimainen ja hiottu",
-      styleCasual: "Rento",
-      styleCasualDesc: "Keskusteleva mutta uskottava",
+      languageLabel: "Kirjeen kieli", languageHelp: "Millä kielellä kirje kirjoitetaan?",
+      styleLabel: "Kirjoitustyyli", styleHelp: "Valitse kirjeen sävy",
+      styleFormal: "Muodollinen", styleFormalDesc: "Ammattimainen ja hiottu",
+      styleCasual: "Rento", styleCasualDesc: "Keskusteleva mutta uskottava",
       additionalNotesPlaceholder: "Esim: 'Haluan korostaa projektinhallintaosaamistani ja mainita että olen valmis aloittamaan heti.'",
       additionalNotesHelp: "Nämä ohjeet annetaan AI:lle kirjettä kirjoitettaessa.",
-      saveNotesCheckbox: "💾 Tallenna tulevia kirjeitä varten",
-      previousNotesLabel: "Viimeksi käytetty:",
-      summary: "Yhteenveto",
-      letterGeneration: "Hakukirjeen generointi",
-      cost: "Kustannus",
-      free: "ILMAINEN",
-      generateNow: "Luo hakukirje",
-      generating: "Generoidaan...",
-      freeTrialInfo: "Ilmaiskäyttäjät voivat luoda yhden.",
-      noProfile: "Täytä profiili ensin!",
-      success: "✅ Hakukirje luotu!",
-      error: "Tapahtui virhe",
+      saveNotesCheckbox: "💾 Tallenna tulevia kirjeitä varten", previousNotesLabel: "Viimeksi käytetty:",
+      summary: "Yhteenveto", generateNow: "Luo hakukirje", generating: "Generoidaan...",
+      freeNote: "Ilmaisversio: 1 AI-luonti viikossa. ATS-optimointi on maksullinen ominaisuus.",
+      noProfile: "Täytä profiili ensin!", success: "✅ Hakukirje luotu!", error: "Tapahtui virhe",
       jobPostingRequired: "Ilmoitus vaaditaan.",
+      limitReached: "Viikon AI-raja täynnä. Päivitä Pro:ksi saadaksesi lisää.",
+      sumLanguage: "Kieli", sumStyle: "Tyyli", sumTemplate: "Pohja", sumType: "Tyyppi", sumNotes: "Lisätiedot",
     }
   }[isFinnish ? 'fi' : 'en'];
 
   const apiType = useMemo(() => {
-    if (letterType === 'general') {
-      return 'general';
-    } else {
-      return letterVersion === 'v2' ? 'ats-v2' : 'ats-v1';
-    }
+    if (letterType === 'general') return 'general';
+    return letterVersion === 'v2' ? 'ats-v2' : 'ats-v1';
   }, [letterType, letterVersion]);
 
-  const costs = useMemo(() => {
-    const currentTier = (plan_type as PlanType) || 'free';
-    const tierCosts = ACTION_COSTS[currentTier] || {};
-
-    let action: TokenAction;
-    if (letterType === 'general') {
-      action = 'cover_letter_general';
-    } else {
-      action = letterVersion === 'v2' ? 'cover_letter_v2' : 'cover_letter_v1';
-    }
-
-    const cost = tierCosts[action] || 0;
-    return { base: cost, total: cost };
-  }, [plan_type, letterType, letterVersion]);
-
-  // ✅ LOAD PROFILE & PREVIOUS NOTES (ennallaan)
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) return;
       try {
         setProfileLoading(true);
         const response = await fetch(`/api/user-profile/${user.id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setProfileData(data);
-        }
-
+        if (response.ok) setProfileData(await response.json());
         const notesResponse = await fetch('/api/user-responses?category=cover_letter&context=additional_notes&limit=1');
         if (notesResponse.ok) {
           const notesData = await notesResponse.json();
-          if (notesData.responses && notesData.responses.length > 0) {
-            setPreviousNotes(notesData.responses[0].answer);
-          }
+          if (notesData.responses?.length > 0) setPreviousNotes(notesData.responses[0].answer);
         }
       } catch (error) {
-        console.error("❌ Profile load error:", error);
+        console.error("Profile load error:", error);
       } finally {
         setProfileLoading(false);
       }
@@ -237,44 +169,28 @@ export default function CreateCoverLetterPage() {
     const lowerText = text.toLowerCase();
     let jobTitle = "Työtehtävä";
     let companyName = "Yritys";
-
     if (lowerText.includes('kesko')) companyName = 'Kesko';
     if (lowerText.includes('nokia')) companyName = 'Nokia';
     if (lowerText.includes('wolt')) companyName = 'Wolt';
-
     if (lowerText.includes('it') || lowerText.includes('ohjelmisto')) jobTitle = 'IT-tehtävä';
     if (lowerText.includes('myynti')) jobTitle = 'Myyntitehtävä';
     if (lowerText.includes('asiakaspalvelu')) jobTitle = 'Asiakaspalvelutehtävä';
-
     return { jobTitle, companyName };
   };
 
-  // --- GENERATE HANDLER (ennallaan) ---
   const handleGenerateLetter = async (confirmedViolations?: any) => {
-    if (!profileValidation?.isValid) {
-      toast.error(t.noProfile);
+    if (!profileValidation?.isValid) { toast.error(t.noProfile); return; }
+    if (letterType === 'job_specific' && !jobPosting.trim()) { toast.error(t.jobPostingRequired); return; }
+    if (letterVersion === 'v2' && status?.plan !== 'premium') {
+      toast.error(isFinnish ? 'ATS V2 vaatii Premium-tilauksen' : 'ATS V2 requires Premium');
       return;
     }
-    if (letterType === 'job_specific' && !jobPosting.trim()) {
-      toast.error(t.jobPostingRequired);
-      return;
-    }
-
-    if (letterVersion === 'v2' && plan_type !== 'premium') {
-      toast.error('ATS V2 vaatii Premium-tilauksen');
-      return;
-    }
-
-    console.log('🚀 Starting generation with type:', apiType);
 
     try {
-      startGeneration('cover_letter', {
-        templateType: letterType,
-        language: letterLanguage
-      });
+      startGeneration('cover_letter', { templateType: letterType, language: letterLanguage });
 
-      let jobTitle = undefined;
-      let companyName = undefined;
+      let jobTitle: string | undefined;
+      let companyName: string | undefined;
       let jobDescription = jobPosting;
 
       if (letterType === 'job_specific' && jobPosting.trim().length < 200) {
@@ -285,74 +201,61 @@ export default function CreateCoverLetterPage() {
       }
 
       const requestBody = {
+        
         type: apiType,
-        templateStyle: templateStyle, // 🔥 LÄHETETÄÄN VALITTU POHJA BACKENDILLE
-
+        templateStyle,
         ...(letterType === 'job_specific' && {
           jobTitle: jobTitle || 'Työtehtävä',
           companyName: companyName || 'Yritys',
-          jobDescription: jobDescription,
+          jobDescription,
         }),
-
         ...(letterType === 'general' && {
-          targetIndustry,
-          targetRole,
+          targetIndustry, targetRole,
           companyName: openAppCompany.trim() || undefined,
           jobTitle: targetRole.trim() || undefined,
           companyMotivation: companyMotivation.trim() || undefined,
           companyAboutText: companyAboutText.trim() || undefined,
         }),
-
         language: letterLanguage,
         style: letterStyle,
-
-        additionalNotes: additionalNotes.trim() || undefined,
-        saveAdditionalNotes: saveAdditionalNotes,
-
-        name: profileData?.name,
-        email: profileData?.email,
-        phone: profileData?.phone,
+additionalNotes: additionalNotes?.trim()
+  ? (mustInclude
+      ? `PAKOLLINEN OHJE: Sisällytä seuraavan asian YDIN hakukirjeeseen luontevasti ja omin sanoin — ÄLÄ kopioi sanasta sanaan, mutta varmista että pääajatus näkyy selvästi tekstissä: "${additionalNotes.trim()}"`
+      : additionalNotes.trim())
+  : undefined,
+          saveAdditionalNotes,
+        name: profileData?.name, email: profileData?.email, phone: profileData?.phone,
         workExperience: typeof profileData?.work_experience === 'string'
-          ? profileData.work_experience
-          : JSON.stringify(profileData?.work_experience || []),
+          ? profileData.work_experience : JSON.stringify(profileData?.work_experience || []),
         education: typeof profileData?.education === 'string'
-          ? profileData.education
-          : JSON.stringify(profileData?.education || []),
-        skills: Array.isArray(profileData?.skills)
-          ? profileData.skills.join(', ')
-          : profileData?.skills || '',
-
-        workingStyle: profileData?.working_style,
-        problemSolving: profileData?.problem_solving,
-        uniqueStrength: profileData?.unique_strength,
-        superpower: profileData?.superpower,
-        energySources: profileData?.energy_sources,
-        learningStyle: profileData?.learning_style,
-        teamRole: profileData?.team_role,
-        valuesExample: profileData?.values_example,
-        careerGoals: profileData?.career_goals,
-        bestProjectExample: profileData?.best_project_example,
+          ? profileData.education : JSON.stringify(profileData?.education || []),
+        skills: Array.isArray(profileData?.skills) ? profileData.skills.join(', ') : profileData?.skills || '',
+        workingStyle: profileData?.working_style, problemSolving: profileData?.problem_solving,
+        uniqueStrength: profileData?.unique_strength, superpower: profileData?.superpower,
+        energySources: profileData?.energy_sources, learningStyle: profileData?.learning_style,
+        teamRole: profileData?.team_role, valuesExample: profileData?.values_example,
+        careerGoals: profileData?.career_goals, bestProjectExample: profileData?.best_project_example,
         failureLesson: profileData?.failure_lesson,
-
         enableRAG: false,
-
         confirmedViolations: confirmedViolations || null,
-        skipValidation: !!confirmedViolations
+        skipValidation: !!confirmedViolations,
       };
 
       setStage('analyzing', 20);
-
       const response = await fetch("/api/generate-cover-letter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
-
       const data = await response.json();
       setStage('generating', 50);
-
-      console.log('📨 API Response:', data);
       setStage('finalizing', 80);
+
+      // ✅ FREE/PRO: viikkoraja täynnä
+      if (response.status === 429) {
+        cancelGeneration();
+        toast.error(data.message || t.limitReached);
+        return;
+      }
 
       if (response.status === 400 && data.needsConfirmation) {
         setPendingViolations(data.violations);
@@ -362,13 +265,14 @@ export default function CreateCoverLetterPage() {
       }
 
       if (data.success) {
-        completeGeneration(data.id);
+        completeGeneration(data.coverLetterId || data.id);
         toast.success(t.success);
+        refresh(); // ✅ päivitä jäljellä oleva AI-määrä
       } else {
         throw new Error(data.error || t.error);
       }
     } catch (error: any) {
-      console.error('❌ Generation error:', error);
+      console.error('Generation error:', error);
       failGeneration(error.message || t.error);
       toast.error(t.error);
     }
@@ -376,44 +280,37 @@ export default function CreateCoverLetterPage() {
 
   const handleApproveViolations = async (approvedItems: any[]): Promise<void> => {
     setShowConfirmation(false);
-    const confirmed = approvedItems.map(item => ({ ...item, decision: 'approved' }));
-    await handleGenerateLetter(confirmed);
+    await handleGenerateLetter(approvedItems.map(item => ({ ...item, decision: 'approved' })));
   };
-
   const handleRejectViolations = () => {
     setShowConfirmation(false);
     toast.error(isFinnish ? "Generointi keskeytetty." : "Generation cancelled.");
   };
-
   const handleEditViolations = async (correctedItems: any[]): Promise<void> => {
     setShowConfirmation(false);
-    const confirmed = correctedItems.map(item => ({
-      ...item,
-      decision: item.corrected ? 'corrected' : 'approved',
-      content: item.corrected || item.original,
-      correctedContent: item.corrected
-    }));
-    await handleGenerateLetter(confirmed);
+    await handleGenerateLetter(correctedItems.map(item => ({
+      ...item, decision: item.corrected ? 'corrected' : 'approved',
+      content: item.corrected || item.original, correctedContent: item.corrected,
+    })));
   };
 
-  if (!userLoaded || profileLoading || tokensLoading) {
+  if (!userLoaded || profileLoading || planLoading) {
     return (
-      <div className="min-h-screen bg-[#030711] flex items-center justify-center">
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] flex items-center justify-center">
         <Sparkles className="w-10 h-10 text-orange-500 animate-pulse mb-4" />
       </div>
     );
   }
 
-  // Pieni osio-otsikko (yhtenäinen, rauhallinen)
   const Header = ({ step, icon: Icon, title, help }: { step: number; icon: any; title: string; help?: string }) => (
     <div className="flex items-start gap-3 mb-6">
-      <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-orange-500/15 border border-orange-500/25 text-orange-400 text-sm font-bold shrink-0">
+      <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-orange-500/15 border border-orange-500/25 text-orange-500 text-sm font-bold shrink-0">
         {step}
       </div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4 text-gray-500" />
-          <h3 className="text-base font-semibold text-white">{title}</h3>
+          <Icon className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
         </div>
         {help && <p className="text-xs text-gray-500 mt-1">{help}</p>}
       </div>
@@ -421,7 +318,7 @@ export default function CreateCoverLetterPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#030711] text-[#e7e3dc]">
+    <div className="min-h-screen bg-[#f8fafc] dark:bg-[#030711] text-gray-900 dark:text-[#e7e3dc]">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 rounded-full blur-[120px]" />
       </div>
@@ -431,35 +328,32 @@ export default function CreateCoverLetterPage() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
-              <Mail className="w-3.5 h-3.5 text-orange-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">AI Letter</span>
+              <Mail className="w-3.5 h-3.5 text-orange-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">AI Letter</span>
             </div>
-            <h1 className="text-4xl md:text-5xl font-black text-white">
+            <h1 className="text-4xl md:text-5xl font-black text-gray-900 dark:text-white">
               {t.title} <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500">{t.titleHighlight}</span> {t.titleEnd}
             </h1>
-            <p className="text-gray-400">{t.subtitle}</p>
+            <p className="text-gray-600 dark:text-gray-400">{t.subtitle}</p>
           </div>
 
-          <div className="bg-white/[0.03] border border-white/10 p-4 rounded-2xl flex items-center gap-5">
+          {/* ✅ AI-merkki (ei TKN-pilleriä) */}
+          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 p-4 rounded-2xl flex items-center gap-5">
             <div className="text-right">
-              <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">{t.balance}</p>
+              <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">{t.aiLeft}</p>
               <div className="flex items-center gap-2 justify-end">
-                <span className="text-2xl font-black text-white">{tokens.toLocaleString()}</span>
-                <span className="text-xs font-bold text-orange-500">TKN</span>
+                <span className="text-2xl font-black text-gray-900 dark:text-white">{status?.aiRemaining ?? '–'}</span>
+                <span className="text-xs font-bold text-gray-400">/ {status?.aiLimit ?? '–'} · {status?.windowLabel ?? ''}</span>
               </div>
             </div>
-            <div className="w-px h-9 bg-white/10" />
-            <Crown className={`w-6 h-6 ${plan_type === 'premium' ? 'text-amber-400' : 'text-gray-600'}`} />
+            <div className="w-px h-9 bg-gray-200 dark:bg-white/10" />
+            <Crown className={`w-6 h-6 ${status?.plan === 'premium' ? 'text-amber-400' : isPaid ? 'text-orange-500' : 'text-gray-400 dark:text-gray-600'}`} />
           </div>
         </div>
 
         {profileValidation && !profileValidation.isValid && (
           <div className="mb-8">
-            <ProfileValidationBanner
-              validation={profileValidation}
-              context="cover_letter"
-              language={isFinnish ? 'fi' : 'en'}
-            />
+            <ProfileValidationBanner validation={profileValidation} context="cover_letter" language={isFinnish ? 'fi' : 'en'} />
           </div>
         )}
 
@@ -480,11 +374,11 @@ export default function CreateCoverLetterPage() {
                     className={`relative p-5 rounded-2xl border text-left transition-all ${
                       letterType === type.id
                         ? 'border-orange-500/50 bg-orange-500/5'
-                        : 'border-white/10 bg-black/20 hover:border-white/20'
+                        : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 hover:border-gray-300 dark:hover:border-white/20'
                     }`}
                   >
-                    <type.icon className={`w-5 h-5 mb-3 ${letterType === type.id ? 'text-orange-400' : 'text-gray-500'}`} />
-                    <p className="font-semibold text-white mb-1">{type.label}</p>
+                    <type.icon className={`w-5 h-5 mb-3 ${letterType === type.id ? 'text-orange-500' : 'text-gray-400 dark:text-gray-500'}`} />
+                    <p className="font-semibold text-gray-900 dark:text-white mb-1">{type.label}</p>
                     <p className="text-xs text-gray-500">{type.desc}</p>
                     {letterType === type.id && <CheckCircle className="absolute top-3 right-3 w-5 h-5 text-orange-500" />}
                   </button>
@@ -495,9 +389,8 @@ export default function CreateCoverLetterPage() {
             {/* SECTION 2: KIELI & TYYLI */}
             <section className={SECTION}>
               <Header step={2} icon={Globe} title={t.sectionLanguage} />
-
               <div className="mb-7">
-                <label className="block text-sm font-semibold text-gray-300 mb-1">{t.languageLabel}</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">{t.languageLabel}</label>
                 <p className="text-xs text-gray-500 mb-3">{t.languageHelp}</p>
                 <div className="grid grid-cols-3 gap-3">
                   {[
@@ -511,21 +404,18 @@ export default function CreateCoverLetterPage() {
                       className={`relative p-4 rounded-2xl border text-left transition-all ${
                         letterLanguage === lang.id
                           ? 'border-blue-500/50 bg-blue-500/10'
-                          : 'border-white/10 bg-black/20 hover:border-white/20'
+                          : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 hover:border-gray-300 dark:hover:border-white/20'
                       }`}
                     >
                       <div className="text-2xl mb-2">{lang.flag}</div>
-                      <p className="font-semibold text-white text-sm">{lang.label}</p>
-                      {letterLanguage === lang.id && (
-                        <CheckCircle className="absolute top-3 right-3 w-4 h-4 text-blue-400" />
-                      )}
+                      <p className="font-semibold text-gray-900 dark:text-white text-sm">{lang.label}</p>
+                      {letterLanguage === lang.id && <CheckCircle className="absolute top-3 right-3 w-4 h-4 text-blue-400" />}
                     </button>
                   ))}
                 </div>
               </div>
-
               <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-1">{t.styleLabel}</label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">{t.styleLabel}</label>
                 <p className="text-xs text-gray-500 mb-3">{t.styleHelp}</p>
                 <div className="grid grid-cols-2 gap-3">
                   {[
@@ -538,15 +428,13 @@ export default function CreateCoverLetterPage() {
                       className={`relative p-4 rounded-2xl border text-left transition-all ${
                         letterStyle === styleOpt.id
                           ? 'border-purple-500/50 bg-purple-500/10'
-                          : 'border-white/10 bg-black/20 hover:border-white/20'
+                          : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 hover:border-gray-300 dark:hover:border-white/20'
                       }`}
                     >
-                      <styleOpt.icon className={`w-5 h-5 mb-2 ${letterStyle === styleOpt.id ? 'text-purple-400' : 'text-gray-500'}`} />
-                      <p className="font-semibold text-white mb-0.5">{styleOpt.label}</p>
+                      <styleOpt.icon className={`w-5 h-5 mb-2 ${letterStyle === styleOpt.id ? 'text-purple-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                      <p className="font-semibold text-gray-900 dark:text-white mb-0.5">{styleOpt.label}</p>
                       <p className="text-xs text-gray-500">{styleOpt.desc}</p>
-                      {letterStyle === styleOpt.id && (
-                        <CheckCircle className="absolute top-3 right-3 w-4 h-4 text-purple-400" />
-                      )}
+                      {letterStyle === styleOpt.id && <CheckCircle className="absolute top-3 right-3 w-4 h-4 text-purple-400" />}
                     </button>
                   ))}
                 </div>
@@ -558,28 +446,34 @@ export default function CreateCoverLetterPage() {
               <>
                 {!canUseATS && (
                   <section className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-500/30 rounded-3xl overflow-hidden">
-                    <div
-                      className="p-6 md:p-8 cursor-pointer md:cursor-default"
-                      onClick={() => setShowPremiumBox(!showPremiumBox)}
-                    >
-                      {/* Premium box content... */}
+                    <div className="p-6 md:p-8 cursor-pointer md:cursor-default" onClick={() => setShowPremiumBox(!showPremiumBox)}>
+                      <div className="flex items-center gap-3">
+                        <Lock className="w-5 h-5 text-amber-500" />
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t.sectionOptimization}</h3>
+                          <p className="text-xs text-gray-500">
+                            {isFinnish ? 'ATS-optimointi on maksullinen ominaisuus. Ilmaisversiossa voit luoda yleisen hakukirjeen.' : 'ATS optimization is a paid feature. Free users can create a general letter.'}
+                          </p>
+                        </div>
+                        <a href="/pricing" className="ml-auto shrink-0 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold">Pro</a>
+                      </div>
                     </div>
                   </section>
                 )}
 
                 {canUseATS && (
                   <section className={`rounded-3xl p-6 md:p-8 border ${
-                    letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/[0.02] border-white/10'
+                    letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white dark:bg-white/[0.02] border-gray-200 dark:border-white/10'
                   }`}>
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
                         <Shield className={`w-9 h-9 p-2 rounded-xl ${
-                          letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-white/5 text-gray-500 border-white/10'
+                          letterVersion === 'v2' && canUseV2 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-white/10'
                         } border`} />
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="text-base font-semibold text-white">{t.sectionOptimization}</h3>
-                            {plan_type === 'premium' && <Crown className="w-4 h-4 text-amber-400" />}
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t.sectionOptimization}</h3>
+                            {status?.plan === 'premium' && <Crown className="w-4 h-4 text-amber-400" />}
                           </div>
                           <p className="text-xs text-gray-500">{t.atsToggle}</p>
                         </div>
@@ -588,41 +482,25 @@ export default function CreateCoverLetterPage() {
                       {canUseV2 && (
                         <button
                           onClick={() => setLetterVersion(letterVersion === 'v2' ? 'v1' : 'v2')}
-                          className={`relative w-14 h-7 rounded-full transition-colors ${
-                            letterVersion === 'v2' ? 'bg-emerald-500' : 'bg-gray-800'
-                          }`}
+                          className={`relative w-14 h-7 rounded-full transition-colors ${letterVersion === 'v2' ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-800'}`}
                         >
-                          <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                            letterVersion === 'v2' ? 'translate-x-7' : ''
-                          }`} />
+                          <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${letterVersion === 'v2' ? 'translate-x-7' : ''}`} />
                         </button>
                       )}
 
                       {!canUseV2 && canUseATS && (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
                           <Lock className="w-3.5 h-3.5 text-amber-500" />
-                          <span className="text-[10px] font-black text-amber-500 uppercase tracking-tighter">V2: Premium Only</span>
+                          <span className="text-[10px] font-black text-amber-500 uppercase tracking-tighter">V2: Premium</span>
                         </div>
                       )}
-                    </div>
-
-                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex gap-3 mb-5">
-                      <Info className="w-5 h-5 text-blue-400 shrink-0" />
-                      <p className="text-xs text-blue-200/70">
-                        {letterVersion === 'v2' && canUseV2
-                          ? '✅ ATS V2: Iteratiivinen optimointi käytössä (tavoite >= 75%)'
-                          : canUseATS && !canUseV2
-                          ? 'ℹ️ ATS V1: Perusoptimointi käytössä (Basic). Premium = V2 iteratiivinen optimointi.'
-                          : 'ℹ️ ATS V1: Perusoptimointi käytössä'
-                        }
-                      </p>
                     </div>
 
                     <textarea
                       value={jobPosting}
                       onChange={(e) => setJobPosting(e.target.value)}
                       placeholder={t.jobPostingPlaceholder}
-                      className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none"
+                      className="w-full h-48 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl p-5 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none"
                     />
                   </section>
                 )}
@@ -634,151 +512,94 @@ export default function CreateCoverLetterPage() {
                       value={jobPosting}
                       onChange={(e) => setJobPosting(e.target.value)}
                       placeholder={t.jobPostingPlaceholder}
-                      className="w-full h-48 bg-black/40 border border-white/10 rounded-2xl p-5 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none"
+                      className="w-full h-48 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl p-5 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none"
                     />
                   </section>
                 )}
               </>
             )}
 
-            {/* GENERAL: avoin hakemus tietylle firmalle */}
+            {/* GENERAL: avoin hakemus */}
             {letterType === 'general' && (
               <section className={`${SECTION} space-y-5`}>
-                <Header
-                  step={3}
-                  icon={Briefcase}
+                <Header step={3} icon={Briefcase}
                   title={isFinnish ? 'Kohdeyritys (vapaaehtoinen)' : 'Target company (optional)'}
-                  help={isFinnish
-                    ? 'Tee avoimesta hakemuksesta yksilöllinen juuri tälle yritykselle'
-                    : 'Make your open application specific to this company'}
-                />
-
+                  help={isFinnish ? 'Tee avoimesta hakemuksesta yksilöllinen juuri tälle yritykselle' : 'Make your open application specific to this company'} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <input
-                    type="text"
-                    value={openAppCompany}
-                    onChange={(e) => setOpenAppCompany(e.target.value)}
+                  <input type="text" value={openAppCompany} onChange={(e) => setOpenAppCompany(e.target.value)}
                     placeholder={isFinnish ? 'Yritys, esim. Nokia' : 'Company, e.g. Nokia'}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50"
-                  />
-                  <input
-                    type="text"
-                    value={targetRole}
-                    onChange={(e) => setTargetRole(e.target.value)}
+                    className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl p-4 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-orange-500/50" />
+                  <input type="text" value={targetRole} onChange={(e) => setTargetRole(e.target.value)}
                     placeholder={t.targetRolePlaceholder}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50"
-                  />
+                    className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl p-4 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-orange-500/50" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    {isFinnish ? 'Miksi juuri tämä yritys?' : 'Why this company?'}
-                  </label>
-                  <textarea
-                    value={companyMotivation}
-                    onChange={(e) => setCompanyMotivation(e.target.value)}
-                    placeholder={isFinnish
-                      ? 'Esim. "Olen seurannut heidän kestävyystyötään" tai "Ystäväni töissä siellä kehui kulttuuria". Omin sanoin — tämä tekee kirjeestä aidon.'
-                      : 'E.g. "I\'ve followed their sustainability work". In your own words — this makes the letter genuine.'}
-                    className="w-full h-24 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none placeholder:text-gray-600"
-                  />
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{isFinnish ? 'Miksi juuri tämä yritys?' : 'Why this company?'}</label>
+                  <textarea value={companyMotivation} onChange={(e) => setCompanyMotivation(e.target.value)}
+                    placeholder={isFinnish ? 'Esim. "Olen seurannut heidän kestävyystyötään". Omin sanoin — tämä tekee kirjeestä aidon.' : 'E.g. "I\'ve followed their sustainability work". In your own words.'}
+                    className="w-full h-24 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl p-4 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-600" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">
-                    {isFinnish ? 'Tietoa yrityksestä (vapaaehtoinen)' : 'About the company (optional)'}
-                  </label>
-                  <p className="text-xs text-gray-500 mb-2">
-                    {isFinnish
-                      ? 'Liitä yrityksen "Tietoa meistä" -teksti nettisivuilta. AI käyttää sitä tehdäkseen kirjeestä osuvan.'
-                      : 'Paste the company\'s "About us" text. AI uses it to make the letter relevant.'}
-                  </p>
-                  <textarea
-                    value={companyAboutText}
-                    onChange={(e) => setCompanyAboutText(e.target.value)}
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{isFinnish ? 'Tietoa yrityksestä (vapaaehtoinen)' : 'About the company (optional)'}</label>
+                  <p className="text-xs text-gray-500 mb-2">{isFinnish ? 'Liitä yrityksen "Tietoa meistä" -teksti. AI käyttää sitä tehdäkseen kirjeestä osuvan.' : 'Paste the company\'s "About us" text.'}</p>
+                  <textarea value={companyAboutText} onChange={(e) => setCompanyAboutText(e.target.value)}
                     placeholder={isFinnish ? 'Liitä yrityksen esittelyteksti tähän…' : 'Paste the company description here…'}
-                    className="w-full h-28 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none placeholder:text-gray-600"
-                    maxLength={6000}
-                  />
-                </div>
-
-                <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-                  <div className="text-xs text-blue-200/70">
-                    <p className="font-bold text-blue-300 mb-1">
-                      {isFinnish ? 'AI-faktantarkistus (tulossa)' : 'AI fact-check (coming soon)'}
-                    </p>
-                    <p>
-                      {isFinnish
-                        ? 'Pian: maksavat käyttäjät voivat antaa AI:n tarkistaa väitteet yrityksestä. Toistaiseksi kirjoita itse — se on aidoin tapa.'
-                        : 'Soon: paid users can let AI verify claims about the company. For now, write it yourself — the most genuine way.'}
-                    </p>
-                  </div>
+                    className="w-full h-28 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl p-4 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-orange-500/50 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-600"
+                    maxLength={6000} />
                 </div>
               </section>
             )}
 
-            {/* SECTION 4: LISÄTIEDOT (rauhoitettu) */}
+            {/* SECTION 4: LISÄTIEDOT */}
+            
             <section className={SECTION}>
+              
+<label className="flex items-center gap-2 mt-2 cursor-pointer">
+  <input type="checkbox" checked={mustInclude}
+    onChange={(e) => setMustInclude(e.target.checked)}
+    className="w-4 h-4 accent-orange-500" />
+  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+    {isFinnish ? 'Varmista että tämä huomioidaan hakukirjeessä' : 'Make sure this is included'}
+  </span>
+</label>
               <Header step={4} icon={MessageSquarePlus} title={t.sectionAdditionalNotes} help={t.additionalNotesHelp} />
-
               {previousNotes && (
                 <div className="mb-4 p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
-                  <p className="text-xs font-bold text-purple-300 mb-2 flex items-center gap-2">
-                    <Info className="w-3 h-3" />
-                    {t.previousNotesLabel}
+                  <p className="text-xs font-bold text-purple-500 dark:text-purple-300 mb-2 flex items-center gap-2">
+                    <Info className="w-3 h-3" />{t.previousNotesLabel}
                   </p>
-                  <p className="text-sm text-purple-200 italic">"{previousNotes}"</p>
+                  <p className="text-sm text-purple-700 dark:text-purple-200 italic">"{previousNotes}"</p>
                 </div>
               )}
-
-              <textarea
-                value={additionalNotes}
-                onChange={(e) => setAdditionalNotes(e.target.value)}
+              <textarea value={additionalNotes} onChange={(e) => setAdditionalNotes(e.target.value)}
                 placeholder={t.additionalNotesPlaceholder}
-                className="w-full h-28 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-gray-200 focus:outline-none focus:border-purple-400/60 resize-none placeholder:text-gray-600 mb-3"
-              />
-
-              <label className="flex items-start gap-3 p-3 bg-black/20 border border-white/10 rounded-xl cursor-pointer hover:border-white/20 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={saveAdditionalNotes}
-                  onChange={(e) => setSaveAdditionalNotes(e.target.checked)}
-                  className="w-5 h-5 text-purple-600 focus:ring-purple-500 rounded mt-0.5"
-                />
+                className="w-full h-28 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-2xl p-4 text-sm text-gray-900 dark:text-gray-200 focus:outline-none focus:border-purple-400/60 resize-none placeholder:text-gray-400 dark:placeholder:text-gray-600 mb-3" />
+              <label className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl cursor-pointer hover:border-gray-300 dark:hover:border-white/20 transition-colors">
+                <input type="checkbox" checked={saveAdditionalNotes} onChange={(e) => setSaveAdditionalNotes(e.target.checked)}
+                  className="w-5 h-5 accent-purple-600 rounded mt-0.5" />
                 <div className="flex-1">
-                  <span className="text-sm font-semibold text-purple-200 flex items-center gap-2">
-                    <Save className="w-4 h-4" />
-                    {t.saveNotesCheckbox}
+                  <span className="text-sm font-semibold text-purple-700 dark:text-purple-200 flex items-center gap-2">
+                    <Save className="w-4 h-4" />{t.saveNotesCheckbox}
                   </span>
                   <p className="text-xs text-gray-500 mt-1">
-                    {isFinnish
-                      ? 'AI käyttää näitä tietoja automaattisesti seuraavissa kirjeissä. Voit muokata profiilissa.'
-                      : 'AI will use this information automatically in future letters. You can edit in profile.'}
+                    {isFinnish ? 'AI käyttää näitä tietoja automaattisesti seuraavissa kirjeissä. Voit muokata profiilissa.' : 'AI will use this automatically in future letters. You can edit in profile.'}
                   </p>
                 </div>
               </label>
             </section>
 
-            {/* SECTION 5: VISUAALINEN POHJA — THUMBNAIL-GALLERIA */}
+            {/* SECTION 5: VISUAALINEN POHJA */}
             <section className={SECTION}>
               <Header step={5} icon={Palette} title={t.sectionTemplate} help={t.sectionTemplateHelp} />
-
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {TEMPLATES.map((tpl) => {
                   const selected = templateStyle === tpl.id;
                   return (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => setTemplateStyle(tpl.id)}
+                    <button key={tpl.id} type="button" onClick={() => setTemplateStyle(tpl.id)}
                       className={`group relative rounded-2xl p-2 border text-left transition-all ${
-                        selected
-                          ? 'border-orange-500/60 bg-orange-500/5 ring-2 ring-orange-500/30'
-                          : 'border-white/10 bg-black/20 hover:border-white/25'
-                      }`}
-                    >
-                      {/* Paperi-thumbnail */}
+                        selected ? 'border-orange-500/60 bg-orange-500/5 ring-2 ring-orange-500/30'
+                                 : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 hover:border-gray-300 dark:hover:border-white/25'
+                      }`}>
                       <div className="relative rounded-lg overflow-hidden border border-black/10 shadow-sm bg-white">
                         <TemplateThumb id={tpl.id} accent={tpl.accent} />
                         {selected && (
@@ -787,15 +608,10 @@ export default function CreateCoverLetterPage() {
                           </div>
                         )}
                       </div>
-
                       <div className="flex items-center justify-between gap-1 px-1 pt-2">
-                        <p className={`text-xs font-semibold truncate ${selected ? 'text-orange-300' : 'text-gray-300'}`}>
-                          {tpl.label}
-                        </p>
+                        <p className={`text-xs font-semibold truncate ${selected ? 'text-orange-600 dark:text-orange-300' : 'text-gray-600 dark:text-gray-300'}`}>{tpl.label}</p>
                         {tpl.badge && (
-                          <span className="shrink-0 text-[8px] font-black uppercase tracking-wide text-violet-300 bg-violet-500/15 border border-violet-500/30 rounded px-1 py-0.5">
-                            {tpl.badge}
-                          </span>
+                          <span className="shrink-0 text-[8px] font-black uppercase tracking-wide text-violet-500 dark:text-violet-300 bg-violet-500/15 border border-violet-500/30 rounded px-1 py-0.5">{tpl.badge}</span>
                         )}
                       </div>
                     </button>
@@ -809,57 +625,47 @@ export default function CreateCoverLetterPage() {
           {/* SIDEBAR: Summary */}
           <div className="lg:col-span-4">
             <div className="lg:sticky lg:top-12">
-              <div className="bg-white/[0.03] border border-white/10 rounded-3xl p-7">
+              <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/10 rounded-3xl p-7">
                 <h3 className="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] mb-7">{t.summary}</h3>
 
                 <div className="space-y-5 mb-8">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">{t.letterGeneration}</span>
-                    <span className="text-white font-bold">{plan_type === 'free' ? '0' : costs.base} TKN</span>
+                    <span className="text-gray-600 dark:text-gray-400">{t.aiLeft}</span>
+                    <span className="text-gray-900 dark:text-white font-bold">{status?.aiRemaining ?? '–'}/{status?.aiLimit ?? '–'} · {status?.windowLabel ?? ''}</span>
                   </div>
 
-                  <div className="pt-4 border-t border-white/10 space-y-3">
+                  <div className="pt-4 border-t border-gray-200 dark:border-white/10 space-y-3">
                     <div className="flex items-center gap-2 text-xs">
                       <Globe className="w-4 h-4 text-blue-400" />
-                      <span className="text-gray-400">Kieli:</span>
-                      <span className="text-white font-bold capitalize">{letterLanguage}</span>
+                      <span className="text-gray-500">{t.sumLanguage}:</span>
+                      <span className="text-gray-900 dark:text-white font-bold capitalize">{letterLanguage}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <Palette className="w-4 h-4 text-purple-400" />
-                      <span className="text-gray-400">Tyyli:</span>
-                      <span className="text-white font-bold capitalize">{letterStyle}</span>
+                      <span className="text-gray-500">{t.sumStyle}:</span>
+                      <span className="text-gray-900 dark:text-white font-bold capitalize">{letterStyle}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <Palette className="w-4 h-4 text-indigo-400" />
-                      <span className="text-gray-400">{isFinnish ? "Pohja:" : "Template:"}</span>
-                      <span className="text-indigo-300 font-bold">
-                        {TEMPLATES.find(x => x.id === templateStyle)?.label || templateStyle}
-                      </span>
+                      <span className="text-gray-500">{t.sumTemplate}:</span>
+                      <span className="text-indigo-500 dark:text-indigo-300 font-bold">{TEMPLATES.find(x => x.id === templateStyle)?.label || templateStyle}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <Target className="w-4 h-4 text-orange-400" />
-                      <span className="text-gray-400">Tyyppi:</span>
-                      <span className="text-white font-bold uppercase">{apiType}</span>
+                      <span className="text-gray-500">{t.sumType}:</span>
+                      <span className="text-gray-900 dark:text-white font-bold uppercase">{apiType}</span>
                     </div>
                     {additionalNotes.trim() && (
                       <div className="flex items-center gap-2 text-xs">
                         <MessageSquarePlus className="w-4 h-4 text-purple-400" />
-                        <span className="text-gray-400">Lisätiedot:</span>
-                        <span className="text-purple-300 font-bold">✓</span>
+                        <span className="text-gray-500">{t.sumNotes}:</span>
+                        <span className="text-purple-500 dark:text-purple-300 font-bold">✓</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="pt-5 border-t border-white/10">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase mb-1">{t.cost}</p>
-                    <p className="text-3xl font-black text-white">
-                      {plan_type === 'free' ? t.free : (
-                        <>
-                          {costs.total}
-                          <span className="text-xs text-orange-500 ml-1">TKN</span>
-                        </>
-                      )}
-                    </p>
+                  <div className="pt-5 border-t border-gray-200 dark:border-white/10">
+                    <p className="text-lg font-black text-gray-900 dark:text-white">{isPaid ? t.planPaid : t.planFree}</p>
                   </div>
                 </div>
 
@@ -877,23 +683,20 @@ export default function CreateCoverLetterPage() {
 
                 {!profileValidation?.isValid && (
                   <div className="mt-5 flex gap-3 p-4 bg-red-500/10 rounded-2xl border border-red-500/20">
-                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
                     <div>
-                      <p className="text-xs font-bold text-red-400 mb-1">{t.noProfile}</p>
-                      <button
-                        onClick={() => router.push('/profile')}
-                        className="text-xs text-red-300 underline hover:text-red-200"
-                      >
-                        Täytä profiili →
+                      <p className="text-xs font-bold text-red-500 mb-1">{t.noProfile}</p>
+                      <button onClick={() => router.push('/profile')} className="text-xs text-red-400 underline hover:text-red-300">
+                        {isFinnish ? 'Täytä profiili →' : 'Complete profile →'}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {plan_type === 'free' && (
+                {!isPaid && (
                   <div className="mt-5 flex gap-3 p-4 bg-orange-500/5 rounded-2xl border border-orange-500/10">
-                    <AlertCircle className="w-4 h-4 text-orange-400 shrink-0" />
-                    <p className="text-[10px] text-gray-500 italic">{t.freeTrialInfo}</p>
+                    <Info className="w-4 h-4 text-orange-400 shrink-0" />
+                    <p className="text-[11px] text-gray-500">{t.freeNote}</p>
                   </div>
                 )}
               </div>
@@ -902,7 +705,6 @@ export default function CreateCoverLetterPage() {
         </div>
       </div>
 
-      {/* GUARDIAN MODAL */}
       {showConfirmation && pendingViolations && (
         <CVConfirmationModal
           violations={pendingViolations}

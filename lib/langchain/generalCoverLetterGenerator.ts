@@ -5,6 +5,8 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "langchain/output_parsers";
 import { z } from "zod";
 import { buildAIContext } from "@/lib/knowledge";
+import { FINNISH_STYLE_RULES } from "./finnishStyle";
+import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -98,7 +100,9 @@ const adaptivePrompt = ChatPromptTemplate.fromMessages([
   ["system", `You are writing a COVER LETTER that reveals CHARACTER, not credentials.
 
 {knowledgeContext}
+{finnishStyle}
 
+{appGuide}
 # ═══════════════════════════════════════════════════════════════
 # CORE MISSION: COMPLEMENT THE CV
 # ═══════════════════════════════════════════════════════════════
@@ -434,7 +438,9 @@ export async function generateGeneralCoverLetter(
             workExperience: input.workExperience,
             education: input.education,
           },
+          
           enableRAG: true,
+          language: input.language || 'finnish',   // ✅ LISÄÄ TÄMÄ
           contentType: 'cover_letter'
         });
         console.log(`   ✅ RAG context: ${knowledgeContext.length} chars`);
@@ -453,6 +459,9 @@ export async function generateGeneralCoverLetter(
       temperature: 0.7,
       timeout: 60000,
     });
+    const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
+const finnishStyle = isFinnish ? FINNISH_STYLE_RULES : '';
+const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
 
     const formatted = await adaptivePrompt.formatMessages({
       knowledgeContext: knowledgeContext || '',
@@ -462,6 +471,8 @@ export async function generateGeneralCoverLetter(
       language: input.language || 'finnish',
       style: input.style || 'professional',
       additionalNotes: input.additionalNotes || 'None',
+       finnishStyle,
+  appGuide,
       companyMotivation: input.companyMotivation?.trim() || 'Not provided',
       companyAboutText: input.companyAboutText?.trim()
         ? input.companyAboutText.substring(0, 1500)

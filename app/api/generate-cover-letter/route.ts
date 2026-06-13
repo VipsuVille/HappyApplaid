@@ -1,4 +1,4 @@
-// app/api/generate-cover-letter/route.ts — EI tokeneita: checkLimit + logUsage
+// app/api/generate-cover-letter/route.ts — checkLimit + logUsage + RAG-premium-portti + AI-tausta premium-only
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,9 +10,8 @@ import { generateATSCoverLetterV2 } from '@/lib/langchain/coverLetterGeneratorV2
 import { analyzeExperienceGap } from '@/lib/ats/experienceGapAnalyzer';
 import { normalizeBody } from '@/lib/cover-letter/normalize';
 import { generateEnhancedBackgroundImage } from '@/lib/langchain/cvGenerator';
-import { checkLimit, logUsage, limitMessage } from '@/lib/limits'; // ✅ kuluhallinta
+import { checkLimit, logUsage, limitMessage, planOf, canUseFeature } from '@/lib/limits'; // ✅ + planOf, canUseFeature
 
-// ✅ KORJATTU typo: erilliset merkkijonot taulukossa
 const BG_TEMPLATES = ['aurora', 'sidebar'];
 
 type CoverLetterType = 'general' | 'ats-v1' | 'ats-v2';
@@ -65,12 +64,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── KULUHALLINTA (ei tokeneita) — ennen mitään AI-kutsua ───────
+    // ── KULUHALLINTA + PLAN ────────────────────────────────────────
     const { data: subscription } = await supabaseAdmin
       .from('subscriptions')
       .select('plan_type')
       .eq('user_id', userId)
       .maybeSingle();
+
+    const plan = planOf(subscription?.plan_type);
+    const canAiBg = canUseFeature(plan, 'ai_background'); // AI-taustakuva: vain premium
+    const ragOn = plan === 'premium';                      // RAG: vain premium
 
     const limit = await checkLimit(userId, subscription?.plan_type);
     if (!limit.allowed) {
@@ -80,7 +83,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ── EXPERIENCE GAP ANALYSIS (EI kirjaa käyttöä — ei vielä luotu) ──
+    // ── EXPERIENCE GAP ANALYSIS (ei kirjaa käyttöä) ────────────────
     if ((body.type === 'ats-v1' || body.type === 'ats-v2') && !body.skipExperienceCheck) {
       const atsBody = body as ATSCoverLetterV1Request | ATSCoverLetterV2Request;
       try {
@@ -133,7 +136,7 @@ export async function POST(request: NextRequest) {
           teamRole: b.teamRole, valuesExample: b.valuesExample, careerGoals: b.careerGoals,
           bestProjectExample: b.bestProjectExample, failureLesson: b.failureLesson,
           additionalNotes: b.additionalNotes, language: b.language || 'finnish',
-          style: b.style || 'professional', enableRAG: b.enableRAG ?? false,
+          style: b.style || 'professional', enableRAG: ragOn, // ✅ RAG premium-only
         });
         content = result.content; title = result.title; keyHighlights = result.keyHighlights || [];
         break;
@@ -144,7 +147,7 @@ export async function POST(request: NextRequest) {
           jobDescription: b.jobDescription, name: b.name || 'Applicant', email: b.email, phone: b.phone, location: b.location,
           workExperience: b.workExperience, education: b.education, skills: b.skills,
           yearsOfExperience: b.yearsOfExperience, careerLevel: b.careerLevel, additionalNotes: b.additionalNotes,
-          language: b.language || 'finnish', style: b.style || 'professional', enableRAG: b.enableRAG ?? false,
+          language: b.language || 'finnish', style: b.style || 'professional', enableRAG: ragOn, // ✅
           guardianValidation: true, userId, skipQuestions: false, followUpAnswers: b.followUpAnswers,
         });
         content = result.content; title = result.title; keyHighlights = result.keyHighlights || [];
@@ -156,7 +159,7 @@ export async function POST(request: NextRequest) {
           jobDescription: b.jobDescription, name: b.name || 'Applicant', email: b.email, phone: b.phone, location: b.location,
           workExperience: b.workExperience, education: b.education, skills: b.skills,
           yearsOfExperience: b.yearsOfExperience, careerLevel: b.careerLevel, additionalNotes: b.additionalNotes,
-          language: b.language || 'finnish', style: b.style || 'professional', enableRAG: b.enableRAG ?? false,
+          language: b.language || 'finnish', style: b.style || 'professional', enableRAG: ragOn, // ✅
           guardianValidation: b.guardianValidation ?? true, userId, skipQuestions: false, followUpAnswers: b.followUpAnswers,
         });
         content = result.content; title = result.title; keyHighlights = result.keyHighlights || [];
@@ -172,14 +175,26 @@ export async function POST(request: NextRequest) {
     content = normalizeBody(content);
     const templateStyle = body.templateStyle || 'modern-top';
 
-    // ── AI-TAUSTA (vain bannerillisille) ───────────────────────────
+    // ── AI-TAUSTA: premium-only + persoona profiilista; muille gradientti ──
     let background: { mode: string; imageUrl?: string; opacity?: number } = { mode: 'color' };
     if (BG_TEMPLATES.includes(templateStyle)) {
-      try {
-        const imageUrl = await generateEnhancedBackgroundImage({ userId, cvId: `cl_${Date.now()}` } as any, undefined);
-        if (imageUrl) background = { mode: 'generated', imageUrl, opacity: 0.9 };
-      } catch (e) {
-        console.error('⚠️ [BG] Background generation failed (jatketaan ilman):', e);
+      if (canAiBg) {
+        try {
+          const imageUrl = await generateEnhancedBackgroundImage({
+            userId, cvId: `cl_${Date.now()}`,
+            // ✅ persoona kuvaprompttiin (cover letter -bodyssä nämä kentät)
+            hobbies: (body as any).hobbies,
+            uniqueStrength: (body as any).uniqueStrength,
+            energySources: (body as any).energySources,
+            superpower: (body as any).superpower,
+          } as any, undefined);
+          if (imageUrl) background = { mode: 'generated', imageUrl, opacity: 0.9 };
+        } catch (e) {
+          console.error('⚠️ [BG] Background generation failed (jatketaan ilman):', e);
+        }
+      } else {
+        // ✅ ei-premium: hillitty gradientti (Aurora-skin piirtää mode='gradient')
+        background = { mode: 'gradient' };
       }
     }
 
@@ -218,7 +233,7 @@ export async function POST(request: NextRequest) {
       .from('cover_letters').insert(coverLetterData).select().single();
     if (saveError) { console.error('❌ [DB] Save failed:', saveError); throw saveError; }
 
-    // ── KIRJAA AI-LUONTI (kuluhallinta) ────────────────────────────
+    // ── KIRJAA AI-LUONTI ───────────────────────────────────────────
     await logUsage(userId, 'cover_letter');
 
     // ── LISÄTIEDOT ─────────────────────────────────────────────────

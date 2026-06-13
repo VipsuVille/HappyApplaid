@@ -1,11 +1,11 @@
-// app/api/generate-cv/route.ts — EI tokeneita: checkLimit + logUsage
+// app/api/generate-cv/route.ts — checkLimit + logUsage + RAG-premium-portti + AI-tausta premium-only
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { generateCVSafely } from "@/lib/langchain/cvGenerator";
 import { supabaseAdmin } from "@/lib/supabase";
 import { transformDBToLangChain, type LangChainCVInput } from "@/lib/profileDataTransform";
 import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/masterGuardian";
-import { checkLimit, logUsage, limitMessage } from "@/lib/limits"; // ✅ uusi kuluhallinta
+import { checkLimit, logUsage, limitMessage, planOf, canUseFeature } from "@/lib/limits"; // ✅ + planOf, canUseFeature
 import crypto from "crypto";
 
 export const maxDuration = 60;
@@ -83,13 +83,17 @@ export async function POST(request: Request) {
       skipValidation = false,
     } = body;
 
-    // ── KULUHALLINTA (ei tokeneita) ────────────────────────────────
+    // ── KULUHALLINTA + PLAN ────────────────────────────────────────
     const { data: subscription } = await supabaseAdmin
       .from("subscriptions")
       .select("plan_type")
       .eq("user_id", userId)
       .maybeSingle();
     const tier = subscription?.plan_type || "free";
+
+    const plan = planOf(subscription?.plan_type);
+    const canAiBg = canUseFeature(plan, "ai_background");      // AI-taustakuva: vain premium
+    const ragOn = plan === "premium" && !!enableRAG;           // RAG: vain premium (jos pyydetty)
 
     const limit = await checkLimit(userId, subscription?.plan_type);
     if (!limit.allowed) {
@@ -98,8 +102,7 @@ export async function POST(request: Request) {
         { status: 429 }
       );
     }
-    // (action vain metadataan / is_ats_optimized-lippuun)
-    const action = enableRAG ? "cv_rag_addon" : jobPosting ? "cv_ats_addon" : "cv_basic";
+    const action = ragOn ? "cv_rag_addon" : jobPosting ? "cv_ats_addon" : "cv_basic";
 
     // ── PREPARE INPUT ──────────────────────────────────────────────
     let input: LangChainCVInput;
@@ -134,7 +137,7 @@ export async function POST(request: Request) {
         failureLesson: apiProfile.failure_lesson || "",
         profileImage: apiProfile.profileImage || undefined,
         jobPosting: jobPosting || undefined,
-        enableRAG,
+        enableRAG: ragOn,                 // ✅ RAG premium-only
         skipQuestions: skipQuestions || false,
         answeredQuestions: answeredQuestions || [],
       };
@@ -145,10 +148,13 @@ export async function POST(request: Request) {
       input.userId = userId;
       input.cvType = cvType as "simple" | "technical" | "creative";
       input.jobPosting = jobPosting;
-      input.enableRAG = enableRAG;
+      input.enableRAG = ragOn;            // ✅ RAG premium-only
       input.skipQuestions = skipQuestions || false;
       input.answeredQuestions = answeredQuestions || [];
     }
+
+    // ✅ AI-taustakuva vain premiumille (cvGenerator STEP 7 lukee tämän — ks. ohje viestissä)
+    (input as any).aiBackground = canAiBg;
 
     // Vahvistetut violationit
     if (confirmedViolations && Array.isArray(confirmedViolations)) {
@@ -165,7 +171,6 @@ export async function POST(request: Request) {
     // ── GENERATE ───────────────────────────────────────────────────
     const result = await generateCVSafely(input);
 
-    // Lisäkysymykset (EI kirjaa käyttöä — ei vielä luotu CV:tä)
     if (result.needsMoreInfo && result.questions) {
       return NextResponse.json({ success: true, needsMoreInfo: true, questions: result.questions, _debug: (result as any)._debug || null });
     }
@@ -241,7 +246,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "CV_SAVE_FAILED" }, { status: 500 });
     }
 
-    // ── KIRJAA AI-LUONTI (kuluhallinta) ────────────────────────────
+    // ── KIRJAA AI-LUONTI ───────────────────────────────────────────
     await logUsage(userId, "cv");
 
     return NextResponse.json({

@@ -1,9 +1,11 @@
 // app/api/recruiter-verdict/route.ts
-// Rekrytoijasimulaatio + ANONYYMI vertailu. Malli ottaa palkkaavan henkilön roolin.
-// Vertailu: vain { role_type, fit_score } tallennetaan — EI käyttäjäkohtaista dataa.
+// Rekrytoijasimulaatio + ANONYYMI vertailu.
+// ✅ LISÄTTY: feature-portti (vain maksulliset) + kuluhallinta (yksi katto).
 import { auth } from "@clerk/nextjs/server";
 import { ChatOpenAI } from "@langchain/openai";
 import { quickRoleType, computeBenchmark, recordVerdictStat } from "@/lib/ats/benchmark";
+import { supabaseAdmin } from "@/lib/supabase";
+import { checkLimit, logUsage, limitMessage, canUseFeature, planOf } from "@/lib/limits";
 
 const TONE_INSTRUCTIONS: Record<string, string> = {
   strict:
@@ -21,6 +23,30 @@ export async function POST(req: Request) {
   const { coverLetter, jobPosting, tone = "neutral" } = await req.json();
   if (!coverLetter?.trim() || !jobPosting?.trim()) {
     return Response.json({ error: "Anna sekä hakemus että työpaikkailmoitus." }, { status: 400 });
+  }
+
+  // ── PLAN + FEATURE-PORTTI (rekrytoijaverdikti = maksullinen ominaisuus) ──
+  const { data: subscription } = await supabaseAdmin
+    .from("subscriptions")
+    .select("plan_type")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const plan = planOf(subscription?.plan_type);
+  if (!canUseFeature(plan, "recruiter_verdict")) {
+    return Response.json(
+      { error: "FEATURE_LOCKED", message: "Rekrytoijan arvio on käytössä Pro- ja Premium-tilauksilla.", upgrade: true },
+      { status: 403 }
+    );
+  }
+
+  // ── KULUHALLINTA (yksi katto kaikille AI-toiminnoille) ──
+  const limit = await checkLimit(userId, subscription?.plan_type);
+  if (!limit.allowed) {
+    return Response.json(
+      { error: "LIMIT_REACHED", message: limitMessage(limit), reason: limit.reason, upgrade: limit.plan === "free" },
+      { status: 429 }
+    );
   }
 
   const toneLine = TONE_INSTRUCTIONS[tone] ?? TONE_INSTRUCTIONS.neutral;
@@ -70,14 +96,15 @@ Rules:
       oneLineToFix: parsed.oneLineToFix ?? "",
     };
 
-    // ── Anonyymi vertailu ──────────────────────────────────────────────
+    // ── Anonyymi vertailu ──
     const roleType = quickRoleType(jobPosting);
-    // Laske ENNEN tallennusta, ettei oma rivi vääristä omaa sijoitusta
     const benchmark = await computeBenchmark(roleType, result.fitScore);
-    // Tallenna anonyymi rivi (ei user_id, ei tekstiä)
     await recordVerdictStat(roleType, result.fitScore);
 
-    return Response.json({ ...result, roleType, benchmark });
+    // ── KIRJAA AI-TOIMINTO (vasta onnistuneen arvion jälkeen) ──
+    await logUsage(userId, "recruiter_verdict");
+
+    return Response.json({ ...result, roleType, benchmark, aiRemaining: Math.max(0, limit.remaining - 1) });
   } catch (e) {
     console.error("recruiter-verdict error:", e);
     return Response.json({ error: "Arvio epäonnistui. Yritä uudelleen." }, { status: 500 });

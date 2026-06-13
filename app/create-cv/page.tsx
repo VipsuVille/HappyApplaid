@@ -512,21 +512,27 @@ export default function CreateCVPage() {
                   </div>
                 </div>
 
-                <Button
-                  onClick={() => handleGenerateCV()}
-                  disabled={isGenerating || !profileValidation?.isValid}
-                  className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                      {t.generating}
-                      {cvState.progress > 0 && <span className="ml-2 text-xs opacity-80">({cvState.progress}%)</span>}
-                    </>
-                  ) : (
-                    <><Sparkles className="w-5 h-5 mr-2" />{t.generateNow}<ArrowRight className="w-5 h-5 ml-2 opacity-50" /></>
-                  )}
-                </Button>
+{/* AI-toiminto -label napin YLÄPUOLELLE */}
+<div className="flex items-center justify-center gap-1.5 mb-2 text-[11px] font-bold text-orange-500 dark:text-orange-400">
+  <Sparkles className="w-3.5 h-3.5" />
+  {isFinnish ? 'AI-toiminto' : 'AI action'}
+</div>
+
+<Button
+  onClick={() => handleGenerateCV()}
+  disabled={isGenerating || !profileValidation?.isValid}
+  className="w-full py-8 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-2xl font-black text-lg hover:scale-[1.02]"
+>
+  {isGenerating ? (
+    <>
+      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+      {t.generating}
+      {cvState.progress > 0 && <span className="ml-2 text-xs opacity-80">({cvState.progress}%)</span>}
+    </>
+  ) : (
+    <><Sparkles className="w-5 h-5 mr-2" />{t.generateNow}<ArrowRight className="w-5 h-5 ml-2 opacity-50" /></>
+  )}
+</Button>
 
                 {!profileValidation?.isValid && (
                   <div className="mt-6 flex gap-3 p-4 bg-red-500/10 rounded-2xl border border-red-500/20">

@@ -1,4 +1,5 @@
 // lib/langchain/cvGenerator.ts - TRUTH-ABSOLUTE + SAVED RESPONSES + V2-STYLE PROMPTS
+// ✅ finnishStyle nyt KAIKISSA prompteissa (simple + technical + creative)
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -30,6 +31,7 @@ import {
   mergeResponsesIntoProfile,
   type AnswerEntry,
 } from "@/lib/langchain/responseHelper";
+import { FINNISH_STYLE_RULES } from "./finnishStyle";
 
 // ════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -89,6 +91,7 @@ interface CVGeneratorInput {
   jobPosting?: string;
   authToken?: string;
   enableRAG?: boolean;
+
   skipQuestions?: boolean;
   answeredQuestions?: Array<{ id: string; question: string; answer: string }>;
 }
@@ -250,29 +253,16 @@ function mergeCVAnswers(
 // SAVED RESPONSES — Direct DB, merge via responseHelper
 // ════════════════════════════════════════════════════════════════
 
-/**
- * Infer a responseHelper-compatible category from the question text.
- *
- * The DB's question_category field often contains values like
- * 'cv_generation', 'work_experience_detail', or '' which don't
- * match responseHelper's bucket names (experience, education, skill, etc.).
- *
- * This function looks at BOTH the stored category AND the question text
- * to produce a category that responseHelper can route correctly.
- */
 function inferCategory(dbCategory: string, questionText: string): string {
   const cat = (dbCategory || '').toLowerCase();
   const q = (questionText || '').toLowerCase();
 
-  // 1. If DB category already matches responseHelper buckets → use it
   if (cat.includes('experience') || cat.includes('work')) return 'experience';
   if (cat.includes('education')) return 'education';
   if (cat.includes('skill')) return 'skills';
   if (cat.includes('personality') || cat.includes('strength') || cat.includes('working_style')) return 'personality';
   if (cat.includes('achievement') || cat.includes('project')) return 'achievements';
 
-  // 2. DB category doesn't match → infer from question text
-  // Work experience
   if (q.includes('työkokemus') || q.includes('work experience') ||
       q.includes('projektit') || q.includes('projects') ||
       q.includes('mitä olet tehnyt') || q.includes('what have you done') ||
@@ -282,7 +272,6 @@ function inferCategory(dbCategory: string, questionText: string): string {
     return 'experience';
   }
 
-  // Education
   if (q.includes('koulutus') || q.includes('education') ||
       q.includes('tutkinto') || q.includes('degree') ||
       q.includes('opiskelu') || q.includes('study') ||
@@ -291,7 +280,6 @@ function inferCategory(dbCategory: string, questionText: string): string {
     return 'education';
   }
 
-  // Skills
   if (q.includes('taido') || q.includes('osaamis') || q.includes('skill') ||
       q.includes('teknolog') || q.includes('technolog') ||
       q.includes('ohjelmoint') || q.includes('programming') ||
@@ -300,7 +288,6 @@ function inferCategory(dbCategory: string, questionText: string): string {
     return 'skills';
   }
 
-  // Personality / strength
   if (q.includes('vahvuu') || q.includes('strength') ||
       q.includes('persoonall') || q.includes('personalit') ||
       q.includes('työskentelytyyli') || q.includes('working style') ||
@@ -309,14 +296,12 @@ function inferCategory(dbCategory: string, questionText: string): string {
     return 'personality';
   }
 
-  // Projects / achievements
   if (q.includes('paras projekti') || q.includes('best project') ||
       q.includes('saavutus') || q.includes('achievement') ||
       q.includes('ylpein') || q.includes('proudest')) {
     return 'achievements';
   }
 
-  // Fallback: if answer is long enough, treat as experience
   return 'other';
 }
 
@@ -340,7 +325,6 @@ async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]>
 
     console.log(`📚 [CV GEN] Fetched ${data.length} saved responses from DB`);
 
-    // Map DB rows to AnswerEntry with INFERRED categories
     const entries = data.map((r) => {
       const inferredCategory = inferCategory(r.question_category, r.question_text);
       if (inferredCategory !== (r.question_category || '').toLowerCase()) {
@@ -354,7 +338,6 @@ async function fetchSavedResponsesFromDB(userId: string): Promise<AnswerEntry[]>
       };
     });
 
-    // Log category distribution
     const catCounts: Record<string, number> = {};
     entries.forEach(e => { catCounts[e.category] = (catCounts[e.category] || 0) + 1; });
     console.log('   📊 Category distribution:', catCounts);
@@ -377,7 +360,6 @@ async function enrichWithSavedResponses(
   const answerEntries = await fetchSavedResponsesFromDB(userData.userId);
   if (answerEntries.length === 0) return userData;
 
-  /** Treat null, '', '[]', '{}', '[{}]' as empty */
   const clean = (val: string | undefined | null): string => {
     if (!val) return '';
     const t = val.trim();
@@ -402,7 +384,6 @@ async function enrichWithSavedResponses(
 
   const merged = mergeResponsesIntoProfile(profileObj, answerEntries);
 
-  // Use merged value if it has content, otherwise fall back to cleaned profile value
   const pick = (mergedVal: string, profileVal: string): string => {
     const m = clean(mergedVal);
     const p = clean(profileVal);
@@ -426,39 +407,25 @@ async function enrichWithSavedResponses(
 }
 
 // ════════════════════════════════════════════════════════════════
-// HUMANIZE: Convert JSON arrays to readable text for AI
-//
-// Route.ts sends work_experience/education as JSON-stringified arrays.
-// AI can't reliably extract company names, dates, etc from raw JSON.
-// This converts them to natural text the AI can understand.
-//
-// Works for ALL professions — nurse, programmer, builder, student.
+// HUMANIZE
 // ════════════════════════════════════════════════════════════════
 
 function humanizeWorkExperience(raw: string | undefined): string {
   if (!raw) return '';
   const trimmed = raw.trim();
-
-  // Already plain text? Return as-is
   if (!trimmed.startsWith('[')) return trimmed;
-
   try {
     const items = JSON.parse(trimmed);
     if (!Array.isArray(items) || items.length === 0) return '';
-
     return items.map((job: any) => {
       const parts: string[] = [];
-
       const title = job.position || job.title || job.role || '';
       const company = job.company || job.employer || job.organization || '';
       const duration = job.duration || job.period || job.dates || '';
-
       if (title && company) parts.push(`${title} — ${company}`);
       else if (title) parts.push(title);
       else if (company) parts.push(company);
-
       if (duration) parts.push(`Ajanjakso: ${duration}`);
-
       if (job.description) parts.push(job.description);
       if (job.toolsUsed) parts.push(`Työkalut: ${job.toolsUsed}`);
       if (job.biggestAchievement) parts.push(`Saavutus: ${job.biggestAchievement}`);
@@ -466,35 +433,28 @@ function humanizeWorkExperience(raw: string | undefined): string {
       if (job.howYourStrengthShowed) parts.push(`Vahvuus: ${job.howYourStrengthShowed}`);
       if (job.metrics) parts.push(`Mittarit: ${job.metrics}`);
       if (job.teamSize) parts.push(`Tiimin koko: ${job.teamSize}`);
-
       return parts.filter(p => p.trim()).join('\n');
     }).join('\n\n');
   } catch {
-    return trimmed; // Parse failed → return as-is
+    return trimmed;
   }
 }
 
 function humanizeEducation(raw: string | undefined): string {
   if (!raw) return '';
   const trimmed = raw.trim();
-
   if (!trimmed.startsWith('[')) return trimmed;
-
   try {
     const items = JSON.parse(trimmed);
     if (!Array.isArray(items) || items.length === 0) return '';
-
     return items.map((edu: any) => {
       const parts: string[] = [];
-
       const degree = edu.degree || edu.title || edu.name || '';
       const school = edu.school || edu.institution || edu.university || '';
       const year = edu.year || edu.graduationYear || '';
-
       if (degree && school) parts.push(`${degree} — ${school}`);
       else if (degree) parts.push(degree);
       else if (school) parts.push(school);
-
       if (year) parts.push(`Vuosi: ${year}`);
       if (edu.isOngoing) parts.push('(Kesken)');
       if (edu.specialization) parts.push(`Erikoistuminen: ${edu.specialization}`);
@@ -502,7 +462,6 @@ function humanizeEducation(raw: string | undefined): string {
       if (edu.whyThisField) parts.push(`Motivaatio: ${edu.whyThisField}`);
       if (edu.proudestMoment) parts.push(`Ylpein hetki: ${edu.proudestMoment}`);
       if (edu.thesisOrProject) parts.push(`Opinnäytetyö: ${edu.thesisOrProject}`);
-
       return parts.filter(p => p.trim()).join('\n');
     }).join('\n\n');
   } catch {
@@ -513,15 +472,11 @@ function humanizeEducation(raw: string | undefined): string {
 function humanizeSkills(raw: string | undefined): string {
   if (!raw) return '';
   const trimmed = raw.trim();
-
   if (!trimmed.startsWith('[')) return trimmed;
-
   try {
     const items = JSON.parse(trimmed);
     if (!Array.isArray(items) || items.length === 0) return '';
-    // Array of strings → join with comma
     if (typeof items[0] === 'string') return items.join(', ');
-    // Array of objects → extract name/skill field
     return items.map((s: any) => s.name || s.skill || s.title || JSON.stringify(s)).join(', ');
   } catch {
     return trimmed;
@@ -531,9 +486,7 @@ function humanizeSkills(raw: string | undefined): string {
 function humanizeLanguages(raw: string | undefined): string {
   if (!raw) return '';
   const trimmed = raw.trim();
-
   if (!trimmed.startsWith('[')) return trimmed;
-
   try {
     const items = JSON.parse(trimmed);
     if (!Array.isArray(items) || items.length === 0) return '';
@@ -548,13 +501,6 @@ function humanizeLanguages(raw: string | undefined): string {
   }
 }
 
-/**
- * Convert all profile fields from JSON format to human-readable text.
- * Called just before sending data to AI.
- *
- * Also: if skills field is empty but work experience has toolsUsed,
- * extract those as skills automatically.
- */
 function humanizeProfileForAI(data: CVGeneratorInput): CVGeneratorInput {
   const humanized = {
     ...data,
@@ -563,8 +509,6 @@ function humanizeProfileForAI(data: CVGeneratorInput): CVGeneratorInput {
     skills: humanizeSkills(data.skills),
     languages: humanizeLanguages(data.languages),
   };
-
-  // ✅ If skills is still empty, try to extract from work experience toolsUsed
   if (!humanized.skills || humanized.skills.trim() === '') {
     const extractedSkills = extractSkillsFromWorkExperience(data.workExperience);
     if (extractedSkills) {
@@ -572,32 +516,22 @@ function humanizeProfileForAI(data: CVGeneratorInput): CVGeneratorInput {
       humanized.skills = extractedSkills;
     }
   }
-
   return humanized;
 }
 
-/**
- * Extract skills/tools from work experience JSON when the skills field is empty.
- * Looks at toolsUsed, technologies, tools fields in each job entry.
- */
 function extractSkillsFromWorkExperience(raw: string | undefined): string {
   if (!raw) return '';
   const trimmed = raw.trim();
   if (!trimmed.startsWith('[')) return '';
-
   try {
     const items = JSON.parse(trimmed);
     if (!Array.isArray(items)) return '';
-
     const allTools = new Set<string>();
-
     items.forEach((job: any) => {
-      // Collect from various field names
       const toolFields = [
         job.toolsUsed, job.tools, job.technologies,
         job.tech_stack, job.techStack, job.skills,
       ];
-
       toolFields.forEach((field: any) => {
         if (typeof field === 'string' && field.trim()) {
           field.split(/[,;]/).forEach((t: string) => {
@@ -607,7 +541,6 @@ function extractSkillsFromWorkExperience(raw: string | undefined): string {
         }
       });
     });
-
     return Array.from(allTools).join(', ');
   } catch {
     return '';
@@ -684,6 +617,8 @@ const simplePrompt = ChatPromptTemplate.fromMessages([
 **LENGTH:** 300–400 words total. Shorter if data is limited.
 
 ${TRUTH_RULES}
+{finnishStyle}
+
 
 {atsInstructions}
 
@@ -728,6 +663,7 @@ const technicalPrompt = ChatPromptTemplate.fromMessages([
 **LENGTH:** 300–400 words. Shorter if data limited.
 
 ${TRUTH_RULES}
+{finnishStyle}
 
 {atsInstructions}
 
@@ -772,6 +708,7 @@ Creative PRESENTATION is fine. Invented FACTS are not.
 **LENGTH:** 300–400 words. Shorter if data limited.
 
 ${TRUTH_RULES}
+{finnishStyle}
 
 {atsInstructions}
 
@@ -898,7 +835,11 @@ export async function generateEnhancedBackgroundImage(
   authToken?: string
 ): Promise<string> {
   try {
-    const optimizedPrompt = `Abstract minimal professional background, soft gradient, clean design, no text`;
+    const traits = [userData.hobbies, userData.uniqueStrength, userData.energySources]
+      .filter(Boolean).join(', ');
+    const optimizedPrompt =
+      `Abstract, muted, professional banner background inspired by a person who values: ${traits || 'growth and curiosity'}. ` +
+      `Soft gradients, subtle symbolic shapes (NO text, NO faces, NO people), calm desaturated palette suitable as a faint background behind text.`;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
 
@@ -999,17 +940,6 @@ export async function generateCVWithPersonalityExtraction(
     console.log('✅ [CV GEN] Try block entered');
     checkTimeout();
 
-    // ════════════════════════════════════════════════════════════════
-    // STEP 1: FETCH & MERGE SAVED RESPONSES (ALWAYS runs first)
-    //
-    // Direct DB query via supabaseAdmin — no HTTP round-trip.
-    // Merge via responseHelper.ts (category-based, language-agnostic).
-    //
-    // This means: if user answered "Tell me about your work experience"
-    // last time → that answer is now in enrichedUserData.workExperience
-    // → the question will NOT be asked again.
-    // ════════════════════════════════════════════════════════════════
-
     console.log('📚 [CV GEN] STEP 1: Enriching with saved responses...');
     console.log(`   userId for fetch: "${userData.userId || 'MISSING'}"`);
     timer.start("Fetch & Merge Saved Responses");
@@ -1018,7 +948,6 @@ export async function generateCVWithPersonalityExtraction(
     let savedResponseCount = 0;
     try {
       enrichedUserData = await enrichWithSavedResponses(userData);
-      // Check if anything actually changed
       const changed = enrichedUserData.workExperience !== userData.workExperience ||
                       enrichedUserData.skills !== userData.skills ||
                       enrichedUserData.education !== userData.education;
@@ -1034,13 +963,6 @@ export async function generateCVWithPersonalityExtraction(
 
     timer.end();
 
-    // ════════════════════════════════════════════════════════════════
-    // STEP 1.5: QUESTION LOGIC
-    //
-    // Checks run against ENRICHED data (includes saved responses).
-    // If user already answered → field is populated → no question.
-    // ════════════════════════════════════════════════════════════════
-
     const hasAnswers = answeredQuestions && answeredQuestions.length > 0;
     const shouldSkipQuestions = skipQuestions || hasAnswers;
 
@@ -1054,40 +976,24 @@ export async function generateCVWithPersonalityExtraction(
     if (!shouldSkipQuestions) {
       console.log('🔍 [CV GEN] Checking completeness (AFTER saved response merge)...');
 
-      // ════════════════════════════════════════════════════════════════
-      // DYNAMIC PROFILE COMPLETENESS CHECK
-      //
-      // NOT hardcoded to any profession, age, or background.
-      // Works for: nurse, programmer, student, retiree, career changer.
-      //
-      // Logic: We score how much REAL content the profile has.
-      // If total content is too thin → ask targeted questions.
-      // If enough content exists → proceed to generation.
-      // ════════════════════════════════════════════════════════════════
-
       const forcedQuestions: any[] = [];
       const isFinnish = enrichedUserData.language === 'finnish';
 
-      /** Check if a field has real, non-empty content */
       const hasContent = (field: string | undefined | null): boolean => {
         if (!field) return false;
         const trimmed = field.trim();
         if (trimmed === '' || trimmed === '[]' || trimmed === '{}' || trimmed === '[{}]' || trimmed === 'null' || trimmed === 'undefined') return false;
-        // JSON arrays: check if they have actual items
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           try {
             const parsed = JSON.parse(trimmed);
             if (Array.isArray(parsed) && parsed.length === 0) return false;
             if (Array.isArray(parsed) && parsed.length > 0) return true;
           } catch {
-            // Not valid JSON — treat as plain text
           }
         }
-        // Plain text: at least 10 chars of real content
         return trimmed.length >= 10;
       };
 
-      // Collect all content fields (not just hardcoded 4 fields)
       const contentFields: { name: string; value: string | undefined; weight: number }[] = [
         { name: 'workExperience', value: enrichedUserData.workExperience, weight: 3 },
         { name: 'skills', value: enrichedUserData.skills, weight: 3 },
@@ -1116,25 +1022,15 @@ export async function generateCVWithPersonalityExtraction(
         console.log(`   ${has ? '✅' : '❌'} ${f.name} (w:${f.weight}): "${preview}${(f.value?.length || 0) > 60 ? '...' : ''}"`);
       });
 
-      // ═══════════════════════════════════════════════════
-      // QUESTION LOGIC:
-      // - If score >= 40% → enough to generate a CV (even if basic)
-      // - If score < 40% → ask about the MOST IMPORTANT missing fields
-      // - NEVER ask more than 2 questions at a time
-      // - NEVER ask about something the user already provided
-      // ═══════════════════════════════════════════════════
-
-      const MIN_COMPLETENESS = 0.40; // 40% weighted = enough for a basic CV
+      const MIN_COMPLETENESS = 0.40;
 
       if (completenessScore < MIN_COMPLETENESS) {
         console.log(`⚠️ [CV GEN] Score ${(completenessScore * 100).toFixed(0)}% < ${MIN_COMPLETENESS * 100}% threshold`);
 
-        // Find the most important MISSING fields (sorted by weight descending)
         const missingFields = contentFields
-          .filter(f => !hasContent(f.value) && f.weight >= 2) // Only ask about important fields
+          .filter(f => !hasContent(f.value) && f.weight >= 2)
           .sort((a, b) => b.weight - a.weight);
 
-        // Generate questions for top 2 missing fields (max)
         const questionMap: Record<string, { fi: string; en: string; why_fi: string; why_en: string }> = {
           workExperience: {
             fi: 'Kerro työkokemuksestasi, työharjoitteluistasi tai projekteistasi — mitä tahansa olet tehnyt.',
@@ -1196,10 +1092,6 @@ export async function generateCVWithPersonalityExtraction(
       console.log(`✅ [CV GEN] Skipping questions (${hasAnswers ? 'has answers' : 'skipQuestions=true'})`);
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // STEP 2: MERGE CURRENT-SESSION ANSWERS (on top of saved)
-    // ════════════════════════════════════════════════════════════════
-
     console.log('📝 [CV GEN] STEP 2: Merge Current-Session Answers');
     let enhancedUserData = { ...enrichedUserData };
 
@@ -1224,10 +1116,6 @@ export async function generateCVWithPersonalityExtraction(
       timer.end();
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // STEP 3: EXTRACTIONS
-    // ════════════════════════════════════════════════════════════════
-
     timer.start("Extractions");
     const jobAnalysis: JobAnalysis = {
       required_skills: [],
@@ -1242,7 +1130,6 @@ export async function generateCVWithPersonalityExtraction(
 
     const finalUserData = { ...enhancedUserData };
 
-    // ✅ Convert JSON arrays to readable text for AI
     const humanizedData = humanizeProfileForAI(finalUserData);
     console.log('🧹 [CV GEN] Humanized profile for AI:');
     console.log(`   workExperience: ${humanizedData.workExperience?.substring(0, 100)}...`);
@@ -1250,10 +1137,6 @@ export async function generateCVWithPersonalityExtraction(
     console.log(`   skills: ${humanizedData.skills?.substring(0, 100)}...`);
 
     checkTimeout();
-
-    // ════════════════════════════════════════════════════════════════
-    // STEP 4: SELECT PROMPT & BUILD CONTEXT
-    // ════════════════════════════════════════════════════════════════
 
     console.log('🎨 [CV GEN] STEP 4: Prompt Selection');
     timer.start("Prompt Selection");
@@ -1289,6 +1172,7 @@ export async function generateCVWithPersonalityExtraction(
           },
           enableRAG: true,
           contentType: 'cv',
+          language: finalUserData.language || 'finnish',
         });
       } catch {
         knowledgeContext = '';
@@ -1298,27 +1182,24 @@ export async function generateCVWithPersonalityExtraction(
     timer.end();
     checkTimeout();
 
-    // ════════════════════════════════════════════════════════════════
-    // STEP 5: AI GENERATION
-    // ════════════════════════════════════════════════════════════════
-
     console.log('🤖 [CV GEN] STEP 5: AI Generation');
     timer.start("AI Generation");
 
     const model = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY!,
       modelName: "gpt-4o-mini",
-      temperature: 0.4, // Lower = more faithful to input data
+      temperature: 0.4,
       timeout: 20000,
     });
-
+    const isFinnishCV = (finalUserData.language || 'finnish').toLowerCase().includes('fi');
+    const finnishStyle = isFinnishCV ? FINNISH_STYLE_RULES : '';
     const formatted = await promptTemplate.formatMessages({
       knowledgeContext: knowledgeContext || 'No additional context',
       atsInstructions: atsInstructions || '',
       jobContext: jobContext || '',
       language: finalUserData.language || 'finnish',
       name: finalUserData.name || 'Professional',
-      // ✅ Use HUMANIZED data for content fields (readable text, not raw JSON)
+      finnishStyle,
       skills: humanizedData.skills || 'Not specified',
       workExperience: humanizedData.workExperience || 'Not specified',
       education: humanizedData.education || 'Not specified',
@@ -1340,10 +1221,6 @@ export async function generateCVWithPersonalityExtraction(
     timer.end();
     checkTimeout();
 
-    // ════════════════════════════════════════════════════════════════
-    // STEP 6: PARSING
-    // ════════════════════════════════════════════════════════════════
-
     console.log('📋 [CV GEN] STEP 6: Parsing');
     timer.start("Parsing");
 
@@ -1361,17 +1238,12 @@ export async function generateCVWithPersonalityExtraction(
     timer.end();
     checkTimeout();
 
-    // ════════════════════════════════════════════════════════════════
-    // STEP 7: FINALIZATION
-    // ════════════════════════════════════════════════════════════════
-
     console.log('🏁 [CV GEN] STEP 7: Finalization');
     timer.start("Background");
-
     let backgroundImage = '';
     if (finalUserData.backgroundImage) {
       backgroundImage = finalUserData.backgroundImage;
-    } else {
+    } else if ((finalUserData as any).aiBackground) {   // ✅ vain premium → generoi AI-kuva
       try {
         const generatedUrl = await generateEnhancedBackgroundImage(
           toLangChainInput(finalUserData),
@@ -1385,6 +1257,7 @@ export async function generateCVWithPersonalityExtraction(
         }
       } catch {}
     }
+    // ei-premium → backgroundImage jää tyhjäksi = ei kuvaa, ei kulua
 
     timer.end();
 
