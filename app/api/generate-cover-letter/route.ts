@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         const experienceGap = await analyzeExperienceGap({
           jobDescription: atsBody.jobDescription,
           userProfile: {
-            name: body.name || 'User', workExperience: atsBody.workExperience,
+            workExperience: atsBody.workExperience,
             education: atsBody.education, skills: atsBody.skills,
             yearsOfExperience: atsBody.yearsOfExperience, careerLevel: atsBody.careerLevel,
           },

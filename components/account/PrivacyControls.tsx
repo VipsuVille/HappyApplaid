@@ -109,7 +109,7 @@ export function PrivacyControls() {
             Lue mitä tietoja keräämme ja miten niitä käsitellään.
           </p>
           <Link
-            href="/privacy"
+            href="/tietosuoja"
             className="mt-4 inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-orange-400 transition-colors"
           >
             Näytä tietosuojakäytäntö

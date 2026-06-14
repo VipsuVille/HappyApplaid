@@ -26,7 +26,6 @@ export interface ExperienceGap {
 export interface ExperienceGapInput {
   jobDescription: string;
   userProfile: {
-    name: string;
     workExperience?: string;
     education?: string;
     skills?: string;

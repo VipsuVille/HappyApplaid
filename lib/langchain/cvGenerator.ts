@@ -1165,7 +1165,6 @@ export async function generateCVWithPersonalityExtraction(
         knowledgeContext = await buildAIContext({
           jobDescription: jobPosting || 'General CV creation',
           userProfile: {
-            name: finalUserData.name,
             skills: humanizedData.skills,
             workExperience: humanizedData.workExperience,
             education: humanizedData.education,

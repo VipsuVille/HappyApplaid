@@ -237,7 +237,6 @@ export async function generateATSCoverLetterV1(
       const analysis = await analyzeJobAndProfile({
         jobDescription: input.jobDescription,
         userProfile: {
-          name: 'Applicant',
           workExperience: input.workExperience || '',
           education: input.education || '',
           skills: input.skills || '',
@@ -316,7 +315,7 @@ export async function generateATSCoverLetterV1(
     try {
       knowledgeContext = await buildAIContext({
         jobDescription: input.jobDescription,
-        userProfile: { name: input.name, skills: input.skills, workExperience: input.workExperience, education: input.education },
+        userProfile: { skills: input.skills, workExperience: input.workExperience, education: input.education },
         enableRAG: true,
         contentType: 'cover_letter',
         language: input.language || 'finnish',

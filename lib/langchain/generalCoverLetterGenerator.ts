@@ -433,7 +433,6 @@ export async function generateGeneralCoverLetter(
         knowledgeContext = await buildAIContext({
           jobDescription: input.jobPosting || `Cover letter for ${input.jobTitle || 'general position'}`,
           userProfile: {
-            name: input.name,
             skills: input.skills,
             workExperience: input.workExperience,
             education: input.education,

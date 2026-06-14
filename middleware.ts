@@ -1,4 +1,12 @@
-// middleware.ts - KORJATTU (subscription check poistettu)
+// middleware.ts — siivottu: ei enää DEVELOPMENT_MODE-riippuvuutta.
+// Toimii samoin dev- ja tuotannossa:
+//  • julkiset sivut auki
+//  • suojatut UI-reitit vaativat kirjautumisen
+//  • /admin vaatii Clerk publicMetadata.role === 'admin'
+//  • suojatut API-reitit vaativat auth
+//  • CSRF, rate limiting, security headers, CSP säilytetty
+//  • Stripe webhook, PDF-generointi ja cover-letters GET pysyvät julkisina
+
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -7,17 +15,23 @@ interface ClerkPublicMetadata {
   role?: string;
 }
 
+// Sivut jotka näkyvät ilman kirjautumista
 const isPublicPage = createRouteMatcher([
-  '/', 
+  '/',
   '/coming-soon',
+  '/pricing(.*)',        // hinnoittelu saa näkyä kirjautumattomille
+  '/tietosuoja(.*)',     // tietosuojaseloste julkinen
+  '/unauthorized',
+  '/goodbye',
 ]);
 
 const isAuthPage = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/sso-callback', 
+  '/sso-callback',
 ]);
 
+// Suojatut UI-reitit (vaativat kirjautumisen)
 const isProtectedRoute = createRouteMatcher([
   '/my-cvs(.*)',
   '/edit-cv(.*)',
@@ -26,8 +40,9 @@ const isProtectedRoute = createRouteMatcher([
   '/my-cover-letters(.*)',
   '/edit-cover-letter(.*)',
   '/profile(.*)',
-  '/pricing(.*)',
-  '/admin(.*)', 
+  '/account(.*)',
+  '/settings(.*)',
+  '/admin(.*)',
 ]);
 
 const isProtectedApiRoute = createRouteMatcher([
@@ -38,6 +53,7 @@ const isProtectedApiRoute = createRouteMatcher([
   '/api/generate-cover-letter-pdf',
   '/api/user-profile(.*)',
   '/api/save-profile',
+  '/api/delete-account(.*)',
 ]);
 
 const isPublicApiRoute = createRouteMatcher([
@@ -47,7 +63,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/webhooks',
   '/api/generate-image',
   '/api/webhooks/(.*)',
-  '/api/waitlist', 
+  '/api/waitlist',
   '/api/detect-ats',
   '/api/extract-keywords-ai',
   '/api/analyze-ats-realistic',
@@ -56,29 +72,23 @@ const isPublicApiRoute = createRouteMatcher([
 ]);
 
 const isPdfGenerationRoute = (req: NextRequest) => {
-  const isPreviewPath = (
+  const isPreviewPath =
     req.nextUrl.pathname.startsWith('/cv-preview/') ||
-    req.nextUrl.pathname.startsWith('/cover-letter-preview/')
-  );
+    req.nextUrl.pathname.startsWith('/cover-letter-preview/');
   return isPreviewPath && req.nextUrl.searchParams.get('pdf') === 'true';
-}
+};
 
-// Rate limiting
+// ─── Rate limiting (sama kuin ennen) ──────────────────────────
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-function checkRateLimit(ip: string, limit: number = 100, windowMs: number = 60000): boolean {
+function checkRateLimit(ip: string, limit = 100, windowMs = 60000): boolean {
   const now = Date.now();
   const record = rateLimitMap.get(ip);
-
   if (!record || now > record.resetAt) {
     rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
     return true;
   }
-
-  if (record.count >= limit) {
-    return false;
-  }
-
+  if (record.count >= limit) return false;
   record.count++;
   return true;
 }
@@ -86,132 +96,77 @@ function checkRateLimit(ip: string, limit: number = 100, windowMs: number = 6000
 setInterval(() => {
   const now = Date.now();
   for (const [ip, record] of rateLimitMap.entries()) {
-    if (now > record.resetAt) {
-      rateLimitMap.delete(ip);
-    }
+    if (now > record.resetAt) rateLimitMap.delete(ip);
   }
 }, 3600000);
 
-export default clerkMiddleware(async (auth, req) => { 
+export default clerkMiddleware(async (auth, req) => {
   const url = req.nextUrl;
-  const isDevelopmentMode = process.env.NEXT_PUBLIC_DEVELOPMENT_MODE === 'true';
-
   const response = NextResponse.next();
-  
-  // Security headers
+
+  // ── Security headers ──────────────────────────────────────────
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  
+
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com",
-    "worker-src 'self' blob:", 
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com https://va.vercel-scripts.com",
+    "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: https: blob:",
-"connect-src 'self' https://www.happyapplaid.com https://happyapplaid.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com https://api.openai.com https://*.supabase.co wss://*.clerk.com",
+    "connect-src 'self' https://www.happyapplaid.com https://happyapplaid.com https://*.clerk.accounts.dev https://*.clerk.com https://clerk.happyapplaid.com https://api.openai.com https://*.supabase.co wss://*.clerk.com https://va.vercel-scripts.com",
     "frame-src 'self' https://*.clerk.accounts.dev https://*.clerk.com",
   ].join('; ');
   response.headers.set('Content-Security-Policy', csp);
 
-  // 1. Stripe webhook
-  if (url.pathname === '/api/webhooks/stripe') {
-    return response;
-  }
+  // ── 1. Stripe webhook (täysin julkinen) ───────────────────────
+  if (url.pathname === '/api/webhooks/stripe') return response;
 
-  // 2. PDF-generointi
+  // ── 2. PDF-generointi (puppeteer hakee preview-sivun) ─────────
   if (isPdfGenerationRoute(req)) {
     console.log(`✅ Middleware bypassing for PDF: ${url.pathname}`);
     return response;
   }
-  
-  // 3. Julkiset API-reitit
-  if (isPublicApiRoute(req)) {
+
+  // ── 3. Julkiset API-reitit ────────────────────────────────────
+  if (isPublicApiRoute(req)) return response;
+
+  // ── 4. Cover letter API: GET julkinen, muut vaativat tokenin ──
+  if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
+    if (req.method === 'GET') return response;
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return response;
   }
 
-  // 4. Cover letter API - GET julkinen, muut vaativat auth
-
-// ✅ UUSI (toimii):
-if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
-  // GET on julkinen (ei tarvitse kirjautumista)
-  if (req.method === 'GET') {
-    console.log(`✅ [Middleware] Public GET: ${url.pathname}`);
-    return response;
-  }
-  
-  // PATCH, DELETE → Tarkista että Authorization header on olemassa
-  const authHeader = req.headers.get('Authorization');
-  
-  console.log(`🔑 [Middleware] ${req.method} ${url.pathname}`);
-  console.log(`   - Has Authorization header:`, !!authHeader);
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.error(`❌ [Middleware] Unauthorized ${req.method}: No token in header`);
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  
-  // ✅ Token löytyi, päästä pyyntö API routelle
-  console.log(`✅ [Middleware] Token found, passing to API route`);
-  return response;
-}
-
-
-  // 5. Rate limiting
+  // ── 5. Rate limiting kaikille /api-reiteille ──────────────────
   if (url.pathname.startsWith('/api/')) {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || 
-               req.headers.get('x-real-ip') || 
-               'unknown';
-    
+    const ip =
+      req.headers.get('x-forwarded-for')?.split(',')[0] ||
+      req.headers.get('x-real-ip') ||
+      'unknown';
     const limit = isPublicApiRoute(req) ? 50 : 100;
-    
     if (!checkRateLimit(ip, limit)) {
       console.warn(`⚠️ Rate limit exceeded: ${ip}`);
-      return NextResponse.json(
-        { error: 'Too many requests' },
-        { status: 429 }
-      );
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
   }
 
-  // Development mode check
-  if (!isDevelopmentMode) {
-    if (!isPublicPage(req)) { 
-      return NextResponse.redirect(new URL('/', req.url)); 
-    }
-    return response;
-  }
+  // ── Auth-tila ─────────────────────────────────────────────────
+  const { userId, sessionClaims } = await auth();
 
-  const authState = await auth(); 
-  const { userId, sessionClaims } = authState; 
-
-  // Suojatut API-reitit - VAIN AUTH TARKISTUS
-  if (isProtectedApiRoute(req)) {
-    if (!userId) {
-      console.error(`❌ Unauthorized API: ${url.pathname}`);
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // ✅ POISTETTU: Subscription check middlewaresta
-    // API:t hoitavat subscription + token tarkistuksen itse
-    
-    console.log(`✅ Authorized API: ${url.pathname}`);
-    return response;
-  }
-
-  // Admin-reitit
+  // ── 6. ADMIN-reitit (rooli vaaditaan) ─────────────────────────
   if (url.pathname.startsWith('/admin')) {
     if (!userId) {
       const signInUrl = new URL('/sign-in', req.url);
       signInUrl.searchParams.set('redirect_url', req.url);
       return NextResponse.redirect(signInUrl);
     }
-
     const role = (sessionClaims?.publicMetadata as ClerkPublicMetadata)?.role;
     if (role !== 'admin') {
       return NextResponse.redirect(new URL('/unauthorized', req.url));
@@ -219,22 +174,30 @@ if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
     return response;
   }
 
-  // Suojatut UI-reitit
-  if (isProtectedRoute(req) && !userId) { 
+  // ── 7. Suojatut API-reitit (auth) ─────────────────────────────
+  if (isProtectedApiRoute(req)) {
+    if (!userId) {
+      console.error(`❌ Unauthorized API: ${url.pathname}`);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return response;
+  }
+
+  // ── 8. Suojatut UI-reitit (kirjautuminen) ─────────────────────
+  if (isProtectedRoute(req) && !userId) {
     const signInUrl = new URL('/sign-in', req.url);
     signInUrl.searchParams.set('redirect_url', req.url);
     return NextResponse.redirect(signInUrl);
   }
-  
-  if (isAuthPage(req)) {
-    return response;
-  }
 
-  // CSRF-suojaus
+  // ── 9. Auth-sivut (sign-in/up) aina auki ──────────────────────
+  if (isAuthPage(req)) return response;
+
+  // ── 10. CSRF-suojaus mutatoiville pyynnöille ──────────────────
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
     const origin = req.headers.get('origin');
     const host = req.headers.get('host');
-    
+
     const validOrigins = [
       process.env.NEXT_PUBLIC_APP_URL,
       process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
@@ -245,7 +208,7 @@ if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
     ].filter(Boolean) as string[];
 
     const isSameOrigin = origin && host && new URL(origin).host === host;
-    const isAllowedOrigin = origin && validOrigins.some(allowed => origin.startsWith(allowed));
+    const isAllowedOrigin = origin && validOrigins.some((allowed) => origin.startsWith(allowed));
 
     if (!isSameOrigin && !isAllowedOrigin) {
       console.error('❌ CSRF blocked:', { origin, host, pathname: url.pathname });
@@ -253,7 +216,7 @@ if (url.pathname.match(/^\/api\/cover-letters\/[^\/]+$/)) {
     }
   }
 
-  return response; 
+  return response;
 });
 
 export const config = {
