@@ -73,7 +73,9 @@ export async function POST(request: NextRequest) {
 
     const plan = planOf(subscription?.plan_type);
     const canAiBg = canUseFeature(plan, 'ai_background'); // AI-taustakuva: vain premium
-    const ragOn = plan === 'premium';                      // RAG: vain premium
+    const ragOn = plan === 'premium' && body.enableRAG === true;
+
+    // RAG: vain premium
 
     const limit = await checkLimit(userId, subscription?.plan_type);
     if (!limit.allowed) {
