@@ -397,7 +397,9 @@ export async function generateATSCoverLetterV2(
       });
     } catch { knowledgeContext = ''; }
   }
-
+console.log('🔍 V2 RAG enableRAG:', enrichedInput.enableRAG,
+            '| ctx pituus:', knowledgeContext?.length || 0,
+            '| alku:', (knowledgeContext || '').slice(0, 150));
   let iteration = 0;
   let bestContent = "";
   let bestScore = 0;
