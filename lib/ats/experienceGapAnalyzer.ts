@@ -106,23 +106,23 @@ export async function analyzeExperienceGap(
 **OUTPUT LANGUAGE:** ${languageName}
 
 Return JSON with these exact fields:
-{
+{{
   "hasGap": boolean,
   "severity": "none" | "minor" | "moderate" | "critical",
   "passLikelihood": number (0-100),
   "canGenerateLetter": boolean (ALWAYS true),
   "missingExperiences": [
-    {
+    {{
       "skill": "exact skill name from job",
       "required": boolean,
       "impact": "critical" | "important" | "helpful",
       "explanation": "why this matters"
-    }
+    }}
   ],
   "recommendations": ["actionable advice"],
   "warningMessage": "honest but constructive message",
   "userFriendlyExplanation": "plain language explanation in ${languageName}"
-}`],
+    }}`],
 
     ['human', `Analyze experience gap for this application.
 

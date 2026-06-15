@@ -54,14 +54,14 @@ Determine if a keyword (from job description) is present in cover letter text us
 - Job: "customer service" → Cover: "helping clients" → SYNONYM (0.9)
 
 **OUTPUT:**
-{
+{{
   "keyword": "original keyword",
   "found": true/false,
   "matchType": "exact|synonym|related|partial|none",
   "foundAs": "actual text in cover letter",
   "confidence": 0.9,
   "reasoning": "Brief explanation"
-}
+}}
 
 Return JSON only.`],
 
