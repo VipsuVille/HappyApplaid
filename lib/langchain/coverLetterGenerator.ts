@@ -321,7 +321,11 @@ export async function generateATSCoverLetterV1(
         language: input.language || 'finnish',
       });
     } catch { knowledgeContext = ''; }
-  }
+
+  } 
+     console.log('🔍 RAG enableRAG:', input.enableRAG,
+            '| ctx pituus:', knowledgeContext?.length || 0,
+            '| alku:', (knowledgeContext || '').slice(0, 150));
 
   // ━━━ STEP 4: ITERATIVE QUALITY GENERATION ━━━
   const model = new ChatOpenAI({
