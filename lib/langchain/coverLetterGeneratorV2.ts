@@ -405,8 +405,8 @@ console.log('🔍 V2 RAG enableRAG:', enrichedInput.enableRAG,
   let bestScore = 0;
   let bestAnalysis: any = null;
 
-  const targetScore = 75;
-  const maxIterations = 3;
+  const targetScore = 65;
+  const maxIterations = 2;
 
   while (iteration < maxIterations) {
     iteration++;
