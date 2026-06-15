@@ -13,7 +13,9 @@ import { generateEnhancedBackgroundImage } from '@/lib/langchain/cvGenerator';
 import { checkLimit, logUsage, limitMessage, planOf, canUseFeature } from '@/lib/limits'; // ✅ + planOf, canUseFeature
 
 const BG_TEMPLATES = ['aurora', 'sidebar'];
-
+// 🔧 VÄLIAIKAINEN: gap-analyysi pois RAG-debuggauksen ajaksi.
+// Kytke takaisin vaihtamalla true:ksi kun rakennamme gap-modaalin.
+const GAP_ANALYSIS_ENABLED = false;
 type CoverLetterType = 'general' | 'ats-v1' | 'ats-v2';
 
 interface BaseCoverLetterRequest {
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── EXPERIENCE GAP ANALYSIS (ei kirjaa käyttöä) ────────────────
-    if ((body.type === 'ats-v1' || body.type === 'ats-v2') && !body.skipExperienceCheck) {
+    if (GAP_ANALYSIS_ENABLED && (body.type === 'ats-v1' || body.type === 'ats-v2') && !body.skipExperienceCheck) {
       const atsBody = body as ATSCoverLetterV1Request | ATSCoverLetterV2Request;
       try {
         let extractedKeywords = atsBody.keywords || [];
