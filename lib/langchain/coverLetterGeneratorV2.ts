@@ -1,4 +1,11 @@
-// lib/langchain/atsCoverLetterV2Generator.ts - V2 + SMART QUESTIONS + finnishStyle + appGuide + RAG
+// lib/langchain/coverLetterGeneratorV2.ts - V2 + SMART QUESTIONS + finnishStyle + appGuide + RAG
+// ✅ KORJAUKSET:
+//    1. analyzeKeywordsUniversal (15 AI-kutsua) SIIRRETTY loopin ULKOPUOLELLE → ajetaan KERRAN lopuksi
+//       → ~40s → ~12s. Iteroinnin aikana kevyt string-pisteytys (quickAtsScore).
+//    2. stripSignoff: kielineutraali allekirjoituksen poisto.
+//    3. ABSOLUTE ENDING RULE promptiin.
+//    4. maxIterations 3→2, targetScore 75→65.
+//    5. name POIS buildAIContext-kutsusta (tietosuoja).
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -14,6 +21,7 @@ import {
 import { buildAIContext } from "@/lib/knowledge";                 // ✅ RAG
 import { FINNISH_STYLE_RULES } from "./finnishStyle";
 import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";  // ✅ kirjainkoko täsmää tiedostoon
+import { stripSignoff } from "@/lib/cover-letter/normalize";      // ✅ kielineutraali allekirjoituksen poisto
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -137,6 +145,30 @@ Return JSON:
     console.error('❌ Keyword extraction failed:', error);
     return { critical: [], important: [], bonus: [] };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// KEVYT STRING-POHJAINEN ATS-PISTEYTYS (iteroinnin aikana, EI AI-kutsua)
+// ═══════════════════════════════════════════════════════════════
+
+function quickAtsScore(
+  content: string,
+  keywords: { critical: string[]; important: string[]; bonus: string[] }
+): { atsScore: number; missingCritical: string[] } {
+  const lower = content.toLowerCase();
+  const criticalMatched = keywords.critical.filter(k => lower.includes(k.toLowerCase())).length;
+  const criticalTotal = keywords.critical.length || 1;
+  const importantMatched = keywords.important.filter(k => lower.includes(k.toLowerCase())).length;
+  const importantTotal = keywords.important.length || 1;
+  const bonusMatched = keywords.bonus.filter(k => lower.includes(k.toLowerCase())).length;
+
+  const criticalScore = (criticalMatched / criticalTotal) * 60;
+  const importantScore = (importantMatched / importantTotal) * 30;
+  const bonusScore = Math.min(bonusMatched * 2, 10);
+  const atsScore = Math.round(criticalScore + importantScore + bonusScore);
+
+  const missingCritical = keywords.critical.filter(k => !lower.includes(k.toLowerCase()));
+  return { atsScore, missingCritical };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -385,13 +417,13 @@ export async function generateATSCoverLetterV2(
   const finnishStyle = isFinnish ? FINNISH_STYLE_RULES : '';
   const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
 
-  // ✅ RAG
+  // ✅ RAG — name POISTETTU (tietosuoja: vain taidot/kokemus/koulutus hakuun)
   let knowledgeContext = '';
   if (enrichedInput.enableRAG) {
     try {
       knowledgeContext = await buildAIContext({
         jobDescription: enrichedInput.jobDescription,
-        userProfile: { name: enrichedInput.name, skills: enrichedInput.skills, workExperience: enrichedInput.workExperience, education: enrichedInput.education },
+        userProfile: { skills: enrichedInput.skills, workExperience: enrichedInput.workExperience, education: enrichedInput.education },
         enableRAG: true,
         contentType: 'cover_letter',
         language: enrichedInput.language || 'finnish',
@@ -402,21 +434,18 @@ export async function generateATSCoverLetterV2(
   let iteration = 0;
   let bestContent = "";
   let bestScore = 0;
-  let bestAnalysis: any = null;
+  let bestMissingCritical: string[] = keywords.critical;
 
-  const targetScore = 75;
-  const maxIterations = 3;
+  const targetScore = 65;
+  const maxIterations = 2;
 
   while (iteration < maxIterations) {
     iteration++;
     console.log(`🔄 [V2-ATS] Iteration ${iteration}/${maxIterations}...`);
 
     let missingKeywordsPrompt = "";
-    if (iteration > 1 && bestAnalysis) {
-      const missing = bestAnalysis.missingCritical || [];
-      if (missing.length > 0) {
-        missingKeywordsPrompt = `\n\n**MISSING KEYWORDS FROM PREVIOUS ITERATION:**\n${missing.join(', ')}\n\nIntegrate these naturally — but ONLY if the applicant has relevant experience. If not, mention interest honestly.`;
-      }
+    if (iteration > 1 && bestMissingCritical.length > 0) {
+      missingKeywordsPrompt = `\n\n**MISSING KEYWORDS FROM PREVIOUS ITERATION:**\n${bestMissingCritical.join(', ')}\n\nIntegrate these naturally — but ONLY if the applicant has relevant experience. If not, mention interest honestly.`;
     }
 
     const prompt = ChatPromptTemplate.fromMessages([
@@ -427,7 +456,14 @@ export async function generateATSCoverLetterV2(
 {finnishStyle}
 
 {appGuide}
-
+# ════════════════════════════════════════════════
+# ABSOLUTE ENDING RULE — NEVER VIOLATE
+# ════════════════════════════════════════════════
+End the letter with the final substantive sentence.
+NEVER add any sign-off, closing, or signature line of ANY kind, in ANY language.
+This includes (but is not limited to): "Ystävällisin terveisin", "Best regards",
+"BR", "Sincerely", "Med vänliga hälsningar", "Kind regards", "Terveisin", etc.
+The template adds the signature separately. Your output must end at the last real sentence.
 # ════════════════════════════════════════════════════════════════
 # PRIVACY: NO PERSONAL INFO IN OUTPUT
 # ════════════════════════════════════════════════════════════════
@@ -540,6 +576,9 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
       let content = typeof result.content === 'string' ? result.content : JSON.stringify(result.content);
       content = content.replace(/\[.*?\]/g, '').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
 
+      // ✅ Kielineutraali allekirjoituksen poisto
+      content = stripSignoff(content);
+
       if (input.name) {
         const namePattern = new RegExp(`\\b${input.name}\\b`, 'gi');
         const nameCount = (content.match(namePattern) || []).length;
@@ -549,34 +588,14 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
         }
       }
 
-      const allKeywords = [...keywords.critical, ...keywords.important, ...keywords.bonus];
-      const analysis = await analyzeKeywordsUniversal(allKeywords, content, letterLanguage);
-
-      const criticalMatched = keywords.critical.filter(k => content.toLowerCase().includes(k.toLowerCase())).length;
-      const criticalTotal = keywords.critical.length || 1;
-      const importantMatched = keywords.important.filter(k => content.toLowerCase().includes(k.toLowerCase())).length;
-      const importantTotal = keywords.important.length || 1;
-      const bonusMatched = keywords.bonus.filter(k => content.toLowerCase().includes(k.toLowerCase())).length;
-
-      const criticalScore = (criticalMatched / criticalTotal) * 60;
-      const importantScore = (importantMatched / importantTotal) * 30;
-      const bonusScore = Math.min(bonusMatched * 2, 10);
-      const atsScore = Math.round(criticalScore + importantScore + bonusScore);
-
-      console.log(`📊 [V2-ATS] Iteration ${iteration} Score: ${atsScore}%`);
-
-      const missingCritical = keywords.critical.filter(k => !content.toLowerCase().includes(k.toLowerCase()));
-      const currentAnalysis = {
-        keywordMatch: atsScore, readability: 85, overall: atsScore,
-        exactMatches: analysis.exactMatches?.map((m: any) => m.keyword) || [],
-        synonymMatches: analysis.synonymMatches?.map((m: any) => m.keyword) || [],
-        missingCritical,
-      };
+      // ✅ KEVYT string-pisteytys (EI AI-kutsua) — ohjaa iterointia
+      const { atsScore, missingCritical } = quickAtsScore(content, keywords);
+      console.log(`📊 [V2-ATS] Iteration ${iteration} Score: ${atsScore}% (quick)`);
 
       if (atsScore > bestScore) {
         bestScore = atsScore;
         bestContent = content;
-        bestAnalysis = currentAnalysis;
+        bestMissingCritical = missingCritical;
       }
 
       if (atsScore >= targetScore) {
@@ -585,6 +604,29 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
       }
     } catch (error) {
       console.error(`❌ [V2-ATS] Iteration ${iteration} failed:`, error);
+    }
+  }
+
+  // ✅ TARKKA AI-MATCHAUS — AJETAAN KERRAN, LOOPIN JÄLKEEN, vain parhaalle kirjeelle
+  let bestAnalysis: ATSV2Output['atsAnalysis'] = {
+    keywordMatch: bestScore, readability: 85, overall: bestScore,
+    exactMatches: [], synonymMatches: [], missingCritical: bestMissingCritical,
+  };
+
+  if (bestContent) {
+    try {
+      const allKeywords = [...keywords.critical, ...keywords.important, ...keywords.bonus];
+      const analysis = await analyzeKeywordsUniversal(allKeywords, bestContent, letterLanguage);
+      bestAnalysis = {
+        keywordMatch: bestScore,
+        readability: 85,
+        overall: bestScore,
+        exactMatches: analysis.exactMatches?.map((m: any) => m.keyword) || [],
+        synonymMatches: analysis.synonymMatches?.map((m: any) => m.keyword) || [],
+        missingCritical: bestMissingCritical,
+      };
+    } catch (error) {
+      console.error('⚠️ [V2-ATS] Final keyword analysis failed (käytetään quick-arviota):', error);
     }
   }
 
@@ -608,10 +650,7 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
     signature: enrichedInput.name,
     keyHighlights: [...keywords.critical.slice(0, 5)],
     atsScore: bestScore,
-    atsAnalysis: bestAnalysis || {
-      keywordMatch: 0, readability: 0, overall: 0,
-      exactMatches: [], synonymMatches: [], missingCritical: keywords.critical,
-    },
+    atsAnalysis: bestAnalysis,
     languageWarning,
     guardianReport: guardianReport || undefined,
     iterations: iteration,
