@@ -772,6 +772,24 @@ const handleGenerateLetter = async (confirmedViolations?: any, skipExperienceChe
           onEdit={handleEditViolations}
         />
       )}
+
+       {/* ✅ GAP-MODAALI tähän */}
+      {showGapModal && gapData && (
+        <ExperienceGapModal
+          gap={gapData}
+          language={isFinnish ? 'fi' : 'en'}
+          onProceed={async () => {
+            setShowGapModal(false);
+            await handleGenerateLetter(undefined, true);
+          }}
+          onCancel={() => {
+            setShowGapModal(false);
+            toast.info(isFinnish
+              ? 'Voit täydentää profiiliasi ja yrittää uudelleen.'
+              : 'You can complete your profile and try again.');
+          }}
+        />
+      )}
     </div>
     
   );
