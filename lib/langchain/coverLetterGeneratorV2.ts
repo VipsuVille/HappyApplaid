@@ -13,7 +13,7 @@ import {
 } from "@/lib/langchain/responseHelper";
 import { buildAIContext } from "@/lib/knowledge";                 // ✅ RAG
 import { FINNISH_STYLE_RULES } from "./finnishStyle";
-import { GOOD_APPLICATION_GUIDE } from "./goodApplicationGuide";  // ✅ kirjainkoko täsmää tiedostoon
+import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";  // ✅ kirjainkoko täsmää tiedostoon
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
