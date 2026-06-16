@@ -15,7 +15,7 @@ import { checkLimit, logUsage, limitMessage, planOf, canUseFeature } from '@/lib
 const BG_TEMPLATES = ['aurora', 'sidebar'];
 // 🔧 VÄLIAIKAINEN: gap-analyysi pois RAG-debuggauksen ajaksi.
 // Kytke takaisin vaihtamalla true:ksi kun rakennamme gap-modaalin.
-const GAP_ANALYSIS_ENABLED = false;
+const GAP_ANALYSIS_ENABLED = true;
 type CoverLetterType = 'general' | 'ats-v1' | 'ats-v2';
 
 interface BaseCoverLetterRequest {

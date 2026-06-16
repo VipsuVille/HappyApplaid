@@ -1,4 +1,6 @@
-// lib/langchain/coverLetterGenerator.ts - V1 REWRITTEN: NO ATS, V2-QUALITY + finnishStyle + appGuide + RAG
+// lib/langchain/coverLetterGenerator.ts - V1: NO ATS, V2-QUALITY + finnishStyle + appGuide + RAG
+// ✅ MUUTOS: hardcoded-allekirjoituslista korvattu kielineutraalilla stripSignoff()-kutsulla.
+//    Debug-loki (🔍 RAG) poistettu.
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -7,6 +9,7 @@ import { extractGroundTruthAI, masterGuardianValidatorV2 } from "@/lib/ats/maste
 import { buildAIContext } from "@/lib/knowledge";                 // ✅ RAG
 import { FINNISH_STYLE_RULES } from "./finnishStyle";
 import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";  // ✅ kirjainkoko täsmää tiedostoon
+import { stripSignoff } from "@/lib/cover-letter/normalize";      // ✅ kielineutraali allekirjoituksen poisto
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -321,11 +324,7 @@ export async function generateATSCoverLetterV1(
         language: input.language || 'finnish',
       });
     } catch { knowledgeContext = ''; }
-
-  } 
-     console.log('🔍 RAG enableRAG:', input.enableRAG,
-            '| ctx pituus:', knowledgeContext?.length || 0,
-            '| alku:', (knowledgeContext || '').slice(0, 150));
+  }
 
   // ━━━ STEP 4: ITERATIVE QUALITY GENERATION ━━━
   const model = new ChatOpenAI({
@@ -337,7 +336,7 @@ export async function generateATSCoverLetterV1(
   let iteration = 0;
   let bestContent = '';
   let bestScore = 0;
-  const maxIterations = 3;
+  const maxIterations = 2;
 
   let additionalInstructionsText = 'None';
   if (input.additionalNotes && input.additionalNotes.trim()) {
@@ -372,6 +371,14 @@ Keep all truthful content, improve the delivery.`;
 {finnishStyle}
 
 {appGuide}
+# ════════════════════════════════════════════════
+# ABSOLUTE ENDING RULE — NEVER VIOLATE
+# ════════════════════════════════════════════════
+End the letter with the final substantive sentence.
+NEVER add any sign-off, closing, or signature line of ANY kind, in ANY language.
+This includes (but is not limited to): "Ystävällisin terveisin", "Best regards",
+"BR", "Sincerely", "Med vänliga hälsningar", "Kind regards", "Terveisin", etc.
+The template adds the signature separately. Your output must end at the last real sentence.
 
 # ════════════════════════════════════════════════════════════════
 # MISSION: CHARACTER-DRIVEN, NOT CREDENTIAL-DRIVEN
@@ -524,10 +531,10 @@ Failure Lesson: {failureLesson}
       content = content
         .replace(/\[.*?\]/g, '')
         .replace(/\n\s*\n\s*\n/g, '\n\n')
-        .replace(/Ystävällisin terveisin,?\s*/gi, '')
-        .replace(/Best regards,?\s*/gi, '')
-        .replace(/Sincerely,?\s*/gi, '')
         .trim();
+
+      // ✅ Kielineutraali allekirjoituksen poisto (korvaa vanhan hardcoded-listan)
+      content = stripSignoff(content);
 
       const namePattern = new RegExp(`\\b${input.name}\\b`, 'gi');
       const nameCount = (content.match(namePattern) || []).length;

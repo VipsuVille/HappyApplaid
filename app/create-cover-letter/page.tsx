@@ -24,6 +24,7 @@ import { usePlanStatus } from "@/hooks/usePlanStatus";
 import { useLanguage } from '@/context/LanguageContext';
 import CVConfirmationModal from "@/components/CVConfirmationModal";
 import TemplateThumb from "@/components/cover-letter/TemplateThumb";
+import ExperienceGapModal, { type ExperienceGapData } from "@/components/ExperienceGapModal";
 
 type LetterType = "job_specific" | "general";
 type LetterVersion = "v1" | "v2";
@@ -47,7 +48,8 @@ export default function CreateCoverLetterPage() {
   const [openAppCompany, setOpenAppCompany] = useState("");
   const [companyMotivation, setCompanyMotivation] = useState("");
   const [companyAboutText, setCompanyAboutText] = useState("");
-
+const [showGapModal, setShowGapModal] = useState(false);
+const [gapData, setGapData] = useState<ExperienceGapData | null>(null);
   const [letterLanguage, setLetterLanguage] = useState<LetterLanguage>("finnish");
   const [letterStyle, setLetterStyle] = useState<LetterStyle>("formal");
   const [mustInclude, setMustInclude] = useState(false);
@@ -196,7 +198,7 @@ export default function CreateCoverLetterPage() {
     return { jobTitle, companyName };
   };
 
-  const handleGenerateLetter = async (confirmedViolations?: any) => {
+const handleGenerateLetter = async (confirmedViolations?: any, skipExperienceCheck?: boolean) => {
     if (!profileValidation?.isValid) { toast.error(t.noProfile); return; }
     if (letterType === 'job_specific' && !jobPosting.trim()) { toast.error(t.jobPostingRequired); return; }
     if (letterVersion === 'v2' && status?.plan !== 'premium') {
@@ -257,6 +259,7 @@ export default function CreateCoverLetterPage() {
         enableRAG: useRag,
         confirmedViolations: confirmedViolations || null,
         skipValidation: !!confirmedViolations,
+        skipExperienceCheck: !!skipExperienceCheck, 
       };
 
       setStage('analyzing', 20);
@@ -273,10 +276,10 @@ export default function CreateCoverLetterPage() {
         toast.error(data.message || t.limitReached);
         return;
       }
-
-      if (response.status === 400 && data.needsConfirmation) {
-        setPendingViolations(data.violations);
-        setShowConfirmation(true);
+// ✅ GAP: kokemuspuute löytyi → näytä modaali (ei virhe!)
+      if (data.needsWarning && data.experienceGap) {
+        setGapData(data.experienceGap);
+        setShowGapModal(true);
         cancelGeneration();
         return;
       }
@@ -770,5 +773,6 @@ export default function CreateCoverLetterPage() {
         />
       )}
     </div>
+    
   );
 }

@@ -638,7 +638,8 @@ REMINDER: Every claim must come from the data above. Do NOT invent facts, metric
     console.log('🛡️ [V2-ATS] Running Guardian...');
     try {
       guardianReport = await masterGuardianValidatorV2(bestContent, groundTruth, 'generation');
-      console.log(`🛡️ [V2-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES'}`);
+      console.log(`🛡️ [V2-ATS] Guardian: ${guardianReport.approved ? 'APPROVED' : 'ISSUES'}`,
+            JSON.stringify(guardianReport.violations, null, 2));
     } catch (error) {
       console.error('⚠️ [V2-ATS] Guardian failed:', error);
     }

@@ -1,4 +1,6 @@
 // lib/langchain/generalCoverLetterGenerator.ts - ADAPTIVE CHARACTER-DRIVEN
+// ✅ MUUTOS: lisätty ABSOLUTE ENDING RULE promptiin + kielineutraali stripSignoff()-kutsu
+//    parsitun sisällön jälkeen (general ei aiemmin siivonnut allekirjoitusta lainkaan).
 
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -7,6 +9,7 @@ import { z } from "zod";
 import { buildAIContext } from "@/lib/knowledge";
 import { FINNISH_STYLE_RULES } from "./finnishStyle";
 import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";
+import { stripSignoff } from "@/lib/cover-letter/normalize";   // ✅ kielineutraali allekirjoituksen poisto
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -18,7 +21,7 @@ interface CoverLetterInput {
   email?: string;
   phone?: string;
   location?: string;
-    additionalNotes?: string;
+  additionalNotes?: string;
 
   // Job Context
   jobTitle?: string;
@@ -33,7 +36,7 @@ interface CoverLetterInput {
   workExperience?: string;
   education?: string;
   skills?: string;
-  
+
   // Personality (CRITICAL for character-driven letter)
   workingStyle?: string;
   problemSolving?: string;
@@ -43,12 +46,12 @@ interface CoverLetterInput {
   learningStyle?: string;
   teamRole?: string;
   valuesExample?: string;
-  
+
   // Stories & Examples
   careerGoals?: string;
   bestProjectExample?: string;
   failureLesson?: string;
-  
+
   // Settings
   language?: string;
   style?: 'professional' | 'casual' | 'creative';
@@ -71,24 +74,20 @@ const outputParser = StructuredOutputParser.fromZodSchema(outputSchema);
 function detectExperienceLevel(input: CoverLetterInput): 'limited' | 'mid' | 'experienced' {
   const workExp = input.workExperience || '';
   const edu = input.education || '';
-  
-  // Count experience indicators
+
   const yearMatches = workExp.match(/\d{4}/g) || [];
   const hasMultipleRoles = (workExp.match(/\n\n/g) || []).length > 1;
   const hasDegree = edu.toLowerCase().includes('degree') || edu.toLowerCase().includes('university');
   const hasAdvancedDegree = edu.toLowerCase().includes('master') || edu.toLowerCase().includes('msc');
-  
-  // Limited: 0-2 years, one role, no degree
+
   if (yearMatches.length <= 2 && !hasMultipleRoles && !hasDegree) {
     return 'limited';
   }
-  
-  // Experienced: 5+ years, multiple roles, degree
+
   if (yearMatches.length >= 5 || (hasMultipleRoles && hasAdvancedDegree)) {
     return 'experienced';
   }
-  
-  // Mid: Everything in between
+
   return 'mid';
 }
 
@@ -103,6 +102,16 @@ const adaptivePrompt = ChatPromptTemplate.fromMessages([
 {finnishStyle}
 
 {appGuide}
+# ═══════════════════════════════════════════════════════════════
+# ABSOLUTE ENDING RULE — NEVER VIOLATE
+# ═══════════════════════════════════════════════════════════════
+
+End the letter with the final substantive sentence.
+NEVER add any sign-off, closing, or signature line of ANY kind, in ANY language.
+This includes (but is not limited to): "Ystävällisin terveisin", "Best regards",
+"BR", "Sincerely", "Med vänliga hälsningar", "Kind regards", "Terveisin", etc.
+The system adds the signature separately. Your output must end at the last real sentence.
+
 # ═══════════════════════════════════════════════════════════════
 # CORE MISSION: COMPLEMENT THE CV
 # ═══════════════════════════════════════════════════════════════
@@ -123,23 +132,11 @@ NEVER repeat CV facts. Add context, stories, and character.
 - HOW you learn and grow (approach to challenges)
 - WHAT you'll bring in future (potential over proof)
 
-**Example opening:**
-"Though I've only done one internship, building my own CV generator taught me 
-more than any course could. I didn't wait until I knew everything—I started, 
-made mistakes, and figured it out. That's how I approach everything: with 
-curiosity and persistence."
-
 ## IF EXPERIENCED (5+ years):
 **FOCUS:**
-- WHAT 10 years taught you (wisdom and perspective)
+- WHAT years taught you (wisdom and perspective)
 - HOW you lead and mentor (impact on others)
 - WHY you're making this move (strategic thinking)
-
-**Example opening:**
-"A decade in this field has taught me that the best code isn't the cleverest—
-it's the code that solves the real problem. At TechCorp, leading the 
-microservices migration wasn't about the technical challenge, it was about 
-getting 20 people aligned on why change mattered."
 
 ## IF MID-LEVEL (3-7 years):
 **FOCUS:**
@@ -153,21 +150,15 @@ getting 20 people aligned on why change mattered."
 
 **Paragraph 1: MY APPROACH (100-130 words)**
 How do I think? How do I work? What's my philosophy?
-
-Start with action: "I am someone who..." or "I believe that..."
-Show your approach through a micro-story or example.
+Start with action. Show your approach through a micro-story or example.
 
 **Paragraph 2: WHAT DRIVES ME (100-130 words)**
 What gets me excited? What frustrates me? What makes me proud?
-
-Connect your values to concrete examples.
-Show emotion: pride, frustration, satisfaction.
+Connect your values to concrete examples. Show emotion.
 
 **Paragraph 3: WHERE I'M GOING (100-130 words)**
 What am I looking for? What kind of environment helps me thrive?
-
-Be specific about culture fit and what you need to succeed.
-End with forward momentum, not just "I hope to hear from you."
+Be specific about culture fit. End with forward momentum.
 
 # ═══════════════════════════════════════════════════════════════
 # WRITING RULES - ABSOLUTE REQUIREMENTS
@@ -176,8 +167,8 @@ End with forward momentum, not just "I hope to hear from you."
 **ALWAYS:**
 - ✅ Write in FIRST PERSON ("I am...", "I work...", "I believe...")
 - ✅ Tell MICRO-STORIES ("When X happened, I learned Y...")
-- ✅ Show VALUES through ACTIONS ("I stayed late because...")
-- ✅ Be SPECIFIC ("2 hours of debugging" not "problem-solving skills")
+- ✅ Show VALUES through ACTIONS
+- ✅ Be SPECIFIC
 
 **NEVER:**
 - ❌ Include person's NAME in text (added separately)
@@ -194,22 +185,12 @@ End with forward momentum, not just "I hope to hear from you."
 ❌ "I am a team player"
 ❌ "I have X years of experience"
 
-**USE INSTEAD:**
-✅ "I once spent 2 hours debugging until I found one misplaced comma—
-    frustrating, yes, but it taught me patience pays off"
-✅ "I don't know everything, but I know how to figure things out"
-✅ "At Elkome, I learned that asking for help isn't weakness—it's growth"
-
 # ═══════════════════════════════════════════════════════════════
 # PRIVACY PROTECTION - CRITICAL
 # ═══════════════════════════════════════════════════════════════
 
 **DO NOT include in generated text:**
-- Full name (will be added separately as header)
-- Email address
-- Phone number
-- Full home address
-- Any personally identifiable information
+- Full name, email, phone, full address, any personally identifiable information
 
 The system will add contact info separately as a header.
 
@@ -217,20 +198,9 @@ The system will add contact info separately as a header.
 # STYLE ADAPTATION
 # ═══════════════════════════════════════════════════════════════
 
-**If style is 'professional':**
-- More formal tone
-- Balanced emotion (confident but measured)
-- Focus on achievements and growth
-
-**If style is 'casual':**
-- Conversational tone
-- More personal anecdotes
-- Show personality strongly
-
-**If style is 'creative':**
-- Unique opening
-- Unexpected metaphors
-- Bold statements with backup
+**If style is 'professional':** More formal tone, balanced emotion, focus on growth.
+**If style is 'casual':** Conversational tone, personal anecdotes, strong personality.
+**If style is 'creative':** Unique opening, unexpected metaphors, bold statements with backup.
 
 # ═══════════════════════════════════════════════════════════════
 # 💬 USER'S SPECIAL INSTRUCTIONS
@@ -240,17 +210,13 @@ The system will add contact info separately as a header.
 {additionalNotes}
 
 **FOLLOW THESE CAREFULLY!**
-User knows their situation best. If they want to emphasize something specific,
-do it. If they provide context about location or availability, integrate it
-naturally.
+User knows their situation best.
 
 # ═══════════════════════════════════════════════════════════════
 # 🏢 COMPANY CONTEXT — OPEN APPLICATION
 # ═══════════════════════════════════════════════════════════════
 
 The applicant is sending an OPEN application to a specific company.
-Use the company context below to make the letter feel SPECIFIC to this
-company, not generic.
 
 **WHY THIS COMPANY (applicant's own words):**
 {companyMotivation}
@@ -265,25 +231,22 @@ company, not generic.
 
 **ABSOLUTE RULE — TRUTH:**
 - NEVER invent facts about the company.
-- If the company context above is empty or vague, do NOT make up details
-  about what the company does, its values, or its achievements.
+- If the company context above is empty or vague, do NOT make up details.
 - Only state things about the company that appear in the context above
   OR that the applicant explicitly wrote.
-- A genuine "I'm drawn to your focus on X" (where X is stated) beats
-  a fabricated "your industry-leading innovation in Y".
 
 # ═══════════════════════════════════════════════════════════════
 # QUALITY CHECKS
 # ═══════════════════════════════════════════════════════════════
 
 Before returning, verify:
-- [ ] Everything in first person ("I", not "he/she")
+- [ ] Everything in first person
 - [ ] No name in text body
 - [ ] 300-400 words total
 - [ ] No contact info in text
 - [ ] Tells stories, not lists
 - [ ] Complements CV (doesn't repeat it)
-- [ ] Sounds like a real person talking
+- [ ] Ends at the last real sentence (NO sign-off)
 
 {format_instructions}`],
 
@@ -301,6 +264,7 @@ Before returning, verify:
 4. Focus on CHARACTER, not credentials
 5. Tell stories, not lists
 6. NEVER repeat CV facts
+7. End at the last real sentence — NO sign-off, NO "Ystävällisin terveisin" or any closing
 
 **JOB CONTEXT:**
 {jobContext}
@@ -313,12 +277,10 @@ Skills: {skills}
 **PERSONALITY (THIS IS YOUR GOLD):**
 Working Style: {workingStyle}
 Problem Solving: {problemSolving}
-...
 
 **STORIES & EXAMPLES:**
 Best Example: {bestProjectExample}
 Failure Lesson: {failureLesson}
-...
 
 **USER'S SPECIAL INSTRUCTIONS:**
 {additionalNotes}
@@ -337,22 +299,10 @@ Return JSON with: content (the letter text), title (compelling subject line), ke
 
 function buildJobContext(input: CoverLetterInput): string {
   const parts: string[] = [];
-  
-  if (input.jobTitle) {
-    parts.push(`Target Position: ${input.jobTitle}`);
-  }
-  
-  if (input.companyName) {
-    parts.push(`Company: ${input.companyName}`);
-  }
-  
-  if (input.jobPosting) {
-    parts.push(`\nJob Description:\n${input.jobPosting.substring(0, 1000)}`);
-  }
-  
-  return parts.length > 0 
-    ? parts.join('\n') 
-    : 'General cover letter (no specific job target)';
+  if (input.jobTitle) parts.push(`Target Position: ${input.jobTitle}`);
+  if (input.companyName) parts.push(`Company: ${input.companyName}`);
+  if (input.jobPosting) parts.push(`\nJob Description:\n${input.jobPosting.substring(0, 1000)}`);
+  return parts.length > 0 ? parts.join('\n') : 'General cover letter (no specific job target)';
 }
 
 function buildExperienceLevelGuidance(level: 'limited' | 'mid' | 'experienced'): string {
@@ -363,14 +313,12 @@ EMPHASIZE: Motivation, learning ability, potential, fresh perspective
 TONE: Enthusiastic but genuine, humble but confident
 AVOID: Apologizing for lack of experience
 INSTEAD: Frame it as hunger to learn and grow`,
-    
     mid: `
 You're writing for someone with MID-LEVEL experience.
 EMPHASIZE: How they've evolved, self-awareness, clear direction
 TONE: Mature and reflective, balanced confidence
 AVOID: Listing accomplishments
 INSTEAD: Show growth trajectory and lessons learned`,
-    
     experienced: `
 You're writing for someone with EXTENSIVE experience.
 EMPHASIZE: Wisdom gained, leadership, strategic thinking
@@ -378,7 +326,6 @@ TONE: Authoritative but relatable, mentor-like
 AVOID: Just listing years or titles
 INSTEAD: Show what those years taught them`
   };
-  
   return guidance[level];
 }
 
@@ -386,10 +333,8 @@ function getMessageContent(message: unknown): string {
   if (typeof message === "string") return message;
   if (typeof message !== "object" || message === null) return "";
   if (!("content" in message)) return "";
-  
   const content = (message as { content: unknown }).content;
   if (typeof content === "string") return content;
-  
   if (Array.isArray(content)) {
     return content
       .map((item: unknown) => {
@@ -402,7 +347,6 @@ function getMessageContent(message: unknown): string {
       .filter(Boolean)
       .join(" ");
   }
-  
   return "";
 }
 
@@ -417,15 +361,12 @@ export async function generateGeneralCoverLetter(
   console.log(`   - Experience level detection...`);
 
   try {
-    // STEP 1: Detect Experience Level
     const experienceLevel = detectExperienceLevel(input);
     console.log(`   - Detected level: ${experienceLevel}`);
 
-    // STEP 2: Build Context
     const jobContext = buildJobContext(input);
     const experienceLevelGuidance = buildExperienceLevelGuidance(experienceLevel);
-    
-    // STEP 3: Build RAG Context (if enabled)
+
     let knowledgeContext = '';
     if (input.enableRAG) {
       try {
@@ -437,9 +378,8 @@ export async function generateGeneralCoverLetter(
             workExperience: input.workExperience,
             education: input.education,
           },
-          
           enableRAG: true,
-          language: input.language || 'finnish',   // ✅ LISÄÄ TÄMÄ
+          language: input.language || 'finnish',
           contentType: 'cover_letter'
         });
         console.log(`   ✅ RAG context: ${knowledgeContext.length} chars`);
@@ -449,9 +389,8 @@ export async function generateGeneralCoverLetter(
       }
     }
 
-    // STEP 4: AI Generation
     console.log('🤖 [AI] Generating cover letter...');
-    
+
     const model = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY!,
       modelName: "gpt-4o-mini",
@@ -459,8 +398,8 @@ export async function generateGeneralCoverLetter(
       timeout: 60000,
     });
     const isFinnish = (input.language || 'finnish').toLowerCase().includes('fi');
-const finnishStyle = isFinnish ? FINNISH_STYLE_RULES : '';
-const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
+    const finnishStyle = isFinnish ? FINNISH_STYLE_RULES : '';
+    const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
 
     const formatted = await adaptivePrompt.formatMessages({
       knowledgeContext: knowledgeContext || '',
@@ -470,19 +409,15 @@ const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
       language: input.language || 'finnish',
       style: input.style || 'professional',
       additionalNotes: input.additionalNotes || 'None',
-       finnishStyle,
-  appGuide,
+      finnishStyle,
+      appGuide,
       companyMotivation: input.companyMotivation?.trim() || 'Not provided',
       companyAboutText: input.companyAboutText?.trim()
         ? input.companyAboutText.substring(0, 1500)
         : 'Not provided',
-
-      // Profile data
       workExperience: input.workExperience || 'Building experience',
       education: input.education || 'Learning',
       skills: input.skills || 'Developing skills',
-      
-      // Personality (THE GOLD!)
       workingStyle: input.workingStyle || 'Adaptable',
       problemSolving: input.problemSolving || 'Resourceful',
       uniqueStrength: input.uniqueStrength || 'Motivated',
@@ -490,31 +425,26 @@ const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
       energySources: input.energySources || 'Challenges',
       learningStyle: input.learningStyle || 'Hands-on',
       teamRole: input.teamRole || 'Contributor',
-      
-      // Stories
       bestProjectExample: input.bestProjectExample || '',
       failureLesson: input.failureLesson || '',
       valuesExample: input.valuesExample || '',
       careerGoals: input.careerGoals || '',
-      
       format_instructions: outputParser.getFormatInstructions()
     });
 
     const result = await Promise.race([
       model.invoke(formatted),
-      new Promise<never>((_, reject) => 
+      new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('AI timeout')), 60000)
       )
     ]);
 
     const rawContent = getMessageContent(result);
-    
-    // STEP 5: Parse
+
     console.log('📋 [PARSE] Parsing response...');
-    
+
     let parsed: CoverLetterOutput;
     try {
-      // Try to extract JSON
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsed = await outputParser.parse(jsonMatch[0]);
@@ -523,7 +453,6 @@ const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
       }
     } catch (parseError) {
       console.error('   ❌ Parse failed, using fallback');
-      // Fallback
       parsed = {
         content: rawContent.substring(0, 2000),
         title: `Application for ${input.jobTitle || 'Position'}`,
@@ -535,27 +464,28 @@ const appGuide = isFinnish ? GOOD_APPLICATION_GUIDE : '';
       };
     }
 
-    // STEP 6: Validate
+    // ✅ Kielineutraali allekirjoituksen poisto (general ei aiemmin siivonnut lainkaan)
+    parsed.content = stripSignoff(parsed.content);
+
     const wordCount = parsed.content.split(/\s+/).length;
     console.log(`   - Word count: ${wordCount}`);
-    
+
     if (wordCount < 200) {
       console.warn('   ⚠️ Content too short, might need regeneration');
     }
 
-    // Check for privacy violations
     if (input.name && parsed.content.includes(input.name)) {
       console.warn('   ⚠️ Name found in content, removing...');
-      parsed.content = parsed.content.replace(new RegExp(input.name, 'gi'), '[Name]');
+      parsed.content = parsed.content.replace(new RegExp(input.name, 'gi'), '').trim();
     }
-    
+
     if (input.email && parsed.content.includes(input.email)) {
       console.warn('   ⚠️ Email found in content, removing...');
-      parsed.content = parsed.content.replace(new RegExp(input.email, 'gi'), '[Email]');
+      parsed.content = parsed.content.replace(new RegExp(input.email, 'gi'), '').trim();
     }
 
     console.log('✅ [COVER LETTER] Generation complete');
-    
+
     return parsed;
 
   } catch (error) {
