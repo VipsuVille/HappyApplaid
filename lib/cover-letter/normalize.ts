@@ -48,3 +48,39 @@ export function stripHtml(html: string | undefined | null): string {
     .replace(/&gt;/g, '>')
     .trim();
 }
+/**
+ * ✅ Poistaa allekirjoituksen / lopputervehdyksen kirjeen lopusta.
+ * KIELINEUTRAALI: ei perustu sanalistaan, vaan allekirjoituksen MUOTOON:
+ *   - viimeinen rivi joka päättyy pilkkuun ("Ystävällisin terveisin,", "Best regards,")
+ *   - TAI lyhyt rivi (alle 5 sanaa) joka ei pääty virkkeen lopetusmerkkiin
+ * Toimii suomeksi, englanniksi, ruotsiksi, saksaksi — millä tahansa kielellä.
+ *
+ * Tarkistaa enintään 2 viimeistä riviä (esim. "Ystävällisin terveisin," + nimi).
+ */
+export function stripSignoff(text: string | undefined | null): string {
+  if (!text) return '';
+
+  let lines = text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  // Poista enintään 2 allekirjoitusriviä lopusta
+  for (let i = 0; i < 2; i++) {
+    if (lines.length === 0) break;
+    const last = lines[lines.length - 1];
+    const wordCount = last.split(/\s+/).length;
+
+    const endsWithComma = last.endsWith(',');
+    const isShortNonSentence = wordCount <= 4 && !/[.!?:]$/.test(last);
+
+    if (endsWithComma || isShortNonSentence) {
+      lines.pop();
+    } else {
+      break; // ei näytä allekirjoitukselta → lopeta
+    }
+  }
+
+  return lines.join('\n').trim();
+}

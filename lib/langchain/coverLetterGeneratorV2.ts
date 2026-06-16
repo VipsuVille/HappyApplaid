@@ -13,7 +13,7 @@ import {
 } from "@/lib/langchain/responseHelper";
 import { buildAIContext } from "@/lib/knowledge";                 // ✅ RAG
 import { FINNISH_STYLE_RULES } from "./finnishStyle";
-import { GOOD_APPLICATION_GUIDE } from "./goodApplicationguide";  // ✅ kirjainkoko täsmää tiedostoon
+import { GOOD_APPLICATION_GUIDE } from "./goodApplicationGuide";  // ✅ kirjainkoko täsmää tiedostoon
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -303,6 +303,7 @@ export async function generateATSCoverLetterV2(
       const analysis = await analyzeJobAndProfile({
         jobDescription: enrichedInput.jobDescription,
         userProfile: {
+          name: 'Applicant',
           workExperience: enrichedInput.workExperience || '',
           education: enrichedInput.education || '',
           skills: enrichedInput.skills || '',
@@ -390,23 +391,21 @@ export async function generateATSCoverLetterV2(
     try {
       knowledgeContext = await buildAIContext({
         jobDescription: enrichedInput.jobDescription,
-        userProfile: { skills: enrichedInput.skills, workExperience: enrichedInput.workExperience, education: enrichedInput.education },
+        userProfile: { name: enrichedInput.name, skills: enrichedInput.skills, workExperience: enrichedInput.workExperience, education: enrichedInput.education },
         enableRAG: true,
         contentType: 'cover_letter',
         language: enrichedInput.language || 'finnish',
       });
     } catch { knowledgeContext = ''; }
   }
-console.log('🔍 V2 RAG enableRAG:', enrichedInput.enableRAG,
-            '| ctx pituus:', knowledgeContext?.length || 0,
-            '| alku:', (knowledgeContext || '').slice(0, 150));
+
   let iteration = 0;
   let bestContent = "";
   let bestScore = 0;
   let bestAnalysis: any = null;
 
-  const targetScore = 65;
-  const maxIterations = 2;
+  const targetScore = 75;
+  const maxIterations = 3;
 
   while (iteration < maxIterations) {
     iteration++;
