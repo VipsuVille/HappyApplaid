@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
           followUpAnswers: body.followUpAnswers,
           language: body.language || 'finnish',
         });
-        if (experienceGap.hasGap && experienceGap.severity !== 'none') {
+       if (experienceGap.hasGap && experienceGap.severity === 'critical') {
           return NextResponse.json({ needsWarning: true, experienceGap, message: 'Experience gap detected' });
         }
       } catch (error) {
