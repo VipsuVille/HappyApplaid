@@ -25,6 +25,8 @@ import { useLanguage } from '@/context/LanguageContext';
 import CVConfirmationModal from "@/components/CVConfirmationModal";
 import TemplateThumb from "@/components/cover-letter/TemplateThumb";
 import ExperienceGapModal, { type ExperienceGapData } from "@/components/ExperienceGapModal";
+import GenerationProgress from "@/components/Generationprogress";
+
 
 type LetterType = "job_specific" | "general";
 type LetterVersion = "v1" | "v2";
@@ -44,6 +46,8 @@ export default function CreateCoverLetterPage() {
   const [jobPosting, setJobPosting] = useState("");
   const [targetIndustry, setTargetIndustry] = useState("");
   const [targetRole, setTargetRole] = useState("");
+const [genDone, setGenDone] = useState(false);
+
 
   const [openAppCompany, setOpenAppCompany] = useState("");
   const [companyMotivation, setCompanyMotivation] = useState("");
@@ -163,7 +167,15 @@ const [gapData, setGapData] = useState<ExperienceGapData | null>(null);
     if (letterType === 'general') return 'general';
     return letterVersion === 'v2' ? 'ats-v2' : 'ats-v1';
   }, [letterType, letterVersion]);
-
+  useEffect(() => {
+    // Jos edellinen generointi jäi "päälle" (esim. käyttäjä poistui kesken),
+    // nollaa tila kun sivu avataan uudelleen.
+    if (isGenerating) {
+      cancelGeneration();
+    }
+    setGenDone(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) return;
@@ -208,6 +220,8 @@ const handleGenerateLetter = async (confirmedViolations?: any, skipExperienceChe
 
     try {
       startGeneration('cover_letter', { templateType: letterType, language: letterLanguage });
+      setGenDone(false);
+
 
       let jobTitle: string | undefined;
       let companyName: string | undefined;
@@ -262,14 +276,12 @@ const handleGenerateLetter = async (confirmedViolations?: any, skipExperienceChe
         skipExperienceCheck: !!skipExperienceCheck, 
       };
 
-      setStage('analyzing', 20);
       const response = await fetch("/api/generate-cover-letter", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
       const data = await response.json();
-      setStage('generating', 50);
-      setStage('finalizing', 80);
+  
 
       if (response.status === 429) {
         cancelGeneration();
@@ -285,6 +297,7 @@ const handleGenerateLetter = async (confirmedViolations?: any, skipExperienceChe
       }
 
       if (data.success) {
+        setGenDone(true);                              // ✅ täytä palkki 100%
         completeGeneration(data.coverLetterId || data.id);
         toast.success(t.success);
         refresh();
@@ -727,7 +740,16 @@ const handleGenerateLetter = async (confirmedViolations?: any, skipExperienceChe
                     <p className="text-lg font-black text-foreground">{isPaid ? t.planPaid : t.planFree}</p>
                   </div>
                 </div>
-
+{(isGenerating || genDone) && (
+                  <div className="mb-5">
+                    <GenerationProgress
+                      active={isGenerating}
+                      done={genDone}
+                      language={isFinnish ? 'fi' : 'en'}
+                      estimatedSeconds={apiType === 'general' ? 12 : 25}
+                    />
+                  </div>
+                )}
                 <Button
                   onClick={() => handleGenerateLetter()}
                   disabled={isGenerating || !profileValidation?.isValid || (letterType === 'job_specific' && !jobPosting.trim())}
