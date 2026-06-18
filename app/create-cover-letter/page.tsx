@@ -25,7 +25,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import CVConfirmationModal from "@/components/CVConfirmationModal";
 import TemplateThumb from "@/components/cover-letter/TemplateThumb";
 import ExperienceGapModal, { type ExperienceGapData } from "@/components/ExperienceGapModal";
-import GenerationProgress from "@/components/Generationprogress";
+import GenerationProgress from "@/components/GenerationProgress";
 
 
 type LetterType = "job_specific" | "general";
