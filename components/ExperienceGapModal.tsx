@@ -1,18 +1,17 @@
 // components/ExperienceGapModal.tsx
-// ✅ Gap-modaali: näyttää käyttäjälle ystävällisesti jos hakemuksessa on kokemuspuutteita.
-//    - Näytetään VAIN severity 'moderate' | 'critical' (ei 'minor' / 'none').
-//    - "Luo silti" → kutsuu generoinnin uudelleen skipExperienceCheck=true (ei uutta gap-AI-kutsua).
-//    - Sävy: kannustava, EI tyrmäävä. Ei "et pääse läpi" vaan "tässä on huomioitavaa".
-//    - Käyttää sovelluksen design-tokeneita (bg-card, border-border, text-foreground…) → istuu light+dark.
+// ✅ Gap-modaali: ystävällinen, EI tekninen, EI nappimainen.
+//    - Puutteet näytetään pehmeänä listana (ei laatikko-"nappeja").
+//    - Sävy kannustava, ei raporttimainen.
+//    - "Luo silti" → skipExperienceCheck=true.
+//    - Design-tokenit → light+dark.
 'use client';
 
-import { AlertTriangle, ArrowRight, X, Lightbulb, CheckCircle2, Sparkles } from 'lucide-react';
+import { Lightbulb, ArrowRight, X, Sparkles } from 'lucide-react';
 
-// Vastaa experienceGapAnalyzer.ts:n ExperienceGap-tyyppiä (oleelliset kentät)
 export interface ExperienceGapData {
   hasGap: boolean;
   severity: 'none' | 'minor' | 'moderate' | 'critical';
-  passLikelihood: number; // 0-100
+  passLikelihood: number;
   missingExperiences: {
     skill: string;
     required: boolean;
@@ -27,8 +26,8 @@ export interface ExperienceGapData {
 interface ExperienceGapModalProps {
   gap: ExperienceGapData;
   language?: 'fi' | 'en';
-  onProceed: () => void;   // "Luo silti" → generoi skipExperienceCheck=true
-  onCancel: () => void;    // "Muokkaa profiilia" / sulje
+  onProceed: () => void;
+  onCancel: () => void;
 }
 
 export default function ExperienceGapModal({
@@ -39,47 +38,35 @@ export default function ExperienceGapModal({
 }: ExperienceGapModalProps) {
   const isFi = language === 'fi';
 
-  // Näytä vain merkittävät puutteet (impact critical/important), max 5
+  // Näytä vain tärkeimmät puutteet, max 4 — ja vain skill-nimet + lyhyt selite
   const shownMissing = (gap.missingExperiences || [])
     .filter((m) => m.impact === 'critical' || m.impact === 'important')
-    .slice(0, 5);
+    .slice(0, 4);
 
   const shownRecommendations = (gap.recommendations || []).slice(0, 3);
-
-  // Sävy passLikelihoodin mukaan — aina kannustava
   const likelihood = Math.max(0, Math.min(100, Math.round(gap.passLikelihood || 0)));
 
   const t = isFi
     ? {
-        title: 'Muutama asia kannattaa huomioida',
+        title: 'Pari ajatusta ennen kuin jatkat',
         subtitle:
-          'Kävimme ilmoituksen läpi ja huomasimme, että profiilistasi voi puuttua joitakin asioita, joita työnantaja painottaa. Voit luoda hakukirjeen silti — me korostamme vahvuuksiasi ja kerromme rehellisesti siitä mitä olet oppimassa.',
-        matchLabel: 'Arvioitu osuvuus ilmoitukseen',
-        missingTitle: 'Ilmoituksessa painotetaan, mutta profiilistasi ei löytynyt selvästi:',
-        impactCritical: 'Keskeinen',
-        impactImportant: 'Tärkeä',
-        recTitle: 'Vinkkejä',
+          'Kävimme ilmoituksen läpi. Työnantaja vaikuttaa painottavan muutamaa asiaa, joita profiilistasi ei löytynyt selvästi. Voit silti luoda kirjeen — korostamme vahvuuksiasi ja kerromme rehellisesti siitä, mitä olet innokas oppimaan.',
+        missingTitle: 'Ilmoituksessa painottuu erityisesti:',
+        recTitle: 'Jos haluat vahvistaa hakemustasi myöhemmin:',
         proceed: 'Luo hakukirje silti',
-        cancel: 'Täydennä profiilia ensin',
-        note: 'Hakukirje tehdään rehellisesti — emme keksi kokemusta jota sinulla ei ole, vaan kerromme kiinnostuksestasi oppia.',
+        cancel: 'Täydennän profiilini ensin',
+        note: 'Emme keksi kokemusta jota sinulla ei ole — kerromme kiinnostuksestasi oppia.',
       }
     : {
-        title: 'A few things worth noting',
+        title: 'A couple of thoughts before you continue',
         subtitle:
-          "We reviewed the posting and noticed your profile may be missing some things the employer emphasizes. You can still create the letter — we'll highlight your strengths and be honest about what you're eager to learn.",
-        matchLabel: 'Estimated match to posting',
-        missingTitle: "Emphasized in the posting but not clearly found in your profile:",
-        impactCritical: 'Key',
-        impactImportant: 'Important',
-        recTitle: 'Tips',
+          "We reviewed the posting. The employer seems to emphasize a few things not clearly found in your profile. You can still create the letter — we'll highlight your strengths and honestly express what you're eager to learn.",
+        missingTitle: 'The posting especially emphasizes:',
+        recTitle: 'If you want to strengthen your application later:',
         proceed: 'Create letter anyway',
-        cancel: 'Complete profile first',
-        note: "The letter stays honest — we won't invent experience you don't have; we express your eagerness to learn instead.",
+        cancel: "I'll complete my profile first",
+        note: "We won't invent experience you don't have — we express your eagerness to learn.",
       };
-
-  // Värisävy: kannustava keltainen/amber (ei punainen = ei "epäonnistuminen")
-  const barColor =
-    likelihood >= 60 ? 'bg-emerald-500' : likelihood >= 40 ? 'bg-amber-500' : 'bg-orange-500';
 
   return (
     <div
@@ -90,10 +77,9 @@ export default function ExperienceGapModal({
       aria-labelledby="gap-modal-title"
     >
       <div
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-3xl shadow-2xl"
+        className="relative w-full max-w-md max-h-[88vh] overflow-y-auto bg-card border border-border rounded-3xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Sulje */}
         <button
           onClick={onCancel}
           className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
@@ -102,61 +88,34 @@ export default function ExperienceGapModal({
           <X className="w-4 h-4" />
         </button>
 
-        <div className="p-6 md:p-8">
-          {/* Otsikko */}
-          <div className="flex items-start gap-3 mb-4">
-            <div className="flex items-center justify-center w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/25 shrink-0">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
+        <div className="p-6 md:p-7">
+          {/* Otsikko — ystävällinen, ei varoituskolmiota */}
+          <div className="flex items-center gap-3 mb-3 pr-6">
+            <div className="flex items-center justify-center w-10 h-10 rounded-2xl bg-amber-500/15 shrink-0">
+              <Sparkles className="w-5 h-5 text-amber-500" />
             </div>
-            <div className="min-w-0 pr-6">
-              <h2 id="gap-modal-title" className="text-lg font-bold text-foreground">
-                {t.title}
-              </h2>
-            </div>
+            <h2 id="gap-modal-title" className="text-base font-bold text-foreground leading-snug">
+              {t.title}
+            </h2>
           </div>
 
-          {/* Selite */}
-          <p className="text-sm text-muted-foreground leading-relaxed mb-6">{t.subtitle}</p>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-5">{t.subtitle}</p>
 
-          {/* Osuvuusmittari */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-foreground">{t.matchLabel}</span>
-              <span className="text-sm font-black text-foreground">{likelihood}%</span>
-            </div>
-            <div className="w-full h-2.5 rounded-full bg-muted overflow-hidden">
-              <div
-                className={`h-full ${barColor} rounded-full transition-all`}
-                style={{ width: `${likelihood}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Puuttuvat asiat */}
+          {/* Puutteet — pehmeä lista, EI laatikko-nappeja. Vain skill-nimi lihavoituna + selite. */}
           {shownMissing.length > 0 && (
-            <div className="mb-6">
-              <p className="text-xs font-bold text-foreground mb-3">{t.missingTitle}</p>
+            <div className="mb-5">
+              <p className="text-xs font-semibold text-muted-foreground mb-2.5">{t.missingTitle}</p>
               <ul className="space-y-2.5">
                 {shownMissing.map((m, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-3 p-3 rounded-xl bg-muted border border-border"
-                  >
-                    <span
-                      className={`shrink-0 mt-0.5 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                        m.impact === 'critical'
-                          ? 'bg-orange-500/15 text-orange-500 border border-orange-500/25'
-                          : 'bg-amber-500/15 text-amber-500 border border-amber-500/25'
-                      }`}
-                    >
-                      {m.impact === 'critical' ? t.impactCritical : t.impactImportant}
-                    </span>
+                  <li key={i} className="flex items-start gap-2.5">
+                    <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{m.skill}</p>
+                      <span className="text-sm font-semibold text-foreground">{m.skill}</span>
                       {m.explanation && (
-                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                        <span className="text-sm text-muted-foreground">
+                          {' — '}
                           {m.explanation}
-                        </p>
+                        </span>
                       )}
                     </div>
                   </li>
@@ -165,18 +124,17 @@ export default function ExperienceGapModal({
             </div>
           )}
 
-          {/* Vinkit */}
+          {/* Vinkit — kevyt, ei korostettu laatikko */}
           {shownRecommendations.length > 0 && (
-            <div className="mb-6 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/20">
-              <div className="flex items-center gap-2 mb-2">
-                <Lightbulb className="w-4 h-4 text-blue-400" />
-                <span className="text-xs font-bold text-foreground">{t.recTitle}</span>
+            <div className="mb-5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Lightbulb className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-xs font-semibold text-muted-foreground">{t.recTitle}</span>
               </div>
-              <ul className="space-y-1.5">
+              <ul className="space-y-1.5 pl-1">
                 {shownRecommendations.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground leading-relaxed">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-                    <span>{r}</span>
+                  <li key={i} className="text-xs text-muted-foreground leading-relaxed">
+                    • {r}
                   </li>
                 ))}
               </ul>
@@ -184,25 +142,24 @@ export default function ExperienceGapModal({
           )}
 
           {/* Rehellisyys-huomautus */}
-          <div className="mb-6 flex items-start gap-2 text-[11px] text-muted-foreground leading-relaxed">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <span>{t.note}</span>
-          </div>
+          <p className="text-[11px] text-muted-foreground/80 italic leading-relaxed mb-5">
+            {t.note}
+          </p>
 
-          {/* Napit */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={onCancel}
-              className="flex-1 py-3 px-4 rounded-2xl border border-border bg-muted hover:bg-muted/70 text-sm font-semibold text-foreground transition-colors"
-            >
-              {t.cancel}
-            </button>
+          {/* Napit — NÄMÄ ovat oikeita nappeja, selvästi erottuvat */}
+          <div className="flex flex-col gap-2.5">
             <button
               onClick={onProceed}
-              className="flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 text-white text-sm font-bold hover:scale-[1.02] transition-transform flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-600 text-white text-sm font-bold hover:scale-[1.01] transition-transform flex items-center justify-center gap-2"
             >
               {t.proceed}
               <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onCancel}
+              className="w-full py-2.5 px-4 rounded-2xl text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              {t.cancel}
             </button>
           </div>
         </div>
