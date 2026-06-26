@@ -1,4 +1,9 @@
 "use client";
+// app/cv-preview/[cvId]/page.tsx
+// ✅ KORJAUS: layout + sectionScales + columnScales luetaan tallennetusta
+//    cv_datasta ja VÄLITETÄÄN templatelle. Ennen vain fontScale/lineScale
+//    menivät läpi → PDF/my-cvs eivät kunnioittaneet kuvan kokoa (photoWidthMm/
+//    photoHeightMm), palstaleveyttä eivätkä osioiden tilaa. Nyt menevät.
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
@@ -182,6 +187,13 @@ export default function CVPreviewPage() {
   const fontScale = cvd.fontScale ?? 1.0;
   const lineScale = cvd.lineScale ?? 1.0;
 
+  // ✅ FIX: Read layout/section/column scales too — muuten PDF/my-cvs eivät
+  //         kunnioita kuvan kokoa (photoWidthMm/photoHeightMm), palstaleveyttä,
+  //         osioiden tilaa eivätkä palstojen fonttiskaalaa.
+  const sectionScales = cvd.sectionScales ?? {};
+  const columnScales = cvd.columnScales ?? { left: 1, right: 1 };
+  const layout = cvd.layout ?? { leftColumnMm: 70, bannerHeightMm: 85 };
+
   const templateType = cv.metadata?.cv_type || cvd.cvType || aid.cv_type || "simple";
 
   let TemplateComponent: any;
@@ -210,7 +222,7 @@ export default function CVPreviewPage() {
 
       <div style={{ margin: 0, padding: 0, backgroundColor: "white", minHeight: "100vh", width: "100%" }}>
         <CVContainer data-template-type={templateType} className="mx-auto">
-          {/* ✅ FIX: Pass fontScale/lineScale from saved data */}
+          {/* ✅ FIX: Pass fontScale/lineScale + layout/sectionScales/columnScales from saved data */}
           <TemplateComponent
             data={cvd as UserFormData}
             aiData={aid as AIData}
@@ -219,6 +231,9 @@ export default function CVPreviewPage() {
             showEditControls={false}
             fontScale={fontScale}
             lineScale={lineScale}
+            sectionScales={sectionScales}
+            columnScales={columnScales}
+            layout={layout}
           />
         </CVContainer>
       </div>
