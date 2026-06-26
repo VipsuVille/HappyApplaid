@@ -540,7 +540,7 @@ const resolveImg = useCallback((val?: string): string => {
     });
   }, [handleUpdate]);
 
-  const updateLayout = useCallback((key: 'leftColumnMm' | 'bannerHeightMm', val: number) => {
+const updateLayout = useCallback((key: 'leftColumnMm' | 'bannerHeightMm' | 'photoWidthMm' | 'photoHeightMm', val: number) => {
     setLayout(prev => {
       const next = { ...prev, [key]: val };
       handleUpdate('layout', next);
@@ -548,13 +548,14 @@ const resolveImg = useCallback((val?: string): string => {
     });
   }, [handleUpdate]);
 
-  const resetSectionScales = useCallback(() => {
+const resetSectionScales = useCallback(() => {
     setSectionScales({});
     setColumnScales({ left: 1, right: 1 });
-    setLayout({ leftColumnMm: 70, bannerHeightMm: 85 });
+    const resetLayout = { leftColumnMm: 70, bannerHeightMm: 85, photoWidthMm: 70, photoHeightMm: 85 };
+    setLayout(resetLayout);
     handleUpdate('sectionScales', {});
     handleUpdate('columnScales', { left: 1, right: 1 });
-    handleUpdate('layout', { leftColumnMm: 70, bannerHeightMm: 85 });
+    handleUpdate('layout', resetLayout);   // ✅ sama objekti kuin setLayoutissa
   }, [handleUpdate]);
 
   // ── Save ───────────────────────────────────────────────────────────
@@ -953,6 +954,43 @@ const currentProfile = resolveImg(cvData.cv_data?.profileImage || cvData.ai_data
                     />
                     <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
                       <span>Kapea</span><span>Leveä (kuva + taidot)</span>
+                    </div>
+                  </div>
+                  )}
+                  {/* ✅ UUSI: Kuvan leveys (irti palstan leveydestä) */}
+                  {cvType === 'technical' && (
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Kuvan leveys</label>
+                      <span className="text-xs font-mono text-teal-600 dark:text-teal-400">{layout.photoWidthMm ?? layout.leftColumnMm}mm</span>
+                    </div>
+                    <input type="range" min="30" max={layout.leftColumnMm} step="1"
+                      value={layout.photoWidthMm ?? layout.leftColumnMm}
+                      onChange={e => updateLayout('photoWidthMm', Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: '#14b8a6' }}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>Kapea kuva</span><span>Täysi palsta</span>
+                    </div>
+                  </div>
+                  )}
+
+                  {/* ✅ UUSI: Kuvan korkeus (irti yläbannerin korkeudesta) */}
+                  {cvType === 'technical' && (
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Kuvan korkeus</label>
+                      <span className="text-xs font-mono text-teal-600 dark:text-teal-400">{layout.photoHeightMm ?? layout.bannerHeightMm}mm</span>
+                    </div>
+                    <input type="range" min="40" max="160" step="1"
+                      value={layout.photoHeightMm ?? layout.bannerHeightMm}
+                      onChange={e => updateLayout('photoHeightMm', Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: '#14b8a6' }}
+                    />
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                      <span>Matala kuva</span><span>Korkea kuva</span>
                     </div>
                   </div>
                   )}

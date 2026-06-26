@@ -28,6 +28,8 @@ export const DEFAULT_COLUMN_SCALES: ColumnScales = { left: 1, right: 1 };
 export interface LayoutConfig {
   leftColumnMm: number;
   bannerHeightMm: number;
+  photoWidthMm?: number;    // ✅ UUSI: kuvan leveys (irti palstan leveydestä jos halutaan)
+  photoHeightMm?: number;   // ✅ UUSI: kuvan korkeus (irti bannerin korkeudesta)
 }
 export const DEFAULT_LAYOUT: LayoutConfig = { leftColumnMm: 70, bannerHeightMm: 85 };
 export const PAGE_WIDTH_MM = 210;

@@ -2,9 +2,11 @@
 // components/cv/CVTemplateTechnical.tsx
 // ════════════════════════════════════════════════════════════════════
 //  TECHNICAL CV — TIE B SKIN
-//  Tämä on nyt OHUT ulkoasu (skin) moottorin päällä.
-//  Kaikki muokkauslogiikka, parserit ja skaalat tulevat useCVEngine:stä.
-//  Tämä tiedosto määrittää vain: värit, asettelu, otsikkotyylit.
+//  ✅ KORJAUS: kuvan korkeus/leveys IRROTETTU bannerista.
+//     - Kuva: photoHeightMm (oma korkeus) + photoWidthMm (oma leveys)
+//     - Banneri (oikea): bannerMm (oma korkeus, ei vaikuta kuvaan)
+//     - Vasen palsta: leftMm (oma leveys, ei vaikuta kuvaan)
+//     Jos uudet arvot puuttuvat → vanha käyttäytyminen (photoH=bannerMm, photoW=100%).
 // ════════════════════════════════════════════════════════════════════
 
 import React, { useState } from "react";
@@ -67,6 +69,13 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = (props) => {
     profileImg, bgImage, getAI,
     skillCategories, workExperience, education, projects, name, cvTitle,
   } = eng;
+
+  // ✅ KUVAN OMAT MITAT — irti bannerista.
+  //    Jos layout.photoHeightMm / photoWidthMm puuttuu → vanha käyttäytyminen:
+  //      korkeus = bannerMm (kuten ennen), leveys = koko palsta (leftMm).
+  const layoutCfg = props.layout || ({} as LayoutConfig);
+  const photoHeightMm = layoutCfg.photoHeightMm ?? bannerMm;   // oletus = vanha (bannerMm)
+  const photoWidthMm  = layoutCfg.photoWidthMm  ?? leftMm;     // oletus = koko palstan leveys
 
   const [sectionOrder, setSectionOrder] = useState(["experience", "projects", "education", "languages"]);
   const [skillsTop, setSkillsTop] = useState(0);
@@ -231,8 +240,10 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = (props) => {
 
       {/* LEFT COLUMN */}
       <div style={{ position: "absolute", left: 0, top: 0, width: `${leftMm}mm`, minHeight: "297mm", background: "linear-gradient(180deg,#1a1a1a 0%,#2d2d2d 100%)", color: "white" }}>
-        {/* Photo */}
-        <div style={{ width: "100%", height: `${bannerMm}mm`, overflow: "hidden" }}>
+        {/* ✅ Photo — OMA korkeus (photoHeightMm) ja leveys (photoWidthMm), IRTI bannerista.
+            Kuva ei enää madaltu kun yläbanneria säädetään.
+            Jos kuva on kapeampi kuin palsta, vasen reuna täyttyy taustagradientilla. */}
+        <div style={{ width: `${photoWidthMm}mm`, height: `${photoHeightMm}mm`, overflow: "hidden" }}>
           {profileImg
             ? <img src={profileImg} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: "contrast(1.05) brightness(.95)" }} />
             : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "48pt", fontWeight: 300, background: "linear-gradient(135deg,#4a4a4a,#2a2a2a)", letterSpacing: ".05em" }}>
@@ -291,7 +302,7 @@ const TechnicalCVTemplate: React.FC<TechnicalCVTemplateProps> = (props) => {
 
       {/* RIGHT COLUMN */}
       <div style={{ marginLeft: `${leftMm}mm`, width: `${rightMm}mm`, minHeight: "297mm" }}>
-        {/* Banner */}
+        {/* Banner — OMA korkeus (bannerMm), EI vaikuta kuvaan */}
         <div style={{ height: `${bannerMm}mm`, position: "relative", backgroundImage: bgImage ? `url(${bgImage})` : "linear-gradient(135deg,#2c3e50,#34495e)", backgroundSize: "cover", backgroundPosition: "center", color: "white" }}>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg,rgba(0,0,0,.5),rgba(0,0,0,.35))" }} />
           <div style={{ position: "relative", zIndex: 10, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "10mm" }}>
